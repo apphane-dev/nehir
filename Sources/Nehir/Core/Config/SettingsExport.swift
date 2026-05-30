@@ -73,6 +73,7 @@ struct SettingsExport: Equatable {
     var mouseResizeModifierKey: String
     var gestureFingerCount: Int
     var gestureInvertDirection: Bool
+    var gestureScrollSnap: Bool
     var statusBarShowWorkspaceName: Bool
     var statusBarShowAppNames: Bool
     var statusBarUseWorkspaceId: Bool
@@ -143,6 +144,7 @@ extension SettingsExport {
             mouseResizeModifierKey: MouseResizeModifierKey.option.rawValue,
             gestureFingerCount: GestureFingerCount.three.rawValue,
             gestureInvertDirection: true,
+            gestureScrollSnap: true,
             statusBarShowWorkspaceName: false,
             statusBarShowAppNames: false,
             statusBarUseWorkspaceId: false,

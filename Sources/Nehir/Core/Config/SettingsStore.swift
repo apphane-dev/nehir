@@ -261,6 +261,10 @@ final class SettingsStore {
         didSet { scheduleSave() }
     }
 
+    var gestureScrollSnap = SettingsStore.defaultExport.gestureScrollSnap {
+        didSet { scheduleSave() }
+    }
+
     var statusBarShowWorkspaceName = SettingsStore.defaultExport.statusBarShowWorkspaceName {
         didSet { scheduleSave() }
     }
@@ -417,6 +421,7 @@ final class SettingsStore {
             mouseResizeModifierKey: mouseResizeModifierKey.rawValue,
             gestureFingerCount: gestureFingerCount.rawValue,
             gestureInvertDirection: gestureInvertDirection,
+            gestureScrollSnap: gestureScrollSnap,
             statusBarShowWorkspaceName: statusBarShowWorkspaceName,
             statusBarShowAppNames: statusBarShowAppNames,
             statusBarUseWorkspaceId: statusBarUseWorkspaceId,
@@ -500,6 +505,7 @@ final class SettingsStore {
         mouseResizeModifierKey = MouseResizeModifierKey(rawValue: export.mouseResizeModifierKey) ?? .option
         gestureFingerCount = GestureFingerCount(rawValue: export.gestureFingerCount) ?? .three
         gestureInvertDirection = export.gestureInvertDirection
+        gestureScrollSnap = export.gestureScrollSnap
         statusBarShowWorkspaceName = export.statusBarShowWorkspaceName
         statusBarShowAppNames = export.statusBarShowAppNames
         statusBarUseWorkspaceId = export.statusBarUseWorkspaceId

@@ -39,6 +39,7 @@ mouseResizeModifierKey = "option"
 scrollEnabled = true
 scrollModifierKey = "optionShift"
 scrollSensitivity = 5.0
+scrollSnap = true
 
 [mouseWarp]
 axis = "horizontal"

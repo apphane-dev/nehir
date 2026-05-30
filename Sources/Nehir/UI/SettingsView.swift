@@ -154,6 +154,9 @@ struct GeneralSettingsTab: View {
 
                 SettingsCaption(settings.gestureInvertDirection ? "Swipe right = scroll right" : "Swipe right = scroll left")
 
+                Toggle("Snap to Column", isOn: $settings.gestureScrollSnap)
+                    .disabled(!settings.scrollGestureEnabled)
+
                 Picker("Mouse Scroll Modifier", selection: $settings.scrollModifierKey) {
                     ForEach(ScrollModifierKey.allCases, id: \.self) { key in
                         Text(key.displayName).tag(key)
