@@ -374,6 +374,17 @@ final class WorkspaceManager {
         windows.allEntries().map(\.windowId).sorted()
     }
 
+    func workspaceIdsForDebug() -> [WorkspaceDescriptor.ID] {
+        workspaces
+            .sorted { lhs, rhs in
+                if lhs.name != rhs.name {
+                    return lhs.name < rhs.name
+                }
+                return lhs.id.uuidString < rhs.id.uuidString
+            }
+            .map(\.id)
+    }
+
     private func runtimeDebugFrame(_ frame: CGRect?) -> String {
         guard let frame else { return "nil" }
         return String(

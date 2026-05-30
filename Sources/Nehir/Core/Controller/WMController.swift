@@ -1844,6 +1844,52 @@ final class WMController {
         copyDebugTextToPasteboard(snapshot.formattedDump())
     }
 
+    private func niriViewportDebugDump() -> String {
+        guard let engine = niriEngine else { return "niri disabled" }
+
+        let gap = CGFloat(workspaceManager.gaps)
+        let workspaceIds = workspaceManager.workspaceIdsForDebug()
+        guard !workspaceIds.isEmpty else { return "no-workspaces" }
+
+        return workspaceIds.map { workspaceId in
+            let state = workspaceManager.niriViewportState(for: workspaceId)
+            let workspaceName = workspaceManager.descriptor(for: workspaceId)?.name ?? workspaceId.uuidString
+            let columns = engine.columns(in: workspaceId)
+            let currentViewStart = columns.isEmpty ? nil : state.viewPosPixels(columns: columns, gap: gap)
+            let targetViewStart = columns.isEmpty ? nil : state.targetViewPosPixels(columns: columns, gap: gap)
+            let selectedNode = state.selectedNodeId.map(String.init(describing:)) ?? "nil"
+            let preferredFocus = workspaceManager.preferredFocusToken(in: workspaceId)
+                .map(String.init(describing:)) ?? "nil"
+            let visible = workspaceManager.visibleWorkspaceIds().contains(workspaceId)
+            let currentOffset = String(format: "%.1f", state.viewOffsetPixels.current())
+            let targetOffset = String(format: "%.1f", state.viewOffsetPixels.target())
+            let currentViewStartText = currentViewStart.map { String(format: "%.1f", $0) } ?? "nil"
+            let targetViewStartText = targetViewStart.map { String(format: "%.1f", $0) } ?? "nil"
+            let restoreText = state.viewOffsetToRestore.map { String(format: "%.1f", $0) } ?? "nil"
+            let activatePrevText = state.activatePrevColumnOnRemoval.map { String(format: "%.1f", $0) } ?? "nil"
+
+            return [
+                "workspace=\(workspaceName)",
+                "id=\(workspaceId.uuidString)",
+                "visible=\(visible)",
+                "columns=\(columns.count)",
+                "activeColumnIndex=\(state.activeColumnIndex)",
+                "currentOffset=\(currentOffset)",
+                "targetOffset=\(targetOffset)",
+                "currentViewStart=\(currentViewStartText)",
+                "targetViewStart=\(targetViewStartText)",
+                "gesture=\(state.viewOffsetPixels.isGesture)",
+                "animating=\(state.viewOffsetPixels.isAnimating)",
+                "selectedNode=\(selectedNode)",
+                "preferredFocus=\(preferredFocus)",
+                "restore=\(restoreText)",
+                "activatePrev=\(activatePrevText)"
+            ]
+            .joined(separator: " ")
+        }
+        .joined(separator: "\n")
+    }
+
     func runtimeStateDebugDump(traceLimit: Int = 50) -> String {
         let axSnapshot = axManager.windowStateDebugSnapshot()
         let refreshSnapshot = layoutRefreshController.refreshDebugSnapshot()
@@ -1867,6 +1913,8 @@ final class WMController {
             workspaceManager.runtimeWindowDebugDump(),
             "-- AX Window State --",
             axManager.windowStateDebugDump(windowIds: workspaceManager.trackedWindowIdsForDebug()),
+            "-- Niri Viewports --",
+            niriViewportDebugDump(),
             "-- AXEventHandler --",
             "geometryRelayoutRequests=\(axEventSnapshot.geometryRelayoutRequests) scopedGeometryRelayoutRequests=\(axEventSnapshot.scopedGeometryRelayoutRequests) suppressedDuringGesture=\(axEventSnapshot.geometryRelayoutsSuppressedDuringGesture) suppressedForOwnFrameWrites=\(axEventSnapshot.geometryRelayoutsSuppressedForOwnFrameWrites)",
             "-- LayoutRefreshController --",
