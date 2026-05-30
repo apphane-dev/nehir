@@ -5,42 +5,6 @@
       "description": "Command: double-tap-hold = command+option; double-tap-release = sticky command+option",
       "manipulators": [
         {
-          "description": "Press Cmd while sticky Cmd+Option is active to turn sticky modifiers off",
-          "from": {
-            "key_code": "left_command",
-            "modifiers": {
-              "mandatory": ["option"],
-              "optional": ["any"]
-            }
-          },
-          "to": [
-            { "sticky_modifier": { "left_command": "off" } },
-            { "sticky_modifier": { "left_option": "off" } },
-            { "sticky_modifier": { "right_command": "off" } },
-            { "sticky_modifier": { "right_option": "off" } },
-            { "key_code": "vk_none" }
-          ],
-          "type": "basic"
-        },
-        {
-          "description": "Press Cmd while sticky Cmd+Option is active to turn sticky modifiers off",
-          "from": {
-            "key_code": "right_command",
-            "modifiers": {
-              "mandatory": ["option"],
-              "optional": ["any"]
-            }
-          },
-          "to": [
-            { "sticky_modifier": { "left_command": "off" } },
-            { "sticky_modifier": { "left_option": "off" } },
-            { "sticky_modifier": { "right_command": "off" } },
-            { "sticky_modifier": { "right_option": "off" } },
-            { "key_code": "vk_none" }
-          ],
-          "type": "basic"
-        },
-        {
           "conditions": [
             {
               "expression": "command_double_tap_expiration > system.now.milliseconds",
@@ -64,8 +28,8 @@
             }
           ],
           "to_if_alone": [
-            { "sticky_modifier": { "left_command": "on" } },
-            { "sticky_modifier": { "left_option": "on" } }
+            { "sticky_modifier": { "left_command": "toggle" } },
+            { "sticky_modifier": { "left_option": "toggle" } }
           ],
           "type": "basic"
         },
@@ -93,8 +57,8 @@
             }
           ],
           "to_if_alone": [
-            { "sticky_modifier": { "left_command": "on" } },
-            { "sticky_modifier": { "left_option": "on" } }
+            { "sticky_modifier": { "left_command": "toggle" } },
+            { "sticky_modifier": { "left_option": "toggle" } }
           ],
           "type": "basic"
         },
