@@ -89,6 +89,13 @@ enum NiriWindowMoveResult {
         controller.workspaceManager.withNiriViewportState(for: wsId) { state in
             let viewportAnimationRunning = state.advanceAnimations(at: targetTime)
 
+            LayoutTrace.log(
+                "--- scrollTick ws=\(wsId.uuidString.prefix(8)) "
+                    + "offset=\(String(format: "%.1f", state.viewOffsetPixels.current())) "
+                    + "target=\(String(format: "%.1f", state.viewOffsetPixels.target())) "
+                    + "animating=\(viewportAnimationRunning)"
+            )
+
             self.applyFramesOnDemand(
                 wsId: wsId,
                 state: state,
@@ -567,6 +574,24 @@ enum NiriWindowMoveResult {
             }
         }
 
+        let ranEnsureVisible = !usesSingleWindowAspectRatio
+            && !isGestureOrAnimation
+            && snapshot.isActiveWorkspace
+            && state.selectedNodeId != nil
+            && pass.engine.findNode(by: state.selectedNodeId!) != nil
+            && !removal.removalResult.visibilityWasCorrected
+            && (removal.removalResult.removedTokens.isEmpty || removal.removalResult.fromIndexForVisibility != nil)
+        LayoutTrace.log(
+            "resolveSelection ws=\(pass.wsId.uuidString.prefix(8)) "
+                + "active=\(snapshot.isActiveWorkspace) cols=\(pass.engine.columns(in: pass.wsId).count) "
+                + "activeColIdx=\(state.activeColumnIndex) "
+                + "ranEnsureVisible=\(ranEnsureVisible) gestureOrAnim=\(isGestureOrAnimation) "
+                + "offsetBefore=\(String(format: "%.1f", offsetBefore)) "
+                + "offsetAfter=\(String(format: "%.1f", state.viewOffsetPixels.current())) "
+                + "offsetTarget=\(String(format: "%.1f", state.viewOffsetPixels.target())) "
+                + "needsRecalc=\(viewportNeedsRecalc)"
+        )
+
         let rememberedFocusToken: WindowToken?
         if let selectedId = state.selectedNodeId,
            let selectedNode = pass.engine.findNode(by: selectedId) as? NiriWindow
@@ -862,6 +887,32 @@ enum NiriWindowMoveResult {
             )
         } else {
             diff.focusedFrame = nil
+        }
+
+        if LayoutTrace.isEnabled {
+            LayoutTrace.log(
+                "layoutDiff canRestore=\(canRestoreHiddenWorkspaceWindows) "
+                    + "frameChanges=\(diff.frameChanges.count) "
+                    + "hide=\(diff.visibilityChanges.filter { if case .hide = $0 { true } else { false } }.count) "
+                    + "show=\(diff.visibilityChanges.filter { if case .show = $0 { true } else { false } }.count) "
+                    + "restore=\(diff.restoreChanges.count) "
+                    + "focused=\(diff.focusedFrame.map { LayoutTrace.rect($0.frame) } ?? "nil")"
+            )
+            for window in windows {
+                let token = window.token
+                let decision: String
+                if let side = hiddenHandles[token] {
+                    decision = "HIDE side=\(side)"
+                } else if frames[token] != nil {
+                    decision = "FRAME \(LayoutTrace.rect(frames[token]))"
+                } else {
+                    decision = "noframe"
+                }
+                LayoutTrace.log(
+                    "  win id=\(token.windowId) \(decision) "
+                        + "prevHidden=\(window.hiddenState.map { $0.workspaceInactive ? "wsInactive" : "transient(\(String(describing: $0.offscreenSide)))" } ?? "none")"
+                )
+            }
         }
 
         return diff

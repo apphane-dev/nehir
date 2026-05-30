@@ -791,6 +791,11 @@ import QuartzCore
     ) async -> Bool {
         let reason = refresh.reason
         recordRefreshExecution(route, reason: reason)
+        LayoutTrace.log(
+            "=== relayout route=\(route) reason=\(reason) "
+                + "useScrollAnim=\(useScrollAnimationPath) recoverFocus=\(recoverFocus) "
+                + "affected=\(refresh.affectedWorkspaceIds.count)"
+        )
         if await debugHooks.onRelayout?(reason, route) == true {
             return true
         }
@@ -3345,6 +3350,13 @@ final class LayoutDiffExecutor {
             }
             if !hidePlans.isEmpty {
                 refreshController.applyPositionPlans(hidePlans)
+                if LayoutTrace.isEnabled {
+                    for plan in hidePlans {
+                        LayoutTrace.log(
+                            "  hidePlan id=\(plan.entry.windowId) -> origin=\(LayoutTrace.point(plan.origin)) (off-viewport)"
+                        )
+                    }
+                }
             }
         }
 
@@ -3361,6 +3373,13 @@ final class LayoutDiffExecutor {
                     )
                 }
             refreshController.applyPositionPlans(restorePlans)
+            if LayoutTrace.isEnabled {
+                for plan in restorePlans {
+                    LayoutTrace.log(
+                        "  restorePlan id=\(plan.entry.windowId) -> origin=\(LayoutTrace.point(plan.origin))"
+                    )
+                }
+            }
 
             for (entry, _) in restoreEntries
                 where !pendingRevealTokens.contains(entry.token)
@@ -3439,6 +3458,12 @@ final class LayoutDiffExecutor {
                 } else {
                     frameUpdates.append((entry.pid, entry.windowId, change.frame))
                 }
+            }
+        }
+
+        if LayoutTrace.isEnabled {
+            for update in frameUpdates {
+                LayoutTrace.log("  frameWrite id=\(update.windowId) -> \(LayoutTrace.rect(update.frame))")
             }
         }
 

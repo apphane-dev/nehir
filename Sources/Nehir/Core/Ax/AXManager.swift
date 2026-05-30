@@ -411,6 +411,7 @@ final class AXManager {
 
         for (pid, windowId, frame) in frames {
             if inactiveWorkspaceWindowIds.contains(windowId) {
+                LayoutTrace.log("    AX skip-inactive id=\(windowId) target=\(LayoutTrace.rect(frame))")
                 continue
             }
             let cachedFrame = lastAppliedFrames[windowId]
@@ -438,6 +439,10 @@ final class AXManager {
                           cached.approximatelyEqual(to: frame, tolerance: 0.5),
                           !hasRecentFailure
                 {
+                    LayoutTrace.log(
+                        "    AX skip-dedup id=\(windowId) target=\(LayoutTrace.rect(frame)) "
+                            + "cached=\(LayoutTrace.rect(cached))"
+                    )
                     if let terminalObserver {
                         terminalObserver(
                             successfulNoOpFrameApplyResult(
@@ -453,6 +458,10 @@ final class AXManager {
                     continue
                 }
             }
+            LayoutTrace.log(
+                "    AX enqueue id=\(windowId) target=\(LayoutTrace.rect(frame)) "
+                    + "cached=\(LayoutTrace.rect(cachedFrame)) force=\(shouldForceApply)"
+            )
 
             if !isRetry,
                let requestId = observerRequestIdByWindowId[windowId],
@@ -658,6 +667,10 @@ final class AXManager {
             pendingFrameWrites.removeValue(forKey: resolvedWindowId)
 
             if let confirmedFrame = resolvedResult.confirmedFrame {
+                LayoutTrace.log(
+                    "    AX confirmed id=\(resolvedWindowId) target=\(LayoutTrace.rect(resolvedResult.targetFrame)) "
+                        + "confirmed=\(LayoutTrace.rect(confirmedFrame))"
+                )
                 lastAppliedFrames[resolvedWindowId] = confirmedFrame
                 recentFrameWriteFailures.removeValue(forKey: resolvedWindowId)
                 retryBudgetByWindowId.removeValue(forKey: resolvedWindowId)
@@ -667,6 +680,10 @@ final class AXManager {
             }
 
             if let failureReason = resolvedResult.writeResult.failureReason {
+                LayoutTrace.log(
+                    "    AX write-failed id=\(resolvedWindowId) target=\(LayoutTrace.rect(resolvedResult.targetFrame)) "
+                        + "reason=\(String(describing: failureReason))"
+                )
                 recentFrameWriteFailures[resolvedWindowId] = failureReason
             }
 
