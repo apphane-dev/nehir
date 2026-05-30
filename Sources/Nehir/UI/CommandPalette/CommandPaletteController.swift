@@ -51,6 +51,16 @@ private struct CommandPaletteFocusTarget {
 enum CommandPaletteSelectionID: Hashable {
     case window(WindowToken)
     case menu(UUID)
+    case command(String)
+}
+
+struct CommandPaletteCommandItem: Identifiable {
+    let id: String
+    let command: HotkeyCommand
+    let title: String
+    let category: HotkeyCategory
+    let bindingDisplay: String?
+    let searchTerms: [String]
 }
 
 enum CommandPaletteSelectionTrigger {
@@ -153,6 +163,10 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
         didSet { updateSelectionAfterFilterChange() }
     }
 
+    @Published private(set) var commandItems: [CommandPaletteCommandItem] = [] {
+        didSet { updateSelectionAfterFilterChange() }
+    }
+
     @Published private(set) var isMenuLoading = false
 
     private let environment: CommandPaletteEnvironment
@@ -182,6 +196,7 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
         case navigateWindow(WMController, WindowHandle)
         case summonWindowRight(WMController, WindowHandle, CommandPaletteSummonAnchor)
         case pressMenu(CommandPaletteFocusTarget, AXUIElement)
+        case executeCommand(WMController, HotkeyCommand)
     }
 
     init(
@@ -201,6 +216,10 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
 
     var filteredMenuItems: [MenuItemModel] {
         filterMenuItems(menuItems, query: searchText)
+    }
+
+    var filteredCommandItems: [CommandPaletteCommandItem] {
+        filterCommandItems(commandItems, query: searchText)
     }
 
     var isMenuModeAvailable: Bool {
@@ -237,6 +256,7 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
         menuFocusTarget = resolveMenuFocusTarget()
         summonAnchor = Self.resolveSummonAnchor(for: wmController)
         windows = buildWindowItems(from: wmController)
+        commandItems = buildCommandItems(from: wmController)
         menuItems = []
         hasLoadedMenuItems = false
         sessionMenuCache.removeAll()
@@ -285,6 +305,8 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
             InlineHint(title: mode.displayName, shortcut: "⌘1")
         case .menu:
             InlineHint(title: mode.displayName, shortcut: "⌘2")
+        case .commands:
+            InlineHint(title: mode.displayName, shortcut: "⌘3")
         }
     }
 
@@ -364,6 +386,8 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
             return true
         case .menu:
             return isMenuModeAvailable
+        case .commands:
+            return true
         }
     }
 
@@ -434,6 +458,53 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
                 return a.0.title < b.0.title
             }
             .map(\.0)
+    }
+
+    private func filterCommandItems(
+        _ items: [CommandPaletteCommandItem],
+        query rawQuery: String
+    ) -> [CommandPaletteCommandItem] {
+        let trimmedQuery = rawQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmedQuery.isEmpty { return items }
+        let normalized = ActionCatalog.normalizedSearchTerm(trimmedQuery)
+
+        let scored: [(CommandPaletteCommandItem, Int)] = items.compactMap { item in
+            for (i, term) in item.searchTerms.enumerated() {
+                let normalizedTerm = ActionCatalog.normalizedSearchTerm(term)
+                if let range = normalizedTerm.range(of: normalized) {
+                    let pos = normalizedTerm.distance(from: normalizedTerm.startIndex, to: range.lowerBound)
+                    return (item, i * 10000 + pos)
+                }
+            }
+            return nil
+        }
+
+        return scored
+            .sorted { a, b in
+                if a.1 != b.1 { return a.1 < b.1 }
+                return a.0.title < b.0.title
+            }
+            .map(\.0)
+    }
+
+    private func buildCommandItems(from wmController: WMController) -> [CommandPaletteCommandItem] {
+        let bindingsByID = Dictionary(
+            uniqueKeysWithValues: wmController.settings.hotkeyBindings.map { ($0.id, $0.binding) }
+        )
+        return ActionCatalog.allSpecs()
+            .filter { $0.visibility != .hidden }
+            .map { spec in
+                let trigger = bindingsByID[spec.id]
+                let bindingDisplay = trigger.flatMap { $0.isUnassigned ? nil : $0.displayString }
+                return CommandPaletteCommandItem(
+                    id: spec.id,
+                    command: spec.command,
+                    title: spec.title,
+                    category: spec.category,
+                    bindingDisplay: bindingDisplay,
+                    searchTerms: spec.searchTerms
+                )
+            }
     }
 
     private func buildWindowItems(from wmController: WMController) -> [CommandPaletteWindowItem] {
@@ -712,6 +783,7 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
         selectedItemID = nil
         windows = []
         menuItems = []
+        commandItems = []
 
         if let restoreTarget {
             _ = focus(target: restoreTarget)
@@ -728,6 +800,7 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
             selectedMode = .menu
             return true
         case "3":
+            selectedMode = .commands
             return true
         default:
             return false
@@ -762,6 +835,14 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
                 return nil
             }
             return .pressMenu(menuFocusTarget, item.axElement)
+        case .commands:
+            guard let wmController,
+                  case let .command(id)? = selectedItemID,
+                  let item = filteredCommandItems.first(where: { $0.id == id })
+            else {
+                return nil
+            }
+            return .executeCommand(wmController, item.command)
         }
     }
 
@@ -781,6 +862,8 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
             environment.scheduleMenuAction { [environment] in
                 environment.performMenuAction(element)
             }
+        case let .executeCommand(wmController, command):
+            wmController.commandHandler.handleCommand(command)
         }
     }
 
@@ -819,6 +902,8 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
             return filteredWindowItems.map { CommandPaletteSelectionID.window($0.id) }
         case .menu:
             return filteredMenuItems.map { CommandPaletteSelectionID.menu($0.id) }
+        case .commands:
+            return filteredCommandItems.map { CommandPaletteSelectionID.command($0.id) }
         }
     }
 
@@ -1029,6 +1114,18 @@ private struct CommandPaletteView: View {
                                         controller.selectCurrent()
                                     }
                                 }
+                            case .commands:
+                                ForEach(controller.filteredCommandItems) { item in
+                                    CommandPaletteCommandRow(
+                                        item: item,
+                                        isSelected: controller.selectedItemID == .command(item.id)
+                                    )
+                                    .id(CommandPaletteSelectionID.command(item.id))
+                                    .onTapGesture {
+                                        controller.selectedItemID = .command(item.id)
+                                        controller.selectCurrent()
+                                    }
+                                }
                             }
                         }
                     }
@@ -1056,6 +1153,8 @@ private struct CommandPaletteView: View {
             "Search windows..."
         case .menu:
             "Search menu items..."
+        case .commands:
+            "Search commands..."
         }
     }
 
@@ -1067,6 +1166,8 @@ private struct CommandPaletteView: View {
             )
         case .menu:
             controller.menuStatusText
+        case .commands:
+            "Enter executes the selected command."
         }
     }
 
@@ -1077,6 +1178,8 @@ private struct CommandPaletteView: View {
         case .menu:
             !controller.isMenuLoading &&
                 (!controller.isMenuModeAvailable || controller.filteredMenuItems.isEmpty)
+        case .commands:
+            controller.filteredCommandItems.isEmpty
         }
     }
 
@@ -1086,6 +1189,8 @@ private struct CommandPaletteView: View {
             "macwindow.on.rectangle"
         case .menu:
             controller.isMenuModeAvailable ? "text.magnifyingglass" : "menubar.rectangle"
+        case .commands:
+            "text.magnifyingglass"
         }
     }
 
@@ -1098,6 +1203,8 @@ private struct CommandPaletteView: View {
                 return controller.menuStatusText
             }
             return controller.searchText.isEmpty ? "No menu items available" : "No menu items found"
+        case .commands:
+            return controller.searchText.isEmpty ? "No commands available" : "No commands found"
         }
     }
 }
@@ -1320,6 +1427,35 @@ private struct CommandPaletteMenuRow: View {
 
             if let shortcut = item.keyboardShortcut {
                 CommandPaletteShortcutBadge(text: shortcut)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(isSelected ? Color.accentColor.opacity(0.2) : Color.clear)
+        .contentShape(Rectangle())
+    }
+}
+
+private struct CommandPaletteCommandRow: View {
+    let item: CommandPaletteCommandItem
+    let isSelected: Bool
+
+    var body: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.title)
+                    .font(.system(size: 14, weight: .medium))
+                    .lineLimit(1)
+                Text(item.category.rawValue)
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+            }
+
+            Spacer()
+
+            if let binding = item.bindingDisplay {
+                CommandPaletteShortcutBadge(text: binding)
             }
         }
         .padding(.horizontal, 16)
