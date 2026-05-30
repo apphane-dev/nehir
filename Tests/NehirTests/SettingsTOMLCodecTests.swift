@@ -66,7 +66,6 @@ private extension String {
         export.monitorBarSettings = [MonitorBarSettings(monitorName: "Display", enabled: false)]
         export.monitorOrientationSettings = [MonitorOrientationSettings(monitorName: "Display", orientation: .vertical)]
         export.monitorNiriSettings = [MonitorNiriSettings(monitorName: "Display", maxVisibleColumns: 4)]
-        export.modifierTrigger = .mouseButton(4)
 
         let output = try #require(String(data: SettingsTOMLCodec.encode(export), encoding: .utf8))
 

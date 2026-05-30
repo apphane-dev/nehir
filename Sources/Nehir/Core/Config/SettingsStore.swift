@@ -139,10 +139,6 @@ final class SettingsStore {
         didSet { scheduleSave() }
     }
 
-    var modifierTrigger = SettingsStore.defaultExport.modifierTrigger {
-        didSet { scheduleSave() }
-    }
-
     var workspaceBarEnabled = SettingsStore.defaultExport.workspaceBarEnabled {
         didSet { scheduleSave() }
     }
@@ -335,7 +331,7 @@ final class SettingsStore {
             try SettingsTOMLCodec.encode(export).write(to: persistence.fileURL, options: .atomic)
         }
         if !fm.fileExists(atPath: persistence.hotkeysFileURL.path) {
-            try HotkeysTOMLCodec.encode(export.hotkeyBindings, modifierTrigger: export.modifierTrigger)
+            try HotkeysTOMLCodec.encode(export.hotkeyBindings)
                 .write(to: persistence.hotkeysFileURL, options: .atomic)
         }
         if !fm.fileExists(atPath: persistence.workspacesFileURL.path) {
@@ -393,7 +389,6 @@ final class SettingsStore {
             borderColorBlue: borderColorBlue,
             borderColorAlpha: borderColorAlpha,
             hotkeyBindings: hotkeyBindings,
-            modifierTrigger: modifierTrigger,
             workspaceBarEnabled: workspaceBarEnabled,
             workspaceBarShowLabels: workspaceBarShowLabels,
             workspaceBarShowFloatingWindows: workspaceBarShowFloatingWindows,
@@ -472,7 +467,6 @@ final class SettingsStore {
         borderColorAlpha = export.borderColorAlpha
 
         hotkeyBindings = export.hotkeyBindings
-        modifierTrigger = export.modifierTrigger
 
         workspaceBarEnabled = export.workspaceBarEnabled
         workspaceBarShowLabels = export.workspaceBarShowLabels
@@ -526,36 +520,6 @@ final class SettingsStore {
 
     func resetHotkeysToDefaults() {
         hotkeyBindings = HotkeyBindingRegistry.defaults()
-        modifierTrigger = SettingsStore.defaultExport.modifierTrigger
-    }
-
-    func applyCapsLockModifierPreset() {
-        modifierTrigger = .key(UInt32(kVK_CapsLock))
-    }
-
-    func hotkeyBindings(applyingPreset mappings: [(id: String, trigger: HotkeyTrigger)]) -> [HotkeyBinding] {
-        var proposed = hotkeyBindings
-        for mapping in mappings {
-            for index in proposed.indices where proposed[index].id != mapping.id &&
-                proposed[index].binding.conflicts(
-                    with: mapping.trigger,
-                    modifierTrigger: modifierTrigger
-                )
-            {
-                proposed[index] = HotkeyBinding(
-                    id: proposed[index].id,
-                    command: proposed[index].command,
-                    trigger: .unassigned
-                )
-            }
-            guard let index = proposed.firstIndex(where: { $0.id == mapping.id }) else { continue }
-            proposed[index] = HotkeyBinding(
-                id: proposed[index].id,
-                command: proposed[index].command,
-                trigger: mapping.trigger
-            )
-        }
-        return proposed
     }
 
     func updateBinding(for commandId: String, newBinding: KeyBinding) {
@@ -589,7 +553,7 @@ final class SettingsStore {
     func findConflicts(for trigger: HotkeyTrigger, excluding commandId: String) -> [HotkeyBinding] {
         hotkeyBindings.filter { hotkeyBinding in
             hotkeyBinding.id != commandId &&
-                hotkeyBinding.binding.conflicts(with: trigger, modifierTrigger: modifierTrigger)
+                hotkeyBinding.binding.conflicts(with: trigger)
         }
     }
 

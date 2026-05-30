@@ -5,36 +5,30 @@ import Foundation
 /// Format:
 /// ```toml
 /// [workspace]
-/// switch = "Modifier+{N}"
-/// moveTo = "Modifier+Shift+{N}"
-/// backAndForth = "Modifier+Control+Tab"
+/// switch = "Option+Command+{N}"
+/// moveTo = "Option+Shift+Command+{N}"
+/// backAndForth = "Control+Option+Command+Tab"
 ///
 /// [focus]
-/// left = "Modifier+Left Arrow"
+/// left = "Option+Command+Left Arrow"
 /// ```
 ///
 /// The `{N}` syntax expands to 9 bindings (1–9) using digit keys.
 enum HotkeysTOMLCodec {
     struct Document {
-        var modifierTrigger: ModifierKeyTrigger
         var bindings: [HotkeyBinding]
     }
 
     // MARK: - Encode
 
     static func encode(_ bindings: [HotkeyBinding]) -> Data {
-        encode(bindings, modifierTrigger: .default)
-    }
-
-    static func encode(_ bindings: [HotkeyBinding], modifierTrigger: ModifierKeyTrigger) -> Data {
         var bindingMap: [String: String] = [:]
         for binding in bindings {
             guard let configKey = HotkeyConfigMapping.configKey(forInternalId: binding.id) else { continue }
-            bindingMap[configKey] = binding.binding.humanReadableString
+            bindingMap[configKey] = humanReadableString(for: binding.binding)
         }
 
         var lines: [String] = []
-        lines.append("modifierTrigger = \(quoted(modifierTrigger.humanReadableString))")
         for section in HotkeyConfigMapping.sectionOrder {
             lines.append("")
             lines.append("[\(section)]")
@@ -87,7 +81,7 @@ enum HotkeysTOMLCodec {
         }
     }
 
-    /// Detect if 9 binding strings follow a pattern like "Modifier+{digit}".
+    /// Detect if 9 binding strings follow a pattern like "Option+Command+{digit}".
     private static func detectDigitPattern(_ values: [String]) -> String? {
         guard values.count == 9 else { return nil }
         let digitNames = ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
@@ -111,6 +105,15 @@ enum HotkeysTOMLCodec {
         return "\(prefix){N}\(suffix)"
     }
 
+    private static func humanReadableString(for trigger: HotkeyTrigger) -> String {
+        switch trigger {
+        case .unassigned:
+            return "Unassigned"
+        case let .chord(binding):
+            return binding.humanReadableString
+        }
+    }
+
     private static func quoted(_ value: String) -> String {
         "\"\(value)\""
     }
@@ -123,7 +126,7 @@ enum HotkeysTOMLCodec {
 
     static func decodeDocument(_ data: Data, defaults: [HotkeyBinding]) -> Document {
         guard let string = String(data: data, encoding: .utf8) else {
-            return Document(modifierTrigger: .default, bindings: defaults)
+            return Document(bindings: defaults)
         }
         return decodeDocument(string: string, defaults: defaults)
     }
@@ -135,7 +138,6 @@ enum HotkeysTOMLCodec {
     static func decodeDocument(string: String, defaults: [HotkeyBinding]) -> Document {
         // Parse TOML manually since we need to handle {N} expansion and dotted keys
         var overrides: [String: String] = [:]
-        var modifierTrigger = ModifierKeyTrigger.default
         var currentSection = ""
 
         for line in string.components(separatedBy: "\n") {
@@ -162,9 +164,7 @@ enum HotkeysTOMLCodec {
             // Extract string value (strip quotes)
             guard let value = extractStringValue(rawValue) else { continue }
 
-            if currentSection.isEmpty, rawKey == "modifierTrigger" {
-                modifierTrigger = ModifierKeyTrigger.fromHumanReadable(value) ?? .default
-            } else if value.contains("{N}") {
+            if value.contains("{N}") {
                 // Expand {N} pattern
                 let digitNames = ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
                 for (idx, digit) in digitNames.enumerated() {
@@ -209,7 +209,7 @@ enum HotkeysTOMLCodec {
             }
             return HotkeyBinding(id: binding.id, command: binding.command, trigger: trigger)
         }
-        return Document(modifierTrigger: modifierTrigger, bindings: bindings)
+        return Document(bindings: bindings)
     }
 
     private static func extractStringValue(_ raw: String) -> String? {

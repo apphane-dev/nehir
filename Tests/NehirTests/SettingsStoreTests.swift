@@ -323,7 +323,6 @@ struct SettingsExportTests {
         #expect(defaults.borderColorGreen == 1.0)
         #expect(defaults.borderColorBlue == 0.97930003794467602)
         #expect(defaults.hotkeyBindings == HotkeyBindingRegistry.defaults())
-        #expect(defaults.modifierTrigger == .default)
         #expect(defaults.workspaceBarEnabled == true)
         #expect(defaults.workspaceBarShowFloatingWindows == false)
         #expect(defaults.workspaceBarNotchAware == true)
@@ -506,62 +505,16 @@ struct KeyBindingCodecTests {
         #expect(keypad.humanReadableString == "Control+Option+Command+Keypad 1")
     }
 
-    @Test func hyperBindingsUseReadableAlias() throws {
-        let binding = KeyBinding(
-            keyCode: UInt32(kVK_Space),
-            modifiers: 0,
-            usesModifier: true
-        )
 
-        let output = try encodeSingleHotkeyBinding(binding)
-
-        #expect(binding.displayString == "Modifier+Space")
-        #expect(binding.humanReadableString == "Modifier+Space")
-        #expect(KeySymbolMapper.fromHumanReadable("Modifier+Space") == binding)
-        #expect(output.contains("commandPalette = \"Modifier+Space\""))
-    }
-
-    @Test func literalAllModifiersRemainDistinctFromSemanticHyper() {
+    @Test func literalAllModifiersUseHyperAlias() {
         let literal = KeyBinding(
             keyCode: UInt32(kVK_Space),
             modifiers: KeySymbolMapper.realHyperModifiers
         )
-        let semantic = KeyBinding(
-            keyCode: UInt32(kVK_Space),
-            modifiers: 0,
-            usesModifier: true
-        )
 
-        #expect(literal.displayString == "⌃⌥⇧⌘Space")
-        #expect(literal.humanReadableString == "Control+Option+Shift+Command+Space")
-        #expect(literal != semantic)
-        #expect(literal.conflicts(with: semantic, modifierTrigger: .system))
-    }
-
-    @Test func modifierTriggerRoundTripsKeyboardAndMouseButtons() throws {
-        var trigger = ModifierKeyTrigger.mouseButton(4)
-        var data = HotkeysTOMLCodec.encode(HotkeyBindingRegistry.defaults(), modifierTrigger: trigger)
-        var output = try #require(String(data: data, encoding: .utf8))
-        var decoded = HotkeysTOMLCodec.decodeDocument(data, defaults: HotkeyBindingRegistry.defaults())
-
-        #expect(output.contains("modifierTrigger = \"MouseButton4\""))
-        #expect(decoded.modifierTrigger == .mouseButton(4))
-
-        trigger = .modifier(UInt32(optionKey))
-        data = HotkeysTOMLCodec.encode(HotkeyBindingRegistry.defaults(), modifierTrigger: trigger)
-        output = try #require(String(data: data, encoding: .utf8))
-        decoded = HotkeysTOMLCodec.decodeDocument(data, defaults: HotkeyBindingRegistry.defaults())
-
-        #expect(output.contains("modifierTrigger = \"Option\""))
-        #expect(decoded.modifierTrigger == .modifier(UInt32(optionKey)))
-
-        trigger = .key(UInt32(kVK_F18))
-        data = HotkeysTOMLCodec.encode(HotkeyBindingRegistry.defaults(), modifierTrigger: trigger)
-        output = try #require(String(data: data, encoding: .utf8))
-        decoded = HotkeysTOMLCodec.decodeDocument(data, defaults: HotkeyBindingRegistry.defaults())
-
-        #expect(output.contains("modifierTrigger = \"F18\""))
-        #expect(decoded.modifierTrigger == .key(UInt32(kVK_F18)))
+        #expect(literal.displayString == "Hyper+Space")
+        #expect(literal.humanReadableString == "Hyper+Space")
+        #expect(KeySymbolMapper.fromHumanReadable("Hyper+Space") == literal)
     }
 
     @Test func compactPunctuationBindingsStillDecode() throws {
@@ -573,14 +526,36 @@ struct KeyBindingCodecTests {
         #expect(HotkeyTrigger.fromHumanReadable("Option+,") == .chord(KeyBinding(keyCode: UInt32(kVK_ANSI_Comma), modifiers: UInt32(optionKey))))
     }
 
-    private func encodeSingleHotkeyBinding(_ binding: KeyBinding) throws -> String {
+    @Test func defaultHotkeysCaptureCurrentConfigShape() throws {
+        let output = try #require(String(
+            data: HotkeysTOMLCodec.encode(HotkeyBindingRegistry.defaults()),
+            encoding: .utf8
+        ))
+
+        #expect(output.contains("next = \"Control+Option+Command+Right Arrow\""))
+        #expect(output.contains("previous = \"Control+Option+Command+Left Arrow\""))
+        #expect(output.contains("windowToWorkspaceUp = \"Hyper+Up Arrow\""))
+        #expect(output.contains("windowToWorkspaceDown = \"Hyper+Down Arrow\""))
+        #expect(output.contains("columnToWorkspaceUp = \"Unassigned\""))
+        #expect(output.contains("columnToWorkspaceDown = \"Unassigned\""))
+        #expect(output.contains("columnLeft = \"Hyper+Left Arrow\""))
+        #expect(output.contains("columnRight = \"Hyper+Right Arrow\""))
+        #expect(output.contains("toggleNativeFullscreen = \"Option+Shift+Command+Return\""))
+        #expect(output.contains("toggleColumnTabbed = \"Option+Shift+Command+T\""))
+        #expect(output.contains("commandPalette = \"Option+Command+Space\""))
+        #expect(output.contains("menuAnywhere = \"Option+Command+M\""))
+        #expect(output.contains("toggleOverview = \"Option+Command+O\""))
+    }
+
+    private func encodeSingleHotkeyBinding(
+        _ binding: KeyBinding,
+        id: String = "openCommandPalette"
+    ) throws -> String {
         let defaults = HotkeyBindingRegistry.defaults()
-        let hotkey = try #require(HotkeyBindingRegistry.makeBinding(id: "openCommandPalette", binding: binding))
+        let hotkey = try #require(HotkeyBindingRegistry.makeBinding(id: id, binding: binding))
         let bindings = defaults.map { $0.id == hotkey.id ? hotkey : $0 }
 
-        let data = HotkeysTOMLCodec.encode(bindings, modifierTrigger: .default)
-        let decoded = HotkeysTOMLCodec.decode(data, defaults: defaults)
-        #expect(decoded.first(where: { $0.id == hotkey.id }) == hotkey)
+        let data = HotkeysTOMLCodec.encode(bindings)
 
         return try #require(String(data: data, encoding: .utf8))
     }
@@ -642,7 +617,7 @@ struct HotkeySurfaceTests {
         let defaults = HotkeyBindingRegistry.defaults()
         let binding = HotkeyBinding(id: "move.left", command: .move(.left), binding: .unassigned)
         let bindings = defaults.map { $0.id == binding.id ? binding : $0 }
-        let output = try #require(String(data: HotkeysTOMLCodec.encode(bindings, modifierTrigger: .default), encoding: .utf8))
+        let output = try #require(String(data: HotkeysTOMLCodec.encode(bindings), encoding: .utf8))
         let decoded = HotkeysTOMLCodec.decode(Data(output.utf8), defaults: defaults)
 
         #expect(output.contains("left = \"Unassigned\""))
@@ -746,31 +721,12 @@ struct HotkeySurfaceTests {
 @MainActor struct SettingsStoreHotkeyPreflightTests {
     @Test func defaultHotkeysDoNotRequireEventTap() {
         let settings = SettingsStore(defaults: makeTestDefaults())
-        let plan = HotkeyCenter.registrationPlan(
-            for: settings.hotkeyBindings,
-            modifierTrigger: settings.modifierTrigger
-        )
 
         #expect(settings.hotkeyBindings.allSatisfy { binding in
             binding.binding.isUnassigned || binding.binding.chordBinding != nil
         })
-        #expect(plan.virtualModifierRegistrations.isEmpty)
     }
 
-    @Test func capsLockHyperPreflightRejectsExistingCapsLockHotkey() {
-        let settings = SettingsStore(defaults: makeTestDefaults())
-        settings.updateBinding(
-            for: "focus.left",
-            newBinding: KeyBinding(keyCode: UInt32(kVK_CapsLock), modifiers: 0)
-        )
-
-        let plan = HotkeyCenter.registrationPlan(
-            for: settings.hotkeyBindings,
-            modifierTrigger: .key(UInt32(kVK_CapsLock))
-        )
-
-        #expect(plan.failures[.focus(.left)] == .modifierLeaderConflict)
-    }
 }
 
 struct SettingsSectionTests {

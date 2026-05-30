@@ -121,7 +121,7 @@ enum ActionCatalog {
                     id: "switchWorkspace.\(idx)",
                     command: .switchWorkspace(idx),
                     category: .workspace,
-                    binding: KeyBinding(keyCode: code, modifiers: 0, usesModifier: true)
+                    binding: KeyBinding(keyCode: code, modifiers: UInt32(optionKey | cmdKey))
                 )
             )
             specs.append(
@@ -149,13 +149,13 @@ enum ActionCatalog {
                 id: "switchWorkspace.next",
                 command: .switchWorkspaceNext,
                 category: .workspace,
-                binding: .unassigned
+                binding: KeyBinding(keyCode: UInt32(kVK_RightArrow), modifiers: UInt32(controlKey | optionKey | cmdKey))
             ),
             action(
                 id: "switchWorkspace.previous",
                 command: .switchWorkspacePrevious,
                 category: .workspace,
-                binding: .unassigned
+                binding: KeyBinding(keyCode: UInt32(kVK_LeftArrow), modifiers: UInt32(controlKey | optionKey | cmdKey))
             )
         ])
 
@@ -277,7 +277,7 @@ enum ActionCatalog {
                 id: "moveWindowToWorkspaceUp",
                 command: .moveWindowToWorkspaceUp,
                 category: .workspace,
-                binding: KeyBinding(keyCode: UInt32(kVK_UpArrow), modifiers: UInt32(optionKey | controlKey | shiftKey))
+                binding: KeyBinding(keyCode: UInt32(kVK_UpArrow), modifiers: KeySymbolMapper.realHyperModifiers)
             ),
             action(
                 id: "moveWindowToWorkspaceDown",
@@ -285,20 +285,20 @@ enum ActionCatalog {
                 category: .workspace,
                 binding: KeyBinding(
                     keyCode: UInt32(kVK_DownArrow),
-                    modifiers: UInt32(optionKey | controlKey | shiftKey)
+                    modifiers: KeySymbolMapper.realHyperModifiers
                 )
             ),
             action(
                 id: "moveColumnToWorkspaceUp",
                 command: .moveColumnToWorkspaceUp,
                 category: .workspace,
-                binding: KeyBinding(keyCode: UInt32(kVK_PageUp), modifiers: UInt32(optionKey | controlKey | shiftKey))
+                binding: .unassigned
             ),
             action(
                 id: "moveColumnToWorkspaceDown",
                 command: .moveColumnToWorkspaceDown,
                 category: .workspace,
-                binding: KeyBinding(keyCode: UInt32(kVK_PageDown), modifiers: UInt32(optionKey | controlKey | shiftKey))
+                binding: .unassigned
             )
         ])
 
@@ -432,7 +432,7 @@ enum ActionCatalog {
                 id: "toggleNativeFullscreen",
                 command: .toggleNativeFullscreen,
                 category: .layout,
-                binding: .unassigned
+                binding: KeyBinding(keyCode: UInt32(kVK_Return), modifiers: UInt32(optionKey | shiftKey | cmdKey))
             ),
             action(
                 id: "moveColumn.left",
@@ -440,7 +440,7 @@ enum ActionCatalog {
                 category: .column,
                 binding: KeyBinding(
                     keyCode: UInt32(kVK_LeftArrow),
-                    modifiers: UInt32(optionKey | controlKey | shiftKey)
+                    modifiers: KeySymbolMapper.realHyperModifiers
                 )
             ),
             action(
@@ -449,7 +449,7 @@ enum ActionCatalog {
                 category: .column,
                 binding: KeyBinding(
                     keyCode: UInt32(kVK_RightArrow),
-                    modifiers: UInt32(optionKey | controlKey | shiftKey)
+                    modifiers: KeySymbolMapper.realHyperModifiers
                 )
             ),
             action(
@@ -468,7 +468,7 @@ enum ActionCatalog {
                 id: "toggleColumnTabbed",
                 command: .toggleColumnTabbed,
                 category: .column,
-                binding: KeyBinding(keyCode: UInt32(kVK_ANSI_T), modifiers: UInt32(optionKey))
+                binding: KeyBinding(keyCode: UInt32(kVK_ANSI_T), modifiers: UInt32(optionKey | shiftKey | cmdKey))
             ),
             action(
                 id: "focusColumnFirst",
@@ -644,7 +644,7 @@ enum ActionCatalog {
                 id: "openCommandPalette",
                 command: .openCommandPalette,
                 category: .focus,
-                binding: KeyBinding(keyCode: UInt32(kVK_Space), modifiers: UInt32(controlKey | optionKey)),
+                binding: KeyBinding(keyCode: UInt32(kVK_Space), modifiers: UInt32(optionKey | cmdKey)),
                 keywords: ["palette", "search", "commands", "menu"]
             ),
             action(
@@ -686,7 +686,7 @@ enum ActionCatalog {
                 id: "openMenuAnywhere",
                 command: .openMenuAnywhere,
                 category: .focus,
-                binding: KeyBinding(keyCode: UInt32(kVK_ANSI_M), modifiers: UInt32(controlKey | optionKey)),
+                binding: KeyBinding(keyCode: UInt32(kVK_ANSI_M), modifiers: UInt32(optionKey | cmdKey)),
                 keywords: ["menu", "anywhere"]
             ),
             action(
@@ -700,7 +700,7 @@ enum ActionCatalog {
                 id: "toggleOverview",
                 command: .toggleOverview,
                 category: .focus,
-                binding: KeyBinding(keyCode: UInt32(kVK_ANSI_O), modifiers: UInt32(optionKey | shiftKey)),
+                binding: KeyBinding(keyCode: UInt32(kVK_ANSI_O), modifiers: UInt32(optionKey | cmdKey)),
                 keywords: ["overview"]
             )
         ])
@@ -730,13 +730,18 @@ enum ActionCatalog {
     }
 
     private static func defaultBinding(for binding: KeyBinding) -> KeyBinding {
-        guard !binding.isUnassigned, !binding.usesModifier, binding.modifiers & UInt32(optionKey) != 0 else {
+        guard !binding.isUnassigned else { return binding }
+        if binding.modifiers == KeySymbolMapper.realHyperModifiers {
+            return binding
+        }
+        guard binding.modifiers & UInt32(optionKey) != 0,
+              binding.modifiers & UInt32(cmdKey) == 0
+        else {
             return binding
         }
         return KeyBinding(
             keyCode: binding.keyCode,
-            modifiers: binding.modifiers & ~UInt32(optionKey),
-            usesModifier: true
+            modifiers: binding.modifiers | UInt32(cmdKey)
         )
     }
 

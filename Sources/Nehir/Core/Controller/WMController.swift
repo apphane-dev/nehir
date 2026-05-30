@@ -609,11 +609,7 @@ final class WMController {
     }
 
     func updateHotkeyBindings(_ bindings: [HotkeyBinding], force: Bool = false) {
-        hotkeys.updateBindings(
-            bindings,
-            modifierTrigger: settings.modifierTrigger,
-            force: force
-        )
+        hotkeys.updateBindings(bindings, force: force)
     }
 
     func updateWorkspaceConfig() {

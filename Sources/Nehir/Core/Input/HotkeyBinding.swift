@@ -4,57 +4,41 @@ import Foundation
 struct KeyBinding: Equatable, Hashable {
     let keyCode: UInt32
     let modifiers: UInt32
-    let usesModifier: Bool
 
     static let unassigned = KeyBinding(keyCode: UInt32.max, modifiers: 0)
 
-    init(keyCode: UInt32, modifiers: UInt32, usesModifier: Bool = false) {
+    init(keyCode: UInt32, modifiers: UInt32) {
         self.keyCode = keyCode
         self.modifiers = modifiers
-        self.usesModifier = usesModifier
     }
 
     var isUnassigned: Bool {
-        keyCode == UInt32.max && modifiers == 0 && !usesModifier
+        keyCode == UInt32.max && modifiers == 0
     }
 
     var displayString: String {
         if isUnassigned {
             return "Unassigned"
         }
-        return KeySymbolMapper.displayString(keyCode: keyCode, modifiers: modifiers, usesModifier: usesModifier)
+        return KeySymbolMapper.displayString(keyCode: keyCode, modifiers: modifiers)
     }
 
     var humanReadableString: String {
         if isUnassigned {
             return "Unassigned"
         }
-        return KeySymbolMapper.humanReadableString(keyCode: keyCode, modifiers: modifiers, usesModifier: usesModifier)
+        return KeySymbolMapper.humanReadableString(keyCode: keyCode, modifiers: modifiers)
     }
 
-    func conflicts(with other: KeyBinding, modifierTrigger: ModifierKeyTrigger) -> Bool {
-        guard !isUnassigned, !other.isUnassigned, keyCode == other.keyCode else { return false }
-        if modifiers == other.modifiers && usesModifier == other.usesModifier {
-            return true
-        }
-        return carbonCompatibilityBinding(for: modifierTrigger) == other ||
-            other.carbonCompatibilityBinding(for: modifierTrigger) == self
-    }
-
-    func carbonCompatibilityBinding(for modifierTrigger: ModifierKeyTrigger) -> KeyBinding? {
-        guard usesModifier, !isUnassigned else { return nil }
-        if let modifier = modifierTrigger.carbonCompatibilityModifierMask {
-            guard modifiers & modifier == 0 else { return nil }
-            return KeyBinding(keyCode: keyCode, modifiers: modifiers | modifier)
-        }
-        guard modifierTrigger == .system, modifiers == 0 else { return nil }
-        return KeyBinding(keyCode: keyCode, modifiers: KeySymbolMapper.realHyperModifiers)
+    func conflicts(with other: KeyBinding) -> Bool {
+        guard !isUnassigned, !other.isUnassigned else { return false }
+        return keyCode == other.keyCode && modifiers == other.modifiers
     }
 }
 
 extension KeyBinding: Codable {
     private enum CodingKeys: String, CodingKey {
-        case keyCode, modifiers, usesModifier
+        case keyCode, modifiers
     }
 
     init(from decoder: Decoder) throws {
@@ -68,7 +52,6 @@ extension KeyBinding: Codable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         keyCode = try container.decode(UInt32.self, forKey: .keyCode)
         modifiers = try container.decode(UInt32.self, forKey: .modifiers)
-        usesModifier = try container.decodeIfPresent(Bool.self, forKey: .usesModifier) ?? false
     }
 
     func encode(to encoder: Encoder) throws {
@@ -79,192 +62,7 @@ extension KeyBinding: Codable {
             var container = encoder.container(keyedBy: CodingKeys.self)
             try container.encode(keyCode, forKey: .keyCode)
             try container.encode(modifiers, forKey: .modifiers)
-            if usesModifier {
-                try container.encode(usesModifier, forKey: .usesModifier)
-            }
         }
-    }
-}
-
-enum ModifierKeyTrigger: Equatable, Hashable {
-    case system
-    case modifier(UInt32)
-    case key(UInt32)
-    case mouseButton(Int64)
-
-    static let `default`: ModifierKeyTrigger = .modifier(UInt32(optionKey | cmdKey))
-
-    var displayString: String {
-        switch self {
-        case .system:
-            return "⌃⌥⇧⌘"
-        case let .modifier(modifier):
-            return KeySymbolMapper.modifierSymbols(modifier)
-        case let .key(keyCode):
-            return KeySymbolMapper.keySymbol(keyCode)
-        case let .mouseButton(button):
-            return "Mouse \(button)"
-        }
-    }
-
-    var humanReadableString: String {
-        switch self {
-        case .system:
-            return "Control+Option+Shift+Command"
-        case let .modifier(modifier):
-            return KeySymbolMapper.modifierNames(modifier)
-        case let .key(keyCode):
-            return KeySymbolMapper.keyName(keyCode)
-        case let .mouseButton(button):
-            return "MouseButton\(button)"
-        }
-    }
-
-    var requiresEventTap: Bool {
-        switch self {
-        case .system,
-             .modifier:
-            return false
-        case .key,
-             .mouseButton:
-            return true
-        }
-    }
-
-    var keyboardKeyCode: UInt32? {
-        guard case let .key(keyCode) = self else { return nil }
-        return keyCode
-    }
-
-    var mouseButtonNumber: Int64? {
-        guard case let .mouseButton(button) = self else { return nil }
-        return button
-    }
-
-    var modifierMaskToExclude: UInt32 {
-        switch self {
-        case .system,
-             .mouseButton:
-            return 0
-        case let .modifier(modifier):
-            return modifier
-        case let .key(keyCode):
-            return Self.modifierMask(for: keyCode)
-        }
-    }
-
-    var carbonCompatibilityModifierMask: UInt32? {
-        guard case let .modifier(modifier) = self else { return nil }
-        return modifier
-    }
-
-    func matchesPhysicalKeyCode(_ keyCode: UInt32) -> Bool {
-        switch self {
-        case .system,
-             .mouseButton:
-            return false
-        case let .key(triggerKeyCode):
-            return keyCode == triggerKeyCode
-        case let .modifier(modifier):
-            return Self.modifierMask(for: keyCode) == modifier
-        }
-    }
-
-    static func fromHumanReadable(_ string: String) -> ModifierKeyTrigger? {
-        let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty { return nil }
-        if trimmed.localizedCaseInsensitiveCompare("System Modifier") == .orderedSame ||
-            trimmed.localizedCaseInsensitiveCompare("Real Modifier") == .orderedSame ||
-            trimmed.localizedCaseInsensitiveCompare("Control+Option+Shift+Command") == .orderedSame
-        {
-            return .system
-        }
-
-        let compactMouse = trimmed.replacingOccurrences(of: " ", with: "")
-        if compactMouse.lowercased().hasPrefix("mousebutton"),
-           let button = Int64(compactMouse.dropFirst("MouseButton".count)),
-           button >= 2
-        {
-            return .mouseButton(button)
-        }
-
-        if let modifier = Self.modifierMask(named: trimmed) {
-            return .modifier(modifier)
-        }
-
-        // Handle combined modifiers like "Option+Command"
-        if trimmed.contains("+") {
-            let parts = trimmed.split(separator: "+").map { String($0).trimmingCharacters(in: .whitespaces) }
-            var combined: UInt32 = 0
-            var allValid = true
-            for part in parts {
-                if let mask = Self.modifierMask(named: part) {
-                    combined |= mask
-                } else {
-                    allValid = false
-                    break
-                }
-            }
-            if allValid && combined != 0 {
-                return .modifier(combined)
-            }
-        }
-
-        if let keyCode = KeySymbolMapper.keyCode(named: trimmed) {
-            return .key(keyCode)
-        }
-
-        return nil
-    }
-
-    static func modifierMask(for keyCode: UInt32) -> UInt32 {
-        switch Int(keyCode) {
-        case kVK_Shift, kVK_RightShift:
-            return UInt32(shiftKey)
-        case kVK_Control, kVK_RightControl:
-            return UInt32(controlKey)
-        case kVK_Option, kVK_RightOption:
-            return UInt32(optionKey)
-        case kVK_Command, kVK_RightCommand:
-            return UInt32(cmdKey)
-        default:
-            return 0
-        }
-    }
-
-    static func modifierMask(named name: String) -> UInt32? {
-        switch name.replacingOccurrences(of: " ", with: "").replacingOccurrences(of: "-", with: "").lowercased() {
-        case "shift":
-            return UInt32(shiftKey)
-        case "control":
-            return UInt32(controlKey)
-        case "option":
-            return UInt32(optionKey)
-        case "command":
-            return UInt32(cmdKey)
-        default:
-            return nil
-        }
-    }
-}
-
-extension ModifierKeyTrigger: Codable {
-    init(from decoder: Decoder) throws {
-        if let container = try? decoder.singleValueContainer(),
-           let string = try? container.decode(String.self),
-           let trigger = ModifierKeyTrigger.fromHumanReadable(string)
-        {
-            self = trigger
-            return
-        }
-        throw DecodingError.dataCorrupted(
-            .init(codingPath: decoder.codingPath, debugDescription: "Invalid modifier key trigger")
-        )
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.singleValueContainer()
-        try container.encode(humanReadableString)
     }
 }
 
@@ -304,11 +102,11 @@ enum HotkeyTrigger: Equatable, Hashable {
         return binding
     }
 
-    func conflicts(with other: HotkeyTrigger, modifierTrigger: ModifierKeyTrigger) -> Bool {
+    func conflicts(with other: HotkeyTrigger) -> Bool {
         guard !isUnassigned, !other.isUnassigned else { return false }
         switch (self, other) {
         case let (.chord(lhs), .chord(rhs)):
-            return lhs.conflicts(with: rhs, modifierTrigger: modifierTrigger)
+            return lhs.conflicts(with: rhs)
         default:
             return false
         }

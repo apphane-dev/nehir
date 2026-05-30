@@ -142,7 +142,7 @@ final class SettingsFilePersistence {
         let data = try SettingsTOMLCodec.encode(export)
         try data.write(to: fileURL, options: .atomic)
 
-        let hotkeysData = HotkeysTOMLCodec.encode(export.hotkeyBindings, modifierTrigger: export.modifierTrigger)
+        let hotkeysData = HotkeysTOMLCodec.encode(export.hotkeyBindings)
         try hotkeysData.write(to: hotkeysFileURL, options: .atomic)
 
         let workspacesData = WorkspacesTOMLCodec.encode(export.workspaceConfigurations)
@@ -429,7 +429,6 @@ final class SettingsFilePersistence {
         if let hotkeysData = try? Data(contentsOf: hotkeysFileURL) {
             let hotkeys = HotkeysTOMLCodec.decodeDocument(hotkeysData, defaults: HotkeyBindingRegistry.defaults())
             export.hotkeyBindings = hotkeys.bindings
-            export.modifierTrigger = hotkeys.modifierTrigger
         }
 
         if let workspacesData = try? Data(contentsOf: workspacesFileURL) {

@@ -42,7 +42,6 @@ struct SettingsExport: Equatable {
     var borderColorAlpha: Double
 
     var hotkeyBindings: [HotkeyBinding]
-    var modifierTrigger: ModifierKeyTrigger
 
     var workspaceBarEnabled: Bool
     var workspaceBarShowLabels: Bool
@@ -116,7 +115,6 @@ extension SettingsExport {
             borderColorBlue: 0.97930003794467602,
             borderColorAlpha: 1.0,
             hotkeyBindings: HotkeyBindingRegistry.defaults(),
-            modifierTrigger: .default,
             workspaceBarEnabled: true,
             workspaceBarShowLabels: true,
             workspaceBarShowFloatingWindows: false,

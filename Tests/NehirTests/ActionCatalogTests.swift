@@ -11,7 +11,7 @@ import Testing
         #expect(bindings.count == specs.count)
     }
 
-    @Test func workspaceSwitchDefaultsUseSemanticHyper() throws {
+    @Test func workspaceSwitchDefaultsUseBakedPhysicalModifier() throws {
         let switchWorkspace = try #require(
             HotkeyBindingRegistry.defaults().first { $0.id == "switchWorkspace.1" }
         )
@@ -20,11 +20,11 @@ import Testing
         )
 
         #expect(
-            switchWorkspace.binding == .chord(KeyBinding(keyCode: UInt32(kVK_ANSI_2), modifiers: 0, usesModifier: true))
+            switchWorkspace.binding == .chord(KeyBinding(keyCode: UInt32(kVK_ANSI_2), modifiers: UInt32(optionKey | cmdKey)))
         )
         #expect(
             moveToWorkspace.binding == .chord(
-                KeyBinding(keyCode: UInt32(kVK_ANSI_2), modifiers: UInt32(shiftKey), usesModifier: true)
+                KeyBinding(keyCode: UInt32(kVK_ANSI_2), modifiers: UInt32(optionKey | shiftKey | cmdKey))
             )
         )
     }

@@ -57,10 +57,10 @@ enum KeySymbolMapper {
         UInt32(kVK_RightArrow): descriptor("→", "Right Arrow"),
         UInt32(kVK_UpArrow): descriptor("↑", "Up Arrow"),
         UInt32(kVK_DownArrow): descriptor("↓", "Down Arrow"),
-        UInt32(kVK_Home): descriptor("↖", "Home"),
-        UInt32(kVK_End): descriptor("↘", "End"),
-        UInt32(kVK_PageUp): descriptor("⇞", "Page Up"),
-        UInt32(kVK_PageDown): descriptor("⇟", "Page Down"),
+        UInt32(kVK_Home): descriptor("Home"),
+        UInt32(kVK_End): descriptor("End"),
+        UInt32(kVK_PageUp): descriptor("PageUp", "Page Up"),
+        UInt32(kVK_PageDown): descriptor("PageDown", "Page Down"),
         UInt32(kVK_ForwardDelete): descriptor("⌦", "Forward Delete"),
         UInt32(kVK_F1): descriptor("F1"),
         UInt32(kVK_F2): descriptor("F2"),
@@ -124,9 +124,12 @@ enum KeySymbolMapper {
 
     static let realHyperModifiers = UInt32(controlKey | optionKey | shiftKey | cmdKey)
 
-    static func modifierSymbols(_ modifiers: UInt32, usesModifier: Bool = false) -> String {
+    static func modifierSymbols(_ modifiers: UInt32) -> String {
+        if modifiers == realHyperModifiers {
+            return "Hyper+"
+        }
+
         var symbols = ""
-        if usesModifier { symbols += "Modifier+" }
         if modifiers & UInt32(controlKey) != 0 { symbols += "⌃" }
         if modifiers & UInt32(optionKey) != 0 { symbols += "⌥" }
         if modifiers & UInt32(shiftKey) != 0 { symbols += "⇧" }
@@ -138,13 +141,16 @@ enum KeySymbolMapper {
         keyDescriptors[keyCode]?.compact ?? "?"
     }
 
-    static func displayString(keyCode: UInt32, modifiers: UInt32, usesModifier: Bool = false) -> String {
-        modifierSymbols(modifiers, usesModifier: usesModifier) + keySymbol(keyCode)
+    static func displayString(keyCode: UInt32, modifiers: UInt32) -> String {
+        modifierSymbols(modifiers) + keySymbol(keyCode)
     }
 
-    static func modifierNames(_ modifiers: UInt32, usesModifier: Bool = false) -> String {
+    static func modifierNames(_ modifiers: UInt32) -> String {
+        if modifiers == realHyperModifiers {
+            return "Hyper"
+        }
+
         var names: [String] = []
-        if usesModifier { names.append("Modifier") }
         if modifiers & UInt32(controlKey) != 0 { names.append("Control") }
         if modifiers & UInt32(optionKey) != 0 { names.append("Option") }
         if modifiers & UInt32(shiftKey) != 0 { names.append("Shift") }
@@ -156,8 +162,8 @@ enum KeySymbolMapper {
         keyDescriptors[keyCode]?.name ?? "KeyCode \(keyCode)"
     }
 
-    static func humanReadableString(keyCode: UInt32, modifiers: UInt32, usesModifier: Bool = false) -> String {
-        let mods = modifierNames(modifiers, usesModifier: usesModifier)
+    static func humanReadableString(keyCode: UInt32, modifiers: UInt32) -> String {
+        let mods = modifierNames(modifiers)
         let key = keyName(keyCode)
         return mods.isEmpty ? key : mods + "+" + key
     }
@@ -191,7 +197,7 @@ enum KeySymbolMapper {
         "Option": UInt32(optionKey),
         "Shift": UInt32(shiftKey),
         "Command": UInt32(cmdKey),
-        "Modifier": realHyperModifiers
+        "Hyper": realHyperModifiers
     ]
 
     private static let normalizedNameToModifier: [String: UInt32] = {
@@ -206,16 +212,11 @@ enum KeySymbolMapper {
         }
         guard let keyPart = parts.last, let keyCode = keyCode(named: keyPart) else { return nil }
         var modifiers: UInt32 = 0
-        var usesModifier = false
         for part in parts.dropLast() {
-            if part.localizedCaseInsensitiveCompare("Modifier") == .orderedSame {
-                usesModifier = true
-                continue
-            }
             guard let flag = nameToModifier[part] ?? normalizedNameToModifier[normalizeName(part)] else { return nil }
             modifiers |= flag
         }
-        return KeyBinding(keyCode: keyCode, modifiers: modifiers, usesModifier: usesModifier)
+        return KeyBinding(keyCode: keyCode, modifiers: modifiers)
     }
 
     private static func normalizeName(_ name: String) -> String {

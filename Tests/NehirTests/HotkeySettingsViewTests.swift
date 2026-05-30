@@ -4,29 +4,42 @@ import Foundation
 import Testing
 
 struct HotkeySettingsViewTests {
-    @Test func hotkeyDisplayModelUsesNehirModifierTerminology() {
-        let binding = KeyBinding(keyCode: UInt32(kVK_ANSI_K), modifiers: 0, usesModifier: true)
-        let trigger = HotkeyTrigger.chord(binding)
-
-        #expect(binding.displayString == "Modifier+K")
-        #expect(binding.humanReadableString == "Modifier+K")
-        #expect(HotkeySettingsDisplayModel.displayString(for: binding) == "Nehir+K")
-        #expect(HotkeySettingsDisplayModel.humanReadableString(for: binding) == "Nehir modifier+K")
-        #expect(HotkeySettingsDisplayModel.displayString(for: trigger) == "Nehir+K")
-        #expect(HotkeySettingsDisplayModel.humanReadableString(for: trigger) == "Nehir modifier+K")
-    }
-
-    @Test func hotkeyDisplayModelSearchMatchesVisibleNehirTerminology() {
+    @Test func hotkeyDisplayModelSearchMatchesPhysicalShortcutTerms() {
         let binding = HotkeyBinding(
             id: "focusLeft",
             command: .focus(.left),
-            binding: KeyBinding(keyCode: UInt32(kVK_ANSI_K), modifiers: 0, usesModifier: true)
+            binding: KeyBinding(keyCode: UInt32(kVK_ANSI_K), modifiers: UInt32(optionKey | cmdKey))
         )
 
-        #expect(binding.binding.displayString == "Modifier+K")
-        #expect(HotkeySettingsDisplayModel.matchesSearch("Nehir", binding: binding))
-        #expect(HotkeySettingsDisplayModel.matchesSearch("Nehir modifier", binding: binding))
+        #expect(binding.binding.displayString == "⌥⌘K")
+        #expect(HotkeySettingsDisplayModel.matchesSearch("Command", binding: binding))
         #expect(!HotkeySettingsDisplayModel.matchesSearch("Hyper", binding: binding))
     }
 
+    @Test func numberedWorkspaceHotkeysCollapseToPatternDisplay() throws {
+        let bindings = try switchWorkspaceDefaults()
+
+        #expect(HotkeySettingsDisplayModel.numberedGroupDisplayString(for: bindings) == "⌥⌘{N}")
+        #expect(HotkeySettingsDisplayModel.numberedGroupHumanReadableString(for: bindings) == "Option+Command+{N}")
+        #expect(HotkeySettingsDisplayModel.matchesSearch("workspace", groupTitle: "Switch Workspace {N}", bindings: bindings))
+        #expect(HotkeySettingsDisplayModel.matchesSearch("Command", groupTitle: "Switch Workspace {N}", bindings: bindings))
+    }
+
+    @Test func numberedWorkspaceHotkeysShowCustomWhenPatternDiverges() throws {
+        var bindings = try switchWorkspaceDefaults()
+        bindings[2] = HotkeyBinding(
+            id: "switchWorkspace.2",
+            command: .switchWorkspace(2),
+            binding: KeyBinding(keyCode: UInt32(kVK_ANSI_J), modifiers: UInt32(optionKey))
+        )
+
+        #expect(HotkeySettingsDisplayModel.numberedGroupDisplayString(for: bindings) == "Custom per-number")
+    }
+
+    private func switchWorkspaceDefaults() throws -> [HotkeyBinding] {
+        let defaults = HotkeyBindingRegistry.defaults()
+        return try (0..<9).map { index in
+            try #require(defaults.first { $0.id == "switchWorkspace.\(index)" })
+        }
+    }
 }

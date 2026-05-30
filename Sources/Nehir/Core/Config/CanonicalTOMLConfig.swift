@@ -252,7 +252,6 @@ extension CanonicalTOMLConfig {
             borderColorBlue: borders.color.blue,
             borderColorAlpha: borders.color.alpha,
             hotkeyBindings: HotkeyBindingRegistry.defaults(),
-            modifierTrigger: .default,
             workspaceBarEnabled: workspaceBar.enabled,
             workspaceBarShowLabels: workspaceBar.showLabels,
             workspaceBarShowFloatingWindows: workspaceBar.showFloatingWindows,
@@ -290,7 +289,7 @@ extension CanonicalTOMLConfig {
     }
 }
 
-// MARK: - Default-fallback decoding (missing keys use defaults)
+// MARK: - Hand-edit tolerant decoding (missing keys use defaults)
 
 extension CanonicalTOMLConfig {
     init(from decoder: Decoder) throws {

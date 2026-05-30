@@ -1,0 +1,162 @@
+{
+  "title": "Nehir: double Command to sticky Command+Option",
+  "rules": [
+    {
+      "description": "Command: double-tap-hold = command+option; double-tap-release = sticky command+option",
+      "manipulators": [
+        {
+          "description": "Press Cmd while sticky Cmd+Option is active to turn sticky modifiers off",
+          "from": {
+            "key_code": "left_command",
+            "modifiers": {
+              "mandatory": ["option"],
+              "optional": ["any"]
+            }
+          },
+          "to": [
+            { "sticky_modifier": { "left_command": "off" } },
+            { "sticky_modifier": { "left_option": "off" } },
+            { "sticky_modifier": { "right_command": "off" } },
+            { "sticky_modifier": { "right_option": "off" } },
+            { "key_code": "vk_none" }
+          ],
+          "type": "basic"
+        },
+        {
+          "description": "Press Cmd while sticky Cmd+Option is active to turn sticky modifiers off",
+          "from": {
+            "key_code": "right_command",
+            "modifiers": {
+              "mandatory": ["option"],
+              "optional": ["any"]
+            }
+          },
+          "to": [
+            { "sticky_modifier": { "left_command": "off" } },
+            { "sticky_modifier": { "left_option": "off" } },
+            { "sticky_modifier": { "right_command": "off" } },
+            { "sticky_modifier": { "right_option": "off" } },
+            { "key_code": "vk_none" }
+          ],
+          "type": "basic"
+        },
+        {
+          "conditions": [
+            {
+              "expression": "command_double_tap_expiration > system.now.milliseconds",
+              "type": "expression_if"
+            }
+          ],
+          "from": {
+            "key_code": "left_command",
+            "modifiers": { "optional": ["any"] }
+          },
+          "to": [
+            {
+              "set_variable": {
+                "name": "command_double_tap_expiration",
+                "value": 0
+              }
+            },
+            {
+              "key_code": "left_command",
+              "modifiers": ["left_option"]
+            }
+          ],
+          "to_if_alone": [
+            { "sticky_modifier": { "left_command": "on" } },
+            { "sticky_modifier": { "left_option": "on" } }
+          ],
+          "type": "basic"
+        },
+        {
+          "conditions": [
+            {
+              "expression": "command_double_tap_expiration > system.now.milliseconds",
+              "type": "expression_if"
+            }
+          ],
+          "from": {
+            "key_code": "right_command",
+            "modifiers": { "optional": ["any"] }
+          },
+          "to": [
+            {
+              "set_variable": {
+                "name": "command_double_tap_expiration",
+                "value": 0
+              }
+            },
+            {
+              "key_code": "right_command",
+              "modifiers": ["right_option"]
+            }
+          ],
+          "to_if_alone": [
+            { "sticky_modifier": { "left_command": "on" } },
+            { "sticky_modifier": { "left_option": "on" } }
+          ],
+          "type": "basic"
+        },
+        {
+          "from": {
+            "key_code": "left_command",
+            "modifiers": { "optional": ["any"] }
+          },
+          "parameters": {
+            "basic.to_if_alone_timeout_milliseconds": 250,
+            "basic.to_if_held_down_threshold_milliseconds": 100
+          },
+          "to": [{ "key_code": "left_command", "lazy": true }],
+          "to_if_alone": [
+            {
+              "set_variable": {
+                "expression": "system.now.milliseconds + 300",
+                "name": "command_double_tap_expiration"
+              }
+            }
+          ],
+          "to_if_held_down": [
+            {
+              "set_variable": {
+                "name": "command_double_tap_expiration",
+                "value": 0
+              }
+            },
+            { "key_code": "left_command" }
+          ],
+          "type": "basic"
+        },
+        {
+          "from": {
+            "key_code": "right_command",
+            "modifiers": { "optional": ["any"] }
+          },
+          "parameters": {
+            "basic.to_if_alone_timeout_milliseconds": 250,
+            "basic.to_if_held_down_threshold_milliseconds": 100
+          },
+          "to": [{ "key_code": "right_command", "lazy": true }],
+          "to_if_alone": [
+            {
+              "set_variable": {
+                "expression": "system.now.milliseconds + 300",
+                "name": "command_double_tap_expiration"
+              }
+            }
+          ],
+          "to_if_held_down": [
+            {
+              "set_variable": {
+                "name": "command_double_tap_expiration",
+                "value": 0
+              }
+            },
+            { "key_code": "right_command" }
+          ],
+          "type": "basic"
+        }
+      ]
+    }
+  ]
+}

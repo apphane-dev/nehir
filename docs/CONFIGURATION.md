@@ -11,7 +11,7 @@ Nehir's config layout is designed around three priorities: **human readability**
 ```
 ~/.config/nehir/
 ├── settings.toml          # core behavior: gaps, borders, gestures
-├── hotkeys.toml           # all keybindings + modifier trigger
+├── hotkeys.toml           # physical keybindings
 ├── workspaces.toml        # workspace list with monitor assignments
 ├── apprules.d/            # one file per app rule
 │   ├── com-google-chrome.toml
@@ -39,7 +39,7 @@ The split layout works naturally with stow, chezmoi, yadm, or bare git repos:
 
 ### 3. Missing keys use defaults
 
-When a new setting is added, existing config files continue to work — missing keys are filled from built-in defaults.
+Missing keys are filled from built-in defaults as hand-edit tolerance. Nehir does not keep migration shims for removed or renamed config keys.
 
 Inactive sample files use `.toml.sample` extension so they aren't parsed. Rename to `.toml` to activate.
 
@@ -49,15 +49,145 @@ Hotkey bindings use names, not key codes:
 
 ```toml
 # hotkeys.toml
-modifierTrigger = "Option+Command"
-
 [workspace]
-switch = "Modifier+{N}"
-moveTo = "Modifier+Shift+{N}"
+switch = "Option+Command+{N}"
+moveTo = "Option+Shift+Command+{N}"
 
 [focus]
-left = "Modifier+Left Arrow"
-right = "Modifier+Right Arrow"
+left = "Option+Command+Left Arrow"
+right = "Option+Command+Right Arrow"
+
+[move]
+windowToWorkspaceUp = "Hyper+Up Arrow"
+windowToWorkspaceDown = "Hyper+Down Arrow"
+```
+
+## Default Shortcut Model
+
+Default hotkeys are stored and shown as physical key chords.
+
+The model is organized by action weight:
+
+```text
+Option+Command              navigate / focus / open UI
+Option+Shift+Command        move the focused window
+Control+Option+Command      larger-scope navigation
+Hyper                       structural movement
+```
+
+Where:
+
+```text
+Hyper = Control+Option+Shift+Command
+```
+
+### Why Option+Command is the base
+
+Nehir avoids simpler bases because they collide with common macOS behavior:
+
+- **Control** conflicts with Mission Control, Spaces, terminal/readline shortcuts, and editor commands.
+- **Control+Option** conflicts with VoiceOver, because macOS uses it as the VoiceOver modifier.
+- **Option** alone conflicts with text editing, including word movement, word selection, and delete-word commands.
+
+`Option+Command` is the least-bad built-in base for public defaults. It still has some app/menu conflicts, but fewer critical system-level conflicts than Control-based defaults.
+
+If you prefer a single-key entry point for this base layer, the [Karabiner double-Command recipe](recipes/karabiner-double-command-sticky-command-option.json) makes double-tap-hold send `Command+Option` and double-tap-release enable sticky `Command+Option`.
+
+Examples:
+
+```text
+Option+Command+Arrow   focus
+Option+Command+Number  switch workspace
+Option+Command+Space   command palette
+```
+
+### Why Shift means "move"
+
+Shift is the "move the current thing" layer:
+
+```text
+Option+Command+Arrow          focus window
+Option+Shift+Command+Arrow    move window
+
+Option+Command+{N}            switch workspace
+Option+Shift+Command+{N}      move window to workspace
+```
+
+This keeps related actions paired:
+
+```text
+without Shift = go there
+with Shift    = move current window there
+```
+
+### Why Control adds larger scope
+
+Control is not used as the base. It is added when the action operates at a broader scope than a single focused window:
+
+```text
+Control+Option+Command+Tab          switch to last workspace
+Control+Option+Command+Left/Right   previous/next workspace
+Control+Option+Command+{N}          focus column {N}
+```
+
+### Why Hyper is reserved for structural moves
+
+Hyper is visually and physically distinct, so it is used for heavier actions that reshape layout or move things across boundaries:
+
+```text
+Hyper+Up/Down      move window to workspace up/down
+Hyper+Left/Right   move column left/right
+```
+
+`Hyper+...` always means the physical four-modifier chord.
+
+### Why column-to-workspace is unassigned
+
+Column-to-workspace up/down is intentionally unassigned. Defaults like `Hyper+PageUp` and `Hyper+PageDown` are visually noisy in the UI, and moving an entire column to another workspace is advanced enough to keep out of the default model.
+
+### Current default matrix
+
+```text
+Focus window                  Option+Command+Arrow
+Last focused window           Option+Command+Tab
+Move window                   Option+Shift+Command+Arrow
+
+Switch workspace              Option+Command+Number
+Move window to workspace      Option+Shift+Command+Number
+
+Previous/next workspace       Control+Option+Command+Left/Right
+Last workspace                Control+Option+Command+Tab
+
+Focus column number           Control+Option+Command+Number
+Focus first/last column        Option+Command+Home/End
+Move column first/last         Control+Option+Command+Home/End
+
+Move window workspace up/down Hyper+Up/Down
+Move column left/right        Hyper+Left/Right
+
+Toggle fullscreen             Option+Command+Return
+Toggle native fullscreen      Option+Shift+Command+Return
+Toggle column tabbed          Option+Shift+Command+T
+Toggle column full width      Option+Shift+Command+F
+Balance sizes                 Option+Shift+Command+B
+Raise all floating windows    Option+Shift+Command+R
+
+Cycle column width            Option+Command+Comma/Period
+Resize column                 Option+Command+-/=
+Resize window height          Option+Shift+Command+-/=
+
+Command palette               Option+Command+Space
+Menu anywhere                 Option+Command+M
+Overview                      Option+Command+O
+```
+
+Monitor focus is deliberately separate from the workspace/window model and uses `Control+Command+Tab` and `Control+Command+Grave`.
+
+The design goal is:
+
+```text
+small number of modifier patterns
+easy to infer related commands
 ```
 
 App rules use `[match]` / `[effect]` sections:
@@ -104,7 +234,7 @@ Runtime state (window restore catalog, command palette last mode) is stored sepa
 | File | Required | Description |
 |------|----------|-------------|
 | `settings.toml` | Yes | Core behavior: general, focus, gaps, niri, borders, workspace bar, gestures, status bar, appearance |
-| `hotkeys.toml` | No | Keybindings and modifier trigger. Defaults used if missing. |
+| `hotkeys.toml` | No | Physical keybindings. Defaults used if missing. |
 | `workspaces.toml` | No | Workspace list. Built-in defaults used if missing. |
 | `apprules.d/*.toml` | No | Per-app window rules. Empty directory = no rules. |
 | `monitors.d/*.toml` | No | Per-monitor overrides. Empty directory = global settings only. |

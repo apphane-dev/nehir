@@ -744,7 +744,7 @@ Nehir utility windows such as Settings and App Rules still register through `Own
 
 ### 5.1 Hotkey Command Flow
 
-User presses a hotkey (e.g., Modifier+Left to focus left):
+User presses a hotkey (e.g., Option+Command+Left Arrow to focus left):
 
 ```
 Carbon EventHandler callback
@@ -900,9 +900,7 @@ Actions can carry multiple persisted bindings, so any extra default shortcuts sh
 
 5. **Check settings-file touchpoints** when the change affects config discoverability or UX. `Sources/Nehir/UI/SettingsFileWorkflow.swift` is the open/reveal workflow layer, and the `Settings File` section in `Sources/Nehir/UI/SettingsView.swift` is the main user-facing entry point; most new settings do not need workflow code changes, but contributor-facing config behavior and copy should remain accurate.
 
-6. **Handle schema compatibility** in the TOML codec if needed. `settings.toml` is the only settings source of truth.
-
-7. **Add round-trip coverage** in tests: verify the setting survives store load/save and TOML encode/decode so it cannot silently disappear from `~/.config/nehir/settings.toml`.
+6. **Add round-trip coverage** in tests: verify the setting survives store load/save and TOML encode/decode so it cannot silently disappear from `~/.config/nehir/settings.toml`.
 
 ### 6.4 Modifying Layout Behavior
 

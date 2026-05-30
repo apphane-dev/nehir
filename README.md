@@ -68,7 +68,7 @@ Nehir uses a split-file config layout under `~/.config/nehir/`:
 ```
 ~/.config/nehir/
 ├── settings.toml      # core app behavior
-├── hotkeys.toml       # all keybindings + modifier trigger
+├── hotkeys.toml       # physical keybindings
 ├── workspaces.toml    # workspace definitions
 ├── apprules.d/        # one file per app rule
 │   ├── com-google-chrome.toml
@@ -81,9 +81,24 @@ All files are watched for changes — edits are applied live without restarting.
 
 See [Configuration Principles](docs/CONFIGURATION.md) for the design rationale.
 
-### Default Modifier
+### Default Shortcut Model
 
-The default modifier key is **⌘⌥ (Cmd+Option)**. Change it in the Nehir menu → Settings → Hotkeys → Nehir Modifier.
+Nehir defaults are stored and shown as physical key chords.
+
+- **Option+Command** — navigate, focus, and open UI
+- **Option+Shift+Command** — move the focused window
+- **Control+Option+Command** — larger-scope navigation such as workspace history and column indexes
+- **Hyper** — physical Control+Option+Shift+Command, reserved for structural moves
+
+For a lighter way to enter the base layer, see the [Karabiner double-Command recipe](docs/recipes/karabiner-double-command-sticky-command-option.json).
+
+The goal is a small set of predictable modifier patterns:
+
+```text
+without Shift = go there
+with Shift    = move current window there
+Hyper         = reshape or move structure
+```
 
 ## Development
 

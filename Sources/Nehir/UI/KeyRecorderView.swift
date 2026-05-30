@@ -5,7 +5,6 @@ import SwiftUI
 struct KeyRecorderView: NSViewRepresentable {
     let accessibilityLabel: String
     var allowsBareKeys: Bool = false
-    var modifierTrigger: ModifierKeyTrigger = .default
     let onCapture: (KeyBinding) -> Void
     let onCancel: () -> Void
 
@@ -13,7 +12,6 @@ struct KeyRecorderView: NSViewRepresentable {
         let view = KeyRecorderNSView()
         view.recordingAccessibilityLabel = accessibilityLabel
         view.allowsBareKeys = allowsBareKeys
-        view.modifierTrigger = modifierTrigger
         view.onCapture = onCapture
         view.onCancel = onCancel
         view.updateAccessibility()
@@ -23,114 +21,7 @@ struct KeyRecorderView: NSViewRepresentable {
     func updateNSView(_ nsView: KeyRecorderNSView, context _: Context) {
         nsView.recordingAccessibilityLabel = accessibilityLabel
         nsView.allowsBareKeys = allowsBareKeys
-        nsView.modifierTrigger = modifierTrigger
         nsView.updateAccessibility()
-    }
-}
-
-struct ModifierTriggerRecorderView: NSViewRepresentable {
-    let accessibilityLabel: String
-    let onCapture: (ModifierKeyTrigger) -> Void
-    let onCancel: () -> Void
-
-    func makeNSView(context _: Context) -> ModifierTriggerRecorderNSView {
-        let view = ModifierTriggerRecorderNSView()
-        view.recordingAccessibilityLabel = accessibilityLabel
-        view.onCapture = onCapture
-        view.onCancel = onCancel
-        view.updateAccessibility()
-        return view
-    }
-
-    func updateNSView(_ nsView: ModifierTriggerRecorderNSView, context _: Context) {
-        nsView.recordingAccessibilityLabel = accessibilityLabel
-        nsView.updateAccessibility()
-    }
-}
-
-class ModifierTriggerRecorderNSView: NSView {
-    var onCapture: ((ModifierKeyTrigger) -> Void)?
-    var onCancel: (() -> Void)?
-    var recordingAccessibilityLabel = "Recording modifier key"
-
-    private let label = NSTextField(labelWithString: "Press key or mouse button...")
-
-    override init(frame frameRect: NSRect) {
-        super.init(frame: frameRect)
-        setup()
-    }
-
-    required init?(coder: NSCoder) {
-        super.init(coder: coder)
-        setup()
-    }
-
-    private func setup() {
-        wantsLayer = true
-        layer?.backgroundColor = NSColor.controlAccentColor.withAlphaComponent(0.2).cgColor
-        layer?.cornerRadius = 4
-        focusRingType = .exterior
-
-        label.translatesAutoresizingMaskIntoConstraints = false
-        label.alignment = .center
-        label.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
-        label.textColor = .labelColor
-        addSubview(label)
-
-        updateAccessibility()
-
-        NSLayoutConstraint.activate([
-            label.centerXAnchor.constraint(equalTo: centerXAnchor),
-            label.centerYAnchor.constraint(equalTo: centerYAnchor)
-        ])
-    }
-
-    func updateAccessibility() {
-        setAccessibilityRole(.group)
-        setAccessibilityLabel(recordingAccessibilityLabel)
-        setAccessibilityValue("Recording. Press a key or extra mouse button.")
-        setAccessibilityHelp("Press a key or extra mouse button. Press Escape to cancel recording.")
-    }
-
-    override func viewDidMoveToWindow() {
-        super.viewDidMoveToWindow()
-        if window != nil {
-            DispatchQueue.main.async { [weak self] in
-                guard let self, self.window != nil else { return }
-                _ = self.window?.makeFirstResponder(self)
-                NSAccessibility.post(element: self, notification: .focusedUIElementChanged)
-            }
-        }
-    }
-
-    private func capture(_ trigger: ModifierKeyTrigger) {
-        onCapture?(trigger)
-    }
-
-    override func keyDown(with event: NSEvent) {
-        if event.keyCode == UInt16(kVK_Escape) {
-            onCancel?()
-            return
-        }
-        capture(.key(UInt32(event.keyCode)))
-    }
-
-    override func flagsChanged(with event: NSEvent) {
-        let keyCode = UInt32(event.keyCode)
-        let modifier = ModifierKeyTrigger.modifierMask(for: keyCode)
-        if modifier != 0 {
-            capture(.modifier(modifier))
-        } else {
-            capture(.key(keyCode))
-        }
-    }
-
-    override func otherMouseDown(with event: NSEvent) {
-        capture(.mouseButton(Int64(event.buttonNumber)))
-    }
-
-    override var acceptsFirstResponder: Bool {
-        true
     }
 }
 
@@ -139,12 +30,11 @@ class KeyRecorderNSView: NSView {
     var onCancel: (() -> Void)?
     var recordingAccessibilityLabel = "Recording hotkey"
     var allowsBareKeys = false
-    var modifierTrigger: ModifierKeyTrigger = .default {
-        didSet { isVirtualModifierActive = false }
-    }
 
     private let label = NSTextField(labelWithString: "Press keys...")
-    private var isVirtualModifierActive = false
+    private var localEventMonitor: Any?
+    private var globalEventMonitor: Any?
+    private var didFinishRecording = false
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -206,6 +96,20 @@ class KeyRecorderNSView: NSView {
 
     private func startRecording() {
         guard let window else { return }
+        guard localEventMonitor == nil, globalEventMonitor == nil else { return }
+        didFinishRecording = false
+        localEventMonitor = NSEvent.addLocalMonitorForEvents(
+            matching: [.keyDown]
+        ) { [weak self] event in
+            guard let self else { return event }
+            return self.handleKeyEvent(event) ? nil : event
+        }
+        globalEventMonitor = NSEvent.addGlobalMonitorForEvents(
+            matching: [.keyDown]
+        ) { [weak self] event in
+            _ = self?.handleKeyEvent(event)
+        }
+
         DispatchQueue.main.async { [weak self, weak window] in
             guard let self, let window, self.window === window else { return }
             if window.makeFirstResponder(self) {
@@ -214,56 +118,48 @@ class KeyRecorderNSView: NSView {
         }
     }
 
-    private func stopRecording() {}
+    private func stopRecording() {
+        if let localEventMonitor {
+            NSEvent.removeMonitor(localEventMonitor)
+            self.localEventMonitor = nil
+        }
+        if let globalEventMonitor {
+            NSEvent.removeMonitor(globalEventMonitor)
+            self.globalEventMonitor = nil
+        }
+    }
 
     @discardableResult
     private func handleKeyEvent(_ event: NSEvent) -> Bool {
+        guard !didFinishRecording else { return true }
         if event.keyCode == UInt16(kVK_Escape) {
+            didFinishRecording = true
             stopRecording()
             onCancel?()
             return true
         }
 
-        if handleVirtualModifierTriggerEvent(event) {
-            return true
-        }
-        guard event.type != .keyUp else { return false }
-
         guard let binding = binding(from: event) else { return false }
 
+        didFinishRecording = true
         stopRecording()
         onCapture?(binding)
         return true
     }
 
     private func binding(from event: NSEvent) -> KeyBinding? {
-        guard event.type != .flagsChanged else { return nil }
-
         let carbonModifiers = carbonModifiersFromNSEvent(event)
-        let usesSemanticModifier = isVirtualModifierActive || carbonModifiers == KeySymbolMapper.realHyperModifiers
-        let normalizedModifiers = usesSemanticModifier ? semanticModifierKeys(from: carbonModifiers) : carbonModifiers
         let requiresModifier = !isSpecialKey(Int(event.keyCode))
-        guard allowsBareKeys || usesSemanticModifier || !requiresModifier || normalizedModifiers != 0 else { return nil }
-
-        if usesSemanticModifier {
-            return KeyBinding(
-                keyCode: UInt32(event.keyCode),
-                modifiers: normalizedModifiers,
-                usesModifier: true
-            )
-        }
+        guard allowsBareKeys || !requiresModifier || carbonModifiers != 0 else { return nil }
 
         return KeyBinding(
             keyCode: UInt32(event.keyCode),
-            modifiers: normalizedModifiers
+            modifiers: normalizedHyperModifiers(carbonModifiers)
         )
     }
 
-    private func semanticModifierKeys(from carbonModifiers: UInt32) -> UInt32 {
-        if carbonModifiers == KeySymbolMapper.realHyperModifiers {
-            return 0
-        }
-        return carbonModifiers & ~modifierTrigger.modifierMaskToExclude
+    private func normalizedHyperModifiers(_ modifiers: UInt32) -> UInt32 {
+        modifiers == KeySymbolMapper.realHyperModifiers ? KeySymbolMapper.realHyperModifiers : modifiers
     }
 
     private func carbonModifiersFromNSEvent(_ event: NSEvent) -> UInt32 {
@@ -286,88 +182,9 @@ class KeyRecorderNSView: NSView {
             keyCode == kVK_F19 || keyCode == kVK_F20
     }
 
-    private func handleVirtualModifierTriggerEvent(_ event: NSEvent) -> Bool {
-        if handleVirtualModifierMouseEvent(event) {
-            return true
-        }
-        let keyCode = UInt32(event.keyCode)
-        guard modifierTrigger.matchesPhysicalKeyCode(keyCode) else { return false }
-
-        switch event.type {
-        case .flagsChanged:
-            if let modifierActive = modifierFlagIsActive(for: keyCode, event: event) {
-                isVirtualModifierActive = isVirtualModifierActive ? false : modifierActive
-            } else if keyCode == UInt32(kVK_CapsLock) {
-                isVirtualModifierActive = event.modifierFlags.contains(.capsLock)
-            } else {
-                isVirtualModifierActive = true
-            }
-            return true
-        case .keyDown:
-            isVirtualModifierActive = true
-            return true
-        case .keyUp:
-            isVirtualModifierActive = false
-            return true
-        default:
-            return false
-        }
-    }
-
-    private func handleVirtualModifierMouseEvent(_ event: NSEvent) -> Bool {
-        guard case let .mouseButton(button) = modifierTrigger,
-              Int64(event.buttonNumber) == button
-        else { return false }
-
-        switch event.type {
-        case .otherMouseDown:
-            isVirtualModifierActive = true
-            return true
-        case .otherMouseUp:
-            isVirtualModifierActive = false
-            return true
-        default:
-            return false
-        }
-    }
-
-    private func modifierFlagIsActive(for keyCode: UInt32, event: NSEvent) -> Bool? {
-        switch Int(keyCode) {
-        case kVK_Shift, kVK_RightShift:
-            return event.modifierFlags.contains(.shift)
-        case kVK_Control, kVK_RightControl:
-            return event.modifierFlags.contains(.control)
-        case kVK_Option, kVK_RightOption:
-            return event.modifierFlags.contains(.option)
-        case kVK_Command, kVK_RightCommand:
-            return event.modifierFlags.contains(.command)
-        default:
-            return nil
-        }
-    }
-
     override func keyDown(with event: NSEvent) {
         guard !handleKeyEvent(event) else { return }
         super.keyDown(with: event)
-    }
-
-    override func keyUp(with event: NSEvent) {
-        guard !handleKeyEvent(event) else { return }
-        super.keyUp(with: event)
-    }
-
-    override func flagsChanged(with event: NSEvent) {
-        _ = handleKeyEvent(event)
-    }
-
-    override func otherMouseDown(with event: NSEvent) {
-        guard !handleVirtualModifierMouseEvent(event) else { return }
-        super.otherMouseDown(with: event)
-    }
-
-    override func otherMouseUp(with event: NSEvent) {
-        guard !handleVirtualModifierMouseEvent(event) else { return }
-        super.otherMouseUp(with: event)
     }
 
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
