@@ -1,0 +1,7 @@
+min_version = "2025.1.0"
+
+[task_config]
+dir = "{{ config_root }}"
+
+[env]
+NEHIR_BUILD_DIR = ".build"

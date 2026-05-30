@@ -1,0 +1,7 @@
+[tasks."build"]
+description = "Build Nehir (debug)"
+run = "swift build"
+
+[tasks."build:release"]
+description = "Build Nehir (release, optimized)"
+run = "swift build -c release"

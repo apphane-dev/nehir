@@ -1,0 +1,30 @@
+[tasks."dev"]
+description = "Build and run Nehir"
+depends = ["build"]
+run = "swift run Nehir"
+
+[tasks."dev:release"]
+description = "Build and run Nehir (release)"
+depends = ["build:release"]
+run = ".build/release/Nehir"
+
+[tasks."debug"]
+description = "Run Nehir with layout tracing, capturing into a fresh timestamped log file"
+depends = ["build"]
+run = """
+set -e
+log_dir="${NEHIR_BUILD_DIR:-.build}/logs"
+mkdir -p "$log_dir"
+log_file="$log_dir/nehir-trace-$(date +%Y%m%d-%H%M%S).log"
+: > "$log_file"
+echo "Layout trace -> $log_file"
+# /usr/bin/log avoids any shell builtin/function named `log` shadowing it.
+/usr/bin/log stream \\
+  --predicate 'subsystem == "com.nehir" && category == "layout-trace"' \\
+  --info > "$log_file" 2>&1 &
+stream_pid=$!
+trap 'kill "$stream_pid" 2>/dev/null' EXIT INT TERM
+# Give the stream a moment to start filtering before the app emits events.
+sleep 0.5
+NEHIR_LAYOUT_TRACE=1 swift run Nehir
+"""

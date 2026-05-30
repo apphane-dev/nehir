@@ -1,0 +1,23 @@
+[tasks."format"]
+description = "Format code with SwiftFormat"
+run = "swiftformat ."
+
+[tasks."format:check"]
+description = "Check formatting without modifying files"
+run = "swiftformat --lint ."
+
+[tasks."lint"]
+description = "Lint with SwiftLint"
+run = "swiftlint lint"
+
+[tasks."lint:fix"]
+description = "Auto-fix lint issues"
+run = """
+swiftformat .
+swiftlint lint --fix || true
+swiftformat .
+"""
+
+[tasks."check"]
+description = "Full check: format + lint + build + test"
+depends = ["format:check", "lint", "build", "test"]

@@ -1,0 +1,16 @@
+[tasks."clean"]
+description = "Clean build artifacts"
+run = "swift package clean"
+
+[tasks."clean:full"]
+description = "Remove entire .build directory"
+run = "rm -rf .build"
+
+[tasks."install"]
+description = "Build release and copy binary to /usr/local/bin"
+depends = ["build:release"]
+run = """
+cp .build/release/Nehir /usr/local/bin/Nehir
+cp .build/release/nehirctl /usr/local/bin/nehirctl
+echo "Installed Nehir and nehirctl to /usr/local/bin"
+"""

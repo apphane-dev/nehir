@@ -1,0 +1,12 @@
+[tasks."test"]
+description = "Run tests (requires Xcode, not just CommandLineTools)"
+run = """
+# Kill any running Nehir instances to avoid port/state conflicts
+pkill -x Nehir 2>/dev/null || true
+sleep 0.5
+swift test
+"""
+
+[tasks."test:compile"]
+description = "Check that tests compile (build test target)"
+run = "swift build --build-tests"
