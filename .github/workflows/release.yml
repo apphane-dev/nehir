@@ -1,0 +1,135 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release, without leading v (for example: 0.1.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build release and update Homebrew tap
+    runs-on: macos-latest
+
+    env:
+      TAP_REPOSITORY: Guria/homebrew-tap
+      CASK_PATH: Casks/nehir.rb
+
+    steps:
+      - name: Check out Nehir
+        uses: actions/checkout@v4
+
+      - name: Resolve release version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ inputs.version }}"
+            TAG="v$VERSION"
+          else
+            TAG="${GITHUB_REF_NAME}"
+            VERSION="${TAG#v}"
+          fi
+
+          PLIST_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' Info.plist)"
+          if [ "$VERSION" != "$PLIST_VERSION" ]; then
+            echo "Release version $VERSION does not match Info.plist version $PLIST_VERSION" >&2
+            exit 1
+          fi
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "zip=dist/Nehir-$VERSION.zip" >> "$GITHUB_OUTPUT"
+
+      - name: Show toolchain
+        run: |
+          swift --version
+          xcodebuild -version
+
+      - name: Run tests
+        run: swift test
+
+      - name: Build unsigned release ZIP
+        run: Scripts/package-app.sh release false
+
+      - name: Compute SHA-256
+        id: checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          SHA256="$(shasum -a 256 "${{ steps.version.outputs.zip }}" | awk '{print $1}')"
+          echo "sha256=$SHA256" >> "$GITHUB_OUTPUT"
+          echo "$SHA256  ${{ steps.version.outputs.zip }}"
+
+      - name: Create or update GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          ZIP: ${{ steps.version.outputs.zip }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$ZIP" --clobber
+          else
+            gh release create "$TAG" "$ZIP" \
+              --target "$GITHUB_SHA" \
+              --title "Nehir ${TAG#v}" \
+              --notes "Unsigned Nehir release. macOS may show Gatekeeper warnings until Developer ID signing and notarization are configured. Nehir requires Accessibility permission to manage windows."
+          fi
+
+      - name: Check out Homebrew tap
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.TAP_REPOSITORY }}
+          token: ${{ secrets.TAP_GITHUB_TOKEN }}
+          path: homebrew-tap
+
+      - name: Update cask version and checksum
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          SHA256: ${{ steps.checksum.outputs.sha256 }}
+          CASK_FILE: homebrew-tap/${{ env.CASK_PATH }}
+        shell: bash
+        run: |
+          ruby <<'RUBY'
+          path = ENV.fetch("CASK_FILE")
+          version = ENV.fetch("VERSION")
+          sha256 = ENV.fetch("SHA256")
+
+          text = File.read(path)
+          text = text.sub(/version "[^"]+"/, %(version "#{version}"))
+          text = text.sub(/^  sha256 (?:"[0-9a-f]{64}"|:no_check(?:.*)?)$/, %(  sha256 "#{sha256}"))
+          File.write(path, text)
+          RUBY
+
+      - name: Validate cask syntax and style
+        working-directory: homebrew-tap
+        run: |
+          ruby -c Casks/nehir.rb
+          brew style Casks/nehir.rb
+
+      - name: Commit and push tap update
+        working-directory: homebrew-tap
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo "Cask already up to date."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "${{ env.CASK_PATH }}"
+          git commit -m "Update Nehir to ${{ steps.version.outputs.version }}"
+          git push
