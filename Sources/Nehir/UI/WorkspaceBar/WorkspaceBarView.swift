@@ -672,11 +672,18 @@ private struct CommandPaletteBarButton: View {
         Button(action: onOpenCommandPalette) {
             Image(systemName: "command")
                 .font(.system(size: max(10, iconSize * 0.7), weight: .medium))
-                .foregroundStyle(isHovered ? (accentColor ?? .accentColor) : resolvedSecondaryTextColor)
+                .foregroundStyle(resolvedSecondaryTextColor)
                 .frame(width: itemHeight, height: itemHeight)
-                .contentShape(Circle())
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .scaleEffect(isHovered ? 1.03 : 1.0)
+        .background {
+            if isHovered {
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(.regularMaterial)
+            }
+        }
         .onHover { hovering in
             isHovered = hovering
         }

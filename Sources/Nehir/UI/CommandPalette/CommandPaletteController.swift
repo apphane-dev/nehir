@@ -1145,6 +1145,7 @@ private struct CommandPaletteModePicker: View {
                     )
             }
             .clipShape(Capsule())
+            .contentShape(Capsule())
         }
         .buttonStyle(.plain)
         .disabled(!enabled)
