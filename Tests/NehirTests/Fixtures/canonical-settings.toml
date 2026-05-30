@@ -1,0 +1,76 @@
+
+[appearance]
+mode = "dark"
+
+[borders]
+enabled = true
+width = 5.0
+
+[borders.color]
+alpha = 1.0
+blue = 0.979300037944676
+green = 1.0
+red = 0.08458520228437894
+
+[focus]
+followsMouse = false
+followsWindowToMonitor = false
+moveMouseToFocusedWindow = false
+
+[gaps]
+size = 16.0
+
+[gaps.outer]
+bottom = 0.0
+left = 0.0
+right = 0.0
+top = 0.0
+
+[general]
+animationsEnabled = true
+hotkeysEnabled = true
+ipcEnabled = false
+preventSleepEnabled = false
+
+[gestures]
+fingerCount = 3
+invertDirection = true
+mouseResizeModifierKey = "option"
+scrollEnabled = true
+scrollModifierKey = "optionShift"
+scrollSensitivity = 5.0
+
+[mouseWarp]
+axis = "horizontal"
+margin = 1
+monitorOrder = []
+
+[niri]
+alwaysCenterSingleColumn = false
+centerFocusedColumn = "never"
+columnWidthPresets = [0.3333333333333333, 0.5, 0.6666666666666666]
+defaultColumnWidth = 0.5
+infiniteLoop = false
+maxVisibleColumns = 2
+singleWindowAspectRatio = "none"
+
+[statusBar]
+showAppNames = false
+showWorkspaceName = false
+useWorkspaceId = false
+
+[workspaceBar]
+backgroundOpacity = 0.1
+deduplicateAppIcons = false
+enabled = true
+height = 24.0
+hideEmptyWorkspaces = false
+labelFontSize = 12.0
+notchAware = true
+position = "overlappingMenuBar"
+reserveLayoutSpace = false
+showFloatingWindows = false
+showLabels = true
+windowLevel = "popup"
+xOffset = 0.0
+yOffset = 0.0

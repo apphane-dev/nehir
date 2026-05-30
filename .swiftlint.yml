@@ -1,0 +1,89 @@
+# SwiftLint configuration for OmniWM
+# Swift 6.2 with strict concurrency
+
+included:
+  - Sources
+
+excluded:
+  - .build
+  - Package.swift
+
+# Disable rules that conflict with SwiftFormat
+disabled_rules:
+  - colon
+  - comma
+  - leading_whitespace
+  - line_length
+  - opening_brace
+  - operator_usage_whitespace
+  - return_arrow_whitespace
+  - sorted_imports
+  - statement_position
+  - trailing_comma
+  - trailing_newline
+  - trailing_semicolon
+  - trailing_whitespace
+  - vertical_whitespace
+
+# Swift 6 / Concurrency-aware opt-in rules (verified to exist)
+opt_in_rules:
+  - async_without_await
+  - incompatible_concurrency_annotation
+  - strict_fileprivate
+  - no_extension_access_modifier
+  - empty_count
+  - empty_string
+  - fatal_error_message
+  - first_where
+  - last_where
+  - overridden_super_call
+  - sorted_first_last
+  - unavailable_function
+  - unowned_variable_capture
+
+cyclomatic_complexity:
+  warning: 10
+
+function_parameter_count:
+  warning: 5
+  ignores_default_parameters: true
+
+force_cast:
+  severity: warning
+
+force_try:
+  severity: warning
+
+empty_count:
+  severity: warning
+
+large_tuple:
+  warning: 2
+
+no_extension_access_modifier:
+  severity: warning
+
+type_body_length:
+  warning: 300
+
+file_length:
+  warning: 500
+
+function_body_length:
+  warning: 50
+
+identifier_name:
+  min_length:
+    warning: 2
+  max_length:
+    warning: 60
+  allowed_symbols:
+    - _
+  unallowed_symbols_severity: warning
+  validates_start_with_lowercase: warning
+  excluded:
+    - id
+    - x
+    - y
+    - i
+    - j

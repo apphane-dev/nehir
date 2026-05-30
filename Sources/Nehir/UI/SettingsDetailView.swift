@@ -1,0 +1,38 @@
+import SwiftUI
+
+struct SettingsDetailView: View {
+    let section: SettingsSection
+    @Bindable var settings: SettingsStore
+    @Bindable var controller: WMController
+
+    var body: some View {
+        contentView
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .navigationTitle(section.displayName)
+            .omniBackgroundExtensionEffect()
+    }
+
+    @ViewBuilder
+    private var contentView: some View {
+        switch section {
+        case .general:
+            GeneralSettingsTab(
+                settings: settings,
+                controller: controller,
+            )
+        case .niri:
+            NiriSettingsTab(settings: settings, controller: controller)
+        case .monitors:
+            MonitorSettingsTab(settings: settings, controller: controller)
+        case .workspaces:
+            WorkspacesSettingsTab(settings: settings, controller: controller)
+        case .borders:
+            BorderSettingsTab(settings: settings, controller: controller)
+        case .bar:
+            WorkspaceBarSettingsTab(settings: settings, controller: controller)
+        case .hotkeys:
+            HotkeySettingsView(settings: settings, controller: controller)
+        }
+    }
+}

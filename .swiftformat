@@ -1,0 +1,24 @@
+# SwiftFormat configuration for OmniWM
+# Visual formatting only. SwiftLint owns diagnostics and semantic style.
+
+--swiftversion 6.2
+--indent 4
+--maxwidth 120
+--wraparguments before-first
+--wrapcollections before-first
+--wrapparameters before-first
+--importgrouping alpha
+--commas inline
+--trimwhitespace always
+--semicolons never
+--header strip
+
+--disable all
+--enable blankLineAfterImports,blankLinesAroundMark,blankLinesAtEndOfScope,blankLinesAtStartOfScope
+--enable blankLinesBetweenChainedFunctions,blankLinesBetweenImports,blankLinesBetweenScopes
+--enable braces,consecutiveBlankLines,consecutiveSpaces,consistentSwitchCaseSpacing,duplicateImports
+--enable elseOnSameLine,fileHeader,indent,leadingDelimiters,linebreakAtEndOfFile,linebreaks
+--enable modifierOrder,semicolons,sortImports,trailingCommas,trailingSpace
+--enable spaceAroundBraces,spaceAroundBrackets,spaceAroundComments,spaceAroundGenerics,spaceAroundOperators,spaceAroundParens
+--enable spaceInsideBraces,spaceInsideBrackets,spaceInsideComments,spaceInsideGenerics,spaceInsideParens
+--enable wrap,wrapArguments,wrapAttributes,wrapFunctionBodies,wrapMultilineStatementBraces,wrapPropertyBodies,wrapSwitchCases
