@@ -2,6 +2,7 @@ import Foundation
 
 enum FocusPolicyLeaseOwner: String, Equatable {
     case nativeMenu = "native_menu"
+    case windowCloseFocusRecovery = "window_close_focus_recovery"
     case nativeAppSwitch = "native_app_switch"
     case ruleCreatedFloatingWindow = "rule_created_floating_window"
 }
@@ -33,6 +34,7 @@ struct FocusPolicyDecision: Equatable {
 final class FocusPolicyEngine {
     private static let effectiveLeasePriority: [FocusPolicyLeaseOwner] = [
         .nativeMenu,
+        .windowCloseFocusRecovery,
         .nativeAppSwitch,
         .ruleCreatedFloatingWindow
     ]

@@ -125,6 +125,13 @@ Nehir is a highly opinionated fork of [Hiro](https://github.com/BarutSRB/Hiro) (
 
 The original project tried to accommodate a wide range of user requests; Nehir deliberately narrows the scope to do one thing well. We're deeply grateful to the original author for the foundation this builds on.
 
+### Notable changes from Hiro/OmniWM
+
+- **Single layout model.** Nehir is rebuilt around Niri-style scrolling columns instead of keeping multiple layout/control models.
+- **No legacy compatibility layer.** Configuration, defaults, hotkeys, and behavior are allowed to change to fit Nehir's narrower workflow.
+- **Split TOML configuration.** Runtime config is organized under `~/.config/nehir/` with separate files for settings, hotkeys, workspaces, app rules, and monitor overrides.
+- **Close/collapse focus stays local.** When macOS reports another same-app window as focused after closing or collapsing the current one, Nehir treats that as native fallback focus rather than user navigation. Same-app fallback to inactive workspaces is ignored, and unmanaged quick-terminal fallback is also ignored on the current workspace so the viewport does not scroll to that app's managed column. Explicit Nehir focus commands still take precedence.
+
 ## License
 
 GPL-2.0-only

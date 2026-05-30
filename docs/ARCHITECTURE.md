@@ -318,6 +318,8 @@ From creation to destruction, a window passes through these stages:
 4. `LayoutRefreshController` schedules a `windowRemoval` refresh
 5. Focus recovery runs if the destroyed window was focused
 
+Nehir also guards the native activation race around close/collapse. macOS may focus another window from the same application before Nehir receives the destroy/miniaturize event; if that sibling window lives on an inactive workspace, Nehir suppresses the unrelated same-PID activation instead of following macOS to the other workspace. For unmanaged quick-terminal surfaces, same-PID fallback is suppressed even on the current workspace so closing/collapsing the quick terminal does not scroll to that app's managed column. Explicit Nehir focus requests still bypass this guard.
+
 **Managed Replacement:**
 Some apps (browsers, terminals) destroy and recreate windows during internal operations. `AXEventHandler` detects these patterns via `ManagedReplacementMetadata` correlation — matching a destroy+create pair within a 150ms grace period to preserve the window's workspace assignment and position.
 
@@ -564,6 +566,8 @@ Focus management is complex because Nehir must coordinate its intent with what m
 | `ActivationEventSource` | How focus was confirmed: `.focusedWindowChanged` (authoritative), `.workspaceDidActivateApplication`, `.cgsFrontAppChanged` |
 
 **Focus serialization:** `focusWindow(_:performFocus:onDeferredFocus:)` serializes focus operations. If a focus request arrives while one is in-flight, it queues as `pendingFocusToken` and fires after the current request completes or times out.
+
+**Close/collapse focus guard:** When the focused window closes, collapses, or otherwise disappears, the OS can immediately report a different same-app window as focused. For terminals and apps with quick-terminal surfaces, that replacement focus often points at another workspace. Nehir treats unrelated same-PID activation on an inactive workspace as a native fallback, not as user workspace navigation, and ignores it unless it matches an explicit `ManagedFocusRequest`. If the disappearing focus target is unmanaged (for example a quick terminal), same-PID fallback is also ignored on the current workspace to avoid scrolling to that app's managed column. This keeps the active workspace stable after closing a Niri-managed window, a managed floating window, or an unmanaged quick-terminal surface. The tradeoff is intentional: native same-app window switching should go through Nehir commands if it must be guaranteed.
 
 ### 4.6 Input Handling
 

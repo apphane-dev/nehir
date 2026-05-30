@@ -883,6 +883,185 @@ private func waitForFocusRefresh(on controller: WMController) async {
         #expect(controller.workspaceManager.lastFocusedHandle(in: workspaceId) == survivor)
     }
 
+    @Test @MainActor func closingFocusedWindowSuppressesCrossWorkspaceSameAppActivation() async {
+        let operations = WindowFocusOperations(
+            activateApp: { _ in },
+            focusSpecificWindow: { _, _, _ in },
+            raiseWindow: { _ in }
+        )
+        let (controller, workspaceId, survivor) = makeFocusTestController(
+            windowFocusOperations: operations,
+            workspaceConfigurations: [
+                WorkspaceConfiguration(name: "1", monitorAssignment: .main),
+                WorkspaceConfiguration(name: "2", monitorAssignment: .main)
+            ]
+        )
+        controller.hasStartedServices = true
+        guard let workspaceTwo = controller.workspaceManager.workspaceId(for: "2", createIfMissing: false),
+              let monitorId = controller.workspaceManager.monitorId(for: workspaceId)
+        else {
+            Issue.record("Missing workspace fixture")
+            return
+        }
+        _ = controller.workspaceManager.setActiveWorkspace(workspaceId, on: monitorId)
+
+        let removedToken = controller.workspaceManager.addWindow(
+            makeFocusTestWindow(windowId: 512),
+            pid: getpid(),
+            windowId: 512,
+            to: workspaceId
+        )
+        let crossWorkspaceToken = controller.workspaceManager.addWindow(
+            makeFocusTestWindow(windowId: 513),
+            pid: getpid(),
+            windowId: 513,
+            to: workspaceTwo
+        )
+        guard let removedHandle = controller.workspaceManager.handle(for: removedToken),
+              let crossWorkspaceHandle = controller.workspaceManager.handle(for: crossWorkspaceToken)
+        else {
+            Issue.record("Missing bridge handles")
+            return
+        }
+
+        _ = controller.workspaceManager.setManagedFocus(
+            removedHandle,
+            in: workspaceId,
+            onMonitor: monitorId
+        )
+        controller.axEventHandler.isFullscreenProvider = { _ in false }
+        controller.axEventHandler.focusedWindowRefProvider = { pid in
+            guard pid == getpid() else { return nil }
+            return AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: crossWorkspaceHandle.id.windowId)
+        }
+
+        controller.axEventHandler.handleAppActivation(pid: getpid(), source: .focusedWindowChanged)
+        #expect(controller.workspaceManager.activeWorkspace(on: monitorId)?.id == workspaceId)
+        #expect(controller.workspaceManager.focusedHandle == removedHandle)
+
+        controller.axEventHandler.handleRemoved(pid: getpid(), winId: removedHandle.id.windowId)
+        await waitForFocusRefresh(on: controller)
+
+        #expect(controller.workspaceManager.activeWorkspace(on: monitorId)?.id == workspaceId)
+        #expect(controller.workspaceManager.focusedHandle != crossWorkspaceHandle)
+        #expect(controller.workspaceManager.pendingFocusedHandle == survivor)
+        #expect(controller.workspaceManager.lastFocusedHandle(in: workspaceId) == survivor)
+    }
+
+    @Test @MainActor func unmanagedSameAppFocusSuppressesInactiveWorkspaceActivation() async {
+        let ghosttyPid: pid_t = 74_001
+        let operations = WindowFocusOperations(
+            activateApp: { _ in },
+            focusSpecificWindow: { _, _, _ in },
+            raiseWindow: { _ in }
+        )
+        let (controller, workspaceId, _) = makeFocusTestController(
+            windowFocusOperations: operations,
+            workspaceConfigurations: [
+                WorkspaceConfiguration(name: "1", monitorAssignment: .main),
+                WorkspaceConfiguration(name: "2", monitorAssignment: .main)
+            ]
+        )
+        controller.hasStartedServices = true
+        guard let workspaceTwo = controller.workspaceManager.workspaceId(for: "2", createIfMissing: false),
+              let monitorId = controller.workspaceManager.monitorId(for: workspaceId)
+        else {
+            Issue.record("Missing workspace fixture")
+            return
+        }
+        _ = controller.workspaceManager.setActiveWorkspace(workspaceId, on: monitorId)
+
+        let inactiveToken = controller.workspaceManager.addWindow(
+            makeFocusTestWindow(windowId: 613),
+            pid: ghosttyPid,
+            windowId: 613,
+            to: workspaceTwo
+        )
+        guard let inactiveHandle = controller.workspaceManager.handle(for: inactiveToken) else {
+            Issue.record("Missing inactive bridge handle")
+            return
+        }
+
+        let unmanagedToken = WindowToken(pid: ghosttyPid, windowId: 612)
+        _ = controller.workspaceManager.enterNonManagedFocus(appFullscreen: false)
+        _ = controller.renderKeyboardFocusBorder(
+            for: KeyboardFocusTarget(
+                token: unmanagedToken,
+                axRef: AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: unmanagedToken.windowId),
+                workspaceId: nil,
+                isManaged: false
+            ),
+            forceOrdering: true
+        )
+        controller.axEventHandler.isFullscreenProvider = { _ in false }
+        controller.axEventHandler.focusedWindowRefProvider = { pid in
+            guard pid == ghosttyPid else { return nil }
+            return AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: inactiveHandle.id.windowId)
+        }
+
+        controller.axEventHandler.handleAppActivation(pid: ghosttyPid, source: .focusedWindowChanged)
+        controller.axEventHandler.handleWindowMiniaturized(pid: unmanagedToken.pid, windowId: unmanagedToken.windowId)
+        #expect(controller.workspaceManager.activeWorkspace(on: monitorId)?.id == workspaceId)
+        #expect(controller.workspaceManager.focusedHandle != inactiveHandle)
+
+        try? await Task.sleep(for: .milliseconds(180))
+
+        #expect(controller.workspaceManager.activeWorkspace(on: monitorId)?.id == workspaceId)
+        #expect(controller.workspaceManager.focusedHandle != inactiveHandle)
+        #expect(controller.currentKeyboardFocusTargetForRendering() == nil)
+    }
+
+    @Test @MainActor func unmanagedSameAppFocusSuppressesCurrentWorkspaceActivation() async {
+        let ghosttyPid: pid_t = 74_201
+        let operations = WindowFocusOperations(
+            activateApp: { _ in },
+            focusSpecificWindow: { _, _, _ in },
+            raiseWindow: { _ in }
+        )
+        let (controller, workspaceId, _) = makeFocusTestController(windowFocusOperations: operations)
+        controller.hasStartedServices = true
+        guard let monitorId = controller.workspaceManager.monitorId(for: workspaceId) else {
+            Issue.record("Missing workspace fixture")
+            return
+        }
+
+        let sameWorkspaceToken = controller.workspaceManager.addWindow(
+            makeFocusTestWindow(windowId: 633),
+            pid: ghosttyPid,
+            windowId: 633,
+            to: workspaceId
+        )
+        guard let sameWorkspaceHandle = controller.workspaceManager.handle(for: sameWorkspaceToken) else {
+            Issue.record("Missing same-workspace bridge handle")
+            return
+        }
+
+        let unmanagedToken = WindowToken(pid: ghosttyPid, windowId: 632)
+        _ = controller.workspaceManager.enterNonManagedFocus(appFullscreen: false)
+        _ = controller.renderKeyboardFocusBorder(
+            for: KeyboardFocusTarget(
+                token: unmanagedToken,
+                axRef: AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: unmanagedToken.windowId),
+                workspaceId: nil,
+                isManaged: false
+            ),
+            forceOrdering: true
+        )
+        controller.axEventHandler.isFullscreenProvider = { _ in false }
+        controller.axEventHandler.focusedWindowRefProvider = { pid in
+            guard pid == ghosttyPid else { return nil }
+            return AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: sameWorkspaceHandle.id.windowId)
+        }
+
+        controller.axEventHandler.handleAppActivation(pid: ghosttyPid, source: .focusedWindowChanged)
+        controller.axEventHandler.handleWindowMiniaturized(pid: unmanagedToken.pid, windowId: unmanagedToken.windowId)
+        try? await Task.sleep(for: .milliseconds(50))
+
+        #expect(controller.workspaceManager.activeWorkspace(on: monitorId)?.id == workspaceId)
+        #expect(controller.workspaceManager.focusedHandle != sameWorkspaceHandle)
+        #expect(controller.currentKeyboardFocusTargetForRendering() == nil)
+    }
+
     @Test @MainActor func focusWindowIsNoOpWhileLocked() {
         var events: [FocusOperationEvent] = []
         let operations = WindowFocusOperations(

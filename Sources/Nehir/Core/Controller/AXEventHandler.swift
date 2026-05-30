@@ -204,6 +204,11 @@ final class AXEventHandler: CGSEventDelegate {
         let workspaceId: WorkspaceDescriptor.ID
     }
 
+    private struct WindowCloseFocusRecoveryContext: Equatable {
+        let workspaceId: WorkspaceDescriptor.ID
+        let expiresAt: Date
+    }
+
     private enum ManagedReplacementCorrelationPolicy {
         case structural
     }
@@ -276,6 +281,7 @@ final class AXEventHandler: CGSEventDelegate {
     private static let nativeFullscreenStaleCleanupDelay: Duration = .seconds(
         Int64(WorkspaceManager.staleUnavailableNativeFullscreenTimeout)
     )
+    private static let windowCloseFocusRecoveryDuration: TimeInterval = 0.6
     private static let stabilizationRetryDelay: Duration = .milliseconds(100)
     private static let postCreateLifecycleVerificationDelay: Duration = .milliseconds(75)
     private static let createdWindowRetryLimit = 5
@@ -294,6 +300,7 @@ final class AXEventHandler: CGSEventDelegate {
     private var createPlacementContextsByWindowId: [UInt32: WindowCreatePlacementContext] = [:]
     private var pendingManagedReplacementBursts: [ManagedReplacementKey: PendingManagedReplacementBurst] = [:]
     private var pendingManagedReplacementTasks: [ManagedReplacementKey: Task<Void, Never>] = [:]
+    private var windowCloseFocusRecoveryContext: WindowCloseFocusRecoveryContext?
     private var pendingNativeFullscreenFollowupTasks: [WindowToken: Task<Void, Never>] = [:]
     private var pendingNativeFullscreenStaleCleanupTasks: [WindowToken: Task<Void, Never>] = [:]
     private var pendingWindowRuleReevaluationTask: Task<Void, Never>?
@@ -337,6 +344,7 @@ final class AXEventHandler: CGSEventDelegate {
     func cleanup() {
         resetCreatePlacementContextState()
         resetManagedReplacementState()
+        endWindowCloseFocusRecovery()
         resetNativeFullscreenReplacementState()
         resetWindowStabilizationState()
         resetPostCreateLifecycleVerificationState()
@@ -1121,6 +1129,9 @@ final class AXEventHandler: CGSEventDelegate {
         controller.clearResizePlaceholder(for: token)
 
         let shouldRecoverFocus = token == controller.workspaceManager.focusedToken
+        if shouldRecoverFocus, let workspaceId = affectedWorkspaceId {
+            beginWindowCloseFocusRecovery(in: workspaceId)
+        }
 
         if let entry,
            let wsId = affectedWorkspaceId,
@@ -1163,6 +1174,93 @@ final class AXEventHandler: CGSEventDelegate {
             )
         }
         scheduleWindowRuleReevaluationIfNeeded(targets: [.pid(token.pid)])
+    }
+
+    private func beginWindowCloseFocusRecovery(in workspaceId: WorkspaceDescriptor.ID) {
+        guard let controller else { return }
+        guard let monitorId = controller.workspaceManager.monitorId(for: workspaceId),
+              controller.workspaceManager.activeWorkspace(on: monitorId)?.id == workspaceId
+        else {
+            endWindowCloseFocusRecovery()
+            return
+        }
+
+        windowCloseFocusRecoveryContext = WindowCloseFocusRecoveryContext(
+            workspaceId: workspaceId,
+            expiresAt: Date().addingTimeInterval(Self.windowCloseFocusRecoveryDuration)
+        )
+        controller.focusPolicyEngine.beginLease(
+            owner: .windowCloseFocusRecovery,
+            reason: "window_close_focus_recovery",
+            suppressesFocusFollowsMouse: true,
+            duration: Self.windowCloseFocusRecoveryDuration
+        )
+    }
+
+    private func activeWindowCloseFocusRecoveryWorkspaceId() -> WorkspaceDescriptor.ID? {
+        guard let context = windowCloseFocusRecoveryContext else { return nil }
+        guard context.expiresAt > Date() else {
+            endWindowCloseFocusRecovery()
+            return nil
+        }
+        return context.workspaceId
+    }
+
+    private func endWindowCloseFocusRecovery(matching workspaceId: WorkspaceDescriptor.ID? = nil) {
+        if let workspaceId, windowCloseFocusRecoveryContext?.workspaceId != workspaceId {
+            return
+        }
+        guard windowCloseFocusRecoveryContext != nil else { return }
+        windowCloseFocusRecoveryContext = nil
+        controller?.focusPolicyEngine.endLease(owner: .windowCloseFocusRecovery)
+    }
+
+    private func shouldSuppressObservedActivationDuringWindowCloseRecovery(
+        observedWorkspaceId: WorkspaceDescriptor.ID,
+        requestDisposition: ActivationRequestDisposition
+    ) -> Bool {
+        guard let recoveryWorkspaceId = activeWindowCloseFocusRecoveryWorkspaceId(),
+              recoveryWorkspaceId != observedWorkspaceId
+        else {
+            return false
+        }
+
+        if case .matchesActiveRequest = requestDisposition {
+            return false
+        }
+        return true
+    }
+
+    private func shouldSuppressSameAppInactiveWorkspaceActivationBeforeCloseRecovery(
+        entry observedEntry: WindowModel.Entry,
+        isWorkspaceActive: Bool,
+        requestDisposition: ActivationRequestDisposition
+    ) -> Bool {
+        guard case .unrelatedNoRequest = requestDisposition else { return false }
+        guard let controller else { return false }
+
+        if let currentTarget = controller.currentKeyboardFocusTargetForRendering(),
+           currentTarget.token != observedEntry.token,
+           currentTarget.pid == observedEntry.pid
+        {
+            if !currentTarget.isManaged {
+                return true
+            }
+            return !isWorkspaceActive
+        }
+
+        guard !isWorkspaceActive else { return false }
+        guard let focusedToken = controller.workspaceManager.focusedToken,
+              focusedToken != observedEntry.token,
+              focusedToken.pid == observedEntry.pid,
+              let focusedEntry = controller.workspaceManager.entry(for: focusedToken),
+              let focusedMonitorId = controller.workspaceManager.monitorId(for: focusedEntry.workspaceId),
+              controller.workspaceManager.activeWorkspace(on: focusedMonitorId)?.id == focusedEntry.workspaceId
+        else {
+            return false
+        }
+
+        return true
     }
 
     func handleAppActivation(
@@ -1245,6 +1343,29 @@ final class AXEventHandler: CGSEventDelegate {
                 controller.workspaceManager.activeWorkspace(on: monitor.id)?.id == wsId
             } ?? false
 
+            if shouldSuppressSameAppInactiveWorkspaceActivationBeforeCloseRecovery(
+                entry: entry,
+                isWorkspaceActive: isWorkspaceActive,
+                requestDisposition: requestDisposition
+            ) {
+                return
+            }
+
+            if shouldSuppressObservedActivationDuringWindowCloseRecovery(
+                observedWorkspaceId: wsId,
+                requestDisposition: requestDisposition
+            ) {
+                if case let .conflictsWithPendingRequest(request) = requestDisposition {
+                    continueManagedFocusRequest(
+                        request,
+                        source: source,
+                        origin: origin,
+                        reason: .pendingFocusMismatch
+                    )
+                }
+                return
+            }
+
             switch requestDisposition {
             case .matchesActiveRequest:
                 break
@@ -1274,6 +1395,7 @@ final class AXEventHandler: CGSEventDelegate {
                 ) else { return }
             }
 
+            endWindowCloseFocusRecovery(matching: wsId)
             handleManagedAppActivation(
                 entry: entry,
                 isWorkspaceActive: isWorkspaceActive,
@@ -1300,6 +1422,29 @@ final class AXEventHandler: CGSEventDelegate {
                 controller.workspaceManager.activeWorkspace(on: monitor.id)?.id == wsId
             } ?? false
 
+            if shouldSuppressSameAppInactiveWorkspaceActivationBeforeCloseRecovery(
+                entry: restoredEntry,
+                isWorkspaceActive: isWorkspaceActive,
+                requestDisposition: requestDisposition
+            ) {
+                return
+            }
+
+            if shouldSuppressObservedActivationDuringWindowCloseRecovery(
+                observedWorkspaceId: wsId,
+                requestDisposition: requestDisposition
+            ) {
+                if case let .conflictsWithPendingRequest(request) = requestDisposition {
+                    continueManagedFocusRequest(
+                        request,
+                        source: source,
+                        origin: origin,
+                        reason: .pendingFocusMismatch
+                    )
+                }
+                return
+            }
+
             switch requestDisposition {
             case .matchesActiveRequest:
                 break
@@ -1329,6 +1474,7 @@ final class AXEventHandler: CGSEventDelegate {
                 ) else { return }
             }
 
+            endWindowCloseFocusRecovery(matching: wsId)
             handleManagedAppActivation(
                 entry: restoredEntry,
                 isWorkspaceActive: isWorkspaceActive,
@@ -1349,6 +1495,23 @@ final class AXEventHandler: CGSEventDelegate {
             appFullscreen: appFullscreen
         ) {
             return
+        }
+
+        if activeWindowCloseFocusRecoveryWorkspaceId() != nil {
+            switch requestDisposition {
+            case .matchesActiveRequest:
+                break
+            case let .conflictsWithPendingRequest(request):
+                continueManagedFocusRequest(
+                    request,
+                    source: source,
+                    origin: origin,
+                    reason: .pendingFocusUnmanagedToken
+                )
+                return
+            case .unrelatedNoRequest:
+                return
+            }
         }
 
         switch requestDisposition {
