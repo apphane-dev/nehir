@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import NehirIPC
+import os
 
 @MainActor
 struct WindowFocusOperations {
@@ -41,6 +42,13 @@ struct WindowFocusOperations {
 
 @MainActor @Observable
 final class WMController {
+    private static let runtimeDebugLogger = Logger(subsystem: "com.nehir", category: "runtime-debug")
+
+    struct RuntimeTraceCaptureSession {
+        let startedAt: Date
+        let startRuntimeStateDump: String
+    }
+
     struct WorkspaceBarRefreshDebugState {
         var requestCount: Int = 0
         var scheduledCount: Int = 0
@@ -163,6 +171,8 @@ final class WMController {
     var warpMouseCursorPosition: (CGPoint) -> Void = { CGWarpMouseCursorPosition($0) }
     @ObservationIgnored
     weak var ipcApplicationBridge: IPCApplicationBridge?
+    @ObservationIgnored
+    private var runtimeTraceCaptureSession: RuntimeTraceCaptureSession?
 
     let animationClock = AnimationClock()
     let motionPolicy: MotionPolicy
@@ -1831,9 +1841,155 @@ final class WMController {
     }
 
     func copyDebugDump(_ snapshot: WindowDecisionDebugSnapshot) {
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(snapshot.formattedDump(), forType: .string)
+        copyDebugTextToPasteboard(snapshot.formattedDump())
+    }
+
+    func runtimeStateDebugDump(traceLimit: Int = 50) -> String {
+        let axSnapshot = axManager.windowStateDebugSnapshot()
+        let refreshSnapshot = layoutRefreshController.refreshDebugSnapshot()
+        let mouseTapSnapshot = mouseEventHandler.mouseTapDebugSnapshot()
+        let mouseWarpSnapshot = mouseWarpHandler.mouseWarpDebugSnapshot()
+        let axEventSnapshot = axEventHandler.debugCounters
+        let cgsSnapshot = CGSEventObserver.shared.cgsDebugSnapshot()
+
+        let lines: [String] = [
+            "WMController runtime state",
+            "enabled=\(isEnabled) desiredEnabled=\(desiredEnabled) hotkeysEnabled=\(hotkeysEnabled) desiredHotkeysEnabled=\(desiredHotkeysEnabled)",
+            "accessibilityGranted=\(accessibilityPermissionGranted) lockScreenActive=\(isLockScreenActive) overviewOpen=\(isOverviewOpen()) startedServices=\(hasStartedServices)",
+            "focusFollowsMouse=\(focusFollowsMouseEnabled) moveMouseToFocusedWindow=\(moveMouseToFocusedWindowEnabled) mouseWarpPolicyEnabled=\(isMouseWarpPolicyEnabled)",
+            "isTransferringWindow=\(isTransferringWindow) hiddenAppPIDs=\(hiddenAppPIDs.count) workspaceBarHiddenMonitors=\(hiddenWorkspaceBarMonitorIds.count)",
+            "workspaceBarRefreshDebugState requestCount=\(workspaceBarRefreshDebugState.requestCount) scheduledCount=\(workspaceBarRefreshDebugState.scheduledCount) executionCount=\(workspaceBarRefreshDebugState.executionCount) isQueued=\(workspaceBarRefreshDebugState.isQueued)",
+            "-- WorkspaceManager --",
+            workspaceManager.runtimeStateDebugSummary(),
+            "-- AXManager --",
+            "lastAppliedFrames=\(axSnapshot.lastAppliedFrameCount) pendingFrameWrites=\(axSnapshot.pendingFrameWriteCount) recentFailures=\(axSnapshot.recentFrameWriteFailureCount) retryBudget=\(axSnapshot.retryBudgetCount) forceApply=\(axSnapshot.forceApplyWindowIdCount) pendingObservers=\(axSnapshot.pendingFrameObserverCount) observerRequests=\(axSnapshot.observerRequestIdCount) rekeyedWindowIds=\(axSnapshot.rekeyedWindowIdCount) inactiveWorkspaceWindowIds=\(axSnapshot.inactiveWorkspaceWindowIdCount)",
+            "-- AXEventHandler --",
+            "geometryRelayoutRequests=\(axEventSnapshot.geometryRelayoutRequests) scopedGeometryRelayoutRequests=\(axEventSnapshot.scopedGeometryRelayoutRequests) suppressedDuringGesture=\(axEventSnapshot.geometryRelayoutsSuppressedDuringGesture) suppressedForOwnFrameWrites=\(axEventSnapshot.geometryRelayoutsSuppressedForOwnFrameWrites)",
+            "-- LayoutRefreshController --",
+            "fullRescan=\(refreshSnapshot.fullRescanExecutions) relayout=\(refreshSnapshot.relayoutExecutions) immediateRelayout=\(refreshSnapshot.immediateRelayoutExecutions) visibility=\(refreshSnapshot.visibilityExecutions) windowRemoval=\(refreshSnapshot.windowRemovalExecutions)",
+            "requestedByReason=\(String(describing: refreshSnapshot.requestedByReason))",
+            "executedByReason=\(String(describing: refreshSnapshot.executedByReason))",
+            "lastAffectedWorkspaceIdsByReason=\(String(describing: refreshSnapshot.lastAffectedWorkspaceIdsByReason))",
+            "-- MouseEventHandler --",
+            String(describing: mouseTapSnapshot),
+            "-- MouseWarpHandler --",
+            String(describing: mouseWarpSnapshot),
+            "-- CGSEventObserver --",
+            String(describing: cgsSnapshot),
+            "-- Reconcile Snapshot --",
+            workspaceManager.reconcileSnapshotDump(),
+            "-- Reconcile Trace --",
+            workspaceManager.reconcileTraceDump(limit: traceLimit)
+        ]
+
+        return lines.joined(separator: "\n")
+    }
+
+    func dumpRuntimeState(traceLimit: Int = 50) {
+        let dump = runtimeStateDebugDump(traceLimit: traceLimit)
+        copyDebugTextToPasteboard(dump)
+        Self.runtimeDebugLogger.info("\(dump, privacy: .public)")
+    }
+
+    func resetRuntimeState() {
+        mouseEventHandler.handleInputSuppressionBegan()
+        mouseEventHandler.resetDebugStateForTests()
+        mouseWarpHandler.resetDebugStateForTests()
+        axEventHandler.resetDebugStateForTests()
+        CGSEventObserver.shared.resetDebugStateForTests()
+        axManager.resetRuntimeState()
+        layoutRefreshController.resetState()
+        layoutRefreshController.resetDebugState()
+        focusBridge.reset()
+        resetWorkspaceBarRefreshDebugStateForTests()
+        tabbedOverlayManager.removeAll()
+        nativeFullscreenPlaceholderManager.removeAll()
+        resizePlaceholderManager.removeAll()
+        focusBorderController.cleanup()
+        workspaceManager.resetRuntimeStateForDebug()
+        hiddenAppPIDs.removeAll()
+        isTransferringWindow = false
+
+        if niriEngine != nil {
+            enableNiriLayout(
+                centerFocusedColumn: settings.niriCenterFocusedColumn,
+                alwaysCenterSingleColumn: settings.niriAlwaysCenterSingleColumn
+            )
+            updateNiriConfig(
+                maxVisibleColumns: settings.niriMaxVisibleColumns,
+                infiniteLoop: settings.niriInfiniteLoop,
+                centerFocusedColumn: settings.niriCenterFocusedColumn,
+                alwaysCenterSingleColumn: settings.niriAlwaysCenterSingleColumn,
+                singleWindowAspectRatio: settings.niriSingleWindowAspectRatio,
+                columnWidthPresets: settings.niriColumnWidthPresets,
+                defaultColumnWidth: settings.niriDefaultColumnWidth
+            )
+        }
+
+        layoutRefreshController.requestFullRescan(reason: .startup)
+    }
+
+    func restartAppClearingRuntimeState() {
+        resetRuntimeState()
+        workspaceManager.prepareForRestartClearingRuntimeState()
+
+        guard relaunchCurrentApplication() else {
+            Self.runtimeDebugLogger.error("Failed to schedule relaunch after runtime reset")
+            return
+        }
+
+        NSApp.terminate(nil)
+    }
+
+    func startRuntimeTraceCapture() {
+        runtimeTraceCaptureSession = RuntimeTraceCaptureSession(
+            startedAt: Date(),
+            startRuntimeStateDump: runtimeStateDebugDump(traceLimit: 0)
+        )
+        workspaceManager.resetReconcileTraceForDebug()
+    }
+
+    func stopRuntimeTraceCapture() {
+        guard let session = runtimeTraceCaptureSession else {
+            Self.runtimeDebugLogger.error("Stop runtime trace capture requested without an active session")
+            return
+        }
+
+        let endedAt = Date()
+        let endRuntimeStateDump = runtimeStateDebugDump(traceLimit: 0)
+        let traceDump = workspaceManager.reconcileTraceDump(limit: nil)
+        let duration = endedAt.timeIntervalSince(session.startedAt)
+        let fileURL = runtimeTraceCaptureFileURL(startedAt: session.startedAt, endedAt: endedAt)
+        let body = [
+            "Nehir runtime trace capture",
+            "startedAt=\(session.startedAt.ISO8601Format())",
+            "endedAt=\(endedAt.ISO8601Format())",
+            String(format: "durationSeconds=%.3f", duration),
+            "",
+            "## Runtime state at start",
+            session.startRuntimeStateDump,
+            "",
+            "## Tracing logs",
+            traceDump,
+            "",
+            "## Runtime state at end",
+            endRuntimeStateDump,
+            ""
+        ].joined(separator: "\n")
+
+        do {
+            try FileManager.default.createDirectory(
+                at: fileURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            try body.write(to: fileURL, atomically: true, encoding: .utf8)
+            copyDebugTextToPasteboard(fileURL.path)
+            Self.runtimeDebugLogger.info("Wrote runtime trace capture to \(fileURL.path, privacy: .public)")
+        } catch {
+            Self.runtimeDebugLogger.error("Failed to write runtime trace capture: \(error.localizedDescription, privacy: .public)")
+        }
+
+        runtimeTraceCaptureSession = nil
     }
 
     func clearManualWindowOverride(for token: WindowToken) {
@@ -1844,6 +2000,48 @@ final class WMController {
         workspaceManager.entry(for: token)?.axRef
             ?? axEventHandler.axWindowRefProvider?(UInt32(token.windowId), token.pid)
             ?? AXWindowService.axWindowRef(for: UInt32(token.windowId), pid: token.pid)
+    }
+
+    private func copyDebugTextToPasteboard(_ text: String) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
+    }
+
+    private func runtimeTraceCaptureFileURL(startedAt: Date, endedAt: Date) -> URL {
+        let baseDirectory = NehirStoragePaths.live.stateDirectory
+            .appendingPathComponent("traces", isDirectory: true)
+        let filename = "runtime-trace-\(Int(startedAt.timeIntervalSince1970))-\(Int(endedAt.timeIntervalSince1970)).log"
+        return baseDirectory.appendingPathComponent(filename, isDirectory: false)
+    }
+
+    private func relaunchCurrentApplication() -> Bool {
+        let executablePath = (Bundle.main.executableURL?.path).flatMap { $0.isEmpty ? nil : $0 }
+            ?? ProcessInfo.processInfo.arguments.first
+        guard let executablePath else { return false }
+
+        let executableArguments = ProcessInfo.processInfo.arguments.dropFirst()
+            .map(Self.shellQuote)
+            .joined(separator: " ")
+        let command = executableArguments.isEmpty
+            ? "sleep 0.5; \(Self.shellQuote(executablePath)) >/dev/null 2>&1 &"
+            : "sleep 0.5; \(Self.shellQuote(executablePath)) \(executableArguments) >/dev/null 2>&1 &"
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/sh")
+        process.arguments = ["-c", command]
+
+        do {
+            try process.run()
+            return true
+        } catch {
+            Self.runtimeDebugLogger.error("Failed to spawn relaunch helper: \(error.localizedDescription, privacy: .public)")
+            return false
+        }
+    }
+
+    private static func shellQuote(_ value: String) -> String {
+        "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
 
     @discardableResult

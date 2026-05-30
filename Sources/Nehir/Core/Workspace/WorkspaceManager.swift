@@ -198,7 +198,7 @@ final class WorkspaceManager {
     private let reconcileTrace = ReconcileTraceRecorder()
     private lazy var runtimeStore = RuntimeStore(traceRecorder: reconcileTrace)
     private let restorePlanner = RestorePlanner()
-    private let bootPersistedWindowRestoreCatalog: PersistedWindowRestoreCatalog
+    private var bootPersistedWindowRestoreCatalog: PersistedWindowRestoreCatalog
     private var nativeFullscreenRecordsByOriginalToken: [WindowToken: NativeFullscreenRecord] = [:]
     private var nativeFullscreenOriginalTokenByCurrentToken: [WindowToken: WindowToken] = [:]
     private var consumedBootPersistedWindowRestoreEntries: Set<PersistedWindowRestoreConsumptionKey> = []
@@ -206,6 +206,7 @@ final class WorkspaceManager {
     private var persistedWindowRestoreCatalogSaveScheduled = false
     private var persistedWindowRestoreCatalogBuildInFlight = false
     private var persistedWindowRestoreCatalogRevision: UInt64 = 0
+    private var clearPersistedWindowRestoreCatalogOnNextFlush = false
 
     private var _cachedSortedMonitors: [Monitor]?
     private var _cachedTopologyProfile: TopologyProfile?
@@ -295,6 +296,77 @@ final class WorkspaceManager {
 
     func reconcileTraceDump(limit: Int? = nil) -> String {
         ReconcileDebugDump.trace(reconcileTrace.snapshot(), limit: limit)
+    }
+
+    func resetReconcileTraceForDebug() {
+        reconcileTrace.reset()
+    }
+
+    func runtimeStateDebugSummary() -> String {
+        let entries = windows.allEntries()
+        let tiledCount = entries.filter { $0.mode == .tiling }.count
+        let floatingCount = entries.filter { $0.mode == .floating }.count
+        let replacementMetadataCount = entries.filter { $0.managedReplacementMetadata != nil }.count
+        let replacementCorrelationCount = entries.filter { $0.replacementCorrelation != nil }.count
+        let cachedConstraintsCount = entries.filter { $0.cachedConstraints != nil }.count
+        let resizePlaceholderCount = entries.filter { $0.resizePlaceholderState != nil }.count
+        let manualOverrideCount = entries.filter { $0.manualLayoutOverride != nil }.count
+        let hiddenCount = entries.filter { $0.hiddenReason != nil }.count
+        let nonStandardLayoutReasonCount = entries.filter { $0.layoutReason != .standard }.count
+
+        func tokenString(_ token: WindowToken?) -> String {
+            guard let token else { return "nil" }
+            return "\(token.pid):\(token.windowId)"
+        }
+
+        return [
+            "monitors=\(monitors.count) workspaces=\(workspaces.count) visibleWorkspaces=\(visibleWorkspaceIds().count)",
+            "windows total=\(entries.count) tiled=\(tiledCount) floating=\(floatingCount) hidden=\(hiddenCount)",
+            "focus focused=\(tokenString(sessionState.focus.focusedToken)) pending=\(tokenString(sessionState.focus.pendingManagedFocus.token)) scratchpad=\(tokenString(sessionState.scratchpadToken))",
+            "interaction current=\(sessionState.interactionMonitorId.map(String.init(describing:)) ?? "nil") previous=\(sessionState.previousInteractionMonitorId.map(String.init(describing:)) ?? "nil") nonManaged=\(sessionState.focus.isNonManagedFocusActive) appFullscreen=\(sessionState.focus.isAppFullscreenActive) lease=\(sessionState.focus.focusLease != nil)",
+            "nativeFullscreen records=\(nativeFullscreenRecordsByOriginalToken.count) pendingTransitions=\(hasPendingNativeFullscreenTransition)",
+            "restore disconnectedVisibleWorkspaceCache=\(disconnectedVisibleWorkspaceCache.count) consumedPersistedEntries=\(consumedBootPersistedWindowRestoreEntries.count) persistedDirty=\(persistedWindowRestoreCatalogDirty) saveScheduled=\(persistedWindowRestoreCatalogSaveScheduled) buildInFlight=\(persistedWindowRestoreCatalogBuildInFlight) revision=\(persistedWindowRestoreCatalogRevision)",
+            "windowRuntime replacementMetadata=\(replacementMetadataCount) replacementCorrelation=\(replacementCorrelationCount) cachedConstraints=\(cachedConstraintsCount) resizePlaceholders=\(resizePlaceholderCount) manualOverrides=\(manualOverrideCount) nonStandardLayoutReasons=\(nonStandardLayoutReasonCount)"
+        ].joined(separator: "\n")
+    }
+
+    func resetRuntimeStateForDebug() {
+        reconcileTrace.reset()
+        runtimeStore = RuntimeStore(traceRecorder: reconcileTrace)
+        nativeFullscreenRecordsByOriginalToken.removeAll()
+        nativeFullscreenOriginalTokenByCurrentToken.removeAll()
+        consumedBootPersistedWindowRestoreEntries.removeAll()
+        disconnectedVisibleWorkspaceCache.removeAll()
+        persistedWindowRestoreCatalogDirty = false
+        persistedWindowRestoreCatalogSaveScheduled = false
+        persistedWindowRestoreCatalogBuildInFlight = false
+        persistedWindowRestoreCatalogRevision = 0
+        bootPersistedWindowRestoreCatalog = .empty
+        settings.savePersistedWindowRestoreCatalog(.empty)
+        settings.flushNow()
+
+        sessionState.scratchpadToken = nil
+        sessionState.focus = .init()
+        sessionState.previousInteractionMonitorId = nil
+        for workspaceId in sessionState.workspaceSessions.keys {
+            sessionState.workspaceSessions[workspaceId]?.niriViewportState?.reset()
+        }
+
+        windows.clearAll()
+        invalidateWorkspaceProjectionCaches()
+        reconcileInteractionMonitorState(notify: false)
+        notifySessionStateChanged()
+    }
+
+    func prepareForRestartClearingRuntimeState() {
+        clearPersistedWindowRestoreCatalogOnNextFlush = true
+        persistedWindowRestoreCatalogDirty = false
+        persistedWindowRestoreCatalogSaveScheduled = false
+        persistedWindowRestoreCatalogBuildInFlight = false
+        persistedWindowRestoreCatalogRevision = 0
+        bootPersistedWindowRestoreCatalog = .empty
+        settings.savePersistedWindowRestoreCatalog(.empty)
+        settings.flushNow()
     }
 
     @discardableResult
@@ -710,6 +782,17 @@ final class WorkspaceManager {
     }
 
     func flushPersistedWindowRestoreCatalogNow() {
+        if clearPersistedWindowRestoreCatalogOnNextFlush {
+            clearPersistedWindowRestoreCatalogOnNextFlush = false
+            persistedWindowRestoreCatalogDirty = false
+            persistedWindowRestoreCatalogSaveScheduled = false
+            persistedWindowRestoreCatalogBuildInFlight = false
+            bootPersistedWindowRestoreCatalog = .empty
+            settings.savePersistedWindowRestoreCatalog(.empty)
+            settings.flushNow()
+            return
+        }
+
         markPersistedWindowRestoreCatalogDirty()
         flushPersistedWindowRestoreCatalogSynchronously()
     }

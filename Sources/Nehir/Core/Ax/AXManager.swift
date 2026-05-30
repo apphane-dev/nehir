@@ -179,6 +179,20 @@ final class AXManager {
         inactiveWorkspaceWindowIds.removeAll()
     }
 
+    func resetRuntimeState() {
+        framesByPidBuffer.removeAll()
+        lastAppliedFrames.removeAll()
+        pendingFrameWrites.removeAll()
+        recentFrameWriteFailures.removeAll()
+        retryBudgetByWindowId.removeAll()
+        forceApplyWindowIds.removeAll()
+        pendingFrameObserversByRequestId.removeAll()
+        observerRequestIdByWindowId.removeAll()
+        rekeyedWindowIdsByPreviousId.removeAll()
+        inactiveWorkspaceWindowIds.removeAll()
+        nextFrameApplicationRequestId = 1
+    }
+
     func rekeyWindowState(pid: pid_t, oldWindowId: Int, newWindow: AXWindowRef) {
         let newWindowId = newWindow.windowId
         guard oldWindowId != newWindowId else { return }

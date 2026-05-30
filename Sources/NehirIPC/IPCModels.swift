@@ -276,6 +276,11 @@ public enum IPCCommandName: String, Codable, CaseIterable, Equatable, Sendable {
     case scratchpadAssign = "scratchpad-assign"
     case scratchpadToggle = "scratchpad-toggle"
     case openMenuAnywhere = "open-menu-anywhere"
+    case dumpRuntimeState = "dump-runtime-state"
+    case resetRuntimeState = "reset-runtime-state"
+    case restartAppClearingRuntimeState = "restart-app-clearing-runtime-state"
+    case startRuntimeTraceCapture = "start-runtime-trace-capture"
+    case stopRuntimeTraceCapture = "stop-runtime-trace-capture"
 }
 
 public enum IPCSizeChangeKind: String, Codable, Equatable, Sendable {
@@ -394,6 +399,11 @@ public enum IPCCommandRequest: Equatable, Sendable {
     case scratchpadAssign
     case scratchpadToggle
     case openMenuAnywhere
+    case dumpRuntimeState
+    case resetRuntimeState
+    case restartAppClearingRuntimeState
+    case startRuntimeTraceCapture
+    case stopRuntimeTraceCapture
 
     public var name: IPCCommandName {
         switch self {
@@ -537,6 +547,16 @@ public enum IPCCommandRequest: Equatable, Sendable {
             .scratchpadToggle
         case .openMenuAnywhere:
             .openMenuAnywhere
+        case .dumpRuntimeState:
+            .dumpRuntimeState
+        case .resetRuntimeState:
+            .resetRuntimeState
+        case .restartAppClearingRuntimeState:
+            .restartAppClearingRuntimeState
+        case .startRuntimeTraceCapture:
+            .startRuntimeTraceCapture
+        case .stopRuntimeTraceCapture:
+            .stopRuntimeTraceCapture
         }
     }
 
@@ -789,6 +809,21 @@ public enum IPCCommandRequest: Equatable, Sendable {
         case .openMenuAnywhere:
             try requireNoArguments()
             self = .openMenuAnywhere
+        case .dumpRuntimeState:
+            try requireNoArguments()
+            self = .dumpRuntimeState
+        case .resetRuntimeState:
+            try requireNoArguments()
+            self = .resetRuntimeState
+        case .restartAppClearingRuntimeState:
+            try requireNoArguments()
+            self = .restartAppClearingRuntimeState
+        case .startRuntimeTraceCapture:
+            try requireNoArguments()
+            self = .startRuntimeTraceCapture
+        case .stopRuntimeTraceCapture:
+            try requireNoArguments()
+            self = .stopRuntimeTraceCapture
         }
     }
 }
@@ -990,6 +1025,16 @@ extension IPCCommandRequest: Codable {
             self = .scratchpadToggle
         case .openMenuAnywhere:
             self = .openMenuAnywhere
+        case .dumpRuntimeState:
+            self = .dumpRuntimeState
+        case .resetRuntimeState:
+            self = .resetRuntimeState
+        case .restartAppClearingRuntimeState:
+            self = .restartAppClearingRuntimeState
+        case .startRuntimeTraceCapture:
+            self = .startRuntimeTraceCapture
+        case .stopRuntimeTraceCapture:
+            self = .stopRuntimeTraceCapture
         }
     }
 
@@ -1140,6 +1185,16 @@ extension IPCCommandRequest: Codable {
         case .scratchpadToggle:
             break
         case .openMenuAnywhere:
+            break
+        case .dumpRuntimeState:
+            break
+        case .resetRuntimeState:
+            break
+        case .restartAppClearingRuntimeState:
+            break
+        case .startRuntimeTraceCapture:
+            break
+        case .stopRuntimeTraceCapture:
             break
         }
     }

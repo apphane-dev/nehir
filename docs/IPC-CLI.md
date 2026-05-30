@@ -28,6 +28,7 @@ This document covers the Nehir automation surface. For the docs hub, see [Docume
   - [Layout & Sizing](#layout--sizing)
   - [Window Management](#window-management)
   - [UI Toggles](#ui-toggles)
+  - [Runtime Debugging](#runtime-debugging)
 - [Queries](#queries)
   - [Query Selectors](#query-selectors)
   - [Query Fields](#query-fields)
@@ -347,6 +348,21 @@ Workspace IDs are positive numeric strings. Direct hotkeys stay limited to `1-9`
 | `command open-menu-anywhere` | — | command | Open the menu surface |
 | `command toggle-workspace-bar` | — | command | Toggle workspace bar visibility |
 | `command toggle-overview` | — | command | Toggle the overview surface |
+
+### Runtime Debugging
+
+| Command | Arguments | Surface | Description |
+|---------|-----------|---------|-------------|
+| `command dump-runtime-state` | — | command | Dump runtime state to the clipboard and unified log |
+| `command reset-runtime-state` | — | command | Clear runtime state and rebootstrap from a startup-style full rescan |
+| `command restart-app-clearing-runtime-state` | — | command | Clear runtime state, relaunch the app, and exit the current process |
+| `command start-runtime-trace-capture` | — | command | Start capturing internal runtime trace events |
+| `command stop-runtime-trace-capture` | — | command | Write the captured trace bundle to `${XDG_STATE_HOME:-$HOME/.local/state}/nehir/traces/…` and copy the file path to the clipboard |
+
+The default hotkeys are:
+
+- `Ctrl+Option+Cmd+T` — Start Runtime Trace Capture
+- `Ctrl+Option+Shift+Cmd+T` — Stop Runtime Trace Capture
 
 ---
 

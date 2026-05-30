@@ -77,6 +77,12 @@ enum HotkeyCommand: Codable, Equatable, Hashable {
 
     case openMenuAnywhere
 
+    case dumpRuntimeState
+    case resetRuntimeState
+    case restartAppClearingRuntimeState
+    case startRuntimeTraceCapture
+    case stopRuntimeTraceCapture
+
     case toggleWorkspaceBarVisibility
     case toggleOverview
 

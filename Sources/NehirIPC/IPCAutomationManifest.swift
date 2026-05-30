@@ -726,6 +726,11 @@ public enum IPCAutomationManifest {
         ),
         command(["scratchpad", "toggle"], name: .scratchpadToggle, summary: "Show or hide the scratchpad window."),
         command(["open-menu-anywhere"], name: .openMenuAnywhere, summary: "Open the menu surface anywhere."),
+        command(["dump-runtime-state"], name: .dumpRuntimeState, summary: "Dump runtime state to the clipboard and unified log."),
+        command(["reset-runtime-state"], name: .resetRuntimeState, summary: "Clear runtime state and rebootstrap from a startup-style rescan."),
+        command(["restart-app-clearing-runtime-state"], name: .restartAppClearingRuntimeState, summary: "Clear runtime state, relaunch the app, and exit the current process."),
+        command(["start-runtime-trace-capture"], name: .startRuntimeTraceCapture, summary: "Begin capturing internal runtime trace events for later export."),
+        command(["stop-runtime-trace-capture"], name: .stopRuntimeTraceCapture, summary: "Write the captured runtime trace bundle to disk and copy the file path to the clipboard."),
         command(
             ["toggle-workspace-bar"],
             name: .toggleWorkspaceBar,

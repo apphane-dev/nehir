@@ -760,4 +760,28 @@ final class WindowModel {
             return (token, state)
         }
     }
+
+    func resetRuntimeStateForDebug() {
+        missingDetectionCountByToken.removeAll()
+
+        for entry in entries.values {
+            entry.replacementCorrelation = nil
+            entry.managedReplacementMetadata = nil
+            entry.cachedConstraints = nil
+            entry.constraintsCacheTime = nil
+            entry.resizePlaceholderState = nil
+        }
+    }
+
+    func clearAll() {
+        entries.removeAll()
+        entryByWindowId.removeAll()
+        tokensByWorkspace.removeAll()
+        tokenIndexByWorkspace.removeAll()
+        tokensByWorkspaceMode.removeAll()
+        tokenIndexByWorkspaceMode.removeAll()
+        tokensByPid.removeAll()
+        tokenIndexByPid.removeAll()
+        missingDetectionCountByToken.removeAll()
+    }
 }

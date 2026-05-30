@@ -70,6 +70,26 @@ nehirctl command switch-workspace 2
 nehirctl --help
 ```
 
+## Runtime Debugging
+
+Nehir includes a few runtime-debug commands in the command palette and IPC/CLI surface:
+
+- **Dump Runtime State** — copies the current runtime dump to the clipboard and writes it to the unified log
+- **Reset Runtime State** — clears runtime state and reboots tracking from a startup-style rescan
+- **Restart App Clearing Runtime State** — clears runtime state and relaunches the app
+- **Start Runtime Trace Capture** — default hotkey: `Ctrl+Option+Cmd+T`
+- **Stop Runtime Trace Capture** — default hotkey: `Ctrl+Option+Shift+Cmd+T`
+
+Stopping a trace capture writes a log bundle to:
+
+```text
+${XDG_STATE_HOME:-$HOME/.local/state}/nehir/traces/
+```
+
+and copies the dumped file path to the clipboard.
+
+For IPC/CLI usage, see [docs/IPC-CLI.md](docs/IPC-CLI.md).
+
 ## Configuration
 
 Nehir uses a split-file config layout under `~/.config/nehir/`:
@@ -141,6 +161,7 @@ The original project tried to accommodate a wide range of user requests; Nehir d
 - **Split TOML configuration.** Runtime config is organized under `~/.config/nehir/` with separate files for settings, hotkeys, workspaces, app rules, and monitor overrides.
 - **Close/collapse focus stays local.** When macOS reports another same-app window as focused after closing or collapsing the current one, Nehir treats that as native fallback focus rather than user navigation. Same-app fallback to inactive workspaces is ignored, and unmanaged quick-terminal fallback is also ignored on the current workspace so the viewport does not scroll to that app's managed column. Explicit Nehir focus commands still take precedence.
 - **Configurable gesture scroll snap.** Trackpad swipe gestures can snap to column boundaries or stop freely mid-scroll. Controlled by `gestures.scrollSnap` in `settings.toml` (default `true`).
+- **Built-in runtime debugging tools.** Nehir now ships command-palette and IPC/CLI actions to dump runtime state, reset/rebootstrap runtime state, restart while clearing runtime state, and capture runtime trace bundles under `${XDG_STATE_HOME:-$HOME/.local/state}/nehir/traces/`.
 
 ## License
 
