@@ -38,15 +38,24 @@ System Settings > Privacy & Security > Accessibility
 ### From source
 
 ```bash
-swift build -c release
-cp .build/release/Nehir /usr/local/bin/
-cp .build/release/nehirctl /usr/local/bin/
+# Package the app bundle
+Scripts/package-app.sh release
+
+# User-local install (no sudo)
+mkdir -p "$HOME/Applications" "$HOME/.local/bin"
+rm -rf "$HOME/Applications/Nehir.app"
+cp -R dist/Nehir.app "$HOME/Applications/Nehir.app"
+install -m 755 .build/apple/Products/Release/nehirctl "$HOME/.local/bin/nehirctl"
 ```
 
 Or use mise:
 
 ```bash
+# User-local install
 mise run install
+
+# System-wide install
+mise run install:system
 ```
 
 ## Usage

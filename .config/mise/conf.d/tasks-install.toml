@@ -7,10 +7,37 @@ description = "Remove entire .build directory"
 run = "rm -rf .build"
 
 [tasks."install"]
-description = "Build release and copy binary to /usr/local/bin"
-depends = ["build:release"]
+description = "Package Nehir.app and install it to ~/Applications, plus nehirctl to ~/.local/bin"
+depends = ["package:release"]
 run = """
-cp .build/release/Nehir /usr/local/bin/Nehir
-cp .build/release/nehirctl /usr/local/bin/nehirctl
-echo "Installed Nehir and nehirctl to /usr/local/bin"
+APP_INSTALL_DIR="${APP_INSTALL_DIR:-$HOME/Applications}"
+CLI_INSTALL_DIR="${CLI_INSTALL_DIR:-$HOME/.local/bin}"
+APP_BUILD_DIR=".build/apple/Products/Release"
+APP_BUNDLE_SOURCE="dist/Nehir.app"
+CLI_SOURCE="$APP_BUILD_DIR/nehirctl"
+
+mkdir -p "$APP_INSTALL_DIR" "$CLI_INSTALL_DIR"
+rm -rf "$APP_INSTALL_DIR/Nehir.app"
+cp -R "$APP_BUNDLE_SOURCE" "$APP_INSTALL_DIR/Nehir.app"
+install -m 755 "$CLI_SOURCE" "$CLI_INSTALL_DIR/nehirctl"
+
+echo "Installed Nehir.app to $APP_INSTALL_DIR/Nehir.app"
+echo "Installed nehirctl to $CLI_INSTALL_DIR/nehirctl"
+echo "If needed, add $CLI_INSTALL_DIR to PATH"
+"""
+
+[tasks."install:system"]
+description = "Package Nehir.app and install it to /Applications, plus nehirctl to /usr/local/bin (may require sudo)"
+depends = ["package:release"]
+run = """
+APP_BUILD_DIR=".build/apple/Products/Release"
+APP_BUNDLE_SOURCE="dist/Nehir.app"
+CLI_SOURCE="$APP_BUILD_DIR/nehirctl"
+
+sudo rm -rf /Applications/Nehir.app
+sudo cp -R "$APP_BUNDLE_SOURCE" /Applications/Nehir.app
+sudo install -m 755 "$CLI_SOURCE" /usr/local/bin/nehirctl
+
+echo "Installed Nehir.app to /Applications/Nehir.app"
+echo "Installed nehirctl to /usr/local/bin/nehirctl"
 """
