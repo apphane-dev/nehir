@@ -15,7 +15,7 @@ enum ReconcileDebugDump {
 
         for window in snapshot.windows {
             lines.append(
-                "\(window.token) workspace=\(window.workspaceId.uuidString) mode=\(window.mode) phase=\(window.lifecyclePhase.rawValue) observed=\(describe(window.observedState)) desired=\(window.desiredState.summary)"
+                "\(window.token) workspace=\(window.workspaceId.uuidString) mode=\(window.mode) phase=\(window.lifecyclePhase.rawValue) observed=\(describe(window.observedState)) desired=\(describe(window.desiredState))"
             )
         }
 
@@ -52,12 +52,36 @@ enum ReconcileDebugDump {
 
     private static func describe(_ state: ObservedWindowState) -> String {
         [
+            "frame=\(describe(state.frame))",
             "workspace=\(state.workspaceId?.uuidString ?? "nil")",
             "monitor=\(state.monitorId.map(String.init(describing:)) ?? "nil")",
             "visible=\(state.isVisible)",
             "focused=\(state.isFocused)",
+            "hasAX=\(state.hasAXReference)",
             "fullscreen=\(state.isNativeFullscreen)"
         ]
         .joined(separator: ",")
+    }
+
+    private static func describe(_ state: DesiredWindowState) -> String {
+        [
+            "workspace=\(state.workspaceId?.uuidString ?? "nil")",
+            "monitor=\(state.monitorId.map(String.init(describing:)) ?? "nil")",
+            "mode=\(state.disposition.map(String.init(describing:)) ?? "nil")",
+            "floatingFrame=\(describe(state.floatingFrame))",
+            "rescue=\(state.rescueEligible)"
+        ]
+        .joined(separator: ",")
+    }
+
+    private static func describe(_ frame: CGRect?) -> String {
+        guard let frame else { return "nil" }
+        return String(
+            format: "{{%.1f, %.1f}, {%.1f, %.1f}}",
+            frame.origin.x,
+            frame.origin.y,
+            frame.size.width,
+            frame.size.height
+        )
     }
 }

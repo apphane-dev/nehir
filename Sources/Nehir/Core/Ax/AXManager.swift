@@ -69,6 +69,17 @@ final class AXManager {
         setupLaunchObserver()
     }
 
+    private static func format(frame: CGRect?) -> String {
+        guard let frame else { return "nil" }
+        return String(
+            format: "{{%.1f, %.1f}, {%.1f, %.1f}}",
+            frame.origin.x,
+            frame.origin.y,
+            frame.size.width,
+            frame.size.height
+        )
+    }
+
     private func setupTerminationObserver() {
         appTerminationObserver = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didTerminateApplicationNotification,
@@ -173,6 +184,41 @@ final class AXManager {
             rekeyedWindowIdCount: rekeyedWindowIdsByPreviousId.count,
             inactiveWorkspaceWindowIdCount: inactiveWorkspaceWindowIds.count
         )
+    }
+
+    func windowStateDebugDump(windowIds: [Int] = []) -> String {
+        let trackedWindowIds = Set(windowIds)
+            .union(lastAppliedFrames.keys)
+            .union(pendingFrameWrites.keys)
+            .union(recentFrameWriteFailures.keys)
+            .union(retryBudgetByWindowId.keys)
+            .union(forceApplyWindowIds)
+            .union(observerRequestIdByWindowId.keys)
+            .union(inactiveWorkspaceWindowIds)
+            .sorted()
+
+        guard !trackedWindowIds.isEmpty else {
+            return "no-tracked-ax-windows"
+        }
+
+        return trackedWindowIds.map { windowId in
+            let failure = recentFrameWriteFailures[windowId].map { String(describing: $0) } ?? "nil"
+            let retryBudget = retryBudgetByWindowId[windowId].map(String.init) ?? "nil"
+            let observerRequest = observerRequestIdByWindowId[windowId].map(String.init) ?? "nil"
+
+            return [
+                "windowId=\(windowId)",
+                "lastApplied=\(Self.format(frame: lastAppliedFrames[windowId]))",
+                "pending=\(Self.format(frame: pendingFrameWrites[windowId]))",
+                "failure=\(failure)",
+                "retryBudget=\(retryBudget)",
+                "forceApply=\(forceApplyWindowIds.contains(windowId))",
+                "observerRequest=\(observerRequest)",
+                "inactiveWorkspace=\(inactiveWorkspaceWindowIds.contains(windowId))"
+            ]
+            .joined(separator: " ")
+        }
+        .joined(separator: "\n")
     }
 
     func clearInactiveWorkspaceWindows() {

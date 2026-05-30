@@ -770,4 +770,39 @@ private func lastWindowRemovedTrace(in manager: WorkspaceManager) -> ReconcileTr
         #expect(dump.contains("pending-focus=\(String(describing: token))"))
         #expect(dump.contains("focus-lease=native_menu"))
     }
+
+    @Test func snapshotDumpIncludesObservedAndDesiredFrames() throws {
+        let settings = SettingsStore(defaults: makeLayoutPlanTestDefaults())
+        settings.workspaceConfigurations = [
+            WorkspaceConfiguration(name: "1", monitorAssignment: .main)
+        ]
+        let manager = WorkspaceManager(settings: settings)
+        let monitor = makeLayoutPlanPrimaryTestMonitor()
+        manager.applyMonitorConfigurationChange([monitor])
+
+        let workspaceId = try #require(manager.workspaceId(for: "1", createIfMissing: true))
+        let token = manager.addWindow(
+            makeLayoutPlanTestWindow(windowId: 9502),
+            pid: 9502,
+            windowId: 9502,
+            to: workspaceId
+        )
+        let frame = CGRect(x: 10, y: 20, width: 300, height: 400)
+
+        _ = manager.recordReconcileEvent(
+            .floatingGeometryUpdated(
+                token: token,
+                workspaceId: workspaceId,
+                referenceMonitorId: monitor.id,
+                frame: frame,
+                restoreToFloating: true,
+                source: .command
+            )
+        )
+
+        let dump = manager.reconcileSnapshotDump()
+        #expect(dump.contains("frame={{10.0, 20.0}, {300.0, 400.0}}"))
+        #expect(dump.contains("hasAX=true"))
+        #expect(dump.contains("floatingFrame={{10.0, 20.0}, {300.0, 400.0}}"))
+    }
 }

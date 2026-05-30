@@ -330,6 +330,78 @@ final class WorkspaceManager {
         ].joined(separator: "\n")
     }
 
+    func runtimeWindowDebugDump() -> String {
+        let entries = windows.allEntries().sorted { lhs, rhs in
+            if lhs.workspaceId != rhs.workspaceId {
+                return lhs.workspaceId.uuidString < rhs.workspaceId.uuidString
+            }
+            if lhs.pid != rhs.pid {
+                return lhs.pid < rhs.pid
+            }
+            return lhs.windowId < rhs.windowId
+        }
+
+        guard !entries.isEmpty else {
+            return "no-managed-windows"
+        }
+
+        return entries.map { entry in
+            var parts = [
+                "\(entry.token)",
+                "workspace=\(entry.workspaceId.uuidString)",
+                "mode=\(entry.mode)",
+                "phase=\(entry.lifecyclePhase.rawValue)",
+                "hidden=\(runtimeDebugHiddenReason(entry.hiddenReason))",
+                "layout=\(String(describing: entry.layoutReason))",
+                "observedFrame=\(runtimeDebugFrame(entry.observedState.frame))",
+                "observedVisible=\(entry.observedState.isVisible)",
+                "observedFocused=\(entry.observedState.isFocused)",
+                "desiredFloating=\(runtimeDebugFrame(entry.desiredState.floatingFrame))",
+                "replacementFrame=\(runtimeDebugFrame(entry.managedReplacementMetadata?.frame))"
+            ]
+            if let bundleId = entry.managedReplacementMetadata?.bundleId, !bundleId.isEmpty {
+                parts.append("bundleId=\(bundleId)")
+            }
+            if let title = entry.managedReplacementMetadata?.title, !title.isEmpty {
+                parts.append("title=\(title.debugDescription)")
+            }
+            return parts.joined(separator: " ")
+        }
+        .joined(separator: "\n")
+    }
+
+    func trackedWindowIdsForDebug() -> [Int] {
+        windows.allEntries().map(\.windowId).sorted()
+    }
+
+    private func runtimeDebugFrame(_ frame: CGRect?) -> String {
+        guard let frame else { return "nil" }
+        return String(
+            format: "{{%.1f, %.1f}, {%.1f, %.1f}}",
+            frame.origin.x,
+            frame.origin.y,
+            frame.size.width,
+            frame.size.height
+        )
+    }
+
+    private func runtimeDebugHiddenReason(_ reason: WindowModel.HiddenReason?) -> String {
+        guard let reason else { return "nil" }
+        switch reason {
+        case .workspaceInactive:
+            return "workspaceInactive"
+        case let .layoutTransient(side):
+            switch side {
+            case .left:
+                return "layoutTransient(left)"
+            case .right:
+                return "layoutTransient(right)"
+            }
+        case .scratchpad:
+            return "scratchpad"
+        }
+    }
+
     func resetRuntimeStateForDebug() {
         reconcileTrace.reset()
         runtimeStore = RuntimeStore(traceRecorder: reconcileTrace)
