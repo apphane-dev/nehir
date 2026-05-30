@@ -8,7 +8,7 @@ final class MenuAnywhereController: NSObject, NSMenuDelegate {
     private let menuExtractor = MenuExtractor()
     private weak var currentApp: NSRunningApplication?
     private var activeMenu: NSMenu?
-    private let axFetchQueue = DispatchQueue(label: "com.nehir.menufetch", qos: .userInitiated)
+    private let axFetchQueue = DispatchQueue(label: "dev.guria.nehir.menufetch", qos: .userInitiated)
     var onMenuTrackingChanged: ((Bool) -> Void)?
 
     private static let kAXPressAction = "AXPress" as CFString

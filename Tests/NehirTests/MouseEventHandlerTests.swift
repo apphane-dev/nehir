@@ -6,7 +6,7 @@ import Foundation
 import Testing
 
 private func makeMouseEventTestDefaults() -> UserDefaults {
-    let suiteName = "com.nehir.mouse-event.test.\(UUID().uuidString)"
+    let suiteName = "dev.guria.nehir.mouse-event.test.\(UUID().uuidString)"
     return UserDefaults(suiteName: suiteName)!
 }
 

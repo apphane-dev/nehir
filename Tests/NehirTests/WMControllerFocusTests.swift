@@ -24,7 +24,7 @@ private final class RaiseAllFloatingRecorder {
 }
 
 private func makeFocusTestDefaults() -> UserDefaults {
-    let suiteName = "com.nehir.focus-order.test.\(UUID().uuidString)"
+    let suiteName = "dev.guria.nehir.focus-order.test.\(UUID().uuidString)"
     return UserDefaults(suiteName: suiteName)!
 }
 

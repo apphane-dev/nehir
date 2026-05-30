@@ -5,7 +5,7 @@ import Foundation
 import Testing
 
 private func makeRefreshTestDefaults() -> UserDefaults {
-    let suiteName = "com.nehir.refresh-routing.test.\(UUID().uuidString)"
+    let suiteName = "dev.guria.nehir.refresh-routing.test.\(UUID().uuidString)"
     return UserDefaults(suiteName: suiteName)!
 }
 

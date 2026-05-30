@@ -167,8 +167,8 @@ Turning **Enable IPC** on starts the server immediately and creates the Unix soc
 
 | Item | Path |
 |------|------|
-| Socket | `~/Library/Caches/com.nehir/ipc.sock` |
-| Secret | `~/Library/Caches/com.nehir/ipc.sock.secret` |
+| Socket | `~/Library/Caches/dev.guria.nehir/ipc.sock` |
+| Secret | `~/Library/Caches/dev.guria.nehir/ipc.sock.secret` |
 
 The socket path can be overridden with the `NEHIR_SOCKET` environment variable. The secret file path is always `<socket-path>.secret`. For custom socket paths, prefer a private same-user directory such as `$TMPDIR/nehir/ipc.sock` after creating the parent directory with mode `0700`. Avoid shared directories such as `/tmp`.
 

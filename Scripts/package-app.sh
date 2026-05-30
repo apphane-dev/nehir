@@ -2,21 +2,40 @@
 set -euo pipefail
 
 CONFIG="${1:-release}"
-SIGN_AND_NOTARIZE="${2:-true}"
+SIGN_AND_NOTARIZE="${2:-${SIGN_AND_NOTARIZE:-false}}"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CONFIG_CAPITALIZED="$(tr '[:lower:]' '[:upper:]' <<< "${CONFIG:0:1}")${CONFIG:1}"
 BUILD_DIR="$ROOT_DIR/.build/apple/Products/$CONFIG_CAPITALIZED"
 EXECUTABLE="$BUILD_DIR/Nehir"
 CLI_EXECUTABLE="$BUILD_DIR/nehirctl"
 APP_DIR="$ROOT_DIR/dist/Nehir.app"
+VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$ROOT_DIR/Info.plist")"
+RELEASE_ZIP_PATH="${RELEASE_ZIP_PATH:-$ROOT_DIR/dist/Nehir-$VERSION.zip}"
+NOTARY_ZIP_PATH="$ROOT_DIR/dist/Nehir-notary.zip"
 
-# Signing identity and notarization profile
-SIGNING_IDENTITY="Developer ID Application: Oliver Nikolic (VF8LDJRGFM)"
-NOTARIZE_PROFILE="Nehir-Notarize"
-ENTITLEMENTS="$ROOT_DIR/Nehir.entitlements"
+# Configure these via environment variables when you have an Apple Developer ID.
+SIGNING_IDENTITY="${SIGNING_IDENTITY:-}"
+NOTARIZE_PROFILE="${NOTARIZE_PROFILE:-}"
+ENTITLEMENTS="${ENTITLEMENTS:-$ROOT_DIR/Nehir.entitlements}"
 
-echo "Running release checks..."
-make -C "$ROOT_DIR" release-check
+if [ "$SIGN_AND_NOTARIZE" = "true" ]; then
+  if [ -z "$SIGNING_IDENTITY" ]; then
+    echo "SIGNING_IDENTITY must be set when SIGN_AND_NOTARIZE=true" >&2
+    exit 1
+  fi
+
+  if [ -z "$NOTARIZE_PROFILE" ]; then
+    echo "NOTARIZE_PROFILE must be set when SIGN_AND_NOTARIZE=true" >&2
+    exit 1
+  fi
+fi
+
+if [ -f "$ROOT_DIR/Makefile" ]; then
+  echo "Running release checks..."
+  make -C "$ROOT_DIR" release-check
+else
+  echo "Skipping make release-check: no Makefile found."
+fi
 
 echo "Building Nehir universal binary ($CONFIG)..."
 swift build -c "$CONFIG" --arch arm64 --arch x86_64
@@ -49,13 +68,12 @@ if [ "$SIGN_AND_NOTARIZE" = "true" ]; then
   echo "Verifying signature..."
   codesign --verify --verbose "$APP_DIR"
 
-  echo "Creating ZIP for notarization..."
-  ZIP_PATH="$ROOT_DIR/dist/Nehir.zip"
-  rm -f "$ZIP_PATH"
-  ditto -c -k --keepParent "$APP_DIR" "$ZIP_PATH"
+  echo "Creating temporary ZIP for notarization..."
+  rm -f "$NOTARY_ZIP_PATH"
+  ditto -c -k --keepParent "$APP_DIR" "$NOTARY_ZIP_PATH"
 
   echo "Submitting for notarization (this may take a few minutes)..."
-  xcrun notarytool submit "$ZIP_PATH" --keychain-profile "$NOTARIZE_PROFILE" --wait
+  xcrun notarytool submit "$NOTARY_ZIP_PATH" --keychain-profile "$NOTARIZE_PROFILE" --wait
 
   echo "Stapling notarization ticket..."
   xcrun stapler staple "$APP_DIR"
@@ -63,9 +81,14 @@ if [ "$SIGN_AND_NOTARIZE" = "true" ]; then
   echo "Verifying notarization..."
   spctl --assess --verbose=2 "$APP_DIR"
 
-  rm -f "$ZIP_PATH"
-  echo "Done! $APP_DIR is signed and notarized."
+  rm -f "$NOTARY_ZIP_PATH"
 else
-  echo "Done. Open $APP_DIR to grant Accessibility permissions."
-  echo "Note: App is not signed. Run with 'release true' to sign and notarize."
+  echo "Skipping signing and notarization. Set SIGN_AND_NOTARIZE=true plus SIGNING_IDENTITY and NOTARIZE_PROFILE to enable it."
 fi
+
+echo "Creating release ZIP: $RELEASE_ZIP_PATH"
+rm -f "$RELEASE_ZIP_PATH"
+ditto -c -k --keepParent "$APP_DIR" "$RELEASE_ZIP_PATH"
+shasum -a 256 "$RELEASE_ZIP_PATH"
+
+echo "Done. Open $APP_DIR to grant Accessibility permissions."

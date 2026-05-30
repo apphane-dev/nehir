@@ -5,7 +5,7 @@ import Foundation
 import Testing
 
 private func makeWorkspaceManagerTestDefaults() -> UserDefaults {
-    let suiteName = "com.nehir.workspace-manager.test.\(UUID().uuidString)"
+    let suiteName = "dev.guria.nehir.workspace-manager.test.\(UUID().uuidString)"
     return UserDefaults(suiteName: suiteName)!
 }
 

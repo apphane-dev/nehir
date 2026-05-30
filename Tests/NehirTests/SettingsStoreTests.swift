@@ -8,7 +8,7 @@ import Foundation
 import Testing
 
 private func makeTestDefaults() -> UserDefaults {
-    let suiteName = "com.nehir.test.\(UUID().uuidString)"
+    let suiteName = "dev.guria.nehir.test.\(UUID().uuidString)"
     return UserDefaults(suiteName: suiteName)!
 }
 

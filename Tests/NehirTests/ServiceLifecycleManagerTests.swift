@@ -9,7 +9,7 @@ import Testing
 private let lifecycleIPCCommandRouterSessionToken = "service-lifecycle-tests"
 
 private func makeLifecycleTestDefaults() -> UserDefaults {
-    let suiteName = "com.nehir.lifecycle.test.\(UUID().uuidString)"
+    let suiteName = "dev.guria.nehir.lifecycle.test.\(UUID().uuidString)"
     return UserDefaults(suiteName: suiteName)!
 }
 

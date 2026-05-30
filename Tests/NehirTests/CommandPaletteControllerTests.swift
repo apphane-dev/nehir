@@ -5,7 +5,7 @@ import Foundation
 import Testing
 
 private func makeCommandPaletteTestDefaults() -> UserDefaults {
-    let suiteName = "com.nehir.commandpalette.test.\(UUID().uuidString)"
+    let suiteName = "dev.guria.nehir.commandpalette.test.\(UUID().uuidString)"
     return UserDefaults(suiteName: suiteName)!
 }
 
@@ -355,7 +355,7 @@ private func makeCommandPaletteAppSnapshot(
         let resolved = CommandPaletteController.resolveMenuTarget(
             current: current,
             cached: cached,
-            ownBundleIdentifier: "com.nehir"
+            ownBundleIdentifier: "dev.guria.nehir"
         )
 
         #expect(resolved == current)
@@ -364,7 +364,7 @@ private func makeCommandPaletteAppSnapshot(
     @Test func resolveMenuTargetFallsBackToCachedExternalAppWhenCurrentIsNehir() {
         let current = makeCommandPaletteAppSnapshot(
             pid: 300,
-            bundleIdentifier: "com.nehir",
+            bundleIdentifier: "dev.guria.nehir",
             localizedName: "Nehir"
         )
         let cached = makeCommandPaletteAppSnapshot(
@@ -376,7 +376,7 @@ private func makeCommandPaletteAppSnapshot(
         let resolved = CommandPaletteController.resolveMenuTarget(
             current: current,
             cached: cached,
-            ownBundleIdentifier: "com.nehir"
+            ownBundleIdentifier: "dev.guria.nehir"
         )
 
         #expect(resolved == cached)
@@ -385,7 +385,7 @@ private func makeCommandPaletteAppSnapshot(
     @Test func resolveMenuTargetIgnoresTerminatedCachedApp() {
         let current = makeCommandPaletteAppSnapshot(
             pid: 400,
-            bundleIdentifier: "com.nehir",
+            bundleIdentifier: "dev.guria.nehir",
             localizedName: "Nehir"
         )
         let cached = makeCommandPaletteAppSnapshot(
@@ -398,7 +398,7 @@ private func makeCommandPaletteAppSnapshot(
         let resolved = CommandPaletteController.resolveMenuTarget(
             current: current,
             cached: cached,
-            ownBundleIdentifier: "com.nehir"
+            ownBundleIdentifier: "dev.guria.nehir"
         )
 
         #expect(resolved == nil)

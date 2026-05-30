@@ -12,7 +12,7 @@ import Testing
     @Test func defaultPathUsesOmniWMCachesLocation() {
         let path = IPCSocketPath.resolvedPath(environment: [:], fileManager: .default)
 
-        #expect(path.hasSuffix("/com.nehir/ipc.sock"))
+        #expect(path.hasSuffix("/dev.guria.nehir/ipc.sock"))
     }
 
     @Test func secretPathLivesBesideSocketPath() {

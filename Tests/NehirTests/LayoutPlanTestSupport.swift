@@ -4,7 +4,7 @@ import Foundation
 @testable import Nehir
 
 func makeLayoutPlanTestDefaults() -> UserDefaults {
-    let suiteName = "com.nehir.layout-plan.test.\(UUID().uuidString)"
+    let suiteName = "dev.guria.nehir.layout-plan.test.\(UUID().uuidString)"
     return UserDefaults(suiteName: suiteName)!
 }
 

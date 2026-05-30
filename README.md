@@ -20,6 +20,23 @@ A scrolling tiling window manager for macOS, built on the Niri column layout par
 
 ## Install
 
+### Homebrew
+
+After the first release is published, Nehir can be distributed from the `guria/tap` Homebrew tap:
+
+```bash
+brew tap guria/tap
+brew install --cask nehir
+```
+
+Nehir requires Accessibility permissions after installation:
+
+```text
+System Settings > Privacy & Security > Accessibility
+```
+
+### From source
+
 ```bash
 swift build -c release
 cp .build/release/Nehir /usr/local/bin/

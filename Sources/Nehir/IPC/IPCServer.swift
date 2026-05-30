@@ -34,7 +34,7 @@ final class IPCServer: IPCServerLifecycle {
     private let bridge: IPCApplicationBridge
     private let authorizationToken: String
     private let connectionRegistry = IPCConnectionRegistry()
-    private let queue = DispatchQueue(label: "com.nehir.ipc.server")
+    private let queue = DispatchQueue(label: "dev.guria.nehir.ipc.server")
     private let fileManager: FileManager
     private var listenFD: Int32 = -1
     private var acceptSource: DispatchSourceRead?

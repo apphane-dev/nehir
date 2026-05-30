@@ -9,7 +9,7 @@
 	<key>CFBundleIconFile</key>
 	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
-	<string>com.nehir</string>
+	<string>dev.guria.nehir</string>
 	<key>CFBundleName</key>
 	<string>Nehir</string>
 	<key>CFBundlePackageType</key>

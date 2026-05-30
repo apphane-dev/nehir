@@ -9,7 +9,7 @@ private final class WarpEffectRecorder: @unchecked Sendable {
 }
 
 private func makeMouseWarpTestDefaults() -> UserDefaults {
-    let suiteName = "com.nehir.mouse-warp.test.\(UUID().uuidString)"
+    let suiteName = "dev.guria.nehir.mouse-warp.test.\(UUID().uuidString)"
     return UserDefaults(suiteName: suiteName)!
 }
 

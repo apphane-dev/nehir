@@ -4,7 +4,7 @@ import Foundation
 import Testing
 
 private func makeOwnedWindowTestDefaults() -> UserDefaults {
-    let suiteName = "com.nehir.owned-window.test.\(UUID().uuidString)"
+    let suiteName = "dev.guria.nehir.owned-window.test.\(UUID().uuidString)"
     return UserDefaults(suiteName: suiteName)!
 }
 
