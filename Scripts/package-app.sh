@@ -60,11 +60,27 @@ if command -v plutil >/dev/null 2>&1; then
 fi
 
 if [ "$SIGN_AND_NOTARIZE" = "true" ]; then
-  echo "Signing $APP_DIR with hardened runtime..."
-  codesign --force --options runtime --sign "$SIGNING_IDENTITY" --timestamp "$APP_DIR/Contents/MacOS/nehirctl"
-  codesign --force --options runtime --entitlements "$ENTITLEMENTS" --sign "$SIGNING_IDENTITY" --timestamp "$APP_DIR/Contents/MacOS/Nehir"
-  codesign --force --options runtime --entitlements "$ENTITLEMENTS" --sign "$SIGNING_IDENTITY" --timestamp "$APP_DIR"
+  CODESIGN_IDENTITY="$SIGNING_IDENTITY"
+else
+  CODESIGN_IDENTITY="-"
+fi
 
+codesign_binary() {
+  local target="$1"
+  shift
+  if [ "$SIGN_AND_NOTARIZE" = "true" ]; then
+    codesign --force --options runtime "$@" --sign "$CODESIGN_IDENTITY" --timestamp "$target"
+  else
+    codesign --force --options runtime "$@" --sign "$CODESIGN_IDENTITY" "$target"
+  fi
+}
+
+echo "Signing $APP_DIR with identity: $CODESIGN_IDENTITY"
+codesign_binary "$APP_DIR/Contents/MacOS/nehirctl"
+codesign_binary "$APP_DIR/Contents/MacOS/Nehir" --entitlements "$ENTITLEMENTS"
+codesign_binary "$APP_DIR" --entitlements "$ENTITLEMENTS"
+
+if [ "$SIGN_AND_NOTARIZE" = "true" ]; then
   echo "Verifying signature..."
   codesign --verify --verbose "$APP_DIR"
 
@@ -83,7 +99,7 @@ if [ "$SIGN_AND_NOTARIZE" = "true" ]; then
 
   rm -f "$NOTARY_ZIP_PATH"
 else
-  echo "Skipping signing and notarization. Set SIGN_AND_NOTARIZE=true plus SIGNING_IDENTITY and NOTARIZE_PROFILE to enable it."
+  echo "Created an ad-hoc signed app. Set SIGN_AND_NOTARIZE=true plus SIGNING_IDENTITY and NOTARIZE_PROFILE for Developer ID signing and notarization."
 fi
 
 echo "Creating release ZIP: $RELEASE_ZIP_PATH"
