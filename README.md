@@ -56,8 +56,8 @@ mise run install
 Nehir
 
 # CLI control (requires IPC enabled)
-nehirctl focus left
-nehirctl switch-workspace 2
+nehirctl command focus left
+nehirctl command switch-workspace 2
 nehirctl --help
 ```
 
