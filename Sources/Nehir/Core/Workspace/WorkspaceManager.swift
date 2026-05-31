@@ -354,6 +354,7 @@ final class WorkspaceManager {
                 "hidden=\(runtimeDebugHiddenReason(entry.hiddenReason))",
                 "layout=\(String(describing: entry.layoutReason))",
                 "observedFrame=\(runtimeDebugFrame(entry.observedState.frame))",
+                "liveAXFrame=\(runtimeDebugFrame(try? AXWindowService.frame(entry.axRef)))",
                 "observedVisible=\(entry.observedState.isVisible)",
                 "observedFocused=\(entry.observedState.isFocused)",
                 "desiredFloating=\(runtimeDebugFrame(entry.desiredState.floatingFrame))",

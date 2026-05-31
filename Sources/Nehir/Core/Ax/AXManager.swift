@@ -60,6 +60,7 @@ final class AXManager {
     private var observerRequestIdByWindowId: [Int: AXFrameRequestId] = [:]
     private var rekeyedWindowIdsByPreviousId: [Int: Int] = [:]
     private var nextFrameApplicationRequestId: AXFrameRequestId = 1
+    private var recentFrameApplyTrace: [String] = []
 
     /// Window IDs belonging to inactive workspaces — checked LIVE in applyFramesParallel.
     private(set) var inactiveWorkspaceWindowIds: Set<Int> = []
@@ -201,7 +202,7 @@ final class AXManager {
             return "no-tracked-ax-windows"
         }
 
-        return trackedWindowIds.map { windowId in
+        var lines = trackedWindowIds.map { windowId in
             let failure = recentFrameWriteFailures[windowId].map { String(describing: $0) } ?? "nil"
             let retryBudget = retryBudgetByWindowId[windowId].map(String.init) ?? "nil"
             let observerRequest = observerRequestIdByWindowId[windowId].map(String.init) ?? "nil"
@@ -218,7 +219,13 @@ final class AXManager {
             ]
             .joined(separator: " ")
         }
-        .joined(separator: "\n")
+
+        if !recentFrameApplyTrace.isEmpty {
+            lines.append("-- recent frame apply trace --")
+            lines.append(contentsOf: recentFrameApplyTrace.suffix(80))
+        }
+
+        return lines.joined(separator: "\n")
     }
 
     func clearInactiveWorkspaceWindows() {
@@ -237,6 +244,7 @@ final class AXManager {
         rekeyedWindowIdsByPreviousId.removeAll()
         inactiveWorkspaceWindowIds.removeAll()
         nextFrameApplicationRequestId = 1
+        recentFrameApplyTrace.removeAll(keepingCapacity: true)
     }
 
     func rekeyWindowState(pid: pid_t, oldWindowId: Int, newWindow: AXWindowRef) {
@@ -471,6 +479,7 @@ final class AXManager {
 
         for (pid, windowId, frame) in frames {
             if inactiveWorkspaceWindowIds.contains(windowId) {
+                recordFrameApplyTrace("skip-inactive id=\(windowId) target=\(Self.format(frame: frame))")
                 LayoutTrace.log("    AX skip-inactive id=\(windowId) target=\(LayoutTrace.rect(frame))")
                 continue
             }
@@ -499,6 +508,9 @@ final class AXManager {
                           cached.approximatelyEqual(to: frame, tolerance: 0.5),
                           !hasRecentFailure
                 {
+                    recordFrameApplyTrace(
+                        "skip-dedup id=\(windowId) target=\(Self.format(frame: frame)) cached=\(Self.format(frame: cached))"
+                    )
                     LayoutTrace.log(
                         "    AX skip-dedup id=\(windowId) target=\(LayoutTrace.rect(frame)) "
                             + "cached=\(LayoutTrace.rect(cached))"
@@ -518,6 +530,9 @@ final class AXManager {
                     continue
                 }
             }
+            recordFrameApplyTrace(
+                "enqueue id=\(windowId) target=\(Self.format(frame: frame)) cached=\(Self.format(frame: cachedFrame)) pending=\(Self.format(frame: pendingFrame)) recentFailure=\(recentFrameWriteFailures[windowId].map { String(describing: $0) } ?? "nil") force=\(shouldForceApply) retry=\(isRetry)"
+            )
             LayoutTrace.log(
                 "    AX enqueue id=\(windowId) target=\(LayoutTrace.rect(frame)) "
                     + "cached=\(LayoutTrace.rect(cachedFrame)) force=\(shouldForceApply)"
@@ -673,6 +688,13 @@ final class AXManager {
         SkyLight.shared.batchMoveWindows(batchPositions)
     }
 
+    private func recordFrameApplyTrace(_ message: String) {
+        recentFrameApplyTrace.append(Date().ISO8601Format() + " " + message)
+        if recentFrameApplyTrace.count > 200 {
+            recentFrameApplyTrace.removeFirst(recentFrameApplyTrace.count - 200)
+        }
+    }
+
     private func withTimeoutOrNil<T: Sendable>(
         seconds: TimeInterval,
         operation: @Sendable @escaping () async throws -> T
@@ -727,6 +749,9 @@ final class AXManager {
             pendingFrameWrites.removeValue(forKey: resolvedWindowId)
 
             if let confirmedFrame = resolvedResult.confirmedFrame {
+                recordFrameApplyTrace(
+                    "confirmed id=\(resolvedWindowId) target=\(Self.format(frame: resolvedResult.targetFrame)) observed=\(Self.format(frame: resolvedResult.writeResult.observedFrame)) confirmed=\(Self.format(frame: confirmedFrame)) order=\(resolvedResult.writeResult.writeOrder)"
+                )
                 LayoutTrace.log(
                     "    AX confirmed id=\(resolvedWindowId) target=\(LayoutTrace.rect(resolvedResult.targetFrame)) "
                         + "confirmed=\(LayoutTrace.rect(confirmedFrame))"
@@ -740,6 +765,9 @@ final class AXManager {
             }
 
             if let failureReason = resolvedResult.writeResult.failureReason {
+                recordFrameApplyTrace(
+                    "failed id=\(resolvedWindowId) target=\(Self.format(frame: resolvedResult.targetFrame)) observed=\(Self.format(frame: resolvedResult.writeResult.observedFrame)) hint=\(Self.format(frame: resolvedResult.currentFrameHint)) reason=\(String(describing: failureReason)) sizeError=\(resolvedResult.writeResult.sizeError.rawValue) positionError=\(resolvedResult.writeResult.positionError.rawValue) order=\(resolvedResult.writeResult.writeOrder)"
+                )
                 LayoutTrace.log(
                     "    AX write-failed id=\(resolvedWindowId) target=\(LayoutTrace.rect(resolvedResult.targetFrame)) "
                         + "reason=\(String(describing: failureReason))"
@@ -759,6 +787,9 @@ final class AXManager {
 
             retryBudgetByWindowId[resolvedWindowId] = remainingRetries - 1
             forceApplyWindowIds.insert(resolvedWindowId)
+            recordFrameApplyTrace(
+                "retry-scheduled id=\(resolvedWindowId) target=\(Self.format(frame: resolvedResult.targetFrame)) remaining=\(remainingRetries - 1)"
+            )
 
             let pid = resolvedResult.pid
             let frame = resolvedResult.targetFrame

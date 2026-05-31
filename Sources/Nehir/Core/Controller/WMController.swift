@@ -173,6 +173,8 @@ final class WMController {
     weak var ipcApplicationBridge: IPCApplicationBridge?
     @ObservationIgnored
     private var runtimeTraceCaptureSession: RuntimeTraceCaptureSession?
+    @ObservationIgnored
+    private var runtimeViewportTraceRecords: [String] = []
 
     let animationClock = AnimationClock()
     let motionPolicy: MotionPolicy
@@ -1844,6 +1846,151 @@ final class WMController {
         copyDebugTextToPasteboard(snapshot.formattedDump())
     }
 
+    func recordRuntimeViewportTrace(
+        workspaceId: WorkspaceDescriptor.ID,
+        reason: String
+    ) {
+        guard runtimeTraceCaptureSession != nil else { return }
+        guard let engine = niriEngine else { return }
+
+        let gap = CGFloat(workspaceManager.gaps)
+        let state = workspaceManager.niriViewportState(for: workspaceId)
+        let workspaceName = workspaceManager.descriptor(for: workspaceId)?.name ?? workspaceId.uuidString
+        let columns = engine.columns(in: workspaceId)
+        let currentViewStart = columns.isEmpty ? nil : state.viewPosPixels(columns: columns, gap: gap)
+        let targetViewStart = columns.isEmpty ? nil : state.targetViewPosPixels(columns: columns, gap: gap)
+        let selectedNode = state.selectedNodeId.map(String.init(describing:)) ?? "nil"
+        let preferredFocus = workspaceManager.preferredFocusToken(in: workspaceId)
+            .map(String.init(describing:)) ?? "nil"
+        let confirmedFocus = workspaceManager.focusedToken.map(String.init(describing:)) ?? "nil"
+        let currentViewStartText = currentViewStart.map { String(format: "%.1f", $0) } ?? "nil"
+        let targetViewStartText = targetViewStart.map { String(format: "%.1f", $0) } ?? "nil"
+        let layoutDecisions = niriLayoutDecisionLine(
+            workspaceId: workspaceId,
+            state: state,
+            columns: columns,
+            gap: gap
+        )
+
+        let line = [
+            Date().ISO8601Format(),
+            "workspace=\(workspaceName)",
+            "id=\(workspaceId.uuidString)",
+            "reason=\(reason)",
+            "columns=\(columns.count)",
+            "activeColumnIndex=\(state.activeColumnIndex)",
+            String(format: "currentOffset=%.1f", state.viewOffsetPixels.current()),
+            String(format: "targetOffset=%.1f", state.viewOffsetPixels.target()),
+            "currentViewStart=\(currentViewStartText)",
+            "targetViewStart=\(targetViewStartText)",
+            "gesture=\(state.viewOffsetPixels.isGesture)",
+            "animating=\(state.viewOffsetPixels.isAnimating)",
+            "selectedNode=\(selectedNode)",
+            "preferredFocus=\(preferredFocus)",
+            "confirmedFocus=\(confirmedFocus)",
+            "layout=\(layoutDecisions)"
+        ]
+        .joined(separator: " ")
+
+        runtimeViewportTraceRecords.append(line)
+        if runtimeViewportTraceRecords.count > 400 {
+            runtimeViewportTraceRecords.removeFirst(runtimeViewportTraceRecords.count - 400)
+        }
+    }
+
+    private func niriLayoutDecisionLine(
+        workspaceId: WorkspaceDescriptor.ID,
+        state: ViewportState,
+        columns: [NiriContainer],
+        gap: CGFloat
+    ) -> String {
+        guard niriEngine != nil else { return "niri-disabled" }
+        guard !columns.isEmpty else { return "no-columns" }
+
+        var currentState = state
+        currentState.viewOffsetPixels = .static(state.viewOffsetPixels.current())
+        let currentPlan = niriLayoutPlanSnapshot(workspaceId: workspaceId, state: currentState)
+
+        var targetState = state
+        targetState.viewOffsetPixels = .static(state.viewOffsetPixels.target())
+        let targetPlan = niriLayoutPlanSnapshot(workspaceId: workspaceId, state: targetState)
+
+        return columns.enumerated().map { colIdx, column in
+            let windows = column.windowNodes.map { window -> String in
+                let token = window.token
+                let current = currentPlan.frames[token].map(compactRect) ?? currentPlan.hidden[token].map { "hide:\($0)" } ?? "nil"
+                let target = targetPlan.frames[token].map(compactRect) ?? targetPlan.hidden[token].map { "hide:\($0)" } ?? "nil"
+                let last = axManager.lastAppliedFrame(for: token.windowId).map(compactRect) ?? "nil"
+                let entry = workspaceManager.entry(for: token)
+                let live = entry.flatMap { try? AXWindowService.frame($0.axRef) }.map(compactRect) ?? "nil"
+                let replacement = entry?.managedReplacementMetadata?.frame.map(compactRect) ?? "nil"
+                let observed = entry?.observedState.frame.map(compactRect) ?? "nil"
+                let hidden = workspaceManager.hiddenState(for: token)?.offscreenSide.map { "hidden:\($0)" } ?? "hidden:nil"
+                let selected = state.selectedNodeId == window.id ? ":selected" : ""
+                return "w\(token.windowId)\(selected){cur=\(current),target=\(target),last=\(last),live=\(live),replacement=\(replacement),observed=\(observed),\(hidden)}"
+            }.joined(separator: ",")
+            return "c\(colIdx)[x=\(String(format: "%.1f", columnXForDebug(colIdx, columns: columns, gap: gap))),w=\(String(format: "%.1f", column.cachedWidth))]{\(windows)}"
+        }.joined(separator: "|")
+    }
+
+    private func niriLayoutPlanSnapshot(
+        workspaceId: WorkspaceDescriptor.ID,
+        state: ViewportState
+    ) -> (frames: [WindowToken: CGRect], hidden: [WindowToken: HideSide]) {
+        guard let engine = niriEngine,
+              let monitorId = workspaceManager.monitorId(for: workspaceId),
+              let monitor = workspaceManager.monitor(byId: monitorId)
+        else {
+            return ([:], [:])
+        }
+
+        let gaps = LayoutGaps(
+            horizontal: CGFloat(workspaceManager.gaps),
+            vertical: CGFloat(workspaceManager.gaps),
+            outer: workspaceManager.outerGaps
+        )
+        let area = WorkingAreaContext(
+            workingFrame: insetWorkingFrame(for: monitor),
+            viewFrame: monitor.frame,
+            scale: NSScreen.screens.first(where: { $0.displayId == monitor.displayId })?
+                .backingScaleFactor ?? 2.0
+        )
+        let plan = engine.calculateCombinedLayoutUsingPools(
+            in: workspaceId,
+            monitor: monitor,
+            gaps: gaps,
+            state: state,
+            workingArea: area
+        )
+        return (frames: plan.frames, hidden: plan.hiddenHandles)
+    }
+
+    private func columnXForDebug(_ index: Int, columns: [NiriContainer], gap: CGFloat) -> CGFloat {
+        guard index > 0 else { return 0 }
+        return columns.prefix(index).reduce(CGFloat(0)) { $0 + $1.cachedWidth + gap }
+    }
+
+    private func compactRect(_ rect: CGRect) -> String {
+        String(
+            format: "%.0f,%.0f,%.0f,%.0f",
+            rect.origin.x, rect.origin.y, rect.size.width, rect.size.height
+        )
+    }
+
+    private func niriLayoutDecisionDebugDump() -> String {
+        guard let engine = niriEngine else { return "niri disabled" }
+        let gap = CGFloat(workspaceManager.gaps)
+        let workspaceIds = workspaceManager.workspaceIdsForDebug()
+        guard !workspaceIds.isEmpty else { return "no-workspaces" }
+
+        return workspaceIds.map { workspaceId in
+            let state = workspaceManager.niriViewportState(for: workspaceId)
+            let workspaceName = workspaceManager.descriptor(for: workspaceId)?.name ?? workspaceId.uuidString
+            let columns = engine.columns(in: workspaceId)
+            return "workspace=\(workspaceName) id=\(workspaceId.uuidString) \(niriLayoutDecisionLine(workspaceId: workspaceId, state: state, columns: columns, gap: gap))"
+        }.joined(separator: "\n")
+    }
+
     private func niriViewportDebugDump() -> String {
         guard let engine = niriEngine else { return "niri disabled" }
 
@@ -1915,6 +2062,8 @@ final class WMController {
             axManager.windowStateDebugDump(windowIds: workspaceManager.trackedWindowIdsForDebug()),
             "-- Niri Viewports --",
             niriViewportDebugDump(),
+            "-- Niri Layout Decisions --",
+            niriLayoutDecisionDebugDump(),
             "-- AXEventHandler --",
             "geometryRelayoutRequests=\(axEventSnapshot.geometryRelayoutRequests) scopedGeometryRelayoutRequests=\(axEventSnapshot.scopedGeometryRelayoutRequests) suppressedDuringGesture=\(axEventSnapshot.geometryRelayoutsSuppressedDuringGesture) suppressedForOwnFrameWrites=\(axEventSnapshot.geometryRelayoutsSuppressedForOwnFrameWrites)",
             "-- LayoutRefreshController --",
@@ -1994,6 +2143,7 @@ final class WMController {
     }
 
     func startRuntimeTraceCapture() {
+        runtimeViewportTraceRecords.removeAll(keepingCapacity: true)
         runtimeTraceCaptureSession = RuntimeTraceCaptureSession(
             startedAt: Date(),
             startRuntimeStateDump: runtimeStateDebugDump(traceLimit: 0)
@@ -2012,6 +2162,9 @@ final class WMController {
         let traceDump = workspaceManager.reconcileTraceDump(limit: nil)
         let duration = endedAt.timeIntervalSince(session.startedAt)
         let fileURL = runtimeTraceCaptureFileURL(startedAt: session.startedAt, endedAt: endedAt)
+        let viewportTraceDump = runtimeViewportTraceRecords.isEmpty
+            ? "viewport trace empty"
+            : runtimeViewportTraceRecords.joined(separator: "\n")
         let body = [
             "Nehir runtime trace capture",
             "startedAt=\(session.startedAt.ISO8601Format())",
@@ -2023,6 +2176,9 @@ final class WMController {
             "",
             "## Tracing logs",
             traceDump,
+            "",
+            "## Niri viewport trace",
+            viewportTraceDump,
             "",
             "## Runtime state at end",
             endRuntimeStateDump,
@@ -2042,6 +2198,7 @@ final class WMController {
         }
 
         runtimeTraceCaptureSession = nil
+        runtimeViewportTraceRecords.removeAll(keepingCapacity: true)
     }
 
     func clearManualWindowOverride(for token: WindowToken) {

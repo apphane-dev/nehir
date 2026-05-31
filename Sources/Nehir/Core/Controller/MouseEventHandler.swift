@@ -1342,6 +1342,7 @@ final class MouseEventHandler {
             didApply = true
         }
         if didApply {
+            controller.recordRuntimeViewportTrace(workspaceId: wsId, reason: "trackpad_update")
             controller.layoutRefreshController.requestImmediateRelayout(reason: .interactiveGesture)
         }
     }
@@ -1402,6 +1403,7 @@ final class MouseEventHandler {
         }
 
         if didApply {
+            controller.recordRuntimeViewportTrace(workspaceId: wsId, reason: "wheel_tick")
             controller.layoutRefreshController.requestImmediateRelayout(reason: .interactiveGesture)
             if shouldStartAnimation {
                 controller.layoutRefreshController.startScrollAnimation(for: wsId)
@@ -1448,6 +1450,10 @@ final class MouseEventHandler {
         if let selectedWindow {
             rememberViewportFocusAnchor(selectedWindow, engine: engine, wsId: wsId)
         }
+        controller.recordRuntimeViewportTrace(
+            workspaceId: wsId,
+            reason: "gesture_end snap=\(controller.settings.gestureScrollSnap)"
+        )
         controller.layoutRefreshController.startScrollAnimation(for: wsId)
     }
 
@@ -1480,6 +1486,7 @@ final class MouseEventHandler {
             didCancel = true
         }
         if didCancel {
+            controller.recordRuntimeViewportTrace(workspaceId: wsId, reason: "gesture_cancel")
             controller.layoutRefreshController.requestImmediateRelayout(reason: .interactiveGesture)
         }
     }
