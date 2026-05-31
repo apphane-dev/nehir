@@ -90,8 +90,8 @@ struct WorkspaceConfiguration: Codable, Identifiable, Equatable {
             return hash
         }
 
-        var left = fnv(14_695_981_039_346_656_037)
-        var right = fnv(10_995_116_282_11)
+        let left = fnv(14_695_981_039_346_656_037)
+        let right = fnv(10_995_116_282_11)
         var bytes = [UInt8](repeating: 0, count: 16)
         for index in 0..<8 {
             bytes[index] = UInt8((left >> UInt64((7 - index) * 8)) & 0xff)
