@@ -204,92 +204,105 @@ private func axManagerTestWriteResult(
     }
 
     @Test @MainActor func laterTrackedWriteDoesNotConsumeSupersededObserver() async throws {
-        try await withAXFrameProviderIsolationForTests {
-            let controller = makeLayoutPlanTestController()
-            guard let monitor = controller.workspaceManager.monitors.first,
-                  let workspaceId = controller.workspaceManager.activeWorkspaceOrFirst(on: monitor.id)?.id
-            else {
-                Issue.record("Missing monitor or active workspace for AXManager observer scoping test")
-                return
-            }
-
-            let token = addLayoutPlanTestWindow(on: controller, workspaceId: workspaceId, windowId: 913)
-            guard let entry = controller.workspaceManager.entry(for: token),
-                  let context = await AppAXContext.makeForTests(processIdentifier: token.pid)
-            else {
-                Issue.record("Failed to create AX test context for AXManager observer scoping test")
-                return
-            }
-
-            controller.axManager.frameApplyOverrideForTests = nil
-            AppAXContext.contexts[token.pid] = context
-            try await context.installWindowsForTests([entry.axRef])
-
-            let firstFrame = CGRect(x: 180, y: 100, width: 880, height: 560)
-            let secondFrame = CGRect(x: 260, y: 140, width: 760, height: 500)
-            let startedFirstWrite = DispatchSemaphore(value: 0)
-            let releaseFirstWrite = DispatchSemaphore(value: 0)
-            let startedSecondWrite = DispatchSemaphore(value: 0)
-            let releaseSecondWrite = DispatchSemaphore(value: 0)
-
-            AXWindowService.setFrameResultProviderForTests = { _, frame, currentFrameHint in
-                if frame == firstFrame {
-                    startedFirstWrite.signal()
-                    _ = releaseFirstWrite.wait(timeout: .now() + 1)
-                } else if frame == secondFrame {
-                    startedSecondWrite.signal()
-                    _ = releaseSecondWrite.wait(timeout: .now() + 1)
+        try await withAppAXContextIsolationForTests {
+            try await withAXFrameProviderIsolationForTests {
+                let controller = makeLayoutPlanTestController()
+                guard let monitor = controller.workspaceManager.monitors.first,
+                      let workspaceId = controller.workspaceManager.activeWorkspaceOrFirst(on: monitor.id)?.id
+                else {
+                    Issue.record("Missing monitor or active workspace for AXManager observer scoping test")
+                    return
                 }
 
-                return axManagerTestWriteResult(
-                    targetFrame: frame,
-                    currentFrameHint: currentFrameHint,
-                    observedFrame: frame,
-                    failureReason: nil
+                let token = addLayoutPlanTestWindow(
+                    on: controller,
+                    workspaceId: workspaceId,
+                    windowId: 913,
+                    pid: 9_913
                 )
+
+                let firstFrame = CGRect(x: 180, y: 100, width: 880, height: 560)
+                let secondFrame = CGRect(x: 260, y: 140, width: 760, height: 500)
+                let startedFirstWrite = DispatchSemaphore(value: 0)
+                let releaseFirstWrite = DispatchSemaphore(value: 0)
+                let startedSecondWrite = DispatchSemaphore(value: 0)
+                let releaseSecondWrite = DispatchSemaphore(value: 0)
+
+                controller.axManager.frameApplyAsyncOverrideForTests = { requests, complete in
+                    Task { @MainActor in
+                        let results = requests.map { request in
+                            AXFrameApplyResult(
+                                requestId: request.requestId,
+                                pid: request.pid,
+                                windowId: request.windowId,
+                                targetFrame: request.frame,
+                                currentFrameHint: request.currentFrameHint,
+                                writeResult: axManagerTestWriteResult(
+                                    targetFrame: request.frame,
+                                    currentFrameHint: request.currentFrameHint,
+                                    observedFrame: request.frame,
+                                    failureReason: nil
+                                )
+                            )
+                        }
+
+                        if requests.contains(where: { $0.frame == firstFrame }) {
+                            startedFirstWrite.signal()
+                            _ = await Task.detached {
+                                waitForSemaphoreForTests(releaseFirstWrite, timeout: .now() + 5)
+                            }.value
+                        }
+                        if requests.contains(where: { $0.frame == secondFrame }) {
+                            startedSecondWrite.signal()
+                            _ = await Task.detached {
+                                waitForSemaphoreForTests(releaseSecondWrite, timeout: .now() + 5)
+                            }.value
+                        }
+
+                        complete(results)
+                    }
+                }
+                defer {
+                    controller.axManager.frameApplyAsyncOverrideForTests = nil
+                }
+
+                var firstObserverResults: [AXFrameApplyResult] = []
+                var secondObserverResults: [AXFrameApplyResult] = []
+
+                controller.axManager.applyFramesParallel(
+                    [(token.pid, token.windowId, firstFrame)],
+                    terminalObserver: { firstObserverResults.append($0) }
+                )
+
+                let sawFirstStart = await Task.detached {
+                    waitForSemaphoreForTests(startedFirstWrite, timeout: .now() + 5) == .success
+                }.value
+                #expect(sawFirstStart)
+
+                controller.axManager.applyFramesParallel(
+                    [(token.pid, token.windowId, secondFrame)],
+                    terminalObserver: { secondObserverResults.append($0) }
+                )
+
+                releaseFirstWrite.signal()
+
+                let sawSecondStart = await Task.detached {
+                    waitForSemaphoreForTests(startedSecondWrite, timeout: .now() + 5) == .success
+                }.value
+                #expect(sawSecondStart)
+
+                releaseSecondWrite.signal()
+
+                let observedSecondTerminalResult = await waitForConditionForTests {
+                    secondObserverResults.count == 1
+                }
+
+                #expect(observedSecondTerminalResult)
+                #expect(firstObserverResults.isEmpty)
+                #expect(secondObserverResults.count == 1)
+                #expect(secondObserverResults.first?.targetFrame == secondFrame)
+                #expect(controller.axManager.lastAppliedFrame(for: token.windowId) == secondFrame)
             }
-            defer {
-                AXWindowService.setFrameResultProviderForTests = nil
-                AppAXContext.contexts.removeValue(forKey: token.pid)
-                context.destroy()
-            }
-
-            var firstObserverResults: [AXFrameApplyResult] = []
-            var secondObserverResults: [AXFrameApplyResult] = []
-
-            controller.axManager.applyFramesParallel(
-                [(token.pid, token.windowId, firstFrame)],
-                terminalObserver: { firstObserverResults.append($0) }
-            )
-
-            let sawFirstStart = await Task.detached {
-                waitForSemaphoreForTests(startedFirstWrite, timeout: .now() + 1) == .success
-            }.value
-            #expect(sawFirstStart)
-
-            controller.axManager.applyFramesParallel(
-                [(token.pid, token.windowId, secondFrame)],
-                terminalObserver: { secondObserverResults.append($0) }
-            )
-
-            releaseFirstWrite.signal()
-
-            let sawSecondStart = await Task.detached {
-                waitForSemaphoreForTests(startedSecondWrite, timeout: .now() + 1) == .success
-            }.value
-            #expect(sawSecondStart)
-
-            releaseSecondWrite.signal()
-
-            let observedSecondTerminalResult = await waitForConditionForTests {
-                secondObserverResults.count == 1
-            }
-
-            #expect(observedSecondTerminalResult)
-            #expect(firstObserverResults.isEmpty)
-            #expect(secondObserverResults.count == 1)
-            #expect(secondObserverResults.first?.targetFrame == secondFrame)
-            #expect(controller.axManager.lastAppliedFrame(for: token.windowId) == secondFrame)
         }
     }
 

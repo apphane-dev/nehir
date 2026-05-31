@@ -13,7 +13,7 @@ private final class FrameApplyRecorder {
 
     func apply(frame: NSRect, to panel: WorkspaceBarPanel) {
         countsByPanel[ObjectIdentifier(panel), default: 0] += 1
-        panel.setFrame(frame, display: true)
+        panel.setFrame(frame, display: false)
     }
 
     func setFrameCallCount(for panel: WorkspaceBarPanel) -> Int {
@@ -31,6 +31,8 @@ private func makeRecordingPanelFactory(
             backing: .buffered,
             defer: false
         )
+        panel.alphaValue = 0
+        panel.ignoresMouseEvents = true
         store.panels.append(panel)
         return panel
     }
@@ -477,10 +479,6 @@ private func makeRecordingPanelFactory(
 
 @Suite(.serialized) @MainActor struct WorkspaceBarManagerAppearanceTests {
     @Test func updateSettingsRefreshesAppearanceWithoutReplacingLiveHost() throws {
-        let application = NSApplication.shared
-        let originalAppearance = application.appearance
-        defer { application.appearance = originalAppearance }
-
         let monitor = makeLayoutPlanTestMonitor(displayId: 87)
         let controller = makeLayoutPlanTestController(monitors: [monitor])
         let manager = WorkspaceBarManager()
@@ -489,8 +487,8 @@ private func makeRecordingPanelFactory(
         manager.monitorProvider = { [monitor] }
         manager.screenProvider = { _ in nil }
         manager.panelFactory = makeRecordingPanelFactory(store: panelStore)
+        manager.appearanceProvider = { NSAppearance(named: .aqua) }
 
-        application.appearance = NSAppearance(named: .aqua)
         manager.setup(controller: controller, settings: controller.settings)
         defer { manager.cleanup() }
 
@@ -499,7 +497,7 @@ private func makeRecordingPanelFactory(
         #expect(manager.panelEffectiveAppearanceForTests(on: monitor.id) == .aqua)
         #expect(manager.hostingViewEffectiveAppearanceForTests(on: monitor.id) == .aqua)
 
-        application.appearance = NSAppearance(named: .darkAqua)
+        manager.appearanceProvider = { NSAppearance(named: .darkAqua) }
         manager.updateSettings()
 
         #expect(manager.hostingViewIdentifierForTests(on: monitor.id) == initialHostingView)

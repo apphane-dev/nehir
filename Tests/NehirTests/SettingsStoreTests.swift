@@ -700,9 +700,9 @@ struct HotkeySurfaceTests {
 
 @Suite(.serialized) @MainActor struct SettingsStoreAppearanceApplyTests {
     @Test func persistedSettingsApplyingToControllerUsesSharedAppearancePath() {
-        let application = NSApplication.shared
-        let originalAppearance = application.appearance
-        defer { application.appearance = originalAppearance }
+        let originalAppearanceApplier = AppearanceModeApplier.apply
+        var appliedAppearance: NSAppearance?
+        defer { AppearanceModeApplier.apply = originalAppearanceApplier }
 
         let controller = makeLayoutPlanTestController()
         defer { controller.setEnabled(false) }
@@ -710,11 +710,21 @@ struct HotkeySurfaceTests {
         controller.settings.workspaceBarEnabled = false
         controller.settings.appearanceMode = .light
 
-        application.appearance = NSAppearance(named: .darkAqua)
+        AppearanceModeApplier.apply = { mode in
+            switch mode {
+            case .automatic:
+                appliedAppearance = nil
+            case .light:
+                appliedAppearance = NSAppearance(named: .aqua)
+            case .dark:
+                appliedAppearance = NSAppearance(named: .darkAqua)
+            }
+        }
+
         controller.applyPersistedSettings(controller.settings)
 
         #expect(controller.settings.appearanceMode == .light)
-        #expect(application.appearance?.name == .aqua)
+        #expect(appliedAppearance?.name == .aqua)
     }
 }
 

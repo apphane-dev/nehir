@@ -36,8 +36,7 @@ private func makeAXEventOwnedWindow(
         defer: false
     )
     window.isReleasedWhenClosed = false
-    window.makeKeyAndOrderFront(nil)
-    NSApp.activate(ignoringOtherApps: true)
+    window.orderOut(nil)
     return window
 }
 
@@ -1929,6 +1928,8 @@ private func waitUntilAXEventTest(
         controller.hasStartedServices = true
         let registry = OwnedWindowRegistry.shared
         let ownedWindow = makeAXEventOwnedWindow()
+        ownedWindow.orderFrontRegardless()
+        NSApp.activate(ignoringOtherApps: true)
         registry.resetForTests()
         registry.register(ownedWindow)
         defer {
@@ -9218,7 +9219,8 @@ private func waitUntilAXEventTest(
         #expect(controller.workspaceManager.entry(for: liveToken) != nil)
     }
 
-    @Test @MainActor func handleRemovedPidPathInvalidatesCachedTitle() {
+    @Test @MainActor func handleRemovedPidPathInvalidatesCachedTitle() async {
+        await withAXFrameProviderIsolationForTests {
         AXWindowService.clearTitleCacheForTests()
         defer {
             AXWindowService.titleLookupProviderForTests = nil
@@ -9226,17 +9228,17 @@ private func waitUntilAXEventTest(
             AXWindowService.clearTitleCacheForTests()
         }
 
+        let controller = makeAXEventTestController()
+        guard let workspaceId = controller.activeWorkspace()?.id else {
+            Issue.record("Missing active workspace")
+            return
+        }
+
         var lookupCount = 0
         AXWindowService.timeSourceForTests = { 100 }
         AXWindowService.titleLookupProviderForTests = { _ in
             lookupCount += 1
             return lookupCount == 1 ? "Before Remove" : "After Remove"
-        }
-
-        let controller = makeAXEventTestController()
-        guard let workspaceId = controller.activeWorkspace()?.id else {
-            Issue.record("Missing active workspace")
-            return
         }
 
         let token = controller.workspaceManager.addWindow(
@@ -9253,6 +9255,7 @@ private func waitUntilAXEventTest(
         #expect(controller.workspaceManager.entry(for: token) == nil)
         #expect(AXWindowService.titlePreferFast(windowId: 905) == "After Remove")
         #expect(lookupCount == 2)
+        }
     }
 
     @Test @MainActor func unmanagedFocusedDestroyClearsFocusedBorderTarget() {

@@ -56,6 +56,33 @@ private actor CGSEventObserverIsolationForTests {
     }
 }
 
+private actor AppAXContextIsolationForTests {
+    static let shared = AppAXContextIsolationForTests()
+
+    private var acquired = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    func acquire() async {
+        if !acquired {
+            acquired = true
+            return
+        }
+
+        await withCheckedContinuation { continuation in
+            waiters.append(continuation)
+        }
+    }
+
+    func release() {
+        guard !waiters.isEmpty else {
+            acquired = false
+            return
+        }
+
+        waiters.removeFirst().resume()
+    }
+}
+
 @MainActor
 func withAXFrameProviderIsolationForTests<T>(
     _ operation: @MainActor () async throws -> T
@@ -82,6 +109,21 @@ func withCGSEventObserverIsolationForTests<T>(
         return result
     } catch {
         await CGSEventObserverIsolationForTests.shared.release()
+        throw error
+    }
+}
+
+@MainActor
+func withAppAXContextIsolationForTests<T>(
+    _ operation: @MainActor () async throws -> T
+) async rethrows -> T {
+    await AppAXContextIsolationForTests.shared.acquire()
+    do {
+        let result = try await operation()
+        await AppAXContextIsolationForTests.shared.release()
+        return result
+    } catch {
+        await AppAXContextIsolationForTests.shared.release()
         throw error
     }
 }
@@ -152,29 +194,16 @@ func fallbackFastFrameForTests(_ window: AXWindowRef) -> CGRect? {
 
 @MainActor
 func resetSharedControllerStateForTests() {
-    let contextFactory = AppAXContext.contextFactoryForTests
-    let axWindowRefProvider = AXWindowService.axWindowRefProviderForTests
-    let setFrameResultProvider = AXWindowService.setFrameResultProviderForTests
-    let pinnedWindowIdProvider = AXWindowService.pinnedWindowIdProviderForTests
-    let fastFrameProvider = AXWindowService.fastFrameProviderForTests
-    let titleLookupProvider = AXWindowService.titleLookupProviderForTests
-    let timeSource = AXWindowService.timeSourceForTests
-    let orderedStateProvider = SkyLight.orderedStateProviderForTests
-
     SettingsWindowController.shared.windowForTests?.close()
     AppRulesWindowController.shared.windowForTests?.close()
     OwnedWindowRegistry.shared.resetForTests()
     NativeFullscreenPlaceholderManager.materializesWindowsForTests = false
     ResizePlaceholderManager.materializesWindowsForTests = false
 
-    AppAXContext.contextFactoryForTests = contextFactory
-    AXWindowService.axWindowRefProviderForTests = axWindowRefProvider
-    AXWindowService.setFrameResultProviderForTests = setFrameResultProvider
-    AXWindowService.pinnedWindowIdProviderForTests = pinnedWindowIdProvider
-    AXWindowService.fastFrameProviderForTests = fastFrameProvider
-    AXWindowService.titleLookupProviderForTests = titleLookupProvider
-    AXWindowService.timeSourceForTests = timeSource
-    AXWindowService.clearTitleCacheForTests()
-    AXWindowService.clearPinnedAXElementsForTests()
-    SkyLight.orderedStateProviderForTests = orderedStateProvider
+    AppAXContext.contextFactoryForTests = nil
+    AppAXContext.onWindowDestroyed = nil
+    AppAXContext.onWindowMiniaturized = nil
+    AppAXContext.onFocusedWindowChanged = nil
+
+    SkyLight.orderedStateProviderForTests = nil
 }

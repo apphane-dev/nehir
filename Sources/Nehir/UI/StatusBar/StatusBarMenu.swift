@@ -3,8 +3,13 @@ import AppKit
 private let menuWidth: CGFloat = 280
 
 @MainActor
+enum StatusBarMenuAppearanceProvider {
+    static var current: () -> NSAppearance? = { NSApplication.shared.appearance }
+}
+
+@MainActor
 private func applyCurrentAppAppearance(to view: NSView) {
-    view.appearance = NSApplication.shared.appearance
+    view.appearance = StatusBarMenuAppearanceProvider.current()
 }
 
 @MainActor
@@ -56,7 +61,7 @@ final class StatusBarMenuBuilder {
 
         let menu = NSMenu()
         menu.autoenablesItems = false
-        menu.appearance = NSApplication.shared.appearance
+        menu.appearance = StatusBarMenuAppearanceProvider.current()
 
         let headerItem = NSMenuItem()
         headerItem.view = createHeaderView()

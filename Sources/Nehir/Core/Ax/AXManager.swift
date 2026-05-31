@@ -41,6 +41,7 @@ final class AXManager {
     var currentWindowsAsyncOverride: (@MainActor () async -> [(AXWindowRef, pid_t, Int)])?
     var fullRescanEnumerationOverrideForTests: (@MainActor () async -> FullRescanEnumerationSnapshot)?
     var frameApplyOverrideForTests: (([AXFrameApplicationRequest]) -> [AXFrameApplyResult])?
+    var frameApplyAsyncOverrideForTests: (([AXFrameApplicationRequest], @escaping ([AXFrameApplyResult]) -> Void) -> Void)?
 
     private struct PendingFrameObserver {
         var windowId: Int
@@ -150,7 +151,7 @@ final class AXManager {
     }
 
     var usesFrameApplyOverrideForTests: Bool {
-        frameApplyOverrideForTests != nil
+        frameApplyOverrideForTests != nil || frameApplyAsyncOverrideForTests != nil
     }
 
     func hasPendingFrameWrite(for windowId: Int) -> Bool {
@@ -588,6 +589,12 @@ final class AXManager {
         }
 
         let requestsForTests = framesByPidBuffer.values.flatMap { $0 }
+        if let frameApplyAsyncOverrideForTests, !requestsForTests.isEmpty {
+            frameApplyAsyncOverrideForTests(requestsForTests) { [weak self] results in
+                self?.handleFrameApplyResults(results)
+            }
+            return
+        }
         if let frameApplyOverrideForTests, !requestsForTests.isEmpty {
             handleFrameApplyResults(frameApplyOverrideForTests(requestsForTests))
             return

@@ -740,10 +740,13 @@ private func makeTestFocusEvent(id: String, title: String) -> IPCEventEnvelope {
     }
 
     @Test func focusSubscriptionStreamsNDJSONEventsFromRealFocusChanges() async throws {
+        try await withAXFrameProviderIsolationForTests {
         let socketPath = makeIPCTestSocketPath()
         let controller = makeLayoutPlanTestController()
+        AXWindowService.clearTitleCacheForTests()
         defer {
             AXWindowService.titleLookupProviderForTests = nil
+            AXWindowService.clearTitleCacheForTests()
             resetSharedControllerStateForTests()
         }
 
@@ -766,6 +769,7 @@ private func makeTestFocusEvent(id: String, title: String) -> IPCEventEnvelope {
             windowId: 1301,
             to: workspaceId
         )
+        #expect(AXWindowService.titlePreferFast(windowId: 1301) == "Initial Focus")
         let updatedToken = controller.workspaceManager.addWindow(
             makeLayoutPlanTestWindow(windowId: 1302),
             pid: 9102,
@@ -833,6 +837,7 @@ private func makeTestFocusEvent(id: String, title: String) -> IPCEventEnvelope {
         } else {
             Issue.record("Expected focused-window event payload")
         }
+        }
     }
 
     @Test func focusSubscriptionBuffersLiveEventPublishedAfterResponseWhenInitialSnapshotIsDisabled() async throws {
@@ -895,10 +900,13 @@ private func makeTestFocusEvent(id: String, title: String) -> IPCEventEnvelope {
     }
 
     @Test func focusSubscriptionDeliversInitialSnapshotBeforeBufferedLiveEvent() async throws {
+        try await withAXFrameProviderIsolationForTests {
         let socketPath = makeIPCTestSocketPath()
         let controller = makeLayoutPlanTestController()
+        AXWindowService.clearTitleCacheForTests()
         defer {
             AXWindowService.titleLookupProviderForTests = nil
+            AXWindowService.clearTitleCacheForTests()
             IPCConnection.setSubscriptionTestHooksForTests(nil)
             resetSharedControllerStateForTests()
         }
@@ -919,6 +927,7 @@ private func makeTestFocusEvent(id: String, title: String) -> IPCEventEnvelope {
             windowId: 1311,
             to: workspaceId
         )
+        #expect(AXWindowService.titlePreferFast(windowId: 1311) == "Initial Focus")
         _ = controller.workspaceManager.setManagedFocus(initialToken, in: workspaceId)
 
         let server = IPCServer(
@@ -977,6 +986,7 @@ private func makeTestFocusEvent(id: String, title: String) -> IPCEventEnvelope {
             #expect(payload.window?.title == "Buffered Live Focus")
         } else {
             Issue.record("Expected buffered live focused-window payload")
+        }
         }
     }
 

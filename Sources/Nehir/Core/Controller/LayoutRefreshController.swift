@@ -3580,3 +3580,18 @@ final class LayoutDiffExecutor {
     }
 
 }
+
+extension LayoutRefreshController {
+    @discardableResult
+    func runPendingRevealVerificationForTests(windowId: Int) -> Bool {
+        pendingRevealVerificationTasksByWindowId.removeValue(forKey: windowId)?.cancel()
+        guard pendingRevealTransactionsByWindowId[windowId] != nil else {
+            return false
+        }
+        guard let verifiedFrame = delayedVerifiedRevealFrame(forWindowId: windowId) else {
+            return false
+        }
+        finalizePendingRevealTransactionSuccess(forWindowId: windowId, confirmedFrame: verifiedFrame)
+        return true
+    }
+}

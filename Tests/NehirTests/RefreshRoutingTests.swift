@@ -1844,7 +1844,8 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         #expect(controller.axManager.lastAppliedFrame(for: hiddenToken.windowId) == nil)
     }
 
-    @Test @MainActor func hideInactiveWorkspacesSkipsNativeFullscreenRealWindowMoves() {
+    @Test @MainActor func hideInactiveWorkspacesSkipsNativeFullscreenRealWindowMoves() async {
+        await withAXFrameProviderIsolationForTests {
         let controller = makeRefreshTestController()
         defer { cleanupRefreshTestController(controller) }
         guard let workspaceOne = controller.workspaceManager.workspaceId(for: "1", createIfMissing: false),
@@ -1908,6 +1909,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         #expect(controller.nativeFullscreenPlaceholderManager.snapshotForTests()[token] == nil)
         #expect(controller.axManager.inactiveWorkspaceWindowIds.contains(token.windowId))
         #expect(controller.workspaceManager.layoutReason(for: token) == .nativeFullscreen)
+        }
     }
 
     @Test @MainActor func nativeFullscreenExitRestoresPriorManagedFrameInNiri() async {

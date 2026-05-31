@@ -93,6 +93,8 @@ final class WorkspaceBarManager {
         panel.setFrame(frame, display: true)
     }
 
+    var appearanceProvider: @MainActor () -> NSAppearance? = { NSApplication.shared.appearance }
+
     private var barsByMonitor: [Monitor.ID: MonitorBarInstance] = [:]
     private var screenObserver: Any?
     private var sleepWakeObserver: Any?
@@ -422,7 +424,7 @@ final class WorkspaceBarManager {
         hostingView: NSHostingView<WorkspaceBarView>,
         measurementView: NSHostingView<WorkspaceBarMeasurementView>
     ) {
-        let appearance = NSApplication.shared.appearance
+        let appearance = appearanceProvider()
         panel.appearance = appearance
         hostingView.appearance = appearance
         measurementView.appearance = appearance

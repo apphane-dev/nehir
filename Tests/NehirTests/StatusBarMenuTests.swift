@@ -13,21 +13,20 @@ private func makeStatusBarMenuTestDirectory() -> URL {
 
 @Suite(.serialized) @MainActor struct StatusBarMenuTests {
     @Test func buildMenuUsesCurrentAppAppearanceForMenuAndViews() throws {
-        let application = NSApplication.shared
-        let originalAppearance = application.appearance
-        defer { application.appearance = originalAppearance }
+        let originalAppearanceProvider = StatusBarMenuAppearanceProvider.current
+        defer { StatusBarMenuAppearanceProvider.current = originalAppearanceProvider }
 
         let controller = makeLayoutPlanTestController()
         let builder = StatusBarMenuBuilder(settings: controller.settings, controller: controller)
 
-        application.appearance = NSAppearance(named: .aqua)
+        StatusBarMenuAppearanceProvider.current = { NSAppearance(named: .aqua) }
         let lightMenu = builder.buildMenu()
 
         #expect(lightMenu.appearance?.name == .aqua)
         #expect(try #require(lightMenu.items.first?.view).appearance?.name == .aqua)
         #expect(try #require(lightMenu.items.dropFirst(3).first?.view).appearance?.name == .aqua)
 
-        application.appearance = NSAppearance(named: .darkAqua)
+        StatusBarMenuAppearanceProvider.current = { NSAppearance(named: .darkAqua) }
         let darkMenu = builder.buildMenu()
 
         #expect(darkMenu.appearance?.name == .darkAqua)

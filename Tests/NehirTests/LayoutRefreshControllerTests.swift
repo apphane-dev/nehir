@@ -1774,91 +1774,92 @@ private func makeUnavailableLayoutPlanTestWindow(windowId: Int) -> AXWindowRef {
     }
 
     @Test @MainActor func restoreScratchpadWindowKeepsHiddenStateUntilAsyncRevealCompletes() async throws {
-        try await withAXFrameProviderIsolationForTests {
-            let controller = makeLayoutPlanTestController()
-            guard let monitor = controller.workspaceManager.monitors.first,
-                  let workspaceId = controller.workspaceManager.activeWorkspaceOrFirst(on: monitor.id)?.id
-            else {
-                Issue.record("Missing monitor or active workspace for async scratchpad reveal test")
-                return
-            }
-
-            let token = controller.workspaceManager.addWindow(
-                makeLayoutPlanTestWindow(windowId: 582),
-                pid: getpid(),
-                windowId: 582,
-                to: workspaceId,
-                mode: .floating
-            )
-            let floatingFrame = CGRect(x: 300, y: 180, width: 560, height: 380)
-            controller.workspaceManager.setFloatingState(
-                .init(
-                    lastFrame: floatingFrame,
-                    normalizedOrigin: CGPoint(x: 0.35, y: 0.3),
-                    referenceMonitorId: monitor.id,
-                    restoreToFloating: true
-                ),
-                for: token
-            )
-            controller.workspaceManager.setHiddenState(
-                .init(
-                    proportionalPosition: CGPoint(x: 0.82, y: 0.76),
-                    referenceMonitorId: monitor.id,
-                    reason: .scratchpad
-                ),
-                for: token
-            )
-
-            guard let entry = controller.workspaceManager.entry(for: token),
-                  let context = await AppAXContext.makeForTests(processIdentifier: token.pid)
-            else {
-                Issue.record("Failed to create AX test context for async scratchpad reveal test")
-                return
-            }
-
-            controller.axManager.frameApplyOverrideForTests = nil
-            AppAXContext.contexts[token.pid] = context
-            try await context.installWindowsForTests([entry.axRef])
-
-            let startedWrite = DispatchSemaphore(value: 0)
-            let releaseWrite = DispatchSemaphore(value: 0)
-            AXWindowService.setFrameResultProviderForTests = { axRef, frame, currentFrameHint in
-                if axRef.windowId == token.windowId {
-                    startedWrite.signal()
-                    _ = releaseWrite.wait(timeout: .now() + 1)
+        try await withAppAXContextIsolationForTests {
+            try await withAXFrameProviderIsolationForTests {
+                let controller = makeLayoutPlanTestController()
+                guard let monitor = controller.workspaceManager.monitors.first,
+                      let workspaceId = controller.workspaceManager.activeWorkspaceOrFirst(on: monitor.id)?.id
+                else {
+                    Issue.record("Missing monitor or active workspace for async scratchpad reveal test")
+                    return
                 }
-                return layoutRefreshControllerTestWriteResult(
-                    targetFrame: frame,
-                    currentFrameHint: currentFrameHint,
-                    observedFrame: frame,
-                    failureReason: nil
+
+                let token = controller.workspaceManager.addWindow(
+                    makeLayoutPlanTestWindow(windowId: 582),
+                    pid: 5_582,
+                    windowId: 582,
+                    to: workspaceId,
+                    mode: .floating
                 )
+                let floatingFrame = CGRect(x: 300, y: 180, width: 560, height: 380)
+                controller.workspaceManager.setFloatingState(
+                    .init(
+                        lastFrame: floatingFrame,
+                        normalizedOrigin: CGPoint(x: 0.35, y: 0.3),
+                        referenceMonitorId: monitor.id,
+                        restoreToFloating: true
+                    ),
+                    for: token
+                )
+                controller.workspaceManager.setHiddenState(
+                    .init(
+                        proportionalPosition: CGPoint(x: 0.82, y: 0.76),
+                        referenceMonitorId: monitor.id,
+                        reason: .scratchpad
+                    ),
+                    for: token
+                )
+
+                guard let entry = controller.workspaceManager.entry(for: token) else {
+                    Issue.record("Missing entry for async scratchpad reveal test")
+                    return
+                }
+
+                var pendingCompletion: (() -> Void)?
+                controller.axManager.frameApplyAsyncOverrideForTests = { requests, complete in
+                    let results = requests.map { request in
+                        AXFrameApplyResult(
+                            requestId: request.requestId,
+                            pid: request.pid,
+                            windowId: request.windowId,
+                            targetFrame: request.frame,
+                            currentFrameHint: request.currentFrameHint,
+                            writeResult: layoutRefreshControllerTestWriteResult(
+                                targetFrame: request.frame,
+                                currentFrameHint: request.currentFrameHint,
+                                observedFrame: request.frame,
+                                failureReason: nil
+                            )
+                        )
+                    }
+                    if requests.contains(where: { $0.windowId == token.windowId }) {
+                        pendingCompletion = {
+                            complete(results)
+                        }
+                        return
+                    }
+                    complete(results)
+                }
+                defer {
+                    controller.axManager.frameApplyAsyncOverrideForTests = nil
+                }
+
+                controller.layoutRefreshController.restoreScratchpadWindow(entry, monitor: monitor)
+
+                #expect(pendingCompletion != nil)
+                #expect(controller.workspaceManager.hiddenState(for: token)?.isScratchpad == true)
+                #expect(controller.axManager.hasPendingFrameWrite(for: token.windowId))
+
+                pendingCompletion?()
+
+                let completedReveal = await waitForConditionForTests {
+                    controller.workspaceManager.hiddenState(for: token) == nil
+                        && controller.axManager.hasPendingFrameWrite(for: token.windowId) == false
+                }
+
+                #expect(completedReveal)
+                #expect(controller.axManager.lastAppliedFrame(for: token.windowId) == floatingFrame)
             }
-            defer {
-                AXWindowService.setFrameResultProviderForTests = nil
-                AppAXContext.contexts.removeValue(forKey: token.pid)
-                context.destroy()
-            }
-
-            controller.layoutRefreshController.restoreScratchpadWindow(entry, monitor: monitor)
-
-            let sawWriteStart = await Task.detached {
-                waitForSemaphoreForTests(startedWrite, timeout: .now() + 1) == .success
-            }.value
-
-            #expect(sawWriteStart)
-            #expect(controller.workspaceManager.hiddenState(for: token)?.isScratchpad == true)
-            #expect(controller.axManager.hasPendingFrameWrite(for: token.windowId))
-
-            releaseWrite.signal()
-
-            let completedReveal = await waitForConditionForTests {
-                controller.workspaceManager.hiddenState(for: token) == nil
-                    && controller.axManager.hasPendingFrameWrite(for: token.windowId) == false
-            }
-
-            #expect(completedReveal)
-            #expect(controller.axManager.lastAppliedFrame(for: token.windowId) == floatingFrame)
         }
     }
 
@@ -1982,12 +1983,13 @@ private func makeUnavailableLayoutPlanTestWindow(windowId: Int) -> AXWindowRef {
         controller.layoutRefreshController.restoreScratchpadWindow(entry, monitor: monitor)
         observedFrame = floatingFrame
 
-        let completedReveal = await waitForConditionForTests {
-            controller.workspaceManager.hiddenState(for: token) == nil
-                && controller.axManager.lastAppliedFrame(for: token.windowId) == floatingFrame
-        }
+        let completedReveal = controller.layoutRefreshController.runPendingRevealVerificationForTests(
+            windowId: token.windowId
+        )
 
         #expect(completedReveal)
+        #expect(controller.workspaceManager.hiddenState(for: token) == nil)
+        #expect(controller.axManager.lastAppliedFrame(for: token.windowId) == floatingFrame)
         }
     }
 
@@ -2060,12 +2062,13 @@ private func makeUnavailableLayoutPlanTestWindow(windowId: Int) -> AXWindowRef {
         controller.layoutRefreshController.restoreScratchpadWindow(entry, monitor: monitor)
         observedFrame = floatingFrame
 
-        let completedReveal = await waitForConditionForTests {
-            controller.workspaceManager.hiddenState(for: token) == nil
-                && controller.axManager.lastAppliedFrame(for: token.windowId) == floatingFrame
-        }
+        let completedReveal = controller.layoutRefreshController.runPendingRevealVerificationForTests(
+            windowId: token.windowId
+        )
 
         #expect(completedReveal)
+        #expect(controller.workspaceManager.hiddenState(for: token) == nil)
+        #expect(controller.axManager.lastAppliedFrame(for: token.windowId) == floatingFrame)
         }
     }
 
@@ -2142,12 +2145,12 @@ private func makeUnavailableLayoutPlanTestWindow(windowId: Int) -> AXWindowRef {
 
             liveFrame = floatingFrame
 
-            let completedReveal = await waitForConditionForTests {
-                controller.workspaceManager.hiddenState(for: token) == nil
-                    && controller.axManager.lastAppliedFrame(for: token.windowId) == floatingFrame
-            }
+            let completedReveal = controller.layoutRefreshController.runPendingRevealVerificationForTests(
+                windowId: token.windowId
+            )
 
             #expect(completedReveal)
+            #expect(controller.workspaceManager.hiddenState(for: token) == nil)
         }
     }
 
@@ -2221,12 +2224,12 @@ private func makeUnavailableLayoutPlanTestWindow(windowId: Int) -> AXWindowRef {
 
             liveFrame = floatingFrame
 
-            let completedReveal = await waitForConditionForTests {
-                controller.workspaceManager.hiddenState(for: token) == nil
-                    && controller.axManager.lastAppliedFrame(for: token.windowId) == floatingFrame
-            }
+            let completedReveal = controller.layoutRefreshController.runPendingRevealVerificationForTests(
+                windowId: token.windowId
+            )
 
             #expect(completedReveal)
+            #expect(controller.workspaceManager.hiddenState(for: token) == nil)
         }
     }
 
@@ -2515,12 +2518,13 @@ private func makeUnavailableLayoutPlanTestWindow(windowId: Int) -> AXWindowRef {
 
         observedFrame = floatingFrame
 
-        let completedReveal = await waitForConditionForTests {
-            controller.workspaceManager.hiddenState(for: newToken) == nil
-                && controller.axManager.lastAppliedFrame(for: newToken.windowId) == floatingFrame
-        }
+        let completedReveal = controller.layoutRefreshController.runPendingRevealVerificationForTests(
+            windowId: newToken.windowId
+        )
 
         #expect(completedReveal)
+        #expect(controller.workspaceManager.hiddenState(for: newToken) == nil)
+        #expect(controller.axManager.lastAppliedFrame(for: newToken.windowId) == floatingFrame)
         }
     }
 

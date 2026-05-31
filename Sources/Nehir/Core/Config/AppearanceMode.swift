@@ -1,5 +1,19 @@
 import AppKit
 
+@MainActor
+enum AppearanceModeApplier {
+    static var apply: (AppearanceMode) -> Void = { mode in
+        switch mode {
+        case .automatic:
+            NSApplication.shared.appearance = nil
+        case .light:
+            NSApplication.shared.appearance = NSAppearance(named: .aqua)
+        case .dark:
+            NSApplication.shared.appearance = NSAppearance(named: .darkAqua)
+        }
+    }
+}
+
 enum AppearanceMode: String, CaseIterable, Codable {
     case automatic
     case light
@@ -15,13 +29,6 @@ enum AppearanceMode: String, CaseIterable, Codable {
 
     @MainActor
     func apply() {
-        switch self {
-        case .automatic:
-            NSApplication.shared.appearance = nil
-        case .light:
-            NSApplication.shared.appearance = NSAppearance(named: .aqua)
-        case .dark:
-            NSApplication.shared.appearance = NSAppearance(named: .darkAqua)
-        }
+        AppearanceModeApplier.apply(self)
     }
 }

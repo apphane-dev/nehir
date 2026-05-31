@@ -119,8 +119,7 @@ private func makeFocusOwnedWindow(
         defer: false
     )
     window.isReleasedWhenClosed = false
-    window.makeKeyAndOrderFront(nil)
-    NSApp.activate(ignoringOtherApps: true)
+    window.orderOut(nil)
     return window
 }
 
@@ -1305,6 +1304,8 @@ private func waitForFocusRefresh(on controller: WMController) async {
         let registry = OwnedWindowRegistry.shared
         registry.resetForTests()
         let ownedWindow = makeFocusOwnedWindow()
+        ownedWindow.orderFrontRegardless()
+        NSApp.activate(ignoringOtherApps: true)
         registry.register(ownedWindow)
         defer {
             registry.unregister(ownedWindow)
@@ -1346,6 +1347,8 @@ private func waitForFocusRefresh(on controller: WMController) async {
         let registry = OwnedWindowRegistry.shared
         registry.resetForTests()
         let ownedWindow = makeFocusOwnedWindow()
+        ownedWindow.orderFrontRegardless()
+        NSApp.activate(ignoringOtherApps: true)
         registry.register(ownedWindow)
         defer {
             registry.unregister(ownedWindow)

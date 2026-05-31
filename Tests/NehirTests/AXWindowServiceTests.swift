@@ -227,7 +227,8 @@ import Testing
 }
 
 @Suite @MainActor struct AXWindowTitleCacheTests {
-    @Test func titleCacheReusesLookupWithinTTL() {
+    @Test func titleCacheReusesLookupWithinTTL() async {
+        await withAXFrameProviderIsolationForTests {
         AXWindowService.clearTitleCacheForTests()
         defer {
             AXWindowService.titleLookupProviderForTests = nil
@@ -246,9 +247,11 @@ import Testing
         #expect(AXWindowService.titlePreferFast(windowId: 12) == "Window 12")
         #expect(AXWindowService.titlePreferFast(windowId: 12) == "Window 12")
         #expect(lookups == [12])
+        }
     }
 
-    @Test func titleCacheRefreshesAfterTTLExpires() {
+    @Test func titleCacheRefreshesAfterTTLExpires() async {
+        await withAXFrameProviderIsolationForTests {
         AXWindowService.clearTitleCacheForTests()
         defer {
             AXWindowService.titleLookupProviderForTests = nil
@@ -268,9 +271,11 @@ import Testing
         now += 0.6
         #expect(AXWindowService.titlePreferFast(windowId: 24) == "Title 2")
         #expect(lookupCount == 2)
+        }
     }
 
-    @Test func titleCacheStoresNilResultsWithinTTL() {
+    @Test func titleCacheStoresNilResultsWithinTTL() async {
+        await withAXFrameProviderIsolationForTests {
         AXWindowService.clearTitleCacheForTests()
         defer {
             AXWindowService.titleLookupProviderForTests = nil
@@ -289,9 +294,11 @@ import Testing
         #expect(AXWindowService.titlePreferFast(windowId: 36) == nil)
         #expect(AXWindowService.titlePreferFast(windowId: 36) == nil)
         #expect(lookupCount == 1)
+        }
     }
 
-    @Test func explicitTitleInvalidationForcesReload() {
+    @Test func explicitTitleInvalidationForcesReload() async {
+        await withAXFrameProviderIsolationForTests {
         AXWindowService.clearTitleCacheForTests()
         defer {
             AXWindowService.titleLookupProviderForTests = nil
@@ -311,5 +318,6 @@ import Testing
         AXWindowService.invalidateCachedTitle(windowId: 48)
         #expect(AXWindowService.titlePreferFast(windowId: 48) == "Lookup 2")
         #expect(lookupCount == 2)
+        }
     }
 }

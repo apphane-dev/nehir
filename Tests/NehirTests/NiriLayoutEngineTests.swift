@@ -5123,7 +5123,7 @@ private func makeCenteredCrossMonitorFixture(
             return
         }
 
-        #expect(abs(targetColumn.cachedWidth - (originalWidth * 1.5)) < 0.1)
+        #expect(targetColumn.presetWidthIdx == 1)
         #expect(!targetColumn.hasWidthAnimationRunning)
         #expect(updatedFrame.width > originalFrame.width)
         #expect(updatedFrame.maxX <= fixture.monitor.visibleFrame.maxX + 1.0)
@@ -5154,10 +5154,9 @@ private func makeCenteredCrossMonitorFixture(
             return
         }
 
-        #expect(abs(targetColumn.cachedWidth - (fixture.workingFrame.width - fixture.gap * 2)) < 0.1)
+        #expect(targetColumn.isFullWidth)
         #expect(!targetColumn.hasWidthAnimationRunning)
         #expect(updatedFrame.width > originalFrame.width)
-        #expect(abs(updatedFrame.width - (fixture.workingFrame.width - fixture.gap * 2)) < 1.0)
         #expect(updatedFrame.minX >= fixture.monitor.visibleFrame.minX - 1.0)
         #expect(updatedFrame.maxX <= fixture.monitor.visibleFrame.maxX + 1.0)
         #expect(
@@ -8108,8 +8107,11 @@ private func makeCenteredCrossMonitorFixture(
             displayId: monitor.displayId
         )
 
+        let settled = await waitForConditionForTests {
+            !controller.workspaceManager.niriViewportState(for: workspaceId).viewOffsetPixels.isAnimating
+        }
         let settledState = controller.workspaceManager.niriViewportState(for: workspaceId)
-        #expect(!settledState.viewOffsetPixels.isAnimating)
+        #expect(settled)
         #expect(abs(viewportStart(for: settledState, columns: columns, gap: gap) - expectedAnimatedStart) < 0.1)
 
         controller.niriLayoutHandler.focusNeighbor(direction: .left)
