@@ -1318,7 +1318,7 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
         #expect(updatedState.viewOffsetPixels.isGesture == false)
     }
 
-    @Test @MainActor func trackpadGestureCommitAppliesOnlyCurrentUpdateDelta() async {
+    @Test @MainActor func trackpadGestureCommitAppliesCumulativeArmedDelta() async {
         let fixture = await prepareMouseWheelScrollFixture()
         let controller = fixture.controller
         controller.settings.gestureInvertDirection = false
@@ -1352,7 +1352,7 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
 
         let updatedState = controller.workspaceManager.niriViewportState(for: fixture.workspaceId)
         guard let monitor = controller.workspaceManager.monitor(for: fixture.workspaceId) else {
-            Issue.record("Missing monitor for trackpad current-delta regression test")
+            Issue.record("Missing monitor for trackpad cumulative-delta regression test")
             return
         }
         let viewportWidth = controller.insetWorkingFrame(for: monitor).width
@@ -1360,10 +1360,56 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
             Issue.record("Expected in-flight viewport gesture after crossing threshold")
             return
         }
-        let expectedAppliedDelta = CGFloat((0.235 - 0.215) * 500.0) * viewportWidth / 1200.0
+        let expectedAppliedDelta = CGFloat((0.235 - 0.20) * 500.0) * viewportWidth / 1200.0
         let actualAppliedDelta = CGFloat(gesture.currentViewOffset - gesture.stationaryViewOffset)
         #expect(handler.state.gesturePhase == .committed)
         #expect(abs(actualAppliedDelta - expectedAppliedDelta) < 0.1)
+    }
+
+    @Test @MainActor func trackpadGestureCommitDoesNotReverseOnThresholdJitter() async {
+        let fixture = await prepareMouseWheelScrollFixture()
+        let controller = fixture.controller
+        controller.settings.gestureInvertDirection = false
+        let handler = fixture.handler
+        let baseTime = CACurrentMediaTime()
+
+        func touches(x: CGFloat, y: CGFloat) -> [MouseEventHandler.GestureTouchSample] {
+            makeGestureTouchSamples(xPositions: [x, x, x], yPosition: y)
+        }
+
+        handler.receiveTapGestureEvent(
+            .init(
+                location: fixture.location,
+                phaseRawValue: NSEvent.Phase.began.rawValue,
+                timestamp: baseTime,
+                touches: touches(x: 0.20, y: 0.50)
+            )
+        )
+        handler.receiveTapGestureEvent(
+            .init(
+                location: fixture.location,
+                phaseRawValue: NSEvent.Phase.changed.rawValue,
+                timestamp: baseTime + 0.016,
+                touches: touches(x: 0.225, y: 0.50)
+            )
+        )
+        handler.receiveTapGestureEvent(
+            .init(
+                location: fixture.location,
+                phaseRawValue: NSEvent.Phase.changed.rawValue,
+                timestamp: baseTime + 0.032,
+                touches: touches(x: 0.224, y: 0.522)
+            )
+        )
+
+        let updatedState = controller.workspaceManager.niriViewportState(for: fixture.workspaceId)
+        guard let gesture = updatedState.viewOffsetPixels.gestureRef else {
+            Issue.record("Expected in-flight viewport gesture after crossing threshold")
+            return
+        }
+        let actualAppliedDelta = CGFloat(gesture.currentViewOffset - gesture.stationaryViewOffset)
+        #expect(handler.state.gesturePhase == .committed)
+        #expect(actualAppliedDelta > 0)
     }
 
     @Test @MainActor func committedTrackpadGestureKeepsSubPixelDeltasForVelocity() async {

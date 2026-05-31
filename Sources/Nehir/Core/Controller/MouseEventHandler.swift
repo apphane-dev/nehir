@@ -1284,7 +1284,7 @@ final class MouseEventHandler {
                     return
                 }
 
-                rawDeltaX = (avgX - state.gestureLastAverageX) * macNormalizedTouchPositionToNiriGestureUnits
+                rawDeltaX = cumulativeX
                 state.gesturePhase = .committed
             } else {
                 rawDeltaX = (avgX - state.gestureLastAverageX) * macNormalizedTouchPositionToNiriGestureUnits
