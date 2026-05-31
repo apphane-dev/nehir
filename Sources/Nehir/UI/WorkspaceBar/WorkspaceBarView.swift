@@ -320,6 +320,10 @@ private struct WorkspaceItemView: View {
                     }
             }
         }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            onFocusWorkspace()
+        }
         .onHover { hovering in
             isHovered = hovering
         }
