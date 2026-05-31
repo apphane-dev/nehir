@@ -675,7 +675,7 @@ final class AXManager {
     }
 
     func applyPositionsViaSkyLight(
-        _ positions: [(windowId: Int, origin: CGPoint)],
+        _ positions: [(windowId: Int, origin: CGPoint, height: CGFloat, displayId: CGDirectDisplayID?)],
         allowInactive: Bool = false
     ) {
         let filtered = allowInactive
@@ -683,12 +683,20 @@ final class AXManager {
             : positions.filter { !inactiveWorkspaceWindowIds.contains($0.windowId) }
         guard !filtered.isEmpty else { return }
         let batchPositions = filtered.map {
-            (windowId: UInt32($0.windowId), origin: ScreenCoordinateSpace.toWindowServer(point: $0.origin))
+            let appKitBottomLeftGuess = CGPoint(x: $0.origin.x, y: $0.origin.y + $0.height)
+            let transformed = ScreenCoordinateSpace.toWindowServer(point: $0.origin)
+            let display = $0.displayId.map(String.init) ?? "nil"
+            let hintedTopLeft = ScreenCoordinateSpace.toWindowServer(point: $0.origin, displayId: $0.displayId)
+            let hintedBottomLeft = ScreenCoordinateSpace.toWindowServer(point: appKitBottomLeftGuess, displayId: $0.displayId)
+            let heuristicTransform = ScreenCoordinateSpace.debugDescriptionForClosestAppKitPoint($0.origin)
+            let hintedTransform = ScreenCoordinateSpace.debugDescription(for: $0.displayId)
+            recordFrameApplyTrace("SkyLight.move id=\($0.windowId) displayHint=\(display) appKitOrigin=\(LayoutTrace.point($0.origin)) appKitBLGuess=\(LayoutTrace.point(appKitBottomLeftGuess)) windowServer=\(LayoutTrace.point(transformed)) hintedTopLeft=\(LayoutTrace.point(hintedTopLeft)) hintedBottomLeft=\(LayoutTrace.point(hintedBottomLeft)) heuristicTransform=\(heuristicTransform) hintedTransform=\(hintedTransform)")
+            return (windowId: UInt32($0.windowId), origin: transformed)
         }
         SkyLight.shared.batchMoveWindows(batchPositions)
     }
 
-    private func recordFrameApplyTrace(_ message: String) {
+    func recordFrameApplyTrace(_ message: String) {
         recentFrameApplyTrace.append(Date().ISO8601Format() + " " + message)
         if recentFrameApplyTrace.count > 200 {
             recentFrameApplyTrace.removeFirst(recentFrameApplyTrace.count - 200)

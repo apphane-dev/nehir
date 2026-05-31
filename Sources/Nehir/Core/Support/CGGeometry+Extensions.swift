@@ -22,6 +22,7 @@ extension CGRect {
 
 enum ScreenCoordinateSpace {
     private struct ScreenTransform {
+        let displayId: CGDirectDisplayID
         let appKitFrame: CGRect
         let quartzFrame: CGRect
         let scaleX: CGFloat
@@ -94,6 +95,7 @@ enum ScreenCoordinateSpace {
             let scaleX = quartzFrame.width / max(1.0, appKitFrame.width)
             let scaleY = quartzFrame.height / max(1.0, appKitFrame.height)
             return ScreenTransform(
+                displayId: displayId,
                 appKitFrame: appKitFrame,
                 quartzFrame: quartzFrame,
                 scaleX: scaleX,
@@ -118,6 +120,11 @@ enum ScreenCoordinateSpace {
         cachedGlobalFrame = frame
         screenConfigurationToken = token
         return frame
+    }
+
+    private static func transformForDisplayId(_ displayId: CGDirectDisplayID?) -> ScreenTransform? {
+        guard let displayId else { return nil }
+        return transforms().first { $0.displayId == displayId }
     }
 
     private static func transformForQuartz(point: CGPoint) -> ScreenTransform? {
@@ -169,6 +176,40 @@ enum ScreenCoordinateSpace {
         }
         let global = globalFrame
         return CGPoint(x: point.x, y: global.maxY - point.y)
+    }
+
+    static func toWindowServer(point: CGPoint, displayId: CGDirectDisplayID?) -> CGPoint {
+        if let transform = transformForDisplayId(displayId) {
+            return transform.toWindowServer(point: point)
+        }
+        return toWindowServer(point: point)
+    }
+
+    static func debugDescription(for displayId: CGDirectDisplayID?) -> String {
+        describeTransform(transformForDisplayId(displayId), fallbackDisplayId: displayId)
+    }
+
+    static func debugDescriptionForClosestAppKitPoint(_ point: CGPoint) -> String {
+        describeTransform(transformClosestToAppKit(point: point), fallbackDisplayId: nil)
+    }
+
+    private static func describeTransform(
+        _ transform: ScreenTransform?,
+        fallbackDisplayId: CGDirectDisplayID?
+    ) -> String {
+        func format(_ rect: CGRect) -> String {
+            String(format: "%.0f,%.0f,%.0f,%.0f", rect.origin.x, rect.origin.y, rect.size.width, rect.size.height)
+        }
+
+        if let transform {
+            let scaleX = String(format: "%.2f", transform.scaleX)
+            let scaleY = String(format: "%.2f", transform.scaleY)
+            return "display=\(transform.displayId) appKit=\(format(transform.appKitFrame)) quartz=\(format(transform.quartzFrame)) scale=(\(scaleX),\(scaleY))"
+        }
+        if let fallbackDisplayId {
+            return "display=\(fallbackDisplayId) unresolved"
+        }
+        return "display=nil fallback-global=\(format(globalFrame))"
     }
 
     static func toWindowServer(rect: CGRect) -> CGRect {

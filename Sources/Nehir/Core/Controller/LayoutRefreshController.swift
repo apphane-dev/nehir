@@ -2142,6 +2142,7 @@ import QuartzCore
         let entry: WindowModel.Entry
         let origin: CGPoint
         let frameSize: CGSize
+        let displayId: CGDirectDisplayID?
     }
 
     fileprivate enum HideOperationResolution {
@@ -2153,19 +2154,42 @@ import QuartzCore
     fileprivate func applyPositionPlans(_ plans: [WindowPositionPlan]) {
         guard let controller, !plans.isEmpty else { return }
 
+        // Diagnostic: log every position plan before SkyLight
+        for plan in plans {
+            controller.axManager.recordFrameApplyTrace("hidePlan.apply id=\(plan.entry.windowId) requestedOrigin=\(LayoutTrace.point(plan.origin)) frameSize=\(String(format: "%.0fx%.0f", plan.frameSize.width, plan.frameSize.height))")
+        }
+
         controller.axManager.applyPositionsViaSkyLight(
-            plans.map { (windowId: $0.entry.windowId, origin: $0.origin) },
+            plans.map {
+                (
+                    windowId: $0.entry.windowId,
+                    origin: $0.origin,
+                    height: $0.frameSize.height,
+                    displayId: $0.displayId
+                )
+            },
             allowInactive: true
         )
 
         let verifyEpsilon: CGFloat = 1.0
         for plan in plans {
-            if let observedOrigin = observedWindowOrigin(plan.entry),
-               abs(observedOrigin.x - plan.origin.x) > verifyEpsilon
-               || abs(observedOrigin.y - plan.origin.y) > verifyEpsilon
-            {
-                let fallbackFrame = CGRect(origin: plan.origin, size: plan.frameSize)
-                _ = AXWindowService.setFrame(plan.entry.axRef, frame: fallbackFrame)
+            if let observedOrigin = observedWindowOrigin(plan.entry) {
+                let dx = abs(observedOrigin.x - plan.origin.x)
+                let dy = abs(observedOrigin.y - plan.origin.y)
+                // Diagnostic: log SkyLight result vs requested
+                controller.axManager.recordFrameApplyTrace("hidePlan.verify id=\(plan.entry.windowId) requested=\(LayoutTrace.point(plan.origin)) observed=\(LayoutTrace.point(observedOrigin)) dx=\(String(format: "%.1f", dx)) dy=\(String(format: "%.1f", dy)) fallback=\(dx > verifyEpsilon || dy > verifyEpsilon ? "YES" : "no")")
+                if dx > verifyEpsilon || dy > verifyEpsilon {
+                    let fallbackFrame = CGRect(origin: plan.origin, size: plan.frameSize)
+                    let axResult = AXWindowService.setFrame(plan.entry.axRef, frame: fallbackFrame)
+                    // Diagnostic: log AX fallback result
+                    if let afterFallback = observedWindowOrigin(plan.entry) {
+                        controller.axManager.recordFrameApplyTrace("hidePlan.axFallback id=\(plan.entry.windowId) axResult=\(axResult) requested=\(LayoutTrace.point(plan.origin)) afterFallback=\(LayoutTrace.point(afterFallback))")
+                    } else {
+                        controller.axManager.recordFrameApplyTrace("hidePlan.axFallback id=\(plan.entry.windowId) axResult=\(axResult) afterFallback=nil")
+                    }
+                }
+            } else {
+                controller.axManager.recordFrameApplyTrace("hidePlan.verify id=\(plan.entry.windowId) requested=\(LayoutTrace.point(plan.origin)) observed=nil")
             }
         }
     }
@@ -2214,7 +2238,8 @@ import QuartzCore
             WindowPositionPlan(
                 entry: entry,
                 origin: origin,
-                frameSize: frame.size
+                frameSize: frame.size,
+                displayId: monitor.displayId
             ),
             hiddenState: hiddenState
         )
@@ -2328,7 +2353,7 @@ import QuartzCore
         switch reason {
         case .workspaceInactive,
              .scratchpad:
-            return HiddenWindowPlacementResolver.physicalScreenEdgeOrigin(
+            let wsResult = HiddenWindowPlacementResolver.physicalScreenEdgeOrigin(
                 for: frame.size,
                 requestedSide: side,
                 targetY: frame.origin.y,
@@ -2337,6 +2362,9 @@ import QuartzCore
                 monitor: hiddenPlacementMonitor,
                 monitors: resolvedHiddenPlacementMonitors
             )
+            let reasonStr = reason == .workspaceInactive ? "workspaceInactive" : "scratchpad"
+            controller.axManager.recordFrameApplyTrace("hideOrigin.resolve reason=\(reasonStr) side=\(side) result=\(LayoutTrace.point(wsResult)) frame=\(LayoutTrace.rect(frame))")
+            return wsResult
         case .layoutTransient:
             let orientation = controller.settings.effectiveOrientation(for: monitor)
             let orthogonalOrigin: CGFloat = switch orientation {
@@ -2363,7 +2391,9 @@ import QuartzCore
             // macOS clamps horizontal offscreen positions, keeping ~40px visible.
             // Push the window vertically far offscreen instead — y is not clamped.
             let offscreenY: CGFloat = -10000
-            return CGPoint(x: placement.origin.x, y: offscreenY)
+            let result = CGPoint(x: placement.origin.x, y: offscreenY)
+            controller.axManager.recordFrameApplyTrace("hideOrigin.resolve reason=layoutTransient side=\(side) placement=\(LayoutTrace.point(placement.origin)) offscreenY=\(offscreenY) result=\(LayoutTrace.point(result)) frame=\(LayoutTrace.rect(frame))")
+            return result
         }
     }
 
@@ -2829,7 +2859,8 @@ import QuartzCore
         return WindowPositionPlan(
             entry: entry,
             origin: restoredOrigin,
-            frameSize: frame.size
+            frameSize: frame.size,
+            displayId: monitor.displayId
         )
     }
 
@@ -2900,7 +2931,8 @@ import QuartzCore
         )
         controller.axManager.cancelPendingFrameJobs([frameEntry])
         controller.axManager.suppressFrameWrites([frameEntry])
-        applyPositionPlans([WindowPositionPlan(entry: entry, origin: origin, frameSize: currentFrame.size)])
+        let displayId = NSScreen.screen(containing: currentFrame)?.displayId
+        applyPositionPlans([WindowPositionPlan(entry: entry, origin: origin, frameSize: currentFrame.size, displayId: displayId)])
         return true
     }
 
@@ -3392,7 +3424,8 @@ final class LayoutDiffExecutor {
                         return .init(
                             entry: entry,
                             origin: targetFrame.origin,
-                            frameSize: targetFrame.size
+                            frameSize: targetFrame.size,
+                            displayId: monitor.displayId
                         )
                     }
                     return refreshController.makeRestorePositionPlan(
