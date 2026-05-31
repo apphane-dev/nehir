@@ -2340,8 +2340,14 @@ import QuartzCore
         case .layoutTransient:
             let orientation = controller.settings.effectiveOrientation(for: monitor)
             let orthogonalOrigin: CGFloat = switch orientation {
-            case .horizontal: frame.origin.y
-            case .vertical: frame.origin.x
+            case .horizontal:
+                frame.origin.y < monitor.visibleFrame.minY || frame.origin.y > monitor.visibleFrame.maxY
+                    ? monitor.visibleFrame.minY
+                    : frame.origin.y
+            case .vertical:
+                frame.origin.x < monitor.visibleFrame.minX || frame.origin.x > monitor.visibleFrame.maxX
+                    ? monitor.visibleFrame.minX
+                    : frame.origin.x
             }
             let requestedEdge = AxisHideEdge(encodedHideSide: side)
             let placement = HiddenWindowPlacementResolver.placement(
@@ -2354,7 +2360,10 @@ import QuartzCore
                 monitor: hiddenPlacementMonitor,
                 monitors: resolvedHiddenPlacementMonitors
             )
-            return placement.origin
+            // macOS clamps horizontal offscreen positions, keeping ~40px visible.
+            // Push the window vertically far offscreen instead — y is not clamped.
+            let offscreenY: CGFloat = -10000
+            return CGPoint(x: placement.origin.x, y: offscreenY)
         }
     }
 
@@ -3350,10 +3359,15 @@ final class LayoutDiffExecutor {
             }
             if !hidePlans.isEmpty {
                 refreshController.applyPositionPlans(hidePlans)
+                for plan in hidePlans {
+                    if let windowId = UInt32(exactly: plan.entry.windowId) {
+                        SkyLight.shared.orderWindow(windowId, relativeTo: 0, order: .below)
+                    }
+                }
                 if LayoutTrace.isEnabled {
                     for plan in hidePlans {
                         LayoutTrace.log(
-                            "  hidePlan id=\(plan.entry.windowId) -> origin=\(LayoutTrace.point(plan.origin)) (off-viewport)"
+                            "  hidePlan id=\(plan.entry.windowId) -> origin=\(LayoutTrace.point(plan.origin)) order=below (off-viewport)"
                         )
                     }
                 }
@@ -3366,6 +3380,21 @@ final class LayoutDiffExecutor {
                     guard !blockedRevealTokens.contains(entry.token),
                           !pendingRevealTokens.contains(entry.token)
                     else { return nil }
+                    // For tiled windows restored from workspace-inactive hidden state,
+                    // skip the proportional restore position and move directly to the
+                    // layout target. The proportional restore is designed for floating
+                    // windows that need their user-position restored; for tiled windows
+                    // it creates a visible intermediate position that causes overlaps.
+                    if hiddenState.workspaceInactive,
+                       let targetFrame = frameChangeByToken[entry.token],
+                       entry.mode == .tiling
+                    {
+                        return .init(
+                            entry: entry,
+                            origin: targetFrame.origin,
+                            frameSize: targetFrame.size
+                        )
+                    }
                     return refreshController.makeRestorePositionPlan(
                         for: entry,
                         monitor: monitor,
@@ -3419,6 +3448,11 @@ final class LayoutDiffExecutor {
             }
 
             if !visibleJobs.isEmpty {
+                for (_, windowId) in visibleJobs {
+                    if let skyLightWindowId = UInt32(exactly: windowId) {
+                        SkyLight.shared.orderWindow(skyLightWindowId, relativeTo: 0, order: .above)
+                    }
+                }
                 controller.axManager.unsuppressFrameWrites(visibleJobs)
             }
         }

@@ -1628,23 +1628,24 @@ final class WorkspaceManager {
     @discardableResult
     func applySessionPatch(_ patch: WorkspaceSessionPatch) -> Bool {
         var changed = false
+        var rememberedFocusToken = patch.rememberedFocusToken
 
         if var viewportState = patch.viewportState {
-            // Guard against a stale gesture snapshot overwriting an in-progress snap animation.
-            // Layout plans are built asynchronously and may arrive after endGesture() has already
-            // transitioned the viewport from .gesture to .spring. Preserve the spring animation.
+            // Gesture viewport changes are owned by MouseEventHandler and are applied to the
+            // workspace state before a relayout is requested. A relayout plan may be built from
+            // one of those gesture snapshots and arrive later, after more gesture updates or after
+            // endGesture() has already selected a snap target. Feeding that stale snapshot back
+            // into session state can regress the offset/active column and, more subtly, restore a
+            // stale selectedNodeId whose rememberedFocusToken pulls the viewport back later.
             if viewportState.viewOffsetPixels.isGesture {
-                let currentState = niriViewportState(for: patch.workspaceId)
-                if case .spring = currentState.viewOffsetPixels {
-                    viewportState.viewOffsetPixels = currentState.viewOffsetPixels
-                    viewportState.activeColumnIndex = currentState.activeColumnIndex
-                }
+                viewportState = niriViewportState(for: patch.workspaceId)
+                rememberedFocusToken = nil
             }
             updateNiriViewportState(viewportState, for: patch.workspaceId)
             changed = true
         }
 
-        if let rememberedFocusToken = patch.rememberedFocusToken {
+        if let rememberedFocusToken {
             changed = rememberFocus(rememberedFocusToken, in: patch.workspaceId) || changed
         }
 

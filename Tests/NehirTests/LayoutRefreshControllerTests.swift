@@ -1145,7 +1145,9 @@ private func makeUnavailableLayoutPlanTestWindow(windowId: Int) -> AXWindowRef {
             return
         }
 
-        #expect(origin.y == frame.origin.y)
+        // Transient hide pushes windows to y=-10000 to avoid macOS horizontal
+        // offscreen position clamping (keeps ~40px visible at display edge).
+        #expect(origin.y == -10000)
         #expect(origin.x < monitor.visibleFrame.minX)
     }
 

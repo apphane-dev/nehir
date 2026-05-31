@@ -7276,7 +7276,9 @@ private func makeCenteredCrossMonitorFixture(
         }
 
         #expect(hiddenFrame.minX == liveOrigin.x)
-        #expect(hiddenFrame.minY == liveOrigin.y)
+        // liveOrigin.y is -10000 (vertical offscreen push to avoid macOS horizontal clamp).
+        // The layout hidden placement uses the normal y position.
+        #expect(liveOrigin.y == -10000)
     }
 
     @Test @MainActor func layoutHiddenPlacementMatchesLiveHideOriginForHiddenUpperRowInVerticalLayout() async throws {
@@ -7355,7 +7357,9 @@ private func makeCenteredCrossMonitorFixture(
         }
 
         #expect(hiddenFrame.minX == liveOrigin.x)
-        #expect(hiddenFrame.minY == liveOrigin.y)
+        // liveOrigin.y is -10000 (vertical offscreen push to avoid macOS horizontal clamp).
+        // The layout hidden placement uses the normal y position.
+        #expect(liveOrigin.y == -10000)
     }
 
     @Test @MainActor func snapshotPlanUsesRemovalSeedForFallbackAndScrollParity() async throws {
