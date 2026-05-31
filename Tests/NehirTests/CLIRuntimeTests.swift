@@ -195,6 +195,7 @@ private func waitForRecordedEvents(
             step: "waiting for third injected watch event"
         )
 
+        server.stop()
         runtimeTask.cancel()
         _ = await runtimeTask.value
 
@@ -313,6 +314,7 @@ private func waitForRecordedEvents(
         try await Task.sleep(for: .milliseconds(400))
         let lines = linesAtFile(outputURL)
 
+        server.stop()
         runtimeTask.cancel()
         _ = await runtimeTask.value
 
