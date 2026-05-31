@@ -84,17 +84,21 @@ extension ViewportState {
 
         gesture.currentViewOffset = currentOffset
 
+        let velocity = gesture.tracker.velocity() * normFactor
+
         guard snapToColumn else {
             endGesturePreservingCurrentOffset(
                 currentOffset: currentOffset,
+                velocity: velocity,
                 columns: columns,
                 gap: gap,
-                viewportWidth: viewportWidth
+                viewportWidth: viewportWidth,
+                motion: motion,
+                timestamp: now
             )
             return
         }
 
-        let velocity = gesture.tracker.velocity() * normFactor
         let projectedTrackerPos = gesture.tracker.projectedEndPosition() * normFactor
         let projectedOffset = projectedTrackerPos + gesture.deltaFromTracker
 
@@ -175,8 +179,10 @@ extension ViewportState {
     }
 
     private struct PreservedGestureOffset {
+        let initialOffset: Double
         let finalOffset: Double
         let normalizedActiveColumn: Int
+        let didClampToBounds: Bool
     }
 
     private func findSnapPointsAndTarget(
@@ -405,11 +411,16 @@ extension ViewportState {
 
     private mutating func endGesturePreservingCurrentOffset(
         currentOffset: Double,
+        velocity: Double,
         columns: [NiriContainer],
         gap: CGFloat,
-        viewportWidth: CGFloat
+        viewportWidth: CGFloat,
+        motion: MotionSnapshot,
+        timestamp: TimeInterval
     ) {
+        var initialOffset = currentOffset
         var finalOffset = currentOffset
+        var shouldAnimateBoundsCorrection = false
         let totalColumnWidth = Double(totalWidth(columns: columns, gap: gap))
         let viewportWidth = Double(viewportWidth)
 
@@ -420,14 +431,27 @@ extension ViewportState {
             viewportWidth: viewportWidth,
             totalColumnWidth: totalColumnWidth
         ) {
+            initialOffset = preservedOffset.initialOffset
             finalOffset = preservedOffset.finalOffset
+            shouldAnimateBoundsCorrection = preservedOffset.didClampToBounds
             if activeColumnIndex != preservedOffset.normalizedActiveColumn {
                 viewOffsetToRestore = nil
             }
             activeColumnIndex = preservedOffset.normalizedActiveColumn
         }
 
-        viewOffsetPixels = .static(CGFloat(finalOffset))
+        if shouldAnimateBoundsCorrection, motion.animationsEnabled {
+            viewOffsetPixels = .spring(SpringAnimation(
+                from: initialOffset,
+                to: finalOffset,
+                initialVelocity: velocity,
+                startTime: timestamp,
+                config: springConfig,
+                displayRefreshRate: displayRefreshRate
+            ))
+        } else {
+            viewOffsetPixels = .static(CGFloat(finalOffset))
+        }
         activatePrevColumnOnRemoval = nil
         selectionProgress = 0.0
     }
@@ -463,6 +487,7 @@ extension ViewportState {
         let maxViewStart = max(0, totalColumnWidth - viewportWidth)
         let viewStart = rawViewStart.clamped(to: 0 ... maxViewStart)
         let viewEnd = viewStart + viewportWidth
+        let didClampToBounds = abs(viewStart - rawViewStart) > 0.001
 
         let currentColumnWidth = max(0, Double(columns[previousActiveColumn].cachedWidth))
         let currentColumnOverlap = visibleOverlap(
@@ -506,8 +531,10 @@ extension ViewportState {
 
         let normalizedActiveX = positions[normalizedActiveColumn]
         return PreservedGestureOffset(
+            initialOffset: rawViewStart - normalizedActiveX,
             finalOffset: viewStart - normalizedActiveX,
-            normalizedActiveColumn: normalizedActiveColumn
+            normalizedActiveColumn: normalizedActiveColumn,
+            didClampToBounds: didClampToBounds
         )
     }
 

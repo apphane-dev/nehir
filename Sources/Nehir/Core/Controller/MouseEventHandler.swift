@@ -1430,6 +1430,7 @@ final class MouseEventHandler {
             .backingScaleFactor ?? 2.0
 
         var selectedWindow: NiriWindow?
+        var endedGestureIsAnimating = false
         controller.workspaceManager.withNiriViewportState(for: wsId) { endState in
             endState.endGesture(
                 columns: columns,
@@ -1445,6 +1446,7 @@ final class MouseEventHandler {
                 scale: scale,
                 timestamp: timestamp
             )
+            endedGestureIsAnimating = endState.viewOffsetPixels.isAnimating
             selectedWindow = syncViewportSelectionToActiveColumn(columns: columns, state: &endState)
         }
         if let selectedWindow {
@@ -1454,7 +1456,11 @@ final class MouseEventHandler {
             workspaceId: wsId,
             reason: "gesture_end snap=\(controller.settings.gestureScrollSnap)"
         )
-        controller.layoutRefreshController.startScrollAnimation(for: wsId)
+        if endedGestureIsAnimating {
+            controller.layoutRefreshController.startScrollAnimation(for: wsId)
+        } else {
+            controller.layoutRefreshController.requestImmediateRelayout(reason: .interactiveGesture)
+        }
     }
 
     private func finalizeCommittedGestureAfterTouchRelease(

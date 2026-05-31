@@ -460,6 +460,7 @@ private func makeViewportGestureContainers(
         )
 
         #expect(state.activeColumnIndex == 4)
+        #expect(state.viewOffsetPixels.isAnimating)
         #expect(abs(Double(state.targetViewPosPixels(columns: columns, gap: 10)) - 1_040) < 0.001)
         #expect(abs(Double(state.viewOffsetPixels.target()) + 200) < 0.001)
     }
