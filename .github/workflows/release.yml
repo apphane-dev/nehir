@@ -17,7 +17,7 @@ permissions:
 jobs:
   release:
     name: Build release and update Homebrew tap
-    runs-on: macos-latest
+    runs-on: macos-26
 
     env:
       TAP_REPOSITORY: Guria/homebrew-tap
