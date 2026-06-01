@@ -7835,7 +7835,7 @@ private func makeCenteredCrossMonitorFixture(
             centerMode: .never,
             fromIndex: 1
         )
-        #expect(controller.workspaceManager.preferredFocusToken(in: workspaceId) == windows[2].token)
+        #expect(firstMoveState.selectedNodeId == windows[2].id)
         #expect(firstMoveState.viewOffsetPixels.target() != nil || !firstMoveState.viewOffsetPixels.isAnimating)
         #expect(abs(viewportStart(for: firstMoveState, columns: columns, gap: gap) - expectedFirstMoveStart) < 0.1)
 
@@ -7853,7 +7853,7 @@ private func makeCenteredCrossMonitorFixture(
             centerMode: .never,
             fromIndex: 2
         )
-        #expect(controller.workspaceManager.preferredFocusToken(in: workspaceId) == windows[1].token)
+        #expect(firstReverseState.selectedNodeId == windows[1].id)
         #expect(firstReverseState.viewOffsetPixels.target() != nil || !firstReverseState.viewOffsetPixels.isAnimating)
         #expect(abs(viewportStart(for: firstReverseState, columns: columns, gap: gap) - expectedFirstReverseStart) <
             0.1)

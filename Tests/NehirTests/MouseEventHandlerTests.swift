@@ -1755,11 +1755,13 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
         }
 
         handler.resetDebugStateForTests()
+        let pointInsideOwnedWindow = CGPoint(x: window.frame.midX, y: window.frame.midY)
+
         handler.receiveTapMouseMoved(at: CGPoint(x: 10, y: 10))
         #expect(handler.state.pendingTapEvents.hasPendingEvents)
-        #expect(registry.contains(point: CGPoint(x: 80, y: 80)))
+        #expect(registry.contains(point: pointInsideOwnedWindow))
 
-        handler.receiveTapMouseDown(at: CGPoint(x: 80, y: 80), modifiers: [])
+        handler.receiveTapMouseDown(at: pointInsideOwnedWindow, modifiers: [])
 
         let debugSnapshot = handler.mouseTapDebugSnapshot()
         #expect(debugSnapshot.flushedBeforeImmediateDispatch == 0)
