@@ -18,6 +18,7 @@ jobs:
   release:
     name: Build release and update Homebrew tap
     runs-on: macos-26
+    timeout-minutes: 45
 
     env:
       TAP_REPOSITORY: Guria/homebrew-tap
@@ -57,7 +58,8 @@ jobs:
           xcodebuild -version
 
       - name: Run tests
-        run: swift test
+        timeout-minutes: 15
+        run: swift test --no-parallel
 
       - name: Verify release notes
         shell: bash
