@@ -20,5 +20,8 @@ jobs:
           swift --version
           xcodebuild -version
 
+      - name: Check changeset coverage
+        run: Scripts/check-changeset.sh
+
       - name: Run tests
         run: swift test --no-parallel

@@ -49,6 +49,7 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "zip=dist/Nehir-$VERSION.zip" >> "$GITHUB_OUTPUT"
+          echo "notes=docs/releases/$TAG.md" >> "$GITHUB_OUTPUT"
 
       - name: Show toolchain
         run: |
@@ -57,6 +58,17 @@ jobs:
 
       - name: Run tests
         run: swift test
+
+      - name: Verify release notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          NOTES_FILE="${{ steps.version.outputs.notes }}"
+          if [ ! -s "$NOTES_FILE" ]; then
+            echo "Missing release notes: $NOTES_FILE" >&2
+            echo "Create them from pending changesets with: Scripts/prepare-release-notes.sh ${{ steps.version.outputs.version }}" >&2
+            exit 1
+          fi
 
       - name: Build unsigned release ZIP
         run: Scripts/package-app.sh release false
@@ -78,13 +90,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          NOTES_FILE="${{ steps.version.outputs.notes }}"
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "$ZIP" --clobber
+            gh release edit "$TAG" \
+              --title "Nehir ${TAG#v}" \
+              --notes-file "$NOTES_FILE"
           else
             gh release create "$TAG" "$ZIP" \
               --target "$GITHUB_SHA" \
               --title "Nehir ${TAG#v}" \
-              --notes "Unsigned Nehir release. macOS may show Gatekeeper warnings until Developer ID signing and notarization are configured. Nehir requires Accessibility permission to manage windows."
+              --notes-file "$NOTES_FILE"
           fi
 
       - name: Check out Homebrew tap
