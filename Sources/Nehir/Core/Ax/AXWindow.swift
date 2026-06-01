@@ -444,6 +444,13 @@ enum AXWindowService {
         ScreenCoordinateSpace.toWindowServer(rect: rect)
     }
 
+    static func role(_ window: AXWindowRef) -> String? {
+        var value: CFTypeRef?
+        let result = AXUIElementCopyAttributeValue(window.element, kAXRoleAttribute as CFString, &value)
+        guard result == .success, let role = value as? String else { return nil }
+        return role
+    }
+
     static func subrole(_ window: AXWindowRef) -> String? {
         var value: CFTypeRef?
         let result = AXUIElementCopyAttributeValue(window.element, kAXSubroleAttribute as CFString, &value)

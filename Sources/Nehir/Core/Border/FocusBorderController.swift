@@ -1,3 +1,4 @@
+import ApplicationServices
 import CoreGraphics
 import Foundation
 
@@ -22,6 +23,7 @@ final class FocusBorderController {
 
     weak var controller: WMController?
     var observedFrameProviderForTests: ((AXWindowRef) -> CGRect?)?
+    var windowRoleProviderForTests: ((AXWindowRef) -> (role: String?, subrole: String?))?
     var suppressNextRenderForTests: ((KeyboardFocusTarget) -> Bool)?
     var suppressNextFrameHintForTests: ((WindowToken) -> Bool)?
 
@@ -282,6 +284,10 @@ final class FocusBorderController {
             return .hide
         }
 
+        if isSystemModalSurface(target.axRef) {
+            return .hide
+        }
+
         if target.isManaged,
            (controller.workspaceManager.isAppFullscreenActive || isManagedWindowFullscreen(target.token))
         {
@@ -302,6 +308,17 @@ final class FocusBorderController {
         guard let controller else { return false }
         guard controller.hasStartedServices else { return true }
         return controller.axEventHandler.focusedWindowToken(for: target.pid) == target.token
+    }
+
+    private func isSystemModalSurface(_ axRef: AXWindowRef) -> Bool {
+        let attributes = windowRoleProviderForTests?(axRef) ?? (
+            role: AXWindowService.role(axRef),
+            subrole: AXWindowService.subrole(axRef)
+        )
+
+        return attributes.role == kAXSheetRole as String
+            || attributes.subrole == kAXDialogSubrole as String
+            || attributes.subrole == kAXSystemDialogSubrole as String
     }
 
     private func clearSuppressedManagedTargets(
