@@ -5027,10 +5027,8 @@ private func waitUntilAXEventTest(
             didReceive: .created(windowId: 881, spaceId: 0)
         )
 
-        try? await Task.sleep(for: .milliseconds(20))
         #expect(controller.workspaceManager.entry(for: replacementToken) == nil)
 
-        try? await Task.sleep(for: .milliseconds(40))
         controller.axEventHandler.cgsEventObserver(
             CGSEventObserver.shared,
             didReceive: .destroyed(windowId: 880, spaceId: 0)
