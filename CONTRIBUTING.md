@@ -16,3 +16,28 @@ mise run dev
 - Swift 6 strict concurrency
 - `@MainActor` for all UI and controller code
 - SwiftLint rules in `.swiftlint.yml`
+
+## Changesets
+
+Add a changeset for every user-visible change while the context is fresh:
+
+```bash
+mise run changeset -- patch "Fixed window restoration after display changes."
+```
+
+Use:
+
+- `patch` for fixes and small improvements.
+- `minor` for new user-facing functionality.
+- `major` for incompatible changes.
+- `none` only for internal notes that should not drive a version bump.
+
+CI checks that source/user-visible changes include a `.changeset/*.md` file. If a PR truly has no release-note impact, apply the `no release note` label.
+
+## Releases
+
+Normal releases are automated through GitHub Actions. Do not manually bump `Info.plist`, create release notes, tag a version, or update the Homebrew tap for a standard release.
+
+Release maintainers run the `Release` workflow manually on `main`. The workflow calculates the next version from pending changesets, updates `Info.plist`, generates `docs/releases/vX.Y.Z.md`, creates the tag and GitHub Release, updates the Homebrew tap, and clears consumed changesets after publishing succeeds.
+
+See [docs/HOMEBREW.md](docs/HOMEBREW.md) for the full release setup and flow.

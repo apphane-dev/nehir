@@ -1,15 +1,16 @@
 #!/usr/bin/env bash
+#MISE description="Generate docs/releases/vX.Y.Z.md from pending changesets"
+#USAGE arg "<version>" help="Release version, with or without leading v"
 set -euo pipefail
 
-if [ "$#" -ne 1 ]; then
-  echo "Usage: Scripts/prepare-release-notes.sh <version>" >&2
-  echo "Example: Scripts/prepare-release-notes.sh 0.2.2" >&2
+VERSION="${usage_version:-${1:-}}"
+if [ -z "$VERSION" ]; then
+  echo "Usage: mise run release:notes -- <version>" >&2
+  echo "Example: mise run release:notes -- 0.2.2" >&2
   exit 1
 fi
-
-VERSION="$1"
 TAG="v${VERSION#v}"
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT_DIR="$(git rev-parse --show-toplevel)"
 CHANGESET_DIR="$ROOT_DIR/.changeset"
 RELEASE_DIR="$ROOT_DIR/docs/releases"
 NOTES_FILE="$RELEASE_DIR/$TAG.md"
@@ -27,11 +28,6 @@ files = sorted(p for p in changeset_dir.glob("*.md") if p.name.upper() != "READM
 if not files:
     raise SystemExit("No pending changesets found in .changeset/*.md")
 
-# Official Changesets frontmatter shape:
-# ---
-# "package-name": patch|minor|major|none
-# ---
-# Summary.
 pattern = re.compile(r"^---\s*\n(?P<frontmatter>.*?)\n---\s*\n(?P<body>.*)$", re.S)
 release_line = re.compile(r'^\s*["\']?[^"\':]+["\']?\s*:\s*(major|minor|patch|none)\s*$', re.I)
 entries = []

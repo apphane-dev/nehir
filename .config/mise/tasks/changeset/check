@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
+#MISE description="Check that user-visible changes have a changeset"
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT_DIR="$(git rev-parse --show-toplevel)"
 cd "$ROOT_DIR"
 
 if [ "${GITHUB_EVENT_NAME:-}" = "pull_request" ]; then
@@ -55,7 +56,7 @@ if printf '%s\n' "$CHANGED" | grep -Eq '^(Sources/|Resources/|Info\.plist$|Packa
 User-visible files changed, but no changeset was added.
 
 Add one with:
-  Scripts/add-changeset.sh "Describe the user-visible change."
+  mise run changeset -- patch "Describe the user-visible change."
 
 If this PR truly has no release-note impact, add the GitHub label: no release note
 For non-PR commits, include [skip changeset] in the commit message.

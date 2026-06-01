@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+#MISE description="Create a Changesets release-note fragment"
+#USAGE arg "<bump>" help="Version bump type" {
+#USAGE   choices "patch" "minor" "major" "none"
+#USAGE }
+#USAGE arg "<summary>" help="User-facing release note summary"
+set -euo pipefail
+
+if [ -n "${usage_bump:-}" ]; then
+  BUMP="$usage_bump"
+  SUMMARY="${usage_summary:-}"
+else
+  if [ "$#" -lt 2 ]; then
+    echo "Usage: mise run changeset -- <patch|minor|major|none> <summary>" >&2
+    exit 1
+  fi
+  BUMP="$1"
+  shift
+  SUMMARY="$*"
+fi
+case "$BUMP" in
+  patch|minor|major|none) ;;
+  *)
+    echo "Invalid changeset bump: $BUMP" >&2
+    echo "Usage: mise run changeset -- <patch|minor|major|none> <summary>" >&2
+    exit 1
+    ;;
+esac
+
+if [ -z "$SUMMARY" ]; then
+  echo "Summary must not be empty." >&2
+  exit 1
+fi
+
+ROOT_DIR="$(git rev-parse --show-toplevel)"
+mkdir -p "$ROOT_DIR/.changeset"
+
+SLUG="$(printf '%s' "$SUMMARY" \
+  | tr '[:upper:]' '[:lower:]' \
+  | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//' \
+  | cut -c1-48)"
+[ -n "$SLUG" ] || SLUG="change"
+
+FILE="$ROOT_DIR/.changeset/$(date +%Y%m%d%H%M%S)-$SLUG.md"
+cat > "$FILE" <<EOF
+---
+"nehir": $BUMP
+---
+
+$SUMMARY
+EOF
+
+echo "Created ${FILE#$ROOT_DIR/}"

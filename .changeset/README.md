@@ -15,16 +15,19 @@ Format:
 Short user-facing description of the change.
 ```
 
-Use `patch` for normal app changes. The release type is only validation metadata
-for the changeset fragment; Nehir does not use Changesets to bump versions.
-
-Before tagging a release, generate release notes:
+Use:
 
 ```bash
-Scripts/prepare-release-notes.sh 0.2.2
+mise run changeset -- patch "Fixed window restoration after display changes."
+mise run changeset -- minor "Added a new workspace overview command."
+mise run changeset -- major "Changed configuration format incompatibly."
 ```
 
-This creates `docs/releases/v0.2.2.md`. Pending changesets intentionally stay in
-`.changeset/` until the release workflow succeeds. After the GitHub release and
-Homebrew tap update succeed, the workflow clears consumed pending changesets from
-`main` automatically.
+Supported bump types are `patch`, `minor`, `major`, and `none`. The release
+workflow calculates the next app version from pending changesets and the current
+`Info.plist` version.
+
+To release, run the `Release` GitHub Actions workflow manually. It updates
+`Info.plist`, generates `docs/releases/vX.Y.Z.md`, creates the version tag,
+publishes the GitHub release, updates the Homebrew tap, and clears consumed
+pending changesets after all publishing steps succeed.

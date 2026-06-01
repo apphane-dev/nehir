@@ -1,18 +1,14 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - "v*"
   workflow_dispatch:
-    inputs:
-      version:
-        description: "Version to release, without leading v (for example: 0.1.0)"
-        required: true
-        type: string
 
 permissions:
   contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
   release:
@@ -25,48 +21,55 @@ jobs:
       CASK_PATH: Casks/nehir.rb
 
     steps:
-      - name: Check out Nehir
+      - name: Check out Nehir main
         uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
 
-      - name: Resolve release version
+      - name: Set up mise
+        uses: jdx/mise-action@v2
+
+      - name: Plan release from changesets
         id: version
         shell: bash
-        run: |
-          set -euo pipefail
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            VERSION="${{ inputs.version }}"
-            TAG="v$VERSION"
-          else
-            TAG="${GITHUB_REF_NAME}"
-            VERSION="${TAG#v}"
-          fi
-
-          PLIST_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' Info.plist)"
-          if [ "$VERSION" != "$PLIST_VERSION" ]; then
-            echo "Release version $VERSION does not match Info.plist version $PLIST_VERSION" >&2
-            exit 1
-          fi
-
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          echo "zip=dist/Nehir-$VERSION.zip" >> "$GITHUB_OUTPUT"
-          echo "notes=docs/releases/$TAG.md" >> "$GITHUB_OUTPUT"
+        run: mise run release:plan
 
       - name: Show toolchain
         run: |
           swift --version
           xcodebuild -version
+          mise --version
 
-      - name: Verify release notes
+      - name: Apply release plan
+        shell: bash
+        run: mise run release:apply -- "${{ steps.version.outputs.version }}"
+
+      - name: Commit release prep
         shell: bash
         run: |
           set -euo pipefail
-          NOTES_FILE="${{ steps.version.outputs.notes }}"
-          if [ ! -s "$NOTES_FILE" ]; then
-            echo "Missing release notes: $NOTES_FILE" >&2
-            echo "Create them from pending changesets with: Scripts/prepare-release-notes.sh ${{ steps.version.outputs.version }}" >&2
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Info.plist "${{ steps.version.outputs.notes }}"
+          if git diff --cached --quiet; then
+            echo "Release prep already committed."
+          else
+            git commit -m "Prepare release ${{ steps.version.outputs.version }}"
+            git push origin main
+          fi
+
+      - name: Create release tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.version.outputs.tag }}"
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "Tag already exists: $TAG" >&2
             exit 1
           fi
+          git tag "$TAG"
+          git push origin "$TAG"
 
       - name: Build unsigned release ZIP
         run: Scripts/package-app.sh release false
@@ -80,26 +83,23 @@ jobs:
           echo "sha256=$SHA256" >> "$GITHUB_OUTPUT"
           echo "$SHA256  ${{ steps.version.outputs.zip }}"
 
-      - name: Create or update GitHub release
+      - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.version.outputs.tag }}
           ZIP: ${{ steps.version.outputs.zip }}
+          NOTES_FILE: ${{ steps.version.outputs.notes }}
         shell: bash
         run: |
           set -euo pipefail
-          NOTES_FILE="${{ steps.version.outputs.notes }}"
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" "$ZIP" --clobber
-            gh release edit "$TAG" \
-              --title "Nehir ${TAG#v}" \
-              --notes-file "$NOTES_FILE"
-          else
-            gh release create "$TAG" "$ZIP" \
-              --target "$GITHUB_SHA" \
-              --title "Nehir ${TAG#v}" \
-              --notes-file "$NOTES_FILE"
+            echo "Release already exists: $TAG" >&2
+            exit 1
           fi
+          gh release create "$TAG" "$ZIP" \
+            --target "$(git rev-parse HEAD)" \
+            --title "Nehir ${TAG#v}" \
+            --notes-file "$NOTES_FILE"
 
       - name: Create Homebrew tap token
         id: tap-token
@@ -158,11 +158,9 @@ jobs:
           git push
 
       - name: Clear released changesets
-        if: success() && github.event_name == 'push'
         shell: bash
         run: |
           set -euo pipefail
-          git fetch origin main
           git checkout main
           git pull --ff-only origin main
 

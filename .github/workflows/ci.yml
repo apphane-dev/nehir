@@ -15,13 +15,17 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: Set up mise
+        uses: jdx/mise-action@v2
+
       - name: Show toolchain
         run: |
           swift --version
           xcodebuild -version
+          mise --version
 
       - name: Check changeset coverage
-        run: Scripts/check-changeset.sh
+        run: mise run changeset:check
 
       - name: Run tests
-        run: swift test --no-parallel
+        run: mise run test

@@ -1,49 +1,52 @@
 ---
-description: Prepare and verify a Nehir release
-argument-hint: "<version> [notes]"
+description: Inspect and guide the automated Nehir release flow
+argument-hint: "[instructions]"
 ---
-Prepare a Nehir release for version `$1`.
+Help with Nehir's automated release process.
 
-Use this repo's release process:
+Important guardrail: do not push commits, create/move tags, cancel/rerun workflows, edit GitHub Releases, or push the Homebrew tap unless I explicitly ask for that exact remote action.
 
-1. Verify the working tree and current version state:
-   - `git status --short`
-   - read `Info.plist` and confirm `CFBundleShortVersionString` should become `$1`
-   - inspect pending `.changeset/*.md` files, excluding `.changeset/README.md`
+Current release model:
 
-2. If `$1` is missing, stop and ask for the target version.
+- Developers add pending `.changeset/*.md` files with official Changesets-style frontmatter.
+- `Info.plist` version bumps are automated by the `Release` workflow.
+- `docs/releases/vX.Y.Z.md` generation is automated by the `Release` workflow.
+- Version tag creation is automated by the `Release` workflow.
+- Homebrew tap updates are automated by the `Release` workflow.
+- Consumed changeset cleanup is automated after all publishing steps succeed.
 
-3. If there are no pending changesets, stop and ask whether to create one. Do not invent user-visible changes.
+Use these local commands when needed:
 
-4. Update release metadata as needed:
-   - set `CFBundleShortVersionString` in `Info.plist` to `$1` if it differs
-   - do not change bundle identifiers or unrelated plist keys
+- Create a changeset:
+  `mise run changeset -- patch "Describe the user-visible change."`
+- Check changeset coverage:
+  `mise run changeset:check`
+- Preview the next release plan:
+  `mise run release:plan`
+- Run tests:
+  `mise run test`
 
-5. Generate or verify release notes:
-   - if `docs/releases/v$1.md` already exists, inspect it instead of regenerating
-   - otherwise run `Scripts/prepare-release-notes.sh $1`
-   - inspect `docs/releases/v$1.md`
-   - if extra notes were provided in the prompt (`${@:2}`), incorporate them carefully into the generated release notes without deleting generated entries
-   - do not archive or delete pending `.changeset/*.md` files before the release succeeds
+When asked to prepare or inspect a release:
 
-6. Validate before tagging:
-   - run `swift test --no-parallel`
-   - run `ruby -c .github/workflows/release.yml` only if Ruby syntax is relevant; otherwise do not treat YAML as Ruby
-   - check that `docs/releases/v$1.md` exists and is non-empty
-   - check that pending changesets remain in `.changeset/` until the release succeeds
+1. Check the working tree with `git status --short`.
+2. Summarize unrelated dirty files and ask before touching them.
+3. Inspect pending `.changeset/*.md` files, excluding `.changeset/README.md`.
+4. Run `mise run release:plan` to preview the calculated bump/version when pending changesets exist.
+5. Do not manually edit `Info.plist` or generate `docs/releases/vX.Y.Z.md` for the normal release path.
+6. Remind me that the normal release action is: GitHub → Actions → Release → Run workflow on `main`.
+7. If release automation fails, diagnose the failed step and propose the minimal repair, but wait for confirmation before any remote mutation.
 
-7. Show me the exact final commands to commit and tag, but do not run them unless I explicitly ask:
-   - `git add Info.plist docs/releases .changeset`
-   - `git commit -m "Prepare release $1"`
-   - `git tag v$1`
-   - `git push origin main`
-   - `git push origin v$1`
+The `Release` workflow will:
 
-8. Remind me what GitHub Actions will do after the tag is pushed:
-   - verify `Info.plist` version matches the tag
-   - require `docs/releases/v$1.md`
-   - build `dist/Nehir-$1.zip`
-   - create/update the GitHub Release using that notes file
-   - update the Homebrew cask checksum in `Guria/homebrew-tap`
+1. Read pending changesets.
+2. Calculate the next version from the highest bump type and current `Info.plist` version.
+3. Update `Info.plist`.
+4. Generate `docs/releases/vX.Y.Z.md`.
+5. Commit release prep to `main`.
+6. Create tag `vX.Y.Z`.
+7. Build `dist/Nehir-X.Y.Z.zip`.
+8. Create the GitHub Release with generated notes.
+9. Update `Guria/homebrew-tap/Casks/nehir.rb` using the GitHub App token.
+10. Clear consumed `.changeset/*.md` files from `main` after publishing succeeds.
 
-Be careful and conservative. If the repository is dirty in unrelated ways, summarize the dirty files and ask before proceeding.
+If the user asks for GitHub App setup, point them to `docs/HOMEBREW.md` and summarize the required secrets: `TAP_APP_ID` and `TAP_APP_PRIVATE_KEY`.

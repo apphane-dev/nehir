@@ -4,7 +4,7 @@ run = """
 # Kill any running Nehir instances to avoid port/state conflicts
 pkill -x Nehir 2>/dev/null || true
 sleep 0.5
-swift test
+swift test --no-parallel
 """
 
 [tasks."test:compile"]

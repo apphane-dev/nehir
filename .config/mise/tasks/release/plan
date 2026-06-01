@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+#MISE description="Calculate the next release version from pending changesets"
+set -euo pipefail
+
+ROOT_DIR="$(git rev-parse --show-toplevel)"
+cd "$ROOT_DIR"
+
+python3 <<'PY'
+from pathlib import Path
+import os
+import plistlib
+import re
+import subprocess
+import sys
+
+root = Path.cwd()
+changeset_dir = root / ".changeset"
+files = sorted(p for p in changeset_dir.glob("*.md") if p.name.upper() != "README.MD")
+if not files:
+    raise SystemExit("No pending changesets found in .changeset/*.md")
+
+priority = {"none": 0, "patch": 1, "minor": 2, "major": 3}
+reverse = {v: k for k, v in priority.items()}
+pattern = re.compile(r"^---\s*\n(?P<frontmatter>.*?)\n---\s*\n(?P<body>.*)$", re.S)
+release_line = re.compile(r'^\s*["\']?nehir["\']?\s*:\s*(major|minor|patch|none)\s*$', re.I)
+max_bump = 0
+
+for path in files:
+    text = path.read_text().strip()
+    match = pattern.match(text)
+    if not match:
+        raise SystemExit(f"Invalid changeset format: {path}")
+    frontmatter = match.group("frontmatter").strip()
+    body = match.group("body").strip()
+    if not body:
+        raise SystemExit(f"Empty changeset body: {path}")
+    found = False
+    for line in frontmatter.splitlines():
+        if not line.strip():
+            continue
+        line_match = release_line.match(line)
+        if not line_match:
+            raise SystemExit(f"Invalid Nehir changeset release line in {path}: {line}")
+        found = True
+        max_bump = max(max_bump, priority[line_match.group(1).lower()])
+    if not found:
+        raise SystemExit(f"Changeset does not mention nehir: {path}")
+
+if max_bump == 0:
+    raise SystemExit("Only 'none' changesets found; refusing to create a versioned release")
+
+with (root / "Info.plist").open("rb") as plist_file:
+    plist = plistlib.load(plist_file)
+current = plist.get("CFBundleShortVersionString")
+if not isinstance(current, str):
+    raise SystemExit("Info.plist CFBundleShortVersionString is missing or invalid")
+parts = current.split(".")
+if len(parts) != 3 or not all(part.isdigit() for part in parts):
+    raise SystemExit(f"Unsupported version format: {current}")
+major, minor, patch = map(int, parts)
+bump = reverse[max_bump]
+if bump == "major":
+    major += 1
+    minor = 0
+    patch = 0
+elif bump == "minor":
+    minor += 1
+    patch = 0
+elif bump == "patch":
+    patch += 1
+version = f"{major}.{minor}.{patch}"
+tag = f"v{version}"
+notes = f"docs/releases/{tag}.md"
+zip_path = f"dist/Nehir-{version}.zip"
+
+github_output = os.environ.get("GITHUB_OUTPUT")
+if github_output:
+    with open(github_output, "a", encoding="utf-8") as output:
+        output.write(f"current_version={current}\n")
+        output.write(f"bump={bump}\n")
+        output.write(f"version={version}\n")
+        output.write(f"tag={tag}\n")
+        output.write(f"notes={notes}\n")
+        output.write(f"zip={zip_path}\n")
+
+print(f"current_version={current}")
+print(f"bump={bump}")
+print(f"version={version}")
+print(f"tag={tag}")
+print(f"notes={notes}")
+print(f"zip={zip_path}")
+PY

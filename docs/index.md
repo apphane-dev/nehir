@@ -9,3 +9,4 @@ title: Nehir Documentation
 - [IPC & CLI Reference](IPC-CLI.md) — `nehirctl` commands and socket protocol
 - [Recipes](recipes/README.md) — companion setup snippets
 - [Contributing](CONTRIBUTING.md) — how to contribute
+- [Homebrew Release Flow](HOMEBREW.md) — release automation, changesets, and tap updates
