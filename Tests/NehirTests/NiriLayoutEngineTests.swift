@@ -7836,7 +7836,7 @@ private func makeCenteredCrossMonitorFixture(
             fromIndex: 1
         )
         #expect(firstMoveState.selectedNodeId == windows[2].id)
-        #expect(firstMoveState.viewOffsetPixels.target() != nil || !firstMoveState.viewOffsetPixels.isAnimating)
+        #expect(firstMoveState.viewOffsetPixels.isAnimating)
         #expect(abs(viewportStart(for: firstMoveState, columns: columns, gap: gap) - expectedFirstMoveStart) < 0.1)
 
         settleViewport()
@@ -7854,7 +7854,7 @@ private func makeCenteredCrossMonitorFixture(
             fromIndex: 2
         )
         #expect(firstReverseState.selectedNodeId == windows[1].id)
-        #expect(firstReverseState.viewOffsetPixels.target() != nil || !firstReverseState.viewOffsetPixels.isAnimating)
+        #expect(firstReverseState.viewOffsetPixels.isAnimating)
         #expect(abs(viewportStart(for: firstReverseState, columns: columns, gap: gap) - expectedFirstReverseStart) <
             0.1)
     }
@@ -8095,12 +8095,12 @@ private func makeCenteredCrossMonitorFixture(
             centerMode: .never,
             fromIndex: 1
         )
-        #expect(animatingState.viewOffsetPixels.target() != nil || !animatingState.viewOffsetPixels.isAnimating)
+        #expect(animatingState.viewOffsetPixels.isAnimating)
 
         controller.setAnimationsEnabled(false)
 
         let midToggleState = controller.workspaceManager.niriViewportState(for: workspaceId)
-        #expect(midToggleState.viewOffsetPixels.target() != nil || !midToggleState.viewOffsetPixels.isAnimating)
+        #expect(midToggleState.viewOffsetPixels.isAnimating)
 
         controller.niriLayoutHandler.tickScrollAnimation(
             targetTime: controller.animationClock.now() + 60.0,

@@ -204,8 +204,8 @@ private func axManagerTestWriteResult(
     }
 
     @Test @MainActor func laterTrackedWriteDoesNotConsumeSupersededObserver() async throws {
-        try await withAppAXContextIsolationForTests {
-            try await withAXFrameProviderIsolationForTests {
+        await withAppAXContextIsolationForTests {
+            await withAXFrameProviderIsolationForTests {
                 let controller = makeLayoutPlanTestController()
                 guard let monitor = controller.workspaceManager.monitors.first,
                       let workspaceId = controller.workspaceManager.activeWorkspaceOrFirst(on: monitor.id)?.id

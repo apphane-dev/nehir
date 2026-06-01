@@ -331,8 +331,8 @@ private func setScratchpadTestFrame(
     }
 
     @Test @MainActor func toggleScratchpadWindowFrontsWindowOnlyAfterAsyncRevealSucceeds() async throws {
-        try await withAppAXContextIsolationForTests {
-            try await withAXFrameProviderIsolationForTests {
+        await withAppAXContextIsolationForTests {
+            await withAXFrameProviderIsolationForTests {
                 let recorder = ScratchpadFocusRecorder()
                 let fixture = makeTwoMonitorLayoutPlanTestController(
                     primaryMonitor: makeLayoutPlanPrimaryTestMonitor(name: "Primary"),
@@ -378,7 +378,7 @@ private func setScratchpadTestFrame(
             }
 
             var pendingCompletion: (() -> Void)?
-            var liveFrame = expectedFrame.offsetBy(dx: fixture.secondaryMonitor.frame.width + 80, dy: 0)
+            let liveFrame = expectedFrame.offsetBy(dx: fixture.secondaryMonitor.frame.width + 80, dy: 0)
             AXWindowService.fastFrameProviderForTests = { window in
                 window.windowId == token.windowId ? liveFrame : fallbackFastFrameForTests(window)
             }
