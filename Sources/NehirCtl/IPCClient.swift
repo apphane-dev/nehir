@@ -55,7 +55,7 @@ struct IPCClient {
         }
 
         return IPCClientConnection(
-            handle: FileHandle(fileDescriptor: fd, closeOnDealloc: true),
+            handle: FileHandle(fileDescriptor: fd, closeOnDealloc: false),
             authorizationToken: resolvedAuthorizationToken()
         )
     }
@@ -90,16 +90,57 @@ struct IPCClient {
     }
 }
 
+private final class IPCClientFileDescriptor: @unchecked Sendable {
+    private let lock = NSLock()
+    private var fileDescriptor: Int32
+
+    init(_ fileDescriptor: Int32) {
+        self.fileDescriptor = fileDescriptor
+    }
+
+    var current: Int32 {
+        lock.lock()
+        defer { lock.unlock() }
+        return fileDescriptor
+    }
+
+    func shutdownIfOpen() {
+        lock.lock()
+        let fd = fileDescriptor
+        lock.unlock()
+
+        guard fd >= 0 else { return }
+        _ = Darwin.shutdown(fd, SHUT_RDWR)
+    }
+
+    func closeIfOpen() {
+        lock.lock()
+        let fd = fileDescriptor
+        if fd >= 0 {
+            fileDescriptor = -1
+        }
+        lock.unlock()
+
+        guard fd >= 0 else { return }
+        _ = Darwin.shutdown(fd, SHUT_RDWR)
+        Darwin.close(fd)
+    }
+}
+
 actor IPCClientConnection {
     private let handle: FileHandle
-    private let fileDescriptor: Int32
+    private let descriptor: IPCClientFileDescriptor
     private let authorizationToken: String?
     private var readBuffer = Data()
 
     init(handle: FileHandle, authorizationToken: String?) {
         self.handle = handle
-        self.fileDescriptor = handle.fileDescriptor
+        self.descriptor = IPCClientFileDescriptor(handle.fileDescriptor)
         self.authorizationToken = authorizationToken
+    }
+
+    deinit {
+        descriptor.closeIfOpen()
     }
 
     func send(_ request: IPCRequest) throws {
@@ -126,7 +167,7 @@ actor IPCClientConnection {
         }
 
         var descriptor = pollfd(
-            fd: fileDescriptor,
+            fd: descriptor.current,
             events: Int16(POLLIN),
             revents: 0
         )
@@ -170,12 +211,11 @@ actor IPCClientConnection {
     }
 
     func close() {
-        interrupt()
-        try? handle.close()
+        descriptor.closeIfOpen()
     }
 
     nonisolated func interrupt() {
-        _ = Darwin.shutdown(fileDescriptor, SHUT_RDWR)
+        descriptor.shutdownIfOpen()
     }
 
     private func readNextLine() throws -> String? {
@@ -206,7 +246,7 @@ actor IPCClientConnection {
     private func readChunk() throws -> Data? {
         var buffer = [UInt8](repeating: 0, count: 4096)
         while true {
-            let count = Darwin.read(fileDescriptor, &buffer, buffer.count)
+            let count = Darwin.read(descriptor.current, &buffer, buffer.count)
             if count > 0 {
                 return Data(buffer[0 ..< count])
             }

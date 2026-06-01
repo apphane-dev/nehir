@@ -168,11 +168,7 @@ private func makeTestFocusEvent(id: String, title: String) -> IPCEventEnvelope {
 
         let client = IPCClient(socketPath: socketPath)
         let pingConnection = try client.openConnection()
-        defer {
-            Task {
-                await pingConnection.close()
-            }
-        }
+        defer { pingConnection.interrupt() }
 
         try await pingConnection.send(IPCRequest(id: "ping-1", kind: .ping))
         let pingResponse = try await pingConnection.readResponse()
@@ -181,11 +177,7 @@ private func makeTestFocusEvent(id: String, title: String) -> IPCEventEnvelope {
         #expect(pingResponse.result?.kind == .pong)
 
         let versionConnection = try client.openConnection()
-        defer {
-            Task {
-                await versionConnection.close()
-            }
-        }
+        defer { versionConnection.interrupt() }
 
         try await versionConnection.send(IPCRequest(id: "version-1", kind: .version))
         let versionResponse = try await versionConnection.readResponse()
@@ -279,11 +271,7 @@ private func makeTestFocusEvent(id: String, title: String) -> IPCEventEnvelope {
 
         let client = IPCClient(socketPath: socketPath)
         let connection = try client.openConnection()
-        defer {
-            Task {
-                await connection.close()
-            }
-        }
+        defer { connection.interrupt() }
 
         try await connection.send(IPCRequest(id: "still-live", kind: .ping))
         let response = try await connection.readResponse()
@@ -305,11 +293,7 @@ private func makeTestFocusEvent(id: String, title: String) -> IPCEventEnvelope {
             socketPath: IPCSocketPath.resolvedPath(environment: [IPCSocketPath.environmentKey: socketPath])
         )
         let connection = try client.openConnection()
-        defer {
-            Task {
-                await connection.close()
-            }
-        }
+        defer { connection.interrupt() }
 
         try await connection.send(IPCRequest(id: "env-1", kind: .ping))
         let response = try await connection.readResponse()
@@ -328,11 +312,7 @@ private func makeTestFocusEvent(id: String, title: String) -> IPCEventEnvelope {
         do {
             let client = IPCClient(socketPath: socketPath)
             let firstConnection = try client.openConnection()
-            defer {
-                Task {
-                    await firstConnection.close()
-                }
-            }
+            defer { firstConnection.interrupt() }
 
             try await firstConnection.send(IPCRequest(id: "restart-1", kind: .ping))
             let response = try await firstConnection.readResponse()
@@ -350,11 +330,7 @@ private func makeTestFocusEvent(id: String, title: String) -> IPCEventEnvelope {
 
         let client = IPCClient(socketPath: socketPath)
         let secondConnection = try client.openConnection()
-        defer {
-            Task {
-                await secondConnection.close()
-            }
-        }
+        defer { secondConnection.interrupt() }
 
         try await secondConnection.send(IPCRequest(id: "restart-2", kind: .version))
         let response = try await secondConnection.readResponse()
@@ -379,9 +355,7 @@ private func makeTestFocusEvent(id: String, title: String) -> IPCEventEnvelope {
 
         let client = IPCClient(socketPath: socketPath)
         let connection = try client.openConnection()
-        defer {
-            Task { await connection.close() }
-        }
+        defer { connection.interrupt() }
 
         try await connection.send(
             IPCRequest(
@@ -419,9 +393,7 @@ private func makeTestFocusEvent(id: String, title: String) -> IPCEventEnvelope {
 
         let client = IPCClient(socketPath: socketPath)
         let connection = try client.openConnection()
-        defer {
-            Task { await connection.close() }
-        }
+        defer { connection.interrupt() }
 
         try await connection.send(
             IPCRequest(
@@ -459,11 +431,7 @@ private func makeTestFocusEvent(id: String, title: String) -> IPCEventEnvelope {
         let client = IPCClient(socketPath: socketPath)
 
         let commandConnection = try client.openConnection()
-        defer {
-            Task {
-                await commandConnection.close()
-            }
-        }
+        defer { commandConnection.interrupt() }
         try await commandConnection.send(
             IPCRequest(
                 id: "cmd-1",
@@ -477,11 +445,7 @@ private func makeTestFocusEvent(id: String, title: String) -> IPCEventEnvelope {
         #expect(commandResponse.code == .disabled)
 
         let queryConnection = try client.openConnection()
-        defer {
-            Task {
-                await queryConnection.close()
-            }
-        }
+        defer { queryConnection.interrupt() }
         try await queryConnection.send(
             IPCRequest(
                 id: "query-1",
@@ -520,9 +484,7 @@ private func makeTestFocusEvent(id: String, title: String) -> IPCEventEnvelope {
 
         let client = IPCClient(socketPath: socketPath)
         let connection = try client.openConnection()
-        defer {
-            Task { await connection.close() }
-        }
+        defer { connection.interrupt() }
 
         try await connection.send(
             IPCRequest(
@@ -587,9 +549,7 @@ private func makeTestFocusEvent(id: String, title: String) -> IPCEventEnvelope {
 
         let client = IPCClient(socketPath: socketPath)
         let connection = try client.openConnection()
-        defer {
-            Task { await connection.close() }
-        }
+        defer { connection.interrupt() }
 
         try await connection.send(
             IPCRequest(
@@ -643,9 +603,7 @@ private func makeTestFocusEvent(id: String, title: String) -> IPCEventEnvelope {
 
         let client = IPCClient(socketPath: socketPath)
         let connection = try client.openConnection()
-        defer {
-            Task { await connection.close() }
-        }
+        defer { connection.interrupt() }
 
         try await connection.send(
             IPCRequest(
@@ -684,9 +642,7 @@ private func makeTestFocusEvent(id: String, title: String) -> IPCEventEnvelope {
 
         let client = IPCClient(socketPath: socketPath)
         let connection = try client.openConnection()
-        defer {
-            Task { await connection.close() }
-        }
+        defer { connection.interrupt() }
 
         try await connection.send(
             IPCRequest(
@@ -791,11 +747,7 @@ private func makeTestFocusEvent(id: String, title: String) -> IPCEventEnvelope {
 
         let client = IPCClient(socketPath: socketPath)
         let connection = try client.openConnection()
-        defer {
-            Task {
-                await connection.close()
-            }
-        }
+        defer { connection.interrupt() }
 
         try await connection.send(
             IPCRequest(
@@ -868,11 +820,7 @@ private func makeTestFocusEvent(id: String, title: String) -> IPCEventEnvelope {
 
         let client = IPCClient(socketPath: socketPath)
         let connection = try client.openConnection()
-        defer {
-            Task {
-                await connection.close()
-            }
-        }
+        defer { connection.interrupt() }
 
         try await connection.send(
             IPCRequest(
@@ -953,11 +901,7 @@ private func makeTestFocusEvent(id: String, title: String) -> IPCEventEnvelope {
 
         let client = IPCClient(socketPath: socketPath)
         let connection = try client.openConnection()
-        defer {
-            Task {
-                await connection.close()
-            }
-        }
+        defer { connection.interrupt() }
 
         try await connection.send(
             IPCRequest(
@@ -1007,11 +951,7 @@ private func makeTestFocusEvent(id: String, title: String) -> IPCEventEnvelope {
 
         let client = IPCClient(socketPath: socketPath)
         let connection = try client.openConnection()
-        defer {
-            Task {
-                await connection.close()
-            }
-        }
+        defer { connection.interrupt() }
 
         try await connection.send(
             IPCRequest(
@@ -1064,11 +1004,7 @@ private func makeTestFocusEvent(id: String, title: String) -> IPCEventEnvelope {
 
         let client = IPCClient(socketPath: socketPath)
         let connection = try client.openConnection()
-        defer {
-            Task {
-                await connection.close()
-            }
-        }
+        defer { connection.interrupt() }
 
         try await connection.send(
             IPCRequest(
@@ -1115,11 +1051,7 @@ private func makeTestFocusEvent(id: String, title: String) -> IPCEventEnvelope {
 
         let client = IPCClient(socketPath: socketPath)
         let connection = try client.openConnection()
-        defer {
-            Task {
-                await connection.close()
-            }
-        }
+        defer { connection.interrupt() }
 
         try await connection.send(
             IPCRequest(
@@ -1193,11 +1125,7 @@ private func makeTestFocusEvent(id: String, title: String) -> IPCEventEnvelope {
 
         let client = IPCClient(socketPath: socketPath)
         let connection = try client.openConnection()
-        defer {
-            Task {
-                await connection.close()
-            }
-        }
+        defer { connection.interrupt() }
 
         try await connection.send(
             IPCRequest(
@@ -1278,11 +1206,7 @@ private func makeTestFocusEvent(id: String, title: String) -> IPCEventEnvelope {
 
         let client = IPCClient(socketPath: socketPath)
         let connection = try client.openConnection()
-        defer {
-            Task {
-                await connection.close()
-            }
-        }
+        defer { connection.interrupt() }
 
         try await connection.send(
             IPCRequest(
