@@ -101,11 +101,20 @@ jobs:
               --notes-file "$NOTES_FILE"
           fi
 
+      - name: Create Homebrew tap token
+        id: tap-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.TAP_APP_ID }}
+          private-key: ${{ secrets.TAP_APP_PRIVATE_KEY }}
+          owner: Guria
+          repositories: homebrew-tap
+
       - name: Check out Homebrew tap
         uses: actions/checkout@v4
         with:
           repository: ${{ env.TAP_REPOSITORY }}
-          token: ${{ secrets.TAP_GITHUB_TOKEN }}
+          token: ${{ steps.tap-token.outputs.token }}
           path: homebrew-tap
 
       - name: Update cask version and checksum
@@ -147,3 +156,25 @@ jobs:
           git add "${{ env.CASK_PATH }}"
           git commit -m "Update Nehir to ${{ steps.version.outputs.version }}"
           git push
+
+      - name: Clear released changesets
+        if: success() && github.event_name == 'push'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          git checkout main
+          git pull --ff-only origin main
+
+          find .changeset -maxdepth 1 -type f -name '*.md' ! -iname 'README.md' -delete
+
+          if git diff --quiet -- .changeset; then
+            echo "No released changesets to clear."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -u .changeset
+          git commit -m "Clear changesets after ${{ steps.version.outputs.tag }}"
+          git push origin main

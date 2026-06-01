@@ -3,32 +3,20 @@ set -euo pipefail
 
 usage() {
   cat >&2 <<'EOF'
-Usage: Scripts/add-changeset.sh <type> <summary>
+Usage: Scripts/add-changeset.sh <summary>
 
-Types: added, changed, fixed, removed, security, internal
+Creates an official-format Changesets fragment for Nehir.
 Example:
-  Scripts/add-changeset.sh fixed "Fixed window restoration after display changes."
+  Scripts/add-changeset.sh "Fixed window restoration after display changes."
 EOF
 }
 
-if [ "$#" -lt 2 ]; then
+if [ "$#" -lt 1 ]; then
   usage
   exit 1
 fi
 
-TYPE="$1"
-shift
 SUMMARY="$*"
-
-case "$TYPE" in
-  added|changed|fixed|removed|security|internal) ;;
-  *)
-    echo "Invalid changeset type: $TYPE" >&2
-    usage
-    exit 1
-    ;;
-esac
-
 if [ -z "$SUMMARY" ]; then
   echo "Summary must not be empty." >&2
   exit 1
@@ -46,7 +34,7 @@ SLUG="$(printf '%s' "$SUMMARY" \
 FILE="$ROOT_DIR/.changeset/$(date +%Y%m%d%H%M%S)-$SLUG.md"
 cat > "$FILE" <<EOF
 ---
-type: $TYPE
+"nehir": patch
 ---
 
 $SUMMARY

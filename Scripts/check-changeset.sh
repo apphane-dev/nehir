@@ -55,7 +55,7 @@ if printf '%s\n' "$CHANGED" | grep -Eq '^(Sources/|Resources/|Info\.plist$|Packa
 User-visible files changed, but no changeset was added.
 
 Add one with:
-  Scripts/add-changeset.sh fixed "Describe the user-visible change."
+  Scripts/add-changeset.sh "Describe the user-visible change."
 
 If this PR truly has no release-note impact, add the GitHub label: no release note
 For non-PR commits, include [skip changeset] in the commit message.
