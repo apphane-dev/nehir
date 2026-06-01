@@ -24,5 +24,6 @@ Before tagging a release, generate release notes:
 Scripts/prepare-release-notes.sh 0.2.1
 ```
 
-This creates `docs/releases/v0.2.1.md` and archives consumed changesets under
-`docs/releases/changesets/v0.2.1/`.
+This creates `docs/releases/v0.2.1.md`. Pending changesets intentionally stay in
+`.changeset/` until the release succeeds, so a failed release can be retried or
+retargeted without losing the source fragments.

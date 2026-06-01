@@ -13,18 +13,14 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CHANGESET_DIR="$ROOT_DIR/.changeset"
 RELEASE_DIR="$ROOT_DIR/docs/releases"
 NOTES_FILE="$RELEASE_DIR/$TAG.md"
-ARCHIVE_DIR="$RELEASE_DIR/changesets/$TAG"
-
-python3 - "$CHANGESET_DIR" "$NOTES_FILE" "$ARCHIVE_DIR" "$TAG" <<'PY'
+python3 - "$CHANGESET_DIR" "$NOTES_FILE" "$TAG" <<'PY'
 from pathlib import Path
 import re
-import shutil
 import sys
 
 changeset_dir = Path(sys.argv[1])
 notes_file = Path(sys.argv[2])
-archive_dir = Path(sys.argv[3])
-tag = sys.argv[4]
+tag = sys.argv[3]
 
 headings = {
     "added": "Added",
@@ -79,13 +75,6 @@ if notes_file.exists():
     raise SystemExit(f"Release notes already exist: {notes_file}")
 notes_file.write_text("\n".join(lines))
 
-archive_dir.mkdir(parents=True, exist_ok=True)
-for path in files:
-    target = archive_dir / path.name
-    if target.exists():
-        raise SystemExit(f"Archive target already exists: {target}")
-    shutil.move(str(path), str(target))
-
 print(f"Created {notes_file}")
-print(f"Archived {len(files)} changeset(s) to {archive_dir}")
+print(f"Included {len(files)} pending changeset(s). Pending changesets are intentionally left in .changeset/ until the release succeeds.")
 PY

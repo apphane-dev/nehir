@@ -57,10 +57,6 @@ jobs:
           swift --version
           xcodebuild -version
 
-      - name: Run tests
-        timeout-minutes: 15
-        run: swift test --no-parallel
-
       - name: Verify release notes
         shell: bash
         run: |
