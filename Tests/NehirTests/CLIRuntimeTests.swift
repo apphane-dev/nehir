@@ -25,27 +25,10 @@ private enum CLIRuntimeTestError: Error, LocalizedError {
 
 private actor WatchEventRecorder {
     private var events: [IPCEventEnvelope] = []
-    private var waiters: [(count: Int, continuation: CheckedContinuation<[IPCEventEnvelope], Never>)] = []
 
     func record(_ event: IPCEventEnvelope) -> Int {
         events.append(event)
-        let snapshot = events
-        let readyIndices = waiters.indices.filter { snapshot.count >= waiters[$0].count }
-        for index in readyIndices.reversed() {
-            let waiter = waiters.remove(at: index)
-            waiter.continuation.resume(returning: snapshot)
-        }
-        return snapshot.count
-    }
-
-    func waitForCount(_ count: Int) async -> [IPCEventEnvelope] {
-        if events.count >= count {
-            return events
-        }
-
-        return await withCheckedContinuation { continuation in
-            waiters.append((count: count, continuation: continuation))
-        }
+        return events.count
     }
 
     func snapshot() -> [IPCEventEnvelope] {
@@ -108,28 +91,27 @@ private func waitForRecordedEvents(
     step: String,
     timeout: Duration = .seconds(8)
 ) async throws -> [IPCEventEnvelope] {
-    try await withThrowingTaskGroup(of: [IPCEventEnvelope].self) { group in
-        group.addTask {
-            await recorder.waitForCount(expectedCount)
-        }
-        group.addTask {
-            try await Task.sleep(for: timeout)
-            let snapshot = await recorder.snapshot()
-            throw CLIRuntimeTestError.timedOut(
-                step: step,
-                expectedCount: expectedCount,
-                observedCount: snapshot.count,
-                details: """
-                Recorded event ids:
-                \(snapshot.map(\.id).joined(separator: "\n"))
-                """
-            )
+    let deadline = ContinuousClock.now + timeout
+
+    while ContinuousClock.now < deadline {
+        let snapshot = await recorder.snapshot()
+        if snapshot.count >= expectedCount {
+            return snapshot
         }
 
-        let result = try await group.next()!
-        group.cancelAll()
-        return result
+        try await Task.sleep(for: .milliseconds(25))
     }
+
+    let snapshot = await recorder.snapshot()
+    throw CLIRuntimeTestError.timedOut(
+        step: step,
+        expectedCount: expectedCount,
+        observedCount: snapshot.count,
+        details: """
+        Recorded event ids:
+        \(snapshot.map(\.id).joined(separator: "\n"))
+        """
+    )
 }
 
 @Suite(.serialized) @MainActor struct CLIRuntimeTests {

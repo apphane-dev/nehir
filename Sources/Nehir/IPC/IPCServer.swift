@@ -100,12 +100,6 @@ final class IPCServer: IPCServerLifecycle {
         if controller.ipcApplicationBridge === bridge {
             controller.ipcApplicationBridge = nil
         }
-        let bridge = self.bridge
-        let connectionRegistry = self.connectionRegistry
-        Task {
-            await bridge.shutdown()
-            await connectionRegistry.stopAll()
-        }
 
         queue.sync {
             acceptSource?.cancel()
@@ -118,6 +112,13 @@ final class IPCServer: IPCServerLifecycle {
 
             _ = unlink(socketPath)
             _ = unlink(secretPath)
+        }
+
+        let bridge = self.bridge
+        let connectionRegistry = self.connectionRegistry
+        Task {
+            await bridge.shutdown()
+            await connectionRegistry.stopAll()
         }
     }
 
