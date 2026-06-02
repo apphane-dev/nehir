@@ -178,6 +178,12 @@ jobs:
           CASK_FILE: homebrew-tap/${{ inputs.prerelease && env.RC_CASK_PATH || env.CASK_PATH }}
         shell: bash
         run: |
+          path="${CASK_FILE}"
+          # Seed RC cask from stable on first prerelease
+          if [ "${{ inputs.prerelease }}" = "true" ] && [ ! -f "$path" ]; then
+            cp "homebrew-tap/${CASK_PATH}" "$path"
+          fi
+
           ruby <<'RUBY'
           path = ENV.fetch("CASK_FILE")
           version = ENV.fetch("VERSION")
@@ -185,7 +191,7 @@ jobs:
 
           text = File.read(path)
           text = text.sub(/version "[^"]+"/, %(version "#{version}"))
-          text = text.sub(/^  sha256 (?:"[0-9a-f]{64}"|:no_check(?:.*)?)$/, %(  sha256 "#{sha256}"))
+          text = text.sub(/^  sha256 (?:"[0-9a-f]{64}"|:no_check.*)$/, %(  sha256 "#{sha256}"))
           File.write(path, text)
           RUBY
 
