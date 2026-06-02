@@ -175,11 +175,12 @@ jobs:
         env:
           VERSION: ${{ steps.version.outputs.version }}
           SHA256: ${{ steps.checksum.outputs.sha256 }}
+          PRERELEASE: ${{ inputs.prerelease }}
           CASK_FILE: homebrew-tap/${{ inputs.prerelease && env.RC_CASK_PATH || env.CASK_PATH }}
         shell: bash
         run: |
           path="${CASK_FILE}"
-          # Seed RC cask from stable on first prerelease
+          # Seed RC cask from stable on first prerelease.
           if [ "${{ inputs.prerelease }}" = "true" ] && [ ! -f "$path" ]; then
             cp "homebrew-tap/${CASK_PATH}" "$path"
           fi
@@ -188,10 +189,13 @@ jobs:
           path = ENV.fetch("CASK_FILE")
           version = ENV.fetch("VERSION")
           sha256 = ENV.fetch("SHA256")
+          prerelease = ENV.fetch("PRERELEASE") == "true"
 
           text = File.read(path)
+          text = text.sub(/^cask "[^"]+" do$/, %(cask "nehir@rc" do)) if prerelease
           text = text.sub(/version "[^"]+"/, %(version "#{version}"))
           text = text.sub(/^  sha256 (?:"[0-9a-f]{64}"|:no_check.*)$/, %(  sha256 "#{sha256}"))
+          text = text.sub(/strategy :github_latest/, "strategy :github_releases") if prerelease
           File.write(path, text)
           RUBY
 
@@ -208,14 +212,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if git diff --quiet; then
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "${{ inputs.prerelease && env.RC_CASK_PATH || env.CASK_PATH }}"
+          if git diff --cached --quiet; then
             echo "Cask already up to date."
             exit 0
           fi
 
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add "${{ inputs.prerelease && env.RC_CASK_PATH || env.CASK_PATH }}"
           git commit -m "Update Nehir${{ inputs.prerelease && ' RC' || '' }} to ${{ steps.version.outputs.version }}"
           git push
 
