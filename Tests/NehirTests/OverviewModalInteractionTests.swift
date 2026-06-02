@@ -170,7 +170,7 @@ private func activatePreparedOverviewSelection(
             motionPolicy: wmController.motionPolicy,
             environment: makeOverviewTestEnvironment(recorder: recorder)
         )
-        let workspaceId = try! #require(wmController.activeWorkspace()?.id)
+        let workspaceId = try! #require(wmController.interactionWorkspace()?.id)
         let monitorId = try! #require(wmController.workspaceManager.monitors.first?.id)
 
         _ = addOverviewTestWindow(
@@ -223,7 +223,7 @@ private func activatePreparedOverviewSelection(
             motionPolicy: wmController.motionPolicy,
             environment: makeOverviewTestEnvironment(recorder: recorder)
         )
-        let workspaceId = try! #require(wmController.activeWorkspace()?.id)
+        let workspaceId = try! #require(wmController.interactionWorkspace()?.id)
 
         let firstHandle = addOverviewTestWindow(
             on: wmController,
@@ -266,7 +266,7 @@ private func activatePreparedOverviewSelection(
             motionPolicy: wmController.motionPolicy,
             environment: makeOverviewTestEnvironment(recorder: recorder)
         )
-        let workspaceId = try! #require(wmController.activeWorkspace()?.id)
+        let workspaceId = try! #require(wmController.interactionWorkspace()?.id)
 
         _ = addOverviewTestWindow(
             on: wmController,
@@ -286,7 +286,7 @@ private func activatePreparedOverviewSelection(
             return
         }
 
-        wmController.setAnimationsEnabled(false)
+        wmController.setAnimationsEnabled(false, persist: false)
 
         switch overview.state {
         case .opening:
@@ -375,7 +375,7 @@ private func activatePreparedOverviewSelection(
             motionPolicy: wmController.motionPolicy,
             environment: makeOverviewTestEnvironment(recorder: recorder)
         )
-        let workspaceId = try! #require(wmController.activeWorkspace()?.id)
+        let workspaceId = try! #require(wmController.interactionWorkspace()?.id)
         let token = addLayoutPlanTestWindow(on: wmController, workspaceId: workspaceId, windowId: 8181)
         let handle = try! #require(wmController.workspaceManager.handle(for: token))
         var activatedHandle: WindowHandle?

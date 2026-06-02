@@ -953,8 +953,8 @@ private func workspaceConfigurations(
 
         #expect(manager.beginManagedFocusRequest(handle, in: ws2, onMonitor: right.id))
         #expect(manager.pendingFocusedHandle == handle)
-        #expect(manager.pendingFocusedWorkspaceId == ws2)
-        #expect(manager.pendingFocusedMonitorId == right.id)
+        #expect(manager.activeFocusRequestWorkspaceId == ws2)
+        #expect(manager.activeFocusRequestMonitorId == right.id)
         #expect(manager.focusedHandle == nil)
         #expect(manager.lastFocusedHandle(in: ws2) == handle)
         #expect(manager.interactionMonitorId == left.id)
@@ -1084,9 +1084,9 @@ private func workspaceConfigurations(
 
         #expect(token1 == token2)
         #expect(handle1 === handle2)
-        #expect(manager.focusedToken == token1)
+        #expect(manager.confirmedManagedFocusToken == token1)
         #expect(manager.focusedHandle === handle1)
-        #expect(manager.lastFocusedToken(in: workspaceId) == token1)
+        #expect(manager.rememberedTiledFocusToken(in: workspaceId) == token1)
         #expect(manager.lastFocusedHandle(in: workspaceId) === handle1)
     }
 
@@ -1155,9 +1155,9 @@ private func workspaceConfigurations(
         #expect(manager.entry(for: oldToken) == nil)
         #expect(manager.entry(for: newToken) === rekeyedEntry)
         #expect(manager.focusedHandle === handle)
-        #expect(manager.focusedToken == newToken)
+        #expect(manager.confirmedManagedFocusToken == newToken)
         #expect(manager.pendingFocusedHandle === handle)
-        #expect(manager.pendingFocusedToken == newToken)
+        #expect(manager.activeFocusRequestToken == newToken)
         #expect(manager.lastFocusedHandle(in: workspaceId) === handle)
 
         guard let rekeyedHiddenState = manager.hiddenState(for: newToken) else {
@@ -1245,9 +1245,9 @@ private func workspaceConfigurations(
         _ = manager.setManagedFocus(tiledToken, in: workspaceId, onMonitor: monitor.id)
         _ = manager.setManagedFocus(floatingToken, in: workspaceId, onMonitor: monitor.id)
 
-        #expect(manager.lastFocusedToken(in: workspaceId) == tiledToken)
+        #expect(manager.rememberedTiledFocusToken(in: workspaceId) == tiledToken)
         #expect(manager.lastFloatingFocusedToken(in: workspaceId) == floatingToken)
-        #expect(manager.preferredFocusToken(in: workspaceId) == tiledToken)
+        #expect(manager.preferredWorkspaceFocusToken(in: workspaceId) == tiledToken)
         #expect(manager.resolveWorkspaceFocusToken(in: workspaceId) == tiledToken)
     }
 
@@ -1289,7 +1289,7 @@ private func workspaceConfigurations(
             for: rememberedToken
         )
 
-        #expect(manager.preferredFocusToken(in: workspaceId) == rememberedToken)
+        #expect(manager.preferredWorkspaceFocusToken(in: workspaceId) == rememberedToken)
         #expect(manager.resolveWorkspaceFocusToken(in: workspaceId) == rememberedToken)
     }
 
@@ -1324,7 +1324,7 @@ private func workspaceConfigurations(
             for: token
         )
 
-        #expect(manager.preferredFocusToken(in: workspaceId) == token)
+        #expect(manager.preferredWorkspaceFocusToken(in: workspaceId) == token)
     }
 
     @Test @MainActor func resolveWorkspaceFocusFallsBackToFloatingWhenNoTiledWindowExists() {
@@ -1352,7 +1352,7 @@ private func workspaceConfigurations(
         )
         _ = manager.setManagedFocus(floatingToken, in: workspaceId, onMonitor: monitor.id)
 
-        #expect(manager.preferredFocusToken(in: workspaceId) == nil)
+        #expect(manager.preferredWorkspaceFocusToken(in: workspaceId) == nil)
         #expect(manager.resolveWorkspaceFocusToken(in: workspaceId) == floatingToken)
     }
 
@@ -1388,7 +1388,7 @@ private func workspaceConfigurations(
             for: floatingToken
         )
 
-        #expect(manager.preferredFocusToken(in: workspaceId) == nil)
+        #expect(manager.preferredWorkspaceFocusToken(in: workspaceId) == nil)
         #expect(manager.resolveWorkspaceFocusToken(in: workspaceId) == floatingToken)
     }
 
@@ -1508,7 +1508,7 @@ private func workspaceConfigurations(
         )
         #expect(manager.entry(for: removed) != nil)
         #expect(manager.focusedHandle == removed)
-        #expect(manager.pendingFocusedToken == removed.id)
+        #expect(manager.activeFocusRequestToken == removed.id)
 
         manager.removeMissing(
             keys: Set([.init(pid: 2301, windowId: 2301)]),
@@ -1516,8 +1516,8 @@ private func workspaceConfigurations(
         )
 
         #expect(manager.entry(for: removed) == nil)
-        #expect(manager.focusedToken == nil)
-        #expect(manager.pendingFocusedToken == nil)
+        #expect(manager.confirmedManagedFocusToken == nil)
+        #expect(manager.activeFocusRequestToken == nil)
         #expect(manager.focusedHandle == nil)
         #expect(manager.lastFocusedHandle(in: workspaceId) == nil)
         #expect(manager.resolveAndSetWorkspaceFocus(in: workspaceId, onMonitor: monitor.id) == survivor)
@@ -2198,7 +2198,7 @@ private func workspaceConfigurations(
         )
         #expect(manager.niriViewportState(for: workspaceId).selectedNodeId == selectedNodeId)
         #expect(manager.niriViewportState(for: workspaceId).activeColumnIndex == 2)
-        #expect(manager.lastFocusedToken(in: workspaceId) == handle.id)
+        #expect(manager.rememberedTiledFocusToken(in: workspaceId) == handle.id)
     }
 
     @Test @MainActor func applySessionTransferMovesViewportAndFocusMemoryTogether() {
@@ -2255,8 +2255,8 @@ private func workspaceConfigurations(
         )
         #expect(manager.niriViewportState(for: sourceWorkspaceId).selectedNodeId == sourceState.selectedNodeId)
         #expect(manager.niriViewportState(for: targetWorkspaceId).selectedNodeId == targetState.selectedNodeId)
-        #expect(manager.lastFocusedToken(in: sourceWorkspaceId) == sourceHandle.id)
-        #expect(manager.lastFocusedToken(in: targetWorkspaceId) == targetHandle.id)
+        #expect(manager.rememberedTiledFocusToken(in: sourceWorkspaceId) == sourceHandle.id)
+        #expect(manager.rememberedTiledFocusToken(in: targetWorkspaceId) == targetHandle.id)
     }
 
     @Test @MainActor func commitWorkspaceSelectionUpdatesSelectedNodeAndRememberedFocusAtomically() {
@@ -2287,7 +2287,7 @@ private func workspaceConfigurations(
             )
         )
         #expect(manager.niriViewportState(for: workspaceId).selectedNodeId == selectedNodeId)
-        #expect(manager.lastFocusedToken(in: workspaceId) == handle.id)
+        #expect(manager.rememberedTiledFocusToken(in: workspaceId) == handle.id)
     }
 
     @Test @MainActor func scratchpadTokenRekeysAndClearsOnWindowRemoval() {

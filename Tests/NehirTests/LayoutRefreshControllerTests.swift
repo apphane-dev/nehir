@@ -74,7 +74,7 @@ private func makeUnavailableLayoutPlanTestWindow(windowId: Int) -> AXWindowRef {
     @Test @MainActor func nativeFullscreenWindowSnapshotsSkipFastFrameReadAndUseUnconstrainedFallback() async {
         await withAXFrameProviderIsolationForTests {
             let controller = makeLayoutPlanTestController()
-            guard let workspaceId = controller.activeWorkspace()?.id else {
+            guard let workspaceId = controller.interactionWorkspace()?.id else {
                 Issue.record("Missing active workspace for native fullscreen snapshot test")
                 return
             }
@@ -143,7 +143,7 @@ private func makeUnavailableLayoutPlanTestWindow(windowId: Int) -> AXWindowRef {
 
         #expect(controller.axManager.lastAppliedFrame(for: 101) == frame)
         #expect(lastAppliedBorderWindowIdForLayoutPlanTests(on: controller) == 101)
-        #expect(controller.workspaceManager.preferredFocusToken(in: workspaceId) == token)
+        #expect(controller.workspaceManager.preferredWorkspaceFocusToken(in: workspaceId) == token)
     }
 
     @Test @MainActor func executeLayoutPlanShowsResizePlaceholderInsteadOfApplyingTooSmallFrame() async {
@@ -1410,7 +1410,7 @@ private func makeUnavailableLayoutPlanTestWindow(windowId: Int) -> AXWindowRef {
             )
         )
 
-        #expect(controller.currentKeyboardFocusTargetForRendering()?.token == token)
+        #expect(controller.currentBorderTarget()?.token == token)
         #expect(lastAppliedBorderWindowIdForLayoutPlanTests(on: controller) == token.windowId)
         #expect(lastAppliedBorderFrameForLayoutPlanTests(on: controller) == frame)
     }
@@ -1449,7 +1449,7 @@ private func makeUnavailableLayoutPlanTestWindow(windowId: Int) -> AXWindowRef {
             preserveFocusedToken: true
         )
         controller.focusBorderController.clear()
-        #expect(controller.workspaceManager.focusedToken == token)
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == token)
         #expect(controller.workspaceManager.isNonManagedFocusActive)
         #expect(lastAppliedBorderWindowIdForLayoutPlanTests(on: controller) == nil)
 
@@ -1514,7 +1514,7 @@ private func makeUnavailableLayoutPlanTestWindow(windowId: Int) -> AXWindowRef {
             )
         )
 
-        #expect(controller.workspaceManager.pendingFocusedToken == newToken)
+        #expect(controller.workspaceManager.activeFocusRequestToken == newToken)
         #expect(lastAppliedBorderWindowIdForLayoutPlanTests(on: controller) == 307)
         #expect(lastAppliedBorderFrameForLayoutPlanTests(on: controller) == oldFrame)
     }

@@ -364,6 +364,8 @@ The default hotkeys are:
 - `Ctrl+Option+Cmd+T` — Start Runtime Trace Capture
 - `Ctrl+Option+Shift+Cmd+T` — Stop Runtime Trace Capture
 
+Runtime dumps include separate focus-target fields so gesture and hotkey bugs can be diagnosed without conflating concepts: `wmCommandTarget`, `wmCommandTargetSource`, `layoutSelection`, `observedManagedFocus`, `focusRequest`, `borderTarget`, `interactionWorkspace`, `interactionMonitor`, and `nonManaged`.
+
 ---
 
 ## Queries

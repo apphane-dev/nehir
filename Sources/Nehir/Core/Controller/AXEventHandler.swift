@@ -79,8 +79,8 @@ struct NiriCreateFocusTraceEvent: Equatable {
 
 struct WindowCreatePlacementContext: Equatable {
     let nativeSpaceMonitorId: Monitor.ID?
-    let pendingFocusedWorkspaceId: WorkspaceDescriptor.ID?
-    let pendingFocusedMonitorId: Monitor.ID?
+    let activeFocusRequestWorkspaceId: WorkspaceDescriptor.ID?
+    let activeFocusRequestMonitorId: Monitor.ID?
     let focusedWorkspaceId: WorkspaceDescriptor.ID?
     let focusedMonitorId: Monitor.ID?
     let interactionMonitorId: Monitor.ID?
@@ -710,7 +710,7 @@ final class AXEventHandler: CGSEventDelegate {
         resolvedToken: WindowToken?
     ) -> CGRect? {
         guard let controller else { return nil }
-        guard let target = controller.currentKeyboardFocusTargetForRendering() else { return nil }
+        guard let target = controller.currentBorderTarget() else { return nil }
 
         if let windowServerToken {
             guard windowServerToken == target.token else { return nil }
@@ -1128,7 +1128,7 @@ final class AXEventHandler: CGSEventDelegate {
         controller.nativeFullscreenPlaceholderManager.remove(token)
         controller.clearResizePlaceholder(for: token)
 
-        let shouldRecoverFocus = token == controller.workspaceManager.focusedToken
+        let shouldRecoverFocus = token == controller.workspaceManager.confirmedManagedFocusToken
         if shouldRecoverFocus, let workspaceId = affectedWorkspaceId {
             beginWindowCloseFocusRecovery(in: workspaceId)
         }
@@ -1239,7 +1239,7 @@ final class AXEventHandler: CGSEventDelegate {
         guard case .unrelatedNoRequest = requestDisposition else { return false }
         guard let controller else { return false }
 
-        if let currentTarget = controller.currentKeyboardFocusTargetForRendering(),
+        if let currentTarget = controller.currentBorderTarget(),
            currentTarget.token != observedEntry.token,
            currentTarget.pid == observedEntry.pid
         {
@@ -1250,7 +1250,7 @@ final class AXEventHandler: CGSEventDelegate {
         }
 
         guard !isWorkspaceActive else { return false }
-        guard let focusedToken = controller.workspaceManager.focusedToken,
+        guard let focusedToken = controller.workspaceManager.confirmedManagedFocusToken,
               focusedToken != observedEntry.token,
               focusedToken.pid == observedEntry.pid,
               let focusedEntry = controller.workspaceManager.entry(for: focusedToken),
@@ -1411,7 +1411,7 @@ final class AXEventHandler: CGSEventDelegate {
             token: token,
             windowId: UInt32(axRef.windowId),
             axRef: axRef,
-            workspaceId: controller.activeWorkspace()?.id,
+            workspaceId: controller.interactionWorkspace()?.id,
             appFullscreen: appFullscreen
         ),
             let restoredEntry = controller.workspaceManager.entry(for: token)
@@ -1757,7 +1757,7 @@ final class AXEventHandler: CGSEventDelegate {
         }
         if shouldConfirmRequest,
            controller.moveMouseToFocusedWindowEnabled,
-           controller.workspaceManager.focusedToken == entry.token,
+           controller.workspaceManager.confirmedManagedFocusToken == entry.token,
            !controller.workspaceManager.isNonManagedFocusActive
         {
             controller.moveMouseToWindow(entry.token, preferredFrame: preferredMouseFrame)
@@ -1935,8 +1935,8 @@ final class AXEventHandler: CGSEventDelegate {
         _ createPlacementContext: WindowCreatePlacementContext?
     ) -> WorkspaceDescriptor.ID? {
         createPlacementContext?.focusedWorkspaceId
-            ?? createPlacementContext?.pendingFocusedWorkspaceId
-            ?? controller?.activeWorkspace()?.id
+            ?? createPlacementContext?.activeFocusRequestWorkspaceId
+            ?? controller?.interactionWorkspace()?.id
     }
 
     private func synthesizeNativeFullscreenUnavailableRecord(
@@ -1982,9 +1982,9 @@ final class AXEventHandler: CGSEventDelegate {
         }
 
         let focusedCandidates = [
-            workspaceManager.focusedToken,
-            activeWorkspaceId.flatMap { workspaceManager.preferredFocusToken(in: $0) },
-            activeWorkspaceId.flatMap { workspaceManager.lastFocusedToken(in: $0) }
+            workspaceManager.confirmedManagedFocusToken,
+            activeWorkspaceId.flatMap { workspaceManager.preferredWorkspaceFocusToken(in: $0) },
+            activeWorkspaceId.flatMap { workspaceManager.rememberedTiledFocusToken(in: $0) }
         ]
 
         for candidateToken in focusedCandidates.compactMap(\.self) {
@@ -2101,7 +2101,7 @@ final class AXEventHandler: CGSEventDelegate {
         guard let controller,
               let entry = controller.workspaceManager.entry(for: token),
               entry.mode == .tiling,
-              controller.workspaceManager.focusedToken == token,
+              controller.workspaceManager.confirmedManagedFocusToken == token,
               controller.workspaceManager.scratchpadToken() != token
         else {
             return false
@@ -2124,7 +2124,7 @@ final class AXEventHandler: CGSEventDelegate {
             cancelActivationRetry(requestId: activeRequest.requestId)
             controller.focusBridge.discardPendingFocus(activeRequest.token)
         }
-        if controller.currentKeyboardFocusTargetForRendering()?.pid == pid {
+        if controller.currentBorderTarget()?.pid == pid {
             controller.clearKeyboardFocusTarget(pid: pid)
             _ = controller.workspaceManager.enterNonManagedFocus(
                 appFullscreen: false,
@@ -2290,7 +2290,7 @@ final class AXEventHandler: CGSEventDelegate {
             restrictWorkspaceRuleToPlacementMonitor: trackedMode != .floating,
             createPlacementContext: createPlacementContext,
             windowFrame: placementFrame,
-            fallbackWorkspaceId: controller.activeWorkspace()?.id
+            fallbackWorkspaceId: controller.interactionWorkspace()?.id
         )
         recordCreatePlacementTrace(
             token: token,
@@ -2341,8 +2341,8 @@ final class AXEventHandler: CGSEventDelegate {
                 kind: .createPlacementResolved(
                     token: token,
                     workspaceId: workspaceId,
-                    pendingWorkspaceId: createPlacementContext?.pendingFocusedWorkspaceId,
-                    pendingMonitorId: createPlacementContext?.pendingFocusedMonitorId,
+                    pendingWorkspaceId: createPlacementContext?.activeFocusRequestWorkspaceId,
+                    pendingMonitorId: createPlacementContext?.activeFocusRequestMonitorId,
                     focusedWorkspaceId: createPlacementContext?.focusedWorkspaceId,
                     focusedMonitorId: createPlacementContext?.focusedMonitorId,
                     nativeSpaceMonitorId: createPlacementContext?.nativeSpaceMonitorId,
@@ -2453,7 +2453,7 @@ final class AXEventHandler: CGSEventDelegate {
         }
 
         if shouldDelayDestroy {
-            if controller?.currentKeyboardFocusTargetForRendering()?.token == candidate.token {
+            if controller?.currentBorderTarget()?.token == candidate.token {
                 controller?.focusBorderController.hide()
             }
             enqueueManagedReplacementDestroy(candidate)
@@ -2469,7 +2469,7 @@ final class AXEventHandler: CGSEventDelegate {
         pidHint: pid_t?
     ) {
         guard let controller,
-              let target = controller.currentKeyboardFocusTargetForRendering()
+              let target = controller.currentBorderTarget()
         else { return }
 
         let matchesResolvedToken = resolvedToken.map { $0 == target.token } ?? false
@@ -2729,7 +2729,7 @@ final class AXEventHandler: CGSEventDelegate {
         facts: WindowRuleFacts
     ) -> StructuralReplacementMatch? {
         guard let controller,
-              let fallbackWorkspaceId = controller.activeWorkspace()?.id
+              let fallbackWorkspaceId = controller.interactionWorkspace()?.id
               ?? controller.workspaceManager.primaryWorkspace()?.id
               ?? controller.workspaceManager.workspaces.first?.id
         else {
@@ -2925,7 +2925,7 @@ final class AXEventHandler: CGSEventDelegate {
 
     private func refreshBorderAfterManagedRekey(entry: WindowModel.Entry) {
         guard let controller else { return }
-        guard controller.currentKeyboardFocusTargetForRendering()?.token == entry.token else { return }
+        guard controller.currentBorderTarget()?.token == entry.token else { return }
 
         let preferredFrame = controller.niriEngine?.findNode(for: entry.token).flatMap { $0.renderedFrame ?? $0.frame }
             ?? frameProvider?(entry.axRef)
@@ -3202,8 +3202,8 @@ final class AXEventHandler: CGSEventDelegate {
         let focusedWorkspaceId = resolveFocusedPlacementWorkspaceId(controller: controller)
         createPlacementContextsByWindowId[windowId] = WindowCreatePlacementContext(
             nativeSpaceMonitorId: resolveNativeSpacePlacementMonitorId(spaceId: spaceId, controller: controller),
-            pendingFocusedWorkspaceId: controller.workspaceManager.pendingFocusedWorkspaceId,
-            pendingFocusedMonitorId: resolvePendingFocusedPlacementMonitorId(controller: controller),
+            activeFocusRequestWorkspaceId: controller.workspaceManager.activeFocusRequestWorkspaceId,
+            activeFocusRequestMonitorId: resolveActiveFocusRequestPlacementMonitorId(controller: controller),
             focusedWorkspaceId: focusedWorkspaceId,
             focusedMonitorId: focusedWorkspaceId.flatMap {
                 controller.workspaceManager.monitorId(for: $0)
@@ -3213,11 +3213,11 @@ final class AXEventHandler: CGSEventDelegate {
         )
     }
 
-    private func resolvePendingFocusedPlacementMonitorId(
+    private func resolveActiveFocusRequestPlacementMonitorId(
         controller: WMController
     ) -> Monitor.ID? {
-        controller.workspaceManager.pendingFocusedMonitorId
-            ?? controller.workspaceManager.pendingFocusedWorkspaceId.flatMap {
+        controller.workspaceManager.activeFocusRequestMonitorId
+            ?? controller.workspaceManager.activeFocusRequestWorkspaceId.flatMap {
                 controller.workspaceManager.monitorId(for: $0)
             }
     }
@@ -3225,7 +3225,7 @@ final class AXEventHandler: CGSEventDelegate {
     private func resolveFocusedPlacementWorkspaceId(
         controller: WMController
     ) -> WorkspaceDescriptor.ID? {
-        guard let focusedToken = controller.workspaceManager.focusedToken,
+        guard let focusedToken = controller.workspaceManager.confirmedManagedFocusToken,
               let workspaceId = controller.workspaceManager.workspace(for: focusedToken)
         else {
             return nil
@@ -3500,7 +3500,7 @@ final class AXEventHandler: CGSEventDelegate {
             workspaceId: request.workspaceId
         )
 
-        if let target = controller.currentKeyboardFocusTargetForRendering(),
+        if let target = controller.currentBorderTarget(),
            controller.focusBorderController.refresh(
                preferredFrame: controller.preferredKeyboardFocusFrame(for: target.token),
                forceOrdering: true

@@ -164,7 +164,7 @@ final class ServiceLifecycleManager {
 
         controller.syncMonitorsToNiriEngine()
 
-        let focusedWsId = controller.workspaceManager.focusedToken
+        let focusedWsId = controller.workspaceManager.confirmedManagedFocusToken
             .flatMap { controller.workspaceManager.workspace(for: $0) }
         controller.workspaceManager.garbageCollectUnusedWorkspaces(focusedWorkspaceId: focusedWsId)
 

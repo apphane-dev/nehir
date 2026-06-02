@@ -130,8 +130,8 @@ private func prepareMouseResizeFixture(
     await controller.layoutRefreshController.waitForRefreshWorkForTests()
     controller.syncMonitorsToNiriEngine()
 
-    guard let workspaceId = controller.activeWorkspace()?.id else {
-        fatalError("Missing active workspace for mouse fixture")
+    guard let workspaceId = controller.interactionWorkspace()?.id else {
+        fatalError("Missing interaction workspace for mouse fixture")
     }
 
     let token = controller.workspaceManager.addWindow(
@@ -189,7 +189,7 @@ private func prepareCommittedTrackpadGestureFixture() async -> (
     await controller.layoutRefreshController.waitForRefreshWorkForTests()
     controller.syncMonitorsToNiriEngine()
 
-    guard let workspaceId = controller.activeWorkspace()?.id,
+    guard let workspaceId = controller.interactionWorkspace()?.id,
           let monitor = controller.workspaceManager.monitor(for: workspaceId),
           let engine = controller.niriEngine
     else {
@@ -295,7 +295,7 @@ private func prepareMouseWheelScrollFixture(
     await controller.layoutRefreshController.waitForRefreshWorkForTests()
     controller.syncMonitorsToNiriEngine()
 
-    guard let workspaceId = controller.activeWorkspace()?.id,
+    guard let workspaceId = controller.interactionWorkspace()?.id,
           let monitor = controller.workspaceManager.monitor(for: workspaceId),
           let engine = controller.niriEngine
     else {
@@ -513,7 +513,7 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
 
     @Test @MainActor func mouseWheelScrollRebasesActiveColumnAfterCrossingColumnBoundary() async {
         let fixture = await prepareMouseWheelScrollFixture()
-        let focusedTokenBeforeScroll = fixture.controller.workspaceManager.focusedToken
+        let focusedTokenBeforeScroll = fixture.controller.workspaceManager.confirmedManagedFocusToken
         let before = fixture.controller.workspaceManager.niriViewportState(for: fixture.workspaceId)
 
         fixture.handler.dispatchScrollWheel(
@@ -547,8 +547,8 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
         }
         let expectedWindow = windows[activeColumn.activeTileIdx.clamped(to: 0 ... (windows.count - 1))]
         #expect(after.selectedNodeId == expectedWindow.id)
-        #expect(fixture.controller.workspaceManager.lastFocusedToken(in: fixture.workspaceId) == expectedWindow.token)
-        #expect(fixture.controller.workspaceManager.focusedToken == focusedTokenBeforeScroll)
+        #expect(fixture.controller.workspaceManager.rememberedTiledFocusToken(in: fixture.workspaceId) == expectedWindow.token)
+        #expect(fixture.controller.workspaceManager.confirmedManagedFocusToken == focusedTokenBeforeScroll)
     }
 
     @Test @MainActor func trackpadLikeScrollWheelEventDoesNotUseMouseWheelPath() async {
@@ -705,7 +705,7 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
         let controller = fixture.controller
         let handler = fixture.handler
         let initialState = controller.workspaceManager.niriViewportState(for: fixture.workspaceId)
-        let focusedTokenBeforeScroll = controller.workspaceManager.focusedToken
+        let focusedTokenBeforeScroll = controller.workspaceManager.confirmedManagedFocusToken
         controller.isLockScreenActive = true
         handler.resetDebugStateForTests()
 
@@ -734,7 +734,7 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
         #expect(after.activeColumnIndex == initialState.activeColumnIndex)
         #expect(after.selectedNodeId == initialState.selectedNodeId)
         #expect(abs(after.viewOffsetPixels.current() - initialState.viewOffsetPixels.current()) < 0.001)
-        #expect(controller.workspaceManager.focusedToken == focusedTokenBeforeScroll)
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == focusedTokenBeforeScroll)
         #expect(controller.workspaceManager.pendingFocusedHandle == nil)
         #expect(debugSnapshot.queuedTransientEvents == 0)
         #expect(relayoutReasons.isEmpty)
@@ -1201,7 +1201,7 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
         controller.syncMonitorsToNiriEngine()
 
-        guard let workspaceId = controller.activeWorkspace()?.id,
+        guard let workspaceId = controller.interactionWorkspace()?.id,
               let monitor = controller.workspaceManager.monitor(for: workspaceId),
               let engine = controller.niriEngine
         else {
@@ -1282,7 +1282,7 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
         controller.syncMonitorsToNiriEngine()
 
-        guard let workspaceId = controller.activeWorkspace()?.id,
+        guard let workspaceId = controller.interactionWorkspace()?.id,
               let monitor = controller.workspaceManager.monitor(for: workspaceId)
         else {
             Issue.record("Missing Niri context for gesture recognition threshold test")
@@ -1467,7 +1467,7 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
         controller.syncMonitorsToNiriEngine()
 
-        guard let workspaceId = controller.activeWorkspace()?.id,
+        guard let workspaceId = controller.interactionWorkspace()?.id,
               let monitor = controller.workspaceManager.monitor(for: workspaceId)
         else {
             Issue.record("Missing Niri context for vertical gesture rejection test")
@@ -1514,7 +1514,7 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
         controller.syncMonitorsToNiriEngine()
 
-        guard let workspaceId = controller.activeWorkspace()?.id,
+        guard let workspaceId = controller.interactionWorkspace()?.id,
               let monitor = controller.workspaceManager.monitor(for: workspaceId),
               let engine = controller.niriEngine
         else {
@@ -1561,7 +1561,7 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
             column.cachedHeight = 800
         }
         _ = controller.workspaceManager.setManagedFocus(firstHandle, in: workspaceId, onMonitor: monitor.id)
-        let focusedTokenBeforeGesture = controller.workspaceManager.focusedToken
+        let focusedTokenBeforeGesture = controller.workspaceManager.confirmedManagedFocusToken
         controller.layoutRefreshController.requestImmediateRelayout(reason: .workspaceTransition)
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
 
@@ -1623,8 +1623,8 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
         #expect(finalizedState.viewOffsetPixels.isAnimating == true)
         #expect(finalizedState.activeColumnIndex == expectedActiveColumnIndex)
         #expect(finalizedState.selectedNodeId == expectedSelectedNode.id)
-        #expect(controller.workspaceManager.lastFocusedToken(in: workspaceId) == expectedSelectedNode.token)
-        #expect(controller.workspaceManager.focusedToken == focusedTokenBeforeGesture)
+        #expect(controller.workspaceManager.rememberedTiledFocusToken(in: workspaceId) == expectedSelectedNode.token)
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == focusedTokenBeforeGesture)
         #expect(handler.state.gesturePhase == .idle)
         #expect(handler.state.lockedGestureContext == nil)
     }
@@ -1932,7 +1932,7 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
         controller.syncMonitorsToNiriEngine()
         controller.setFocusFollowsMouse(true)
 
-        guard let workspaceId = controller.activeWorkspace()?.id,
+        guard let workspaceId = controller.interactionWorkspace()?.id,
               let engine = controller.niriEngine,
               let monitor = controller.workspaceManager.monitor(for: workspaceId)
         else {
@@ -2002,7 +2002,7 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
         controller.syncMonitorsToNiriEngine()
         controller.setFocusFollowsMouse(true)
 
-        guard let workspaceId = controller.activeWorkspace()?.id,
+        guard let workspaceId = controller.interactionWorkspace()?.id,
               let engine = controller.niriEngine,
               let monitor = controller.workspaceManager.monitor(for: workspaceId)
         else {

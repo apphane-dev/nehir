@@ -284,7 +284,7 @@ private func waitUntilServiceLifecycleTest(
         )
 
         await waitUntilServiceLifecycleTest {
-            controller.currentKeyboardFocusTargetForRendering() == nil &&
+            controller.currentBorderTarget() == nil &&
                 controller.focusBorderController.lastAppliedFocusedWindowIdForTests == nil
         }
 
@@ -313,7 +313,7 @@ private func waitUntilServiceLifecycleTest(
         )
         try? await Task.sleep(for: .milliseconds(20))
 
-        #expect(controller.currentKeyboardFocusTargetForRendering()?.token == stoppedToken)
+        #expect(controller.currentBorderTarget()?.token == stoppedToken)
         #expect(controller.focusBorderController.lastAppliedFocusedWindowIdForTests == stoppedToken.windowId)
     }
 
@@ -375,7 +375,7 @@ private func waitUntilServiceLifecycleTest(
         #expect(controller.workspaceManager.lastFocusedHandle(in: ws1) == nil)
         #expect(controller.workspaceManager.lastFocusedHandle(in: ws2) == nil)
         #expect(controller.focusBridge.activeManagedRequest == nil)
-        #expect(controller.currentKeyboardFocusTargetForRendering() == nil)
+        #expect(controller.currentBorderTarget() == nil)
         #expect(controller.focusBorderController.lastAppliedFocusedWindowIdForTests == nil)
 
         #expect(controller.workspaceManager.setActiveWorkspace(ws1, on: monitor.id))
@@ -400,7 +400,7 @@ private func waitUntilServiceLifecycleTest(
             source: .focusedWindowChanged
         )
 
-        #expect(controller.workspaceManager.focusedToken == survivingToken)
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == survivingToken)
         #expect(controller.focusBridge.activeManagedRequest == nil)
     }
 

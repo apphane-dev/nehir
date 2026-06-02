@@ -90,7 +90,7 @@ private func setScratchpadTestFrame(
         #expect(scratchpadFloatingState.referenceMonitorId == monitor.id)
         #expect(scratchpadFloatingState.lastFrame.width > 0)
         #expect(scratchpadFloatingState.lastFrame.height > 0)
-        #expect(controller.workspaceManager.pendingFocusedToken == secondToken)
+        #expect(controller.workspaceManager.activeFocusRequestToken == secondToken)
 
         _ = controller.workspaceManager.setManagedFocus(secondToken, in: workspaceId, onMonitor: monitor.id)
         #expect(controller.assignFocusedWindowToScratchpad() == .notFound)
@@ -150,7 +150,7 @@ private func setScratchpadTestFrame(
 
         #expect(controller.workspaceManager.hiddenState(for: token) == nil)
         #expect(controller.axManager.lastAppliedFrame(for: windowId) == initialFrame)
-        #expect(controller.workspaceManager.pendingFocusedToken == token)
+        #expect(controller.workspaceManager.activeFocusRequestToken == token)
 
         let movedFrame = initialFrame.offsetBy(dx: 120, dy: 90)
         setScratchpadTestFrame(on: controller, token: token, frame: movedFrame)
@@ -327,7 +327,7 @@ private func setScratchpadTestFrame(
         #expect(controller.workspaceManager.workspace(for: token) == fixture.secondaryWorkspaceId)
         #expect(controller.workspaceManager.hiddenState(for: token) == nil)
         #expect(controller.axManager.lastAppliedFrame(for: 730) == expectedFrame)
-        #expect(controller.workspaceManager.pendingFocusedToken == token)
+        #expect(controller.workspaceManager.activeFocusRequestToken == token)
     }
 
     @Test @MainActor func toggleScratchpadWindowFrontsWindowOnlyAfterAsyncRevealSucceeds() async throws {
@@ -492,8 +492,8 @@ private func setScratchpadTestFrame(
 
         #expect(controller.workspaceManager.scratchpadToken() == token)
         #expect(controller.workspaceManager.hiddenState(for: token)?.isScratchpad == true)
-        #expect(controller.workspaceManager.focusedToken == visibleToken)
-        #expect(controller.workspaceManager.pendingFocusedToken != token)
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == visibleToken)
+        #expect(controller.workspaceManager.activeFocusRequestToken != token)
         #expect(controller.axManager.lastAppliedFrame(for: token.windowId) == nil)
         #expect(recorder.events.isEmpty)
     }

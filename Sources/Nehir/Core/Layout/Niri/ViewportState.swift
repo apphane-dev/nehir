@@ -157,6 +157,8 @@ struct ViewportState {
 
     var viewOffsetToRestore: CGFloat?
 
+    var allowsSelectionOffscreen: Bool = false
+
     var activatePrevColumnOnRemoval: CGFloat?
 
     let springConfig: SpringConfig = .niriHorizontalViewMovement

@@ -261,7 +261,7 @@ private func makeStatusBarMenuTestDirectory() -> URL {
         controller.settings.statusBarShowAppNames = true
 
         guard let monitor = controller.monitorForInteraction(),
-              let workspaceId = controller.activeWorkspace()?.id
+              let workspaceId = controller.interactionWorkspace()?.id
         else {
             Issue.record("Missing active workspace for floating status bar test")
             return

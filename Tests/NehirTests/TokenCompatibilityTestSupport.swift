@@ -52,11 +52,11 @@ extension WorkspaceManager {
     }
 
     func lastFocusedHandle(in workspaceId: WorkspaceDescriptor.ID) -> WindowHandle? {
-        lastFocusedToken(in: workspaceId).flatMap(handle(for:))
+        rememberedTiledFocusToken(in: workspaceId).flatMap(handle(for:))
     }
 
     func preferredFocusHandle(in workspaceId: WorkspaceDescriptor.ID) -> WindowHandle? {
-        preferredFocusToken(in: workspaceId).flatMap(handle(for:))
+        preferredWorkspaceFocusToken(in: workspaceId).flatMap(handle(for:))
     }
 
     func resolveWorkspaceFocus(in workspaceId: WorkspaceDescriptor.ID) -> WindowHandle? {

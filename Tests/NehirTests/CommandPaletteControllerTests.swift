@@ -32,7 +32,7 @@ private func makeCommandPaletteSummonAnchor(
     wmController: WMController,
     windowId: Int = 11
 ) -> CommandPaletteSummonAnchor {
-    guard let workspaceId = wmController.activeWorkspace()?.id else {
+    guard let workspaceId = wmController.interactionWorkspace()?.id else {
         fatalError("Expected active workspace for summon-anchor test fixture")
     }
     return .init(
@@ -160,7 +160,7 @@ private func makeCommandPaletteAppSnapshot(
         let controller = CommandPaletteController(environment: environment)
         let wmController = makeCommandPaletteTestWMController()
 
-        guard let workspaceId = wmController.activeWorkspace()?.id else {
+        guard let workspaceId = wmController.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace for command palette toggle test")
             return
         }
@@ -200,7 +200,7 @@ private func makeCommandPaletteAppSnapshot(
         let controller = CommandPaletteController(motionPolicy: motionPolicy, environment: environment)
         let wmController = makeCommandPaletteTestWMController()
 
-        guard let workspaceId = wmController.activeWorkspace()?.id else {
+        guard let workspaceId = wmController.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace for command palette motion test")
             return
         }
@@ -541,7 +541,7 @@ private func makeCommandPaletteAppSnapshot(
 
     @Test func resolveSummonAnchorFallsBackToLastFocusedMemory() {
         let wmController = makeCommandPaletteTestWMController()
-        guard let workspaceId = wmController.activeWorkspace()?.id else {
+        guard let workspaceId = wmController.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace for summon-anchor test")
             return
         }

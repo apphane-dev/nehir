@@ -240,7 +240,7 @@ private func installDeferredRuleApplyRule(
             Issue.record("Expected focused fallback rule apply to succeed")
             return
         }
-        #expect(controller.workspaceManager.focusedToken == nil)
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == nil)
         #expect(controller.workspaceManager.entry(for: token)?.mode == .floating)
     }
 

@@ -331,7 +331,7 @@ private func waitUntilAXEventTest(
 
     @Test @MainActor func titleChangedQueuesRuleReevaluationWhenDynamicRulesExist() async {
         let controller = makeAXEventTestController()
-        guard let sourceWorkspaceId = controller.activeWorkspace()?.id,
+        guard let sourceWorkspaceId = controller.interactionWorkspace()?.id,
               let ruleWorkspaceId = controller.workspaceManager.workspaceId(for: "2", createIfMissing: false)
         else {
             Issue.record("Missing active workspace")
@@ -400,7 +400,7 @@ private func waitUntilAXEventTest(
 
     @Test @MainActor func titleChangedQueuesRuleReevaluationForBuiltInPictureInPictureRule() async {
         let controller = makeAXEventTestController()
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -719,7 +719,7 @@ private func waitUntilAXEventTest(
                 controller.workspaceManager.entry(forPid: getpid(), windowId: 818) != nil
             }
 
-            #expect(controller.activeWorkspace()?.id == laterWorkspaceId)
+            #expect(controller.interactionWorkspace()?.id == laterWorkspaceId)
             #expect(controller.workspaceManager.entry(forPid: getpid(), windowId: 818)?
                 .workspaceId == laterWorkspaceId)
         }
@@ -765,7 +765,7 @@ private func waitUntilAXEventTest(
             controller.workspaceManager.entry(forPid: getpid(), windowId: 819) != nil
         }
 
-        #expect(controller.activeWorkspace()?.id == laterWorkspaceId)
+        #expect(controller.interactionWorkspace()?.id == laterWorkspaceId)
         #expect(controller.workspaceManager.entry(forPid: getpid(), windowId: 819)?.workspaceId == laterWorkspaceId)
         #expect(controller.axEventHandler.pendingCreatePlacementContext(for: 819) == nil)
     }
@@ -776,7 +776,7 @@ private func waitUntilAXEventTest(
         registry.resetForTests()
         defer { registry.resetForTests() }
         controller.hasStartedServices = true
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -897,7 +897,7 @@ private func waitUntilAXEventTest(
             }
             let state = controller.workspaceManager.niriViewportState(for: workspaceId)
             return controller.workspaceManager.entry(for: newToken) != nil &&
-                controller.workspaceManager.pendingFocusedToken == newToken &&
+                controller.workspaceManager.activeFocusRequestToken == newToken &&
                 state.selectedNodeId == nodeId &&
                 state.activeColumnIndex == 1 &&
                 lastAppliedBorderWindowId(on: controller) == oldToken.windowId
@@ -909,9 +909,9 @@ private func waitUntilAXEventTest(
         }
 
         #expect(focusedWindows.contains { $0.0 == getpid() && $0.1 == newWindowId })
-        #expect(controller.workspaceManager.focusedToken == oldToken)
-        #expect(controller.workspaceManager.pendingFocusedToken == newToken)
-        #expect(controller.workspaceManager.preferredFocusToken(in: workspaceId) == newToken)
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == oldToken)
+        #expect(controller.workspaceManager.activeFocusRequestToken == newToken)
+        #expect(controller.workspaceManager.preferredWorkspaceFocusToken(in: workspaceId) == newToken)
         #expect(controller.workspaceManager.niriViewportState(for: workspaceId).selectedNodeId == newNode.id)
         #expect(controller.workspaceManager.niriViewportState(for: workspaceId).activeColumnIndex == 1)
         #expect(lastAppliedBorderWindowId(on: controller) == oldToken.windowId)
@@ -922,9 +922,9 @@ private func waitUntilAXEventTest(
         )
 
         let deferredTrace = createFocusTraceEvents(on: controller)
-        #expect(controller.workspaceManager.focusedToken == oldToken)
-        #expect(controller.workspaceManager.pendingFocusedToken == newToken)
-        #expect(controller.workspaceManager.preferredFocusToken(in: workspaceId) == newToken)
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == oldToken)
+        #expect(controller.workspaceManager.activeFocusRequestToken == newToken)
+        #expect(controller.workspaceManager.preferredWorkspaceFocusToken(in: workspaceId) == newToken)
         #expect(controller.workspaceManager.niriViewportState(for: workspaceId).selectedNodeId == newNode.id)
         #expect(controller.workspaceManager.niriViewportState(for: workspaceId).activeColumnIndex == 1)
         #expect(lastAppliedBorderWindowId(on: controller) == oldToken.windowId)
@@ -948,9 +948,9 @@ private func waitUntilAXEventTest(
         )
 
         let confirmedTrace = createFocusTraceEvents(on: controller)
-        #expect(controller.workspaceManager.focusedToken == newToken)
-        #expect(controller.workspaceManager.pendingFocusedToken == nil)
-        #expect(controller.workspaceManager.preferredFocusToken(in: workspaceId) == newToken)
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == newToken)
+        #expect(controller.workspaceManager.activeFocusRequestToken == nil)
+        #expect(controller.workspaceManager.preferredWorkspaceFocusToken(in: workspaceId) == newToken)
         #expect(controller.workspaceManager.niriViewportState(for: workspaceId).selectedNodeId == newNode.id)
         #expect(controller.workspaceManager.niriViewportState(for: workspaceId).activeColumnIndex == 1)
         #expect(lastAppliedBorderWindowId(on: controller) == Int(newWindowId))
@@ -1052,7 +1052,7 @@ private func waitUntilAXEventTest(
         #expect(updatedState.activeColumnIndex == 0)
         #expect(updatedState.viewOffsetPixels.isAnimating)
         #expect(updatedState.viewOffsetPixels.target() == springTarget)
-        #expect(controller.workspaceManager.focusedToken == newToken)
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == newToken)
     }
 
     @Test @MainActor func newAppActivationWaitsForFocusedWindowBeforeLeavingManagedFocus() async throws {
@@ -1147,7 +1147,7 @@ private func waitUntilAXEventTest(
             }
             let state = controller.workspaceManager.niriViewportState(for: workspaceId)
             return controller.workspaceManager.entry(for: newToken) != nil &&
-                controller.workspaceManager.pendingFocusedToken == newToken &&
+                controller.workspaceManager.activeFocusRequestToken == newToken &&
                 state.selectedNodeId == nodeId &&
                 state.activeColumnIndex == 1 &&
                 lastAppliedBorderWindowId(on: controller) == oldToken.windowId
@@ -1159,9 +1159,9 @@ private func waitUntilAXEventTest(
         }
 
         #expect(focusedWindows.contains { $0.0 == newPid && $0.1 == newWindowId })
-        #expect(controller.workspaceManager.focusedToken == oldToken)
-        #expect(controller.workspaceManager.pendingFocusedToken == newToken)
-        #expect(controller.workspaceManager.preferredFocusToken(in: workspaceId) == newToken)
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == oldToken)
+        #expect(controller.workspaceManager.activeFocusRequestToken == newToken)
+        #expect(controller.workspaceManager.preferredWorkspaceFocusToken(in: workspaceId) == newToken)
         #expect(controller.workspaceManager.niriViewportState(for: workspaceId).selectedNodeId == newNode.id)
         #expect(controller.workspaceManager.niriViewportState(for: workspaceId).activeColumnIndex == 1)
         #expect(lastAppliedBorderWindowId(on: controller) == oldToken.windowId)
@@ -1172,10 +1172,10 @@ private func waitUntilAXEventTest(
         )
 
         let deferredTrace = createFocusTraceEvents(on: controller)
-        #expect(controller.workspaceManager.focusedToken == oldToken)
-        #expect(controller.workspaceManager.pendingFocusedToken == newToken)
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == oldToken)
+        #expect(controller.workspaceManager.activeFocusRequestToken == newToken)
         #expect(controller.workspaceManager.isNonManagedFocusActive == false)
-        #expect(controller.workspaceManager.preferredFocusToken(in: workspaceId) == newToken)
+        #expect(controller.workspaceManager.preferredWorkspaceFocusToken(in: workspaceId) == newToken)
         #expect(controller.workspaceManager.niriViewportState(for: workspaceId).selectedNodeId == newNode.id)
         #expect(controller.workspaceManager.niriViewportState(for: workspaceId).activeColumnIndex == 1)
         #expect(lastAppliedBorderWindowId(on: controller) == oldToken.windowId)
@@ -1198,7 +1198,7 @@ private func waitUntilAXEventTest(
         await controller.layoutRefreshController.waitForSettledRefreshWorkForTests()
 
         let settledBeforeConfirmTrace = createFocusTraceEvents(on: controller)
-        #expect(controller.workspaceManager.pendingFocusedToken == newToken)
+        #expect(controller.workspaceManager.activeFocusRequestToken == newToken)
         #expect(lastAppliedBorderWindowId(on: controller) == oldToken.windowId)
         #expect(settledBeforeConfirmTrace.contains { event in
             if case let .borderReapplied(token, phase) = event.kind {
@@ -1217,9 +1217,9 @@ private func waitUntilAXEventTest(
         )
 
         let confirmedTrace = createFocusTraceEvents(on: controller)
-        #expect(controller.workspaceManager.focusedToken == newToken)
-        #expect(controller.workspaceManager.pendingFocusedToken == nil)
-        #expect(controller.workspaceManager.preferredFocusToken(in: workspaceId) == newToken)
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == newToken)
+        #expect(controller.workspaceManager.activeFocusRequestToken == nil)
+        #expect(controller.workspaceManager.preferredWorkspaceFocusToken(in: workspaceId) == newToken)
         #expect(controller.workspaceManager.niriViewportState(for: workspaceId).selectedNodeId == newNode.id)
         #expect(controller.workspaceManager.niriViewportState(for: workspaceId).activeColumnIndex == 1)
         #expect(lastAppliedBorderWindowId(on: controller) == Int(newWindowId))
@@ -1289,8 +1289,8 @@ private func waitUntilAXEventTest(
         controller.workspaceNavigationHandler.switchWorkspace(index: 1)
 
         await waitUntilAXEventTest(iterations: 300) {
-            controller.activeWorkspace()?.id == workspaceTwo &&
-                controller.workspaceManager.pendingFocusedToken == targetToken &&
+            controller.interactionWorkspace()?.id == workspaceTwo &&
+                controller.workspaceManager.activeFocusRequestToken == targetToken &&
                 focusedWindows.contains { $0.0 == targetPid && $0.1 == UInt32(targetToken.windowId) }
         }
 
@@ -1299,9 +1299,9 @@ private func waitUntilAXEventTest(
             source: .workspaceDidActivateApplication
         )
 
-        #expect(controller.activeWorkspace()?.id == workspaceTwo)
-        #expect(controller.workspaceManager.pendingFocusedToken == targetToken)
-        #expect(controller.workspaceManager.focusedToken == oldToken)
+        #expect(controller.interactionWorkspace()?.id == workspaceTwo)
+        #expect(controller.workspaceManager.activeFocusRequestToken == targetToken)
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == oldToken)
         #expect(controller.focusBridge.activeManagedRequest?.token == targetToken)
 
         controller.axEventHandler.focusedWindowRefProvider = { pid in
@@ -1313,12 +1313,12 @@ private func waitUntilAXEventTest(
             source: .focusedWindowChanged
         )
 
-        #expect(controller.activeWorkspace()?.id == workspaceTwo)
-        #expect(controller.workspaceManager.focusedToken == targetToken)
-        #expect(controller.workspaceManager.pendingFocusedToken == nil)
+        #expect(controller.interactionWorkspace()?.id == workspaceTwo)
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == targetToken)
+        #expect(controller.workspaceManager.activeFocusRequestToken == nil)
     }
 
-    @Test @MainActor func workspaceDidActivateApplicationRevealsManagedWindowOnInactiveWorkspace() async {
+    @Test @MainActor func workspaceDidActivateApplicationRevealsManagedWindowOnInteractionWorkspace() async {
         let controller = makeAXEventTestController()
         controller.hasStartedServices = true
         guard let workspaceOne = controller.workspaceManager.workspaceId(for: "1", createIfMissing: false),
@@ -1354,8 +1354,8 @@ private func waitUntilAXEventTest(
             return AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: targetToken.windowId)
         }
 
-        #expect(controller.activeWorkspace()?.id == workspaceOne)
-        #expect(controller.workspaceManager.focusedToken == sourceToken)
+        #expect(controller.interactionWorkspace()?.id == workspaceOne)
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == sourceToken)
 
         controller.axEventHandler.handleAppActivation(
             pid: targetPid,
@@ -1363,14 +1363,14 @@ private func waitUntilAXEventTest(
         )
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
 
-        #expect(controller.activeWorkspace()?.id == workspaceTwo)
-        #expect(controller.workspaceManager.focusedToken == targetToken)
-        #expect(controller.workspaceManager.pendingFocusedToken == nil)
-        #expect(controller.workspaceManager.lastFocusedToken(in: workspaceTwo) == targetToken)
+        #expect(controller.interactionWorkspace()?.id == workspaceTwo)
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == targetToken)
+        #expect(controller.workspaceManager.activeFocusRequestToken == nil)
+        #expect(controller.workspaceManager.rememberedTiledFocusToken(in: workspaceTwo) == targetToken)
         #expect(controller.workspaceManager.isNonManagedFocusActive == false)
     }
 
-    @Test @MainActor func cgsFrontAppChangedRevealsManagedWindowOnInactiveWorkspace() async {
+    @Test @MainActor func cgsFrontAppChangedRevealsManagedWindowOnInteractionWorkspace() async {
         let controller = makeAXEventTestController()
         controller.hasStartedServices = true
         guard let workspaceOne = controller.workspaceManager.workspaceId(for: "1", createIfMissing: false),
@@ -1406,8 +1406,8 @@ private func waitUntilAXEventTest(
             return AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: targetToken.windowId)
         }
 
-        #expect(controller.activeWorkspace()?.id == workspaceOne)
-        #expect(controller.workspaceManager.focusedToken == sourceToken)
+        #expect(controller.interactionWorkspace()?.id == workspaceOne)
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == sourceToken)
 
         controller.axEventHandler.handleAppActivation(
             pid: targetPid,
@@ -1415,10 +1415,10 @@ private func waitUntilAXEventTest(
         )
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
 
-        #expect(controller.activeWorkspace()?.id == workspaceTwo)
-        #expect(controller.workspaceManager.focusedToken == targetToken)
-        #expect(controller.workspaceManager.pendingFocusedToken == nil)
-        #expect(controller.workspaceManager.lastFocusedToken(in: workspaceTwo) == targetToken)
+        #expect(controller.interactionWorkspace()?.id == workspaceTwo)
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == targetToken)
+        #expect(controller.workspaceManager.activeFocusRequestToken == nil)
+        #expect(controller.workspaceManager.rememberedTiledFocusToken(in: workspaceTwo) == targetToken)
         #expect(controller.workspaceManager.isNonManagedFocusActive == false)
     }
 
@@ -1479,8 +1479,8 @@ private func waitUntilAXEventTest(
             }
         }
 
-        #expect(controller.workspaceManager.pendingFocusedToken == targetToken)
-        #expect(controller.workspaceManager.focusedToken == oldToken)
+        #expect(controller.workspaceManager.activeFocusRequestToken == targetToken)
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == oldToken)
         #expect(focusedWindows.contains { $0.0 == getpid() && $0.1 == UInt32(targetToken.windowId) })
 
         controller.axEventHandler.focusedWindowRefProvider = { pid in
@@ -1489,12 +1489,12 @@ private func waitUntilAXEventTest(
         }
 
         await waitUntilAXEventTest(iterations: 400) {
-            controller.workspaceManager.focusedToken == targetToken &&
-                controller.workspaceManager.pendingFocusedToken == nil
+            controller.workspaceManager.confirmedManagedFocusToken == targetToken &&
+                controller.workspaceManager.activeFocusRequestToken == nil
         }
 
-        #expect(controller.workspaceManager.focusedToken == targetToken)
-        #expect(controller.workspaceManager.pendingFocusedToken == nil)
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == targetToken)
+        #expect(controller.workspaceManager.activeFocusRequestToken == nil)
     }
 
     @Test @MainActor func externalFocusedWindowChangeCancelsConflictingPendingRequestAndAdoptsObservedManagedWindow() {
@@ -1558,9 +1558,9 @@ private func waitUntilAXEventTest(
 
         let trace = createFocusTraceEvents(on: controller)
         #expect(controller.focusBridge.activeManagedRequest == nil)
-        #expect(controller.workspaceManager.pendingFocusedToken == nil)
-        #expect(controller.workspaceManager.focusedToken == observedToken)
-        #expect(controller.currentKeyboardFocusTargetForRendering()?.token == observedToken)
+        #expect(controller.workspaceManager.activeFocusRequestToken == nil)
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == observedToken)
+        #expect(controller.currentBorderTarget()?.token == observedToken)
         #expect(!trace.contains { event in
             if case let .activationDeferred(_, token, source, reason, _) = event.kind {
                 return token == pendingToken &&
@@ -1631,9 +1631,9 @@ private func waitUntilAXEventTest(
 
         let trace = createFocusTraceEvents(on: controller)
         #expect(controller.focusBridge.activeManagedRequest == nil)
-        #expect(controller.workspaceManager.pendingFocusedToken == nil)
+        #expect(controller.workspaceManager.activeFocusRequestToken == nil)
         #expect(controller.workspaceManager.isNonManagedFocusActive)
-        #expect(controller.currentKeyboardFocusTargetForRendering() == nil)
+        #expect(controller.currentBorderTarget() == nil)
         #expect(!trace.contains { event in
             if case let .activationDeferred(_, token, source, reason, _) = event.kind {
                 return token == pendingToken &&
@@ -1706,10 +1706,10 @@ private func waitUntilAXEventTest(
 
         let trace = createFocusTraceEvents(on: controller)
         #expect(controller.focusBridge.activeManagedRequest == nil)
-        #expect(controller.workspaceManager.pendingFocusedToken == nil)
+        #expect(controller.workspaceManager.activeFocusRequestToken == nil)
         #expect(controller.workspaceManager.isNonManagedFocusActive)
-        #expect(controller.currentKeyboardFocusTargetForRendering()?.token == observedToken)
-        #expect(controller.currentKeyboardFocusTargetForRendering()?.isManaged == false)
+        #expect(controller.currentBorderTarget()?.token == observedToken)
+        #expect(controller.currentBorderTarget()?.isManaged == false)
         #expect(!trace.contains { event in
             if case let .activationDeferred(_, token, source, reason, _) = event.kind {
                 return token == pendingToken &&
@@ -1786,7 +1786,7 @@ private func waitUntilAXEventTest(
         controller.layoutRefreshController.executeLayoutPlans(firstPlans)
         controller.focusWindow(firstPendingToken)
         await waitUntilAXEventTest(iterations: 1_000) {
-            controller.workspaceManager.pendingFocusedToken == firstPendingToken &&
+            controller.workspaceManager.activeFocusRequestToken == firstPendingToken &&
                 lastAppliedBorderWindowId(on: controller) == oldToken.windowId
         }
 
@@ -1797,8 +1797,8 @@ private func waitUntilAXEventTest(
             )
         }
 
-        #expect(controller.workspaceManager.focusedToken == oldToken)
-        #expect(controller.workspaceManager.pendingFocusedToken == nil)
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == oldToken)
+        #expect(controller.workspaceManager.activeFocusRequestToken == nil)
         #expect(lastAppliedBorderWindowId(on: controller) == oldToken.windowId)
     }
 
@@ -1862,7 +1862,7 @@ private func waitUntilAXEventTest(
         controller.layoutRefreshController.executeLayoutPlans(firstPlans)
         controller.focusWindow(firstPendingToken)
         await waitUntilAXEventTest(iterations: 1_000) {
-            controller.workspaceManager.pendingFocusedToken == firstPendingToken
+            controller.workspaceManager.activeFocusRequestToken == firstPendingToken
         }
 
         for _ in 0 ... 5 {
@@ -1872,7 +1872,7 @@ private func waitUntilAXEventTest(
             )
         }
 
-        #expect(controller.workspaceManager.pendingFocusedToken == nil)
+        #expect(controller.workspaceManager.activeFocusRequestToken == nil)
         #expect(lastAppliedBorderWindowId(on: controller) == oldToken.windowId)
 
         controller.axEventHandler.resetDebugStateForTests()
@@ -1889,7 +1889,7 @@ private func waitUntilAXEventTest(
         controller.layoutRefreshController.executeLayoutPlans(secondPlans)
         controller.focusWindow(secondPendingToken)
         await waitUntilAXEventTest(iterations: 1_000) {
-            controller.workspaceManager.pendingFocusedToken == secondPendingToken
+            controller.workspaceManager.activeFocusRequestToken == secondPendingToken
         }
 
         controller.axEventHandler.handleAppActivation(
@@ -1898,7 +1898,7 @@ private func waitUntilAXEventTest(
         )
 
         let deferredTrace = createFocusTraceEvents(on: controller)
-        #expect(controller.workspaceManager.pendingFocusedToken == secondPendingToken)
+        #expect(controller.workspaceManager.activeFocusRequestToken == secondPendingToken)
         #expect(deferredTrace.contains { event in
             if case let .activationDeferred(_, token, source, reason, attempt) = event.kind {
                 return token == secondPendingToken &&
@@ -1918,8 +1918,8 @@ private func waitUntilAXEventTest(
             source: .focusedWindowChanged
         )
 
-        #expect(controller.workspaceManager.focusedToken == secondPendingToken)
-        #expect(controller.workspaceManager.pendingFocusedToken == nil)
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == secondPendingToken)
+        #expect(controller.workspaceManager.activeFocusRequestToken == nil)
         #expect(lastAppliedBorderWindowId(on: controller) == secondPendingToken.windowId)
     }
 
@@ -1938,7 +1938,7 @@ private func waitUntilAXEventTest(
             registry.resetForTests()
         }
 
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -2109,7 +2109,7 @@ private func waitUntilAXEventTest(
     @Test @MainActor func fullscreenManagedActivationSuspendsManagedWindowAndRequestsPlaceholderRelayout() async {
         let controller = makeAXEventTestController()
         controller.hasStartedServices = true
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -2141,7 +2141,7 @@ private func waitUntilAXEventTest(
             preferredFrameSource: .observed,
             forceOrdering: true
         )
-        #expect(controller.currentKeyboardFocusTargetForRendering()?.token == unmanagedToken)
+        #expect(controller.currentBorderTarget()?.token == unmanagedToken)
 
         var relayoutEvents: [(RefreshReason, LayoutRefreshController.RefreshRoute)] = []
         controller.layoutRefreshController.resetDebugState()
@@ -2160,8 +2160,8 @@ private func waitUntilAXEventTest(
         #expect(controller.workspaceManager.layoutReason(for: token) == .nativeFullscreen)
         #expect(controller.workspaceManager.isNonManagedFocusActive)
         #expect(controller.workspaceManager.isAppFullscreenActive)
-        #expect(controller.workspaceManager.focusedToken == nil)
-        #expect(controller.currentKeyboardFocusTargetForRendering()?.token == token)
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == nil)
+        #expect(controller.currentBorderTarget()?.token == token)
         #expect(lastAppliedBorderWindowId(on: controller) == nil)
         _ = controller.focusBorderController.refresh(forceOrdering: true)
         #expect(lastAppliedBorderWindowId(on: controller) == nil)
@@ -2173,7 +2173,7 @@ private func waitUntilAXEventTest(
     @Test @MainActor func missingFocusedWindowFallbackPreservesNativeFullscreenLifecycleContext() {
         let controller = makeAXEventTestController()
         controller.hasStartedServices = true
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -2209,7 +2209,7 @@ private func waitUntilAXEventTest(
         #expect(controller.workspaceManager.isNonManagedFocusActive)
         #expect(controller.workspaceManager.isAppFullscreenActive)
         #expect(controller.workspaceManager.hasNativeFullscreenLifecycleContext)
-        #expect(controller.workspaceManager.focusedToken == nil)
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == nil)
     }
 
     @Test @MainActor func nativeFullscreenEnterDestroySurvivesFollowupBeforeDelayedSameTokenActivation() async {
@@ -2217,7 +2217,7 @@ private func waitUntilAXEventTest(
         defer { controller.axEventHandler.resetDebugStateForTests() }
         controller.hasStartedServices = true
         controller.axManager.currentWindowsAsyncOverride = { [] }
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -2275,7 +2275,7 @@ private func waitUntilAXEventTest(
         let controller = makeAXEventTestController()
         defer { controller.axEventHandler.resetDebugStateForTests() }
         controller.hasStartedServices = true
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -2340,13 +2340,13 @@ private func waitUntilAXEventTest(
         #expect(controller.workspaceManager.entry(for: token)?.handle === originalEntry.handle)
         #expect(controller.workspaceManager.layoutReason(for: token) == .nativeFullscreen)
         #expect(controller.focusBridge.activeManagedRequest == nil)
-        #expect(controller.currentKeyboardFocusTargetForRendering() == nil)
-        #expect(controller.workspaceManager.pendingFocusedToken == nil)
+        #expect(controller.currentBorderTarget() == nil)
+        #expect(controller.workspaceManager.activeFocusRequestToken == nil)
     }
 
     @Test @MainActor func ordinaryFocusedDestroyDoesNotSpeculativelyPreserveNativeFullscreen() {
         let controller = makeAXEventTestController()
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -2372,7 +2372,7 @@ private func waitUntilAXEventTest(
 
     @Test @MainActor func floatingDestroyDoesNotSpeculativelyPreserveNativeFullscreen() {
         let controller = makeAXEventTestController()
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -2402,7 +2402,7 @@ private func waitUntilAXEventTest(
         defer { controller.axEventHandler.resetDebugStateForTests() }
         controller.hasStartedServices = true
         controller.axManager.currentWindowsAsyncOverride = { [] }
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -2453,7 +2453,7 @@ private func waitUntilAXEventTest(
         #expect(controller.workspaceManager.nativeFullscreenRecord(for: token) == nil)
         #expect(controller.workspaceManager.entry(for: token)?.handle === originalEntry.handle)
         #expect(controller.workspaceManager.layoutReason(for: token) == .standard)
-        #expect(controller.workspaceManager.focusedToken == token)
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == token)
         #expect(controller.workspaceManager.isNonManagedFocusActive == false)
         #expect(controller.workspaceManager.isAppFullscreenActive == false)
     }
@@ -2461,7 +2461,7 @@ private func waitUntilAXEventTest(
     @Test @MainActor func nativeFullscreenUnavailableReplacementRekeysManagedHandleWithoutReplacingIt() {
         let controller = makeAXEventTestController()
         defer { controller.axEventHandler.resetDebugStateForTests() }
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -2506,7 +2506,7 @@ private func waitUntilAXEventTest(
     @Test @MainActor func nativeFullscreenSameTokenReplacementSuspensionClearsFocusedBorderAndRelayouts() async {
         let controller = makeAXEventTestController()
         defer { controller.axEventHandler.resetDebugStateForTests() }
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -2568,7 +2568,7 @@ private func waitUntilAXEventTest(
     @Test @MainActor func nativeFullscreenRekeyedReplacementSuspensionClearsFocusedBorderAndRelayouts() async {
         let controller = makeAXEventTestController()
         defer { controller.axEventHandler.resetDebugStateForTests() }
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -2636,7 +2636,7 @@ private func waitUntilAXEventTest(
     @Test @MainActor func nativeFullscreenReplacementCreateUsesSingleSuspensionRelayout() async {
         let controller = makeAXEventTestController()
         defer { controller.axEventHandler.resetDebugStateForTests() }
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -2709,7 +2709,7 @@ private func waitUntilAXEventTest(
             controller.axEventHandler.resetDebugStateForTests()
             controller.nativeFullscreenPlaceholderManager.removeAll()
         }
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -2810,7 +2810,7 @@ private func waitUntilAXEventTest(
     @Test @MainActor func nativeFullscreenReplacementCreateRetriesWhenWindowServerInfoIsInitiallyUnavailable() async {
         let controller = makeAXEventTestController()
         defer { controller.axEventHandler.resetDebugStateForTests() }
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -3028,7 +3028,7 @@ private func waitUntilAXEventTest(
     @Test @MainActor func nativeFullscreenPlaceholderRekeysWithManagedWindowIdentity() {
         let controller = makeAXEventTestController()
         defer { controller.axEventHandler.resetDebugStateForTests() }
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -3077,7 +3077,7 @@ private func waitUntilAXEventTest(
     @Test @MainActor func resizePlaceholderClearsWithManagedWindowIdentityRekey() async throws {
         let controller = makeAXEventTestController()
         defer { controller.axEventHandler.resetDebugStateForTests() }
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -3156,7 +3156,7 @@ private func waitUntilAXEventTest(
             NativeFullscreenPlaceholderManager.materializesWindowsForTests = false
             controller.axEventHandler.resetDebugStateForTests()
         }
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -3202,7 +3202,7 @@ private func waitUntilAXEventTest(
             NativeFullscreenPlaceholderManager.materializesWindowsForTests = false
             controller.axEventHandler.resetDebugStateForTests()
         }
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -3256,7 +3256,7 @@ private func waitUntilAXEventTest(
             NativeFullscreenPlaceholderManager.materializesWindowsForTests = false
             controller.axEventHandler.resetDebugStateForTests()
         }
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -3323,7 +3323,7 @@ private func waitUntilAXEventTest(
     @Test @MainActor func nativeFullscreenRestoreAndDestroyRemovePlaceholderSnapshot() {
         let controller = makeAXEventTestController()
         defer { controller.axEventHandler.resetDebugStateForTests() }
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -3391,7 +3391,7 @@ private func waitUntilAXEventTest(
         #expect(controller.workspaceManager.nativeFullscreenRecord(for: removedToken)?.availability == .temporarilyUnavailable)
     }
 
-    @Test @MainActor func workspaceDidActivateApplicationRevealsRestoredManagedWindowOnInactiveWorkspace() {
+    @Test @MainActor func workspaceDidActivateApplicationRevealsRestoredManagedWindowOnInteractionWorkspace() {
         let controller = makeAXEventTestController()
         controller.hasStartedServices = true
         guard let workspaceOne = controller.workspaceManager.workspaceId(for: "1", createIfMissing: false),
@@ -3437,8 +3437,8 @@ private func waitUntilAXEventTest(
             return AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: replacementToken.windowId)
         }
 
-        #expect(controller.activeWorkspace()?.id == workspaceOne)
-        #expect(controller.workspaceManager.focusedToken == nil)
+        #expect(controller.interactionWorkspace()?.id == workspaceOne)
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == nil)
 
         controller.axEventHandler.handleAppActivation(
             pid: targetPid,
@@ -3450,10 +3450,10 @@ private func waitUntilAXEventTest(
             return
         }
 
-        #expect(controller.activeWorkspace()?.id == workspaceTwo)
-        #expect(controller.workspaceManager.focusedToken == replacementToken)
-        #expect(controller.workspaceManager.pendingFocusedToken == nil)
-        #expect(controller.workspaceManager.lastFocusedToken(in: workspaceTwo) == replacementToken)
+        #expect(controller.interactionWorkspace()?.id == workspaceTwo)
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == replacementToken)
+        #expect(controller.workspaceManager.activeFocusRequestToken == nil)
+        #expect(controller.workspaceManager.rememberedTiledFocusToken(in: workspaceTwo) == replacementToken)
         #expect(controller.workspaceManager.isNonManagedFocusActive == false)
         #expect(controller.workspaceManager.entry(for: originalToken) == nil)
         #expect(replacementEntry.handle === originalEntry.handle)
@@ -3463,7 +3463,7 @@ private func waitUntilAXEventTest(
 
     @Test @MainActor func nativeFullscreenCommandRoundTripsThroughObservedStateTransitions() {
         let controller = makeAXEventTestController()
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -3520,7 +3520,7 @@ private func waitUntilAXEventTest(
         #expect(controller.workspaceManager.layoutReason(for: token) == .nativeFullscreen)
         #expect(controller.workspaceManager.isNonManagedFocusActive)
         #expect(controller.workspaceManager.isAppFullscreenActive)
-        #expect(controller.workspaceManager.focusedToken == nil)
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == nil)
 
         controller.commandHandler.handleCommand(.toggleNativeFullscreen)
 
@@ -3548,14 +3548,14 @@ private func waitUntilAXEventTest(
 
         #expect(controller.workspaceManager.nativeFullscreenRecord(for: token) == nil)
         #expect(controller.workspaceManager.layoutReason(for: token) == .standard)
-        #expect(controller.workspaceManager.focusedToken == token)
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == token)
         #expect(controller.workspaceManager.isNonManagedFocusActive == false)
         #expect(controller.workspaceManager.isAppFullscreenActive == false)
     }
 
     @Test @MainActor func hiddenMoveResizeEventsAreSuppressedButVisibleOnesStillRelayout() async {
         let controller = makeAXEventTestController()
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -3613,7 +3613,7 @@ private func waitUntilAXEventTest(
 
     @Test @MainActor func nativeHiddenMoveResizeEventsDoNotRelayout() async {
         let controller = makeAXEventTestController()
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -3657,7 +3657,7 @@ private func waitUntilAXEventTest(
     @Test @MainActor func frameChangedBurstCoalescesToSingleRelayout() async {
         await withCGSEventObserverIsolationForTests {
             let controller = makeAXEventTestController()
-            guard let workspaceId = controller.activeWorkspace()?.id else {
+            guard let workspaceId = controller.interactionWorkspace()?.id else {
                 Issue.record("Missing active workspace")
                 return
             }
@@ -3701,7 +3701,7 @@ private func waitUntilAXEventTest(
 
     @Test @MainActor func focusedFrameChangedUsesDirectBorderUpdateAndKeepsRelayout() async {
         let controller = makeAXEventTestController()
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -3925,7 +3925,7 @@ private func waitUntilAXEventTest(
 
     @Test @MainActor func unresolvedManagedFrameChangedDoesNotUseTrackedWindowIdFallbackForBorder() async {
         let controller = makeAXEventTestController()
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -3968,7 +3968,7 @@ private func waitUntilAXEventTest(
 
     @Test @MainActor func unresolvedManagedFloatingFrameChangedUsesUniqueTrackedFallbackForBorderAndGeometry() async {
         let controller = makeAXEventTestController()
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -4028,7 +4028,7 @@ private func waitUntilAXEventTest(
 
     @Test @MainActor func unresolvedManagedFloatingFrameChangedRejectsAmbiguousTrackedFallback() async {
         let controller = makeAXEventTestController()
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -4096,7 +4096,7 @@ private func waitUntilAXEventTest(
 
     @Test @MainActor func focusedFrameChangedWithPendingWriteSkipsObservedReadForBorder() async {
         let controller = makeAXEventTestController()
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -4155,7 +4155,7 @@ private func waitUntilAXEventTest(
 
     @Test @MainActor func nonFocusedFrameChangedWithPendingWriteDoesNotRelayout() async {
         let controller = makeAXEventTestController()
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -4210,7 +4210,7 @@ private func waitUntilAXEventTest(
 
     @Test @MainActor func nonFocusedFrameChangedMatchingLastAppliedFrameDoesNotRelayout() async {
         let controller = makeAXEventTestController()
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -4287,7 +4287,7 @@ private func waitUntilAXEventTest(
 
     @Test @MainActor func floatingFrameChangedUpdatesGeometryWithoutRelayout() async {
         let controller = makeAXEventTestController()
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -4337,7 +4337,7 @@ private func waitUntilAXEventTest(
     @Test @MainActor func interactiveGestureSuppresssFrameChangedRelayoutButKeepsBorderPath() async {
         await withCGSEventObserverIsolationForTests {
             let controller = makeAXEventTestController()
-            guard let workspaceId = controller.activeWorkspace()?.id else {
+            guard let workspaceId = controller.interactionWorkspace()?.id else {
                 Issue.record("Missing active workspace")
                 return
             }
@@ -4402,7 +4402,7 @@ private func waitUntilAXEventTest(
 
     @Test @MainActor func committedViewportGestureSuppressesFrameChangedRelayout() {
         let controller = makeAXEventTestController()
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -4460,7 +4460,7 @@ private func waitUntilAXEventTest(
 
     @Test @MainActor func niriScrollAnimationSuppressesFrameChangedRelayout() {
         let controller = makeAXEventTestController()
-        guard let workspaceId = controller.activeWorkspace()?.id,
+        guard let workspaceId = controller.interactionWorkspace()?.id,
               let monitor = controller.workspaceManager.monitor(for: workspaceId)
         else {
             Issue.record("Missing active workspace")
@@ -4520,7 +4520,7 @@ private func waitUntilAXEventTest(
 
     @Test @MainActor func interactiveGestureUsesFastFrameProviderWhenPrimaryProviderIsMissing() {
         let controller = makeAXEventTestController()
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -4671,7 +4671,7 @@ private func waitUntilAXEventTest(
         let controller = makeAXEventTestController()
         defer { controller.axManager.fullRescanEnumerationOverrideForTests = nil }
         guard let monitor = controller.monitorForInteraction(),
-              let createWorkspaceId = controller.activeWorkspace()?.id,
+              let createWorkspaceId = controller.interactionWorkspace()?.id,
               let laterWorkspaceId = controller.workspaceManager.workspaceId(for: "2", createIfMissing: false)
         else {
             Issue.record("Missing workspace fixture")
@@ -4723,7 +4723,7 @@ private func waitUntilAXEventTest(
             controller.workspaceManager.entry(forPid: getpid(), windowId: Int(windowId)) != nil
         }
 
-        #expect(controller.activeWorkspace()?.id == laterWorkspaceId)
+        #expect(controller.interactionWorkspace()?.id == laterWorkspaceId)
         #expect(controller.workspaceManager.entry(forPid: getpid(), windowId: Int(windowId))?
             .workspaceId == laterWorkspaceId)
         #expect(controller.axEventHandler.pendingCreatePlacementContext(for: Int(windowId)) == nil)
@@ -4855,7 +4855,7 @@ private func waitUntilAXEventTest(
             controller.workspaceManager.entry(forPid: getpid(), windowId: windowId) != nil
         }
 
-        #expect(controller.activeWorkspace()?.id == primaryWorkspaceId)
+        #expect(controller.interactionWorkspace()?.id == primaryWorkspaceId)
         #expect(controller.workspaceManager.entry(forPid: getpid(), windowId: windowId)?
             .workspaceId == secondaryWorkspaceId)
     }
@@ -4865,7 +4865,7 @@ private func waitUntilAXEventTest(
 
     @Test @MainActor func structuralReplacementDestroyThenCreateFlushesWithinSingleGraceWindow() async {
         let controller = makeAXEventTestController(trackedBundleId: currentTestBundleId())
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -4957,7 +4957,7 @@ private func waitUntilAXEventTest(
 
     @Test @MainActor func structuralReplacementCreateBeforeDestroyStillRekeysWithinSingleGraceWindow() async {
         let controller = makeAXEventTestController(trackedBundleId: currentTestBundleId())
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -5051,7 +5051,7 @@ private func waitUntilAXEventTest(
 
     @Test @MainActor func structuralReplacementUnmatchedDestroyUsesSingleGraceWindowBeforeRemoval() async {
         let controller = makeAXEventTestController(trackedBundleId: currentTestBundleId())
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -5100,7 +5100,7 @@ private func waitUntilAXEventTest(
 
     @Test @MainActor func structuralReplacementAmbiguousMultiCreateBurstFlushesWithoutRekeying() async {
         let controller = makeAXEventTestController(trackedBundleId: currentTestBundleId())
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -5238,7 +5238,7 @@ private func waitUntilAXEventTest(
 
     @Test @MainActor func structuralReplacementLateCreateWithinGraceKeepsNiriNodeAndRightColumnStable() async {
         let controller = makeAXEventTestController(trackedBundleId: currentTestBundleId())
-        guard let workspaceId = controller.activeWorkspace()?.id,
+        guard let workspaceId = controller.interactionWorkspace()?.id,
               let monitor = controller.workspaceManager.monitors.first
         else {
             Issue.record("Missing Niri workspace setup")
@@ -5411,7 +5411,7 @@ private func waitUntilAXEventTest(
 
     @Test @MainActor func browserReplacementRekeysManagedWindowWithoutGrowingColumnsOrBarEntries() async {
         let controller = makeAXEventTestController(trackedBundleId: "com.google.Chrome")
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -5529,7 +5529,7 @@ private func waitUntilAXEventTest(
 
     @Test @MainActor func browserReplacementDoesNotCoalesceAmbiguousMultipleCreates() async {
         let controller = makeAXEventTestController(trackedBundleId: "com.google.Chrome")
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -5617,7 +5617,7 @@ private func waitUntilAXEventTest(
     @Test @MainActor func structuralReplacementRekeysUnlistedAppWithoutAllowlist() async {
         let bundleId = "com.example.native-tabs"
         let controller = makeAXEventTestController(trackedBundleId: bundleId)
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -5713,7 +5713,7 @@ private func waitUntilAXEventTest(
     @Test @MainActor func structuralReplacementRekeysParentlessNativeTabWithCloseFrame() async {
         let bundleId = "com.example.parentless-native-tabs"
         let controller = makeAXEventTestController(trackedBundleId: bundleId)
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -5800,7 +5800,7 @@ private func waitUntilAXEventTest(
     @Test @MainActor func structuralReplacementDoesNotRekeyParentlessNativeTabWithFarFrame() async {
         let bundleId = "com.example.parentless-native-tabs-far"
         let controller = makeAXEventTestController(trackedBundleId: bundleId)
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -5884,7 +5884,7 @@ private func waitUntilAXEventTest(
     @Test @MainActor func structuralReplacementDoesNotRekeyWhenOnlyTitleMatches() async {
         let bundleId = "com.example.title-only"
         let controller = makeAXEventTestController(trackedBundleId: bundleId)
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -6023,7 +6023,7 @@ private func waitUntilAXEventTest(
 
     @Test @MainActor func unmatchedStructuralDestroyRemovesAfterSingleFlushWindow() {
         let controller = makeAXEventTestController(trackedBundleId: currentTestBundleId())
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -6745,9 +6745,9 @@ private func waitUntilAXEventTest(
 
             controller.focusWindow(secondaryToken)
 
-            #expect(controller.workspaceManager.focusedToken == primaryToken)
-            #expect(controller.workspaceManager.pendingFocusedToken == secondaryToken)
-            #expect(controller.workspaceManager.pendingFocusedWorkspaceId == secondaryWorkspaceId)
+            #expect(controller.workspaceManager.confirmedManagedFocusToken == primaryToken)
+            #expect(controller.workspaceManager.activeFocusRequestToken == secondaryToken)
+            #expect(controller.workspaceManager.activeFocusRequestWorkspaceId == secondaryWorkspaceId)
             #expect(controller.workspaceManager.interactionMonitorId == primaryMonitor.id)
 
             let createdWindowId: UInt32 = 8306
@@ -7226,7 +7226,7 @@ private func waitUntilAXEventTest(
             ]
         )
 
-        guard let activeWorkspaceId = controller.activeWorkspace()?.id,
+        guard let activeWorkspaceId = controller.interactionWorkspace()?.id,
               let siblingWorkspaceId = controller.workspaceManager.workspaceId(for: "3", createIfMissing: false)
         else {
             Issue.record("Missing configured workspaces")
@@ -7512,7 +7512,7 @@ private func waitUntilAXEventTest(
     @Test @MainActor func parentedFloatingDialogDoesNotStructurallyRekeyOverParent() async {
         let bundleId = "com.example.parented-dialog-rekey"
         let controller = makeAXEventTestController(trackedBundleId: bundleId)
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -7603,7 +7603,7 @@ private func waitUntilAXEventTest(
                 AppRule(bundleId: bundleId, layout: .float)
             ]
         )
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -8063,7 +8063,7 @@ private func waitUntilAXEventTest(
 
         controller.setBordersEnabled(true)
         _ = confirmFocusedBorder(on: controller, token: entry.token, frame: frame)
-        #expect(controller.currentKeyboardFocusTargetForRendering()?.token == entry.token)
+        #expect(controller.currentBorderTarget()?.token == entry.token)
         #expect(lastAppliedBorderWindowId(on: controller) == Int(windowId))
 
         isVisible = false
@@ -8072,7 +8072,7 @@ private func waitUntilAXEventTest(
         }
 
         #expect(controller.workspaceManager.entry(for: entry.token) == nil)
-        #expect(controller.currentKeyboardFocusTargetForRendering() == nil)
+        #expect(controller.currentBorderTarget() == nil)
         #expect(lastAppliedBorderWindowId(on: controller) == nil)
     }
 
@@ -8105,7 +8105,7 @@ private func waitUntilAXEventTest(
         try? await Task.sleep(for: .milliseconds(150))
 
         #expect(controller.workspaceManager.entry(for: entry.token) != nil)
-        #expect(controller.currentKeyboardFocusTargetForRendering()?.token == entry.token)
+        #expect(controller.currentBorderTarget()?.token == entry.token)
         #expect(lastAppliedBorderWindowId(on: controller) == Int(windowId))
     }
 
@@ -8331,7 +8331,7 @@ private func waitUntilAXEventTest(
         #expect(entry.mode == .tiling)
         #expect(relayoutReasons == [.axWindowCreated])
         #expect(relayoutRoutes == [.relayout])
-        #expect(controller.activeWorkspace()?.id != workspaceId)
+        #expect(controller.interactionWorkspace()?.id != workspaceId)
         #expect(subscriptions == [[826]])
     }
 
@@ -8555,7 +8555,7 @@ private func waitUntilAXEventTest(
 
     @Test @MainActor func reevaluateWindowRulesRetainsTrackedCleanShotCaptureOverlayAsFloating() async {
         let controller = makeAXEventTestController()
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -8608,7 +8608,7 @@ private func waitUntilAXEventTest(
 
     @Test @MainActor func automaticHeuristicReevaluationDoesNotFloatExistingTiledWindow() async {
         let controller = makeAXEventTestController()
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -8648,7 +8648,7 @@ private func waitUntilAXEventTest(
 
     @Test @MainActor func automaticWorkspaceRuleFallbackDoesNotFloatExistingTiledWindow() async {
         let controller = makeAXEventTestController()
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -8697,7 +8697,7 @@ private func waitUntilAXEventTest(
         let bundleId = "com.example.parented-floating-child"
         let controller = makeAXEventTestController(trackedBundleId: bundleId)
         installSynchronousFrameApplySuccessOverride(on: controller)
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -8887,7 +8887,7 @@ private func waitUntilAXEventTest(
 
     @Test @MainActor func automaticTransientFloatingFallbackDoesNotTileExistingDialog() async {
         let controller = makeAXEventTestController()
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -8940,7 +8940,7 @@ private func waitUntilAXEventTest(
 
     @Test @MainActor func explicitUserFloatReevaluationStillTransitionsExistingTiledWindow() async {
         let controller = makeAXEventTestController()
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -8983,7 +8983,7 @@ private func waitUntilAXEventTest(
 
     @Test @MainActor func appHideAndUnhideUseVisibilityRouteAndPreserveModelState() async {
         let controller = makeAXEventTestController()
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -9029,7 +9029,7 @@ private func waitUntilAXEventTest(
 
     @Test @MainActor func hidingFocusedAppHidesBorderWithoutInvokingLayoutHandlers() async {
         let controller = makeAXEventTestController()
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -9077,7 +9077,7 @@ private func waitUntilAXEventTest(
     @Test @MainActor func destroyRemovesInactiveWorkspaceEntryImmediately() {
         let controller = makeAXEventTestController()
         guard let monitorId = controller.workspaceManager.monitors.first?.id,
-              let activeWorkspaceId = controller.activeWorkspace()?.id,
+              let activeWorkspaceId = controller.interactionWorkspace()?.id,
               let inactiveWorkspaceId = controller.workspaceManager.workspaceId(for: "2", createIfMissing: true)
         else {
             Issue.record("Missing workspace setup")
@@ -9108,7 +9108,7 @@ private func waitUntilAXEventTest(
     @Test @MainActor func createAfterInactiveDestroyAllowsReusedWindowIdFromDifferentPid() {
         let controller = makeAXEventTestController()
         guard let monitorId = controller.workspaceManager.monitors.first?.id,
-              let activeWorkspaceId = controller.activeWorkspace()?.id,
+              let activeWorkspaceId = controller.interactionWorkspace()?.id,
               let inactiveWorkspaceId = controller.workspaceManager.workspaceId(for: "2", createIfMissing: true)
         else {
             Issue.record("Missing workspace setup")
@@ -9156,7 +9156,7 @@ private func waitUntilAXEventTest(
 
     @Test @MainActor func destroyRemovesEntryOwnedManualOverride() {
         let controller = makeAXEventTestController()
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -9185,7 +9185,7 @@ private func waitUntilAXEventTest(
 
     @Test @MainActor func axDestroyPrefersHintedPidWhenWindowIdIsReused() {
         let controller = makeAXEventTestController()
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -9226,7 +9226,7 @@ private func waitUntilAXEventTest(
         }
 
         let controller = makeAXEventTestController()
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -9272,18 +9272,18 @@ private func waitUntilAXEventTest(
             forceOrdering: true
         )
 
-        #expect(controller.currentKeyboardFocusTargetForRendering()?.token == token)
+        #expect(controller.currentBorderTarget()?.token == token)
         #expect(lastAppliedBorderWindowId(on: controller) == token.windowId)
 
         controller.axEventHandler.handleRemoved(pid: token.pid, winId: token.windowId)
 
-        #expect(controller.currentKeyboardFocusTargetForRendering() == nil)
+        #expect(controller.currentBorderTarget() == nil)
         #expect(lastAppliedBorderWindowId(on: controller) == nil)
     }
 
     @Test @MainActor func trackedFloatingDestroyClearsFocusedBorderTarget() {
         let controller = makeAXEventTestController()
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -9306,13 +9306,13 @@ private func waitUntilAXEventTest(
             frame: CGRect(x: 50, y: 56, width: 520, height: 360)
         )
 
-        #expect(controller.currentKeyboardFocusTargetForRendering()?.token == token)
+        #expect(controller.currentBorderTarget()?.token == token)
         #expect(lastAppliedBorderWindowId(on: controller) == token.windowId)
 
         controller.axEventHandler.handleRemoved(pid: token.pid, winId: token.windowId)
 
         #expect(controller.workspaceManager.entry(for: token) == nil)
-        #expect(controller.currentKeyboardFocusTargetForRendering() == nil)
+        #expect(controller.currentBorderTarget() == nil)
         #expect(lastAppliedBorderWindowId(on: controller) == nil)
     }
 
@@ -9334,13 +9334,13 @@ private func waitUntilAXEventTest(
 
         controller.axEventHandler.handleAppDeactivated(pid: token.pid)
 
-        #expect(controller.currentKeyboardFocusTargetForRendering() == nil)
+        #expect(controller.currentBorderTarget() == nil)
         #expect(lastAppliedBorderWindowId(on: controller) == nil)
     }
 
     @Test @MainActor func trackedFloatingAppDeactivationClearsFocusedBorderTargetWithoutChangingFocusState() {
         let controller = makeAXEventTestController()
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -9365,10 +9365,10 @@ private func waitUntilAXEventTest(
 
         controller.axEventHandler.handleAppDeactivated(pid: token.pid)
 
-        #expect(controller.currentKeyboardFocusTargetForRendering() == nil)
+        #expect(controller.currentBorderTarget() == nil)
         #expect(lastAppliedBorderWindowId(on: controller) == nil)
         #expect(!controller.workspaceManager.isNonManagedFocusActive)
-        #expect(controller.workspaceManager.focusedToken == token)
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == token)
         #expect(!controller.updateManagedKeyboardFocusBorder(
             token: token,
             preferredFrame: CGRect(x: 80, y: 84, width: 520, height: 360)
@@ -9378,7 +9378,7 @@ private func waitUntilAXEventTest(
 
     @Test @MainActor func managedTiledAppDeactivationDoesNotClearFocusedBorderTarget() {
         let controller = makeAXEventTestController()
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -9402,14 +9402,14 @@ private func waitUntilAXEventTest(
 
         controller.axEventHandler.handleAppDeactivated(pid: token.pid)
 
-        #expect(controller.currentKeyboardFocusTargetForRendering()?.token == token)
+        #expect(controller.currentBorderTarget()?.token == token)
         #expect(lastAppliedBorderWindowId(on: controller) == token.windowId)
-        #expect(controller.workspaceManager.focusedToken == token)
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == token)
     }
 
     @Test @MainActor func trackedFloatingAppDeactivationDuringPendingManagedFocusOnlyClearsBorderTarget() {
         let controller = makeAXEventTestController()
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -9449,10 +9449,10 @@ private func waitUntilAXEventTest(
 
         controller.axEventHandler.handleAppDeactivated(pid: floatingToken.pid)
 
-        #expect(controller.currentKeyboardFocusTargetForRendering() == nil)
+        #expect(controller.currentBorderTarget() == nil)
         #expect(lastAppliedBorderWindowId(on: controller) == nil)
-        #expect(controller.workspaceManager.focusedToken == floatingToken)
-        #expect(controller.workspaceManager.pendingFocusedToken == pendingToken)
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == floatingToken)
+        #expect(controller.workspaceManager.activeFocusRequestToken == pendingToken)
         #expect(controller.focusBridge.activeManagedRequest?.token == pendingToken)
         #expect(!controller.workspaceManager.isNonManagedFocusActive)
         #expect(!controller.updateManagedKeyboardFocusBorder(
@@ -9464,7 +9464,7 @@ private func waitUntilAXEventTest(
 
     @Test @MainActor func nonManagedActivationKeepsExistingFocusSemanticsWithoutAXContextWarmup() {
         let controller = makeAXEventTestController()
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -9501,14 +9501,14 @@ private func waitUntilAXEventTest(
         )
 
         #expect(warmedPIDs.isEmpty)
-        #expect(controller.currentKeyboardFocusTargetForRendering()?.token == unmanagedToken)
+        #expect(controller.currentBorderTarget()?.token == unmanagedToken)
         #expect(controller.workspaceManager.isNonManagedFocusActive)
-        #expect(controller.workspaceManager.focusedToken == nil)
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == nil)
     }
 
     @Test @MainActor func focusedUntrackedStandardWindowIsAdmittedBeforeNonManagedFallback() async {
         let controller = makeAXEventTestController()
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -9580,8 +9580,8 @@ private func waitUntilAXEventTest(
 
         let trace = createFocusTraceEvents(on: controller)
         #expect(controller.workspaceManager.entry(for: admittedToken) != nil)
-        #expect(controller.workspaceManager.focusedToken == admittedToken)
-        #expect(controller.workspaceManager.pendingFocusedToken == nil)
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == admittedToken)
+        #expect(controller.workspaceManager.activeFocusRequestToken == nil)
         #expect(controller.workspaceManager.isNonManagedFocusActive == false)
         #expect(subscribedWindows.contains(admittedWindowId))
         #expect(relayoutReasons.contains(.axWindowCreated))
@@ -9610,7 +9610,7 @@ private func waitUntilAXEventTest(
     @Test @MainActor func focusedUntrackedStandardWindowAdmissionUsesCapturedCreatePlacementContext() async {
         let controller = makeAXEventTestController()
         guard let monitor = controller.monitorForInteraction(),
-              let focusedWorkspaceId = controller.activeWorkspace()?.id,
+              let focusedWorkspaceId = controller.interactionWorkspace()?.id,
               let laterWorkspaceId = controller.workspaceManager.workspaceId(for: "2", createIfMissing: false)
         else {
             Issue.record("Missing workspace fixture")
@@ -9678,7 +9678,7 @@ private func waitUntilAXEventTest(
         #expect(controller.axEventHandler.pendingCreatePlacementContext(for: Int(admittedWindowId)) != nil)
 
         #expect(controller.workspaceManager.setActiveWorkspace(laterWorkspaceId, on: monitor.id))
-        #expect(controller.activeWorkspace()?.id == laterWorkspaceId)
+        #expect(controller.interactionWorkspace()?.id == laterWorkspaceId)
         controller.axEventHandler.handleAppActivation(
             pid: admittedPid,
             source: .workspaceDidActivateApplication
@@ -9688,7 +9688,7 @@ private func waitUntilAXEventTest(
 
         let trace = createFocusTraceEvents(on: controller)
         #expect(controller.workspaceManager.entry(for: admittedToken)?.workspaceId == focusedWorkspaceId)
-        #expect(controller.workspaceManager.focusedToken == admittedToken)
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == admittedToken)
         #expect(controller.axEventHandler.pendingCreatePlacementContext(for: Int(admittedWindowId)) == nil)
         #expect(trace.contains { event in
             if case let .createPlacementResolved(
@@ -9715,7 +9715,7 @@ private func waitUntilAXEventTest(
 
     @Test @MainActor func focusedUntrackedStandardWindowAdmissionUsesFocusedAXRefWhenWindowInfoIsUnavailable() async {
         let controller = makeAXEventTestController()
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -9764,7 +9764,7 @@ private func waitUntilAXEventTest(
 
         let trace = createFocusTraceEvents(on: controller)
         #expect(controller.workspaceManager.entry(for: admittedToken)?.workspaceId == workspaceId)
-        #expect(controller.workspaceManager.focusedToken == admittedToken)
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == admittedToken)
         #expect(controller.workspaceManager.isNonManagedFocusActive == false)
         #expect(subscribedWindows.contains(UInt32(admittedWindowId)))
         #expect(relayoutReasons.contains(.axWindowCreated))
@@ -9799,12 +9799,12 @@ private func waitUntilAXEventTest(
             forceOrdering: true
         )
 
-        #expect(controller.currentKeyboardFocusTargetForRendering()?.token == token)
+        #expect(controller.currentBorderTarget()?.token == token)
         #expect(lastAppliedBorderWindowId(on: controller) == token.windowId)
 
         controller.axEventHandler.handleWindowMiniaturized(pid: token.pid, windowId: token.windowId)
 
-        #expect(controller.currentKeyboardFocusTargetForRendering() == nil)
+        #expect(controller.currentBorderTarget() == nil)
         #expect(lastAppliedBorderWindowId(on: controller) == nil)
     }
 
@@ -9838,7 +9838,7 @@ private func waitUntilAXEventTest(
 
         controller.axEventHandler.handleWindowMiniaturized(pid: oldToken.pid, windowId: oldToken.windowId)
 
-        #expect(controller.currentKeyboardFocusTargetForRendering()?.token == newToken)
+        #expect(controller.currentBorderTarget()?.token == newToken)
         #expect(lastAppliedBorderWindowId(on: controller) == newToken.windowId)
     }
 
@@ -9872,7 +9872,7 @@ private func waitUntilAXEventTest(
         controller.focusBorderController.hide()
         _ = controller.focusBorderController.refresh(forceOrdering: true)
 
-        #expect(controller.currentKeyboardFocusTargetForRendering() == nil)
+        #expect(controller.currentBorderTarget() == nil)
         #expect(lastAppliedBorderWindowId(on: controller) == nil)
     }
 
@@ -9908,14 +9908,14 @@ private func waitUntilAXEventTest(
         controller.focusBorderController.hide()
         _ = controller.focusBorderController.refresh(forceOrdering: true)
 
-        #expect(controller.currentKeyboardFocusTargetForRendering()?.token == token)
+        #expect(controller.currentBorderTarget()?.token == token)
         #expect(lastAppliedBorderWindowId(on: controller) == token.windowId)
         #expect(lastAppliedBorderFrame(on: controller) == frame)
     }
 
     @Test @MainActor func frameChangedUsesResolvedTokenWhenWindowIdsCollideAcrossPids() {
         let controller = makeAXEventTestController()
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }

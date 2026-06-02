@@ -15,7 +15,7 @@ import Testing
     @Test func overviewHotkeyFocusDirectionsMoveOverviewSelection() {
         let controller = makeLayoutPlanTestController()
         controller.motionPolicy.animationsEnabled = false
-        let workspaceId = try! #require(controller.activeWorkspace()?.id)
+        let workspaceId = try! #require(controller.interactionWorkspace()?.id)
         let monitorId = try! #require(controller.workspaceManager.monitors.first?.id)
         let firstToken = addLayoutPlanTestWindow(
             on: controller,

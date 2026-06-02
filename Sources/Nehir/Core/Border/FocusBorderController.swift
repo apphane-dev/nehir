@@ -28,7 +28,7 @@ final class FocusBorderController {
     var suppressNextFrameHintForTests: ((WindowToken) -> Bool)?
 
     private let borderManager: BorderManager
-    private var lastAXConfirmedTarget: KeyboardFocusTarget?
+    private var visualFocusTarget: KeyboardFocusTarget?
     private var requiresFocusValidationBeforeRender = false
     private var suppressedManagedTargets: Set<WindowToken> = []
 
@@ -47,7 +47,7 @@ final class FocusBorderController {
         preferredFrameSource: BorderFrameSource = .layout,
         forceOrdering: Bool = true
     ) -> Bool {
-        lastAXConfirmedTarget = target
+        visualFocusTarget = target
         requiresFocusValidationBeforeRender = false
         if let target {
             suppressedManagedTargets.remove(target.token)
@@ -65,7 +65,7 @@ final class FocusBorderController {
         preferredFrameSource: BorderFrameSource = .layout,
         forceOrdering: Bool = false
     ) -> Bool {
-        guard let target = lastAXConfirmedTarget else {
+        guard let target = visualFocusTarget else {
             borderManager.hideBorder()
             return false
         }
@@ -93,7 +93,7 @@ final class FocusBorderController {
         source: BorderFrameSource = .layout,
         forceOrdering: Bool = false
     ) -> Bool {
-        guard lastAXConfirmedTarget?.token == token else { return false }
+        guard visualFocusTarget?.token == token else { return false }
         if suppressNextFrameHintForTests?(token) == true {
             suppressNextFrameHintForTests = nil
             return false
@@ -106,12 +106,12 @@ final class FocusBorderController {
     }
 
     func hide() {
-        requiresFocusValidationBeforeRender = lastAXConfirmedTarget != nil
+        requiresFocusValidationBeforeRender = visualFocusTarget != nil
         borderManager.hideBorder()
     }
 
     func clear() {
-        lastAXConfirmedTarget = nil
+        visualFocusTarget = nil
         requiresFocusValidationBeforeRender = false
         borderManager.hideBorder()
     }
@@ -121,7 +121,7 @@ final class FocusBorderController {
         pid: pid_t? = nil
     ) {
         clearSuppressedManagedTargets(matching: token, pid: pid)
-        guard let target = lastAXConfirmedTarget else { return }
+        guard let target = visualFocusTarget else { return }
         let matchesToken = token.map { target.token == $0 } ?? true
         let matchesPid = pid.map { target.pid == $0 } ?? true
         guard matchesToken, matchesPid else { return }
@@ -133,7 +133,7 @@ final class FocusBorderController {
         matching pid: pid_t,
         where shouldClear: (KeyboardFocusTarget) -> Bool
     ) -> KeyboardFocusTarget? {
-        guard let target = lastAXConfirmedTarget,
+        guard let target = visualFocusTarget,
               target.pid == pid,
               shouldClear(target)
         else { return nil }
@@ -150,10 +150,10 @@ final class FocusBorderController {
         if suppressedManagedTargets.remove(oldToken) != nil {
             suppressedManagedTargets.insert(newToken)
         }
-        guard let target = lastAXConfirmedTarget,
+        guard let target = visualFocusTarget,
               target.token == oldToken
         else { return }
-        lastAXConfirmedTarget = KeyboardFocusTarget(
+        visualFocusTarget = KeyboardFocusTarget(
             token: newToken,
             axRef: axRef,
             workspaceId: workspaceId,
@@ -167,10 +167,10 @@ final class FocusBorderController {
         axRef: AXWindowRef,
         workspaceId: WorkspaceDescriptor.ID?
     ) {
-        guard let target = lastAXConfirmedTarget,
+        guard let target = visualFocusTarget,
               target.token == token
         else { return }
-        lastAXConfirmedTarget = KeyboardFocusTarget(
+        visualFocusTarget = KeyboardFocusTarget(
             token: token,
             axRef: axRef,
             workspaceId: workspaceId,
@@ -193,7 +193,7 @@ final class FocusBorderController {
     }
 
     func cleanup() {
-        lastAXConfirmedTarget = nil
+        visualFocusTarget = nil
         requiresFocusValidationBeforeRender = false
         suppressedManagedTargets.removeAll()
         borderManager.cleanup()
@@ -207,8 +207,8 @@ final class FocusBorderController {
         suppressedManagedTargets.contains(token)
     }
 
-    var currentTarget: KeyboardFocusTarget? {
-        lastAXConfirmedTarget
+    var currentBorderTarget: KeyboardFocusTarget? {
+        visualFocusTarget
     }
 
     var lastAppliedFocusedWindowIdForTests: Int? {

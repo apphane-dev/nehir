@@ -325,15 +325,15 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
     }
 
     static func resolveSummonAnchor(for wmController: WMController) -> CommandPaletteSummonAnchor? {
-        guard let activeWorkspace = wmController.activeWorkspace() else { return nil }
+        guard let activeWorkspace = wmController.interactionWorkspace() else { return nil }
 
-        let anchorToken = if let focusedToken = wmController.workspaceManager.focusedToken,
+        let anchorToken = if let focusedToken = wmController.workspaceManager.confirmedManagedFocusToken,
                              let entry = wmController.workspaceManager.entry(for: focusedToken),
                              entry.workspaceId == activeWorkspace.id
         {
             focusedToken
         } else {
-            wmController.workspaceManager.lastFocusedToken(in: activeWorkspace.id)
+            wmController.workspaceManager.preferredWorkspaceFocusToken(in: activeWorkspace.id)
         }
 
         guard let anchorToken,
