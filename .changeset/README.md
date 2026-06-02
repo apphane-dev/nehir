@@ -30,4 +30,6 @@ workflow calculates the next app version from pending changesets and the current
 To release, run the `Release` GitHub Actions workflow manually. It updates
 `Info.plist`, generates `docs/releases/vX.Y.Z.md`, creates the version tag,
 publishes the GitHub release, updates the Homebrew tap, and clears consumed
-pending changesets after all publishing steps succeed.
+pending changesets after all publishing steps succeed (stable only; prereleases
+update the `nehir@rc` cask, show only diffs from the previous RC, and skip
+changeset cleanup).

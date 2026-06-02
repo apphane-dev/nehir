@@ -85,14 +85,20 @@ If any publishing step fails before changeset cleanup, pending changesets remain
 
 ## Prereleases
 
-To publish a GitHub prerelease without updating Homebrew:
+Prereleases are also published to the RC cask in the Homebrew tap. Users can install the current preview build with:
+
+```bash
+brew install --cask guria/tap/nehir@rc
+```
+
+To publish a GitHub prerelease and update `nehir@rc`:
 
 1. Open `Guria/nehir` → **Actions** → **Release**.
 2. Click **Run workflow** on `main`.
 3. Enable `prerelease`.
 4. Set `prerelease_suffix`, for example `rc.1` or `beta.1`.
 
-The workflow tags the release as `vX.Y.Z-<suffix>`, creates `dist/Nehir-X.Y.Z-<suffix>.zip`, marks the GitHub Release as a prerelease, and skips committing release prep, Homebrew tap publishing, and changeset cleanup. The packaged app uses numeric `Info.plist` version `X.Y.Z` only in the workflow workspace, so the later stable release can consume the same pending changesets.
+The workflow tags the release as `vX.Y.Z-<suffix>`, creates `dist/Nehir-X.Y.Z-<suffix>.zip`, marks the GitHub Release as a prerelease with notes showing only changes since the last RC, and updates `Guria/homebrew-tap/Casks/nehir@rc.rb`. It skips committing release prep and changeset cleanup so the same pending changesets remain available for the next stable release.
 
 ## Mise file tasks
 

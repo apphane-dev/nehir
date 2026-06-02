@@ -14,6 +14,7 @@ Current release model:
 - Version tag creation is automated by the `Release` workflow.
 - Homebrew tap updates are automated by the `Release` workflow.
 - Consumed changeset cleanup is automated after all publishing steps succeed.
+- Prereleases publish to `nehir@rc` Homebrew cask; release notes include only changes since the previous RC.
 
 Use these local commands when needed:
 
@@ -46,7 +47,7 @@ The `Release` workflow will:
 6. Create tag `vX.Y.Z`.
 7. Build `dist/Nehir-X.Y.Z.zip`.
 8. Create the GitHub Release with generated notes.
-9. Update `Guria/homebrew-tap/Casks/nehir.rb` using the GitHub App token.
-10. Clear consumed `.changeset/*.md` files from `main` after publishing succeeds.
+9. Update `Guria/homebrew-tap/Casks/nehir.rb` (stable) or `Casks/nehir@rc.rb` (prerelease) using the GitHub App token.
+10. Clear consumed `.changeset/*.md` files from `main` after publishing succeeds (stable only).
 
 If the user asks for GitHub App setup, point them to `docs/HOMEBREW.md` and summarize the required secrets: `TAP_APP_ID` and `TAP_APP_PRIVATE_KEY`.

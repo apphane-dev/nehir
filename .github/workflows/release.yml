@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       prerelease:
-        description: "Create a GitHub prerelease and skip Homebrew tap publishing"
+        description: "Create a GitHub prerelease and publish it to the nehir@rc Homebrew cask"
         type: boolean
         default: false
       prerelease_suffix:
@@ -28,6 +28,7 @@ jobs:
     env:
       TAP_REPOSITORY: Guria/homebrew-tap
       CASK_PATH: Casks/nehir.rb
+      RC_CASK_PATH: Casks/nehir@rc.rb
 
     steps:
       - name: Check out Nehir main
@@ -62,9 +63,31 @@ jobs:
           xcodebuild -version
           mise --version
 
+      - name: Find last prerelease tag
+        if: ${{ inputs.prerelease }}
+        id: last-rc
+        shell: bash
+        run: |
+          set -euo pipefail
+          LAST_RC=$(git tag --list 'v*-*' --sort=-version:refname | head -1 || true)
+          if [ -n "$LAST_RC" ]; then
+            echo "since_tag=$LAST_RC" >> "$GITHUB_OUTPUT"
+            echo "Last prerelease tag: $LAST_RC"
+          else
+            echo "No previous prerelease tag found; will include all changesets."
+          fi
+
       - name: Apply release plan
         shell: bash
-        run: mise run release:apply -- "${{ steps.version.outputs.version }}"
+        env:
+          SINCE_TAG: ${{ steps.last-rc.outputs.since_tag || '' }}
+        run: |
+          set -euo pipefail
+          ARGS=("${{ steps.version.outputs.version }}")
+          if [ -n "$SINCE_TAG" ]; then
+            ARGS+=("--since-tag" "$SINCE_TAG")
+          fi
+          mise run release:apply -- "${ARGS[@]}"
 
       - name: Commit release prep
         if: ${{ !inputs.prerelease }}
@@ -133,7 +156,6 @@ jobs:
           gh release create "${args[@]}"
 
       - name: Create Homebrew tap token
-        if: ${{ !inputs.prerelease }}
         id: tap-token
         uses: actions/create-github-app-token@v1
         with:
@@ -143,7 +165,6 @@ jobs:
           repositories: homebrew-tap
 
       - name: Check out Homebrew tap
-        if: ${{ !inputs.prerelease }}
         uses: actions/checkout@v4
         with:
           repository: ${{ env.TAP_REPOSITORY }}
@@ -151,11 +172,10 @@ jobs:
           path: homebrew-tap
 
       - name: Update cask version and checksum
-        if: ${{ !inputs.prerelease }}
         env:
           VERSION: ${{ steps.version.outputs.version }}
           SHA256: ${{ steps.checksum.outputs.sha256 }}
-          CASK_FILE: homebrew-tap/${{ env.CASK_PATH }}
+          CASK_FILE: homebrew-tap/${{ inputs.prerelease && env.RC_CASK_PATH || env.CASK_PATH }}
         shell: bash
         run: |
           ruby <<'RUBY'
@@ -170,14 +190,14 @@ jobs:
           RUBY
 
       - name: Validate cask syntax and style
-        if: ${{ !inputs.prerelease }}
+        env:
+          CASK_PATH_TO_VALIDATE: ${{ inputs.prerelease && env.RC_CASK_PATH || env.CASK_PATH }}
         working-directory: homebrew-tap
         run: |
-          ruby -c Casks/nehir.rb
-          brew style Casks/nehir.rb
+          ruby -c "$CASK_PATH_TO_VALIDATE"
+          brew style "$CASK_PATH_TO_VALIDATE"
 
       - name: Commit and push tap update
-        if: ${{ !inputs.prerelease }}
         working-directory: homebrew-tap
         shell: bash
         run: |
@@ -189,8 +209,8 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add "${{ env.CASK_PATH }}"
-          git commit -m "Update Nehir to ${{ steps.version.outputs.version }}"
+          git add "${{ inputs.prerelease && env.RC_CASK_PATH || env.CASK_PATH }}"
+          git commit -m "Update Nehir${{ inputs.prerelease && ' RC' || '' }} to ${{ steps.version.outputs.version }}"
           git push
 
       - name: Clear released changesets
