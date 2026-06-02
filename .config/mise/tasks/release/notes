@@ -51,7 +51,7 @@ for path in files:
     normalized = " ".join(line.strip() for line in body.splitlines() if line.strip())
     entries.append(normalized)
 
-lines = [f"# Nehir {tag[1:]}", "", "## Changes", ""]
+lines = ["## Changes", ""]
 for item in entries:
     prefix = "- " if not item.startswith("- ") else ""
     lines.append(f"{prefix}{item}")
