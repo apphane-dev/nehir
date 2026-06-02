@@ -31,9 +31,9 @@ For public Homebrew installs, the release asset URL must be publicly downloadabl
 Every user-visible change should add a pending changeset:
 
 ```bash
-Scripts/add-changeset.sh patch "Fixed window restoration after display changes."
-Scripts/add-changeset.sh minor "Added a new workspace overview command."
-Scripts/add-changeset.sh major "Changed configuration format incompatibly."
+mise run changeset -- patch "Fixed window restoration after display changes."
+mise run changeset -- minor "Added a new workspace overview command."
+mise run changeset -- major "Changed configuration format incompatibly."
 ```
 
 Changesets use the official Changesets frontmatter shape:
@@ -64,6 +64,7 @@ Instead:
 1. Ensure pending changesets are committed on `main`.
 2. Open `Guria/nehir` → **Actions** → **Release**.
 3. Click **Run workflow** on `main`.
+4. Leave prerelease inputs empty/disabled for a stable release.
 
 The workflow will:
 
@@ -81,6 +82,17 @@ The workflow will:
 12. Clear consumed pending changesets from `main` after publishing succeeds.
 
 If any publishing step fails before changeset cleanup, pending changesets remain in `.changeset/` so the release can be retried safely.
+
+## Prereleases
+
+To publish a GitHub prerelease without updating Homebrew:
+
+1. Open `Guria/nehir` → **Actions** → **Release**.
+2. Click **Run workflow** on `main`.
+3. Enable `prerelease`.
+4. Set `prerelease_suffix`, for example `rc.1` or `beta.1`.
+
+The workflow tags the release as `vX.Y.Z-<suffix>`, creates `dist/Nehir-X.Y.Z-<suffix>.zip`, marks the GitHub Release as a prerelease, and skips committing release prep, Homebrew tap publishing, and changeset cleanup. The packaged app uses numeric `Info.plist` version `X.Y.Z` only in the workflow workspace, so the later stable release can consume the same pending changesets.
 
 ## Mise file tasks
 

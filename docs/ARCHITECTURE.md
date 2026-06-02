@@ -131,8 +131,8 @@ make lint          # Run SwiftLint diagnostics
 make check         # Verify formatting, lint, audit, build, and test
 
 # Create distributable app bundle
-./Scripts/package-app.sh release true    # Run checks, build, sign, notarize
-./Scripts/package-app.sh debug false     # Run checks, debug build only
+mise run package:release -- true          # Run checks, build, sign, notarize
+CONFIGURATION=debug mise run package:release -- false  # Run checks, debug build only
 ```
 
 ---

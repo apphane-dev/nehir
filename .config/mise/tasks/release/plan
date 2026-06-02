@@ -68,7 +68,14 @@ elif bump == "minor":
     patch = 0
 elif bump == "patch":
     patch += 1
-version = f"{major}.{minor}.{patch}"
+base_version = f"{major}.{minor}.{patch}"
+prerelease_suffix = os.environ.get("PRERELEASE_SUFFIX", "").strip()
+if prerelease_suffix:
+    if not re.fullmatch(r"[0-9A-Za-z][0-9A-Za-z.-]*", prerelease_suffix):
+        raise SystemExit(f"Invalid prerelease suffix: {prerelease_suffix}")
+    version = f"{base_version}-{prerelease_suffix}"
+else:
+    version = base_version
 tag = f"v{version}"
 notes = f"docs/releases/{tag}.md"
 zip_path = f"dist/Nehir-{version}.zip"
@@ -78,6 +85,7 @@ if github_output:
     with open(github_output, "a", encoding="utf-8") as output:
         output.write(f"current_version={current}\n")
         output.write(f"bump={bump}\n")
+        output.write(f"base_version={base_version}\n")
         output.write(f"version={version}\n")
         output.write(f"tag={tag}\n")
         output.write(f"notes={notes}\n")
@@ -85,6 +93,7 @@ if github_output:
 
 print(f"current_version={current}")
 print(f"bump={bump}")
+print(f"base_version={base_version}")
 print(f"version={version}")
 print(f"tag={tag}")
 print(f"notes={notes}")

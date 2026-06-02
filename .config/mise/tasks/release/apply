@@ -9,10 +9,11 @@ if [ -z "$VERSION" ]; then
   exit 1
 fi
 VERSION="${VERSION#v}"
+BASE_VERSION="${VERSION%%-*}"
 ROOT_DIR="$(git rev-parse --show-toplevel)"
 cd "$ROOT_DIR"
 
-/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" Info.plist
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $BASE_VERSION" Info.plist
 
 NOTES_FILE="docs/releases/v$VERSION.md"
 if [ ! -f "$NOTES_FILE" ]; then

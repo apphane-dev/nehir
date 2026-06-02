@@ -39,7 +39,7 @@ System Settings > Privacy & Security > Accessibility
 
 ```bash
 # Package the app bundle
-Scripts/package-app.sh release
+mise run package:release
 
 # User-local install (no sudo)
 mkdir -p "$HOME/Applications" "$HOME/.local/bin"

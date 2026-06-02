@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
+#MISE description="Package Nehir.app from a release build"
+#USAGE arg "sign_and_notarize=false" help="Set true to Developer ID sign and notarize"
 set -euo pipefail
 
-CONFIG="${1:-release}"
-SIGN_AND_NOTARIZE="${2:-${SIGN_AND_NOTARIZE:-false}}"
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+CONFIG="${CONFIGURATION:-release}"
+SIGN_AND_NOTARIZE="${usage_sign_and_notarize:-${1:-${SIGN_AND_NOTARIZE:-false}}}"
+ROOT_DIR="$(git rev-parse --show-toplevel)"
 CONFIG_CAPITALIZED="$(tr '[:lower:]' '[:upper:]' <<< "${CONFIG:0:1}")${CONFIG:1}"
 BUILD_DIR="$ROOT_DIR/.build/apple/Products/$CONFIG_CAPITALIZED"
 EXECUTABLE="$BUILD_DIR/Nehir"

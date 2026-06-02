@@ -6,6 +6,3 @@ run = "swift build"
 description = "Build Nehir (release, optimized)"
 run = "swift build -c release"
 
-[tasks."package:release"]
-description = "Package Nehir.app from a release build"
-run = "Scripts/package-app.sh release"

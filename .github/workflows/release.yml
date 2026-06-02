@@ -2,6 +2,15 @@ name: Release
 
 on:
   workflow_dispatch:
+    inputs:
+      prerelease:
+        description: "Create a GitHub prerelease and skip Homebrew tap publishing"
+        type: boolean
+        default: false
+      prerelease_suffix:
+        description: "Optional tag/asset suffix, e.g. rc.1 or beta.1"
+        type: string
+        required: false
 
 permissions:
   contents: write
@@ -32,8 +41,20 @@ jobs:
 
       - name: Plan release from changesets
         id: version
+        env:
+          PRERELEASE_SUFFIX: ${{ inputs.prerelease_suffix }}
         shell: bash
-        run: mise run release:plan
+        run: |
+          set -euo pipefail
+          if [ "${{ inputs.prerelease }}" = "true" ] && [ -z "${PRERELEASE_SUFFIX}" ]; then
+            echo "prerelease_suffix is required when prerelease=true, for example rc.1 or beta.1" >&2
+            exit 1
+          fi
+          if [ "${{ inputs.prerelease }}" != "true" ] && [ -n "${PRERELEASE_SUFFIX}" ]; then
+            echo "prerelease_suffix requires prerelease=true" >&2
+            exit 1
+          fi
+          mise run release:plan
 
       - name: Show toolchain
         run: |
@@ -46,6 +67,7 @@ jobs:
         run: mise run release:apply -- "${{ steps.version.outputs.version }}"
 
       - name: Commit release prep
+        if: ${{ !inputs.prerelease }}
         shell: bash
         run: |
           set -euo pipefail
@@ -72,7 +94,9 @@ jobs:
           git push origin "$TAG"
 
       - name: Build unsigned release ZIP
-        run: Scripts/package-app.sh release false
+        env:
+          RELEASE_ZIP_PATH: ${{ github.workspace }}/${{ steps.version.outputs.zip }}
+        run: mise run package:release -- false
 
       - name: Compute SHA-256
         id: checksum
@@ -96,12 +120,20 @@ jobs:
             echo "Release already exists: $TAG" >&2
             exit 1
           fi
-          gh release create "$TAG" "$ZIP" \
-            --target "$(git rev-parse HEAD)" \
-            --title "Nehir ${TAG#v}" \
+          args=(
+            "$TAG"
+            "$ZIP"
+            --target "$(git rev-parse HEAD)"
+            --title "Nehir ${TAG#v}"
             --notes-file "$NOTES_FILE"
+          )
+          if [ "${{ inputs.prerelease }}" = "true" ]; then
+            args+=(--prerelease)
+          fi
+          gh release create "${args[@]}"
 
       - name: Create Homebrew tap token
+        if: ${{ !inputs.prerelease }}
         id: tap-token
         uses: actions/create-github-app-token@v1
         with:
@@ -111,6 +143,7 @@ jobs:
           repositories: homebrew-tap
 
       - name: Check out Homebrew tap
+        if: ${{ !inputs.prerelease }}
         uses: actions/checkout@v4
         with:
           repository: ${{ env.TAP_REPOSITORY }}
@@ -118,6 +151,7 @@ jobs:
           path: homebrew-tap
 
       - name: Update cask version and checksum
+        if: ${{ !inputs.prerelease }}
         env:
           VERSION: ${{ steps.version.outputs.version }}
           SHA256: ${{ steps.checksum.outputs.sha256 }}
@@ -136,12 +170,14 @@ jobs:
           RUBY
 
       - name: Validate cask syntax and style
+        if: ${{ !inputs.prerelease }}
         working-directory: homebrew-tap
         run: |
           ruby -c Casks/nehir.rb
           brew style Casks/nehir.rb
 
       - name: Commit and push tap update
+        if: ${{ !inputs.prerelease }}
         working-directory: homebrew-tap
         shell: bash
         run: |
@@ -158,6 +194,7 @@ jobs:
           git push
 
       - name: Clear released changesets
+        if: ${{ !inputs.prerelease }}
         shell: bash
         run: |
           set -euo pipefail
