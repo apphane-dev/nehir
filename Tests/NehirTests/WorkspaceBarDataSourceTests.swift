@@ -41,7 +41,7 @@ import Testing
             workspaceManager: controller.workspaceManager,
             appInfoCache: controller.appInfoCache,
             niriEngine: nil,
-            focusedToken: controller.workspaceManager.focusedToken,
+            focusedToken: controller.workspaceManager.confirmedManagedFocusToken,
             settings: controller.settings
         )
 
@@ -77,7 +77,7 @@ import Testing
             workspaceManager: controller.workspaceManager,
             appInfoCache: controller.appInfoCache,
             niriEngine: nil,
-            focusedToken: controller.workspaceManager.focusedToken,
+            focusedToken: controller.workspaceManager.confirmedManagedFocusToken,
             settings: controller.settings
         )
 
@@ -124,7 +124,7 @@ import Testing
             workspaceManager: controller.workspaceManager,
             appInfoCache: controller.appInfoCache,
             niriEngine: nil,
-            focusedToken: controller.workspaceManager.focusedToken,
+            focusedToken: controller.workspaceManager.confirmedManagedFocusToken,
             settings: controller.settings
         )
 
@@ -171,7 +171,7 @@ import Testing
             workspaceManager: controller.workspaceManager,
             appInfoCache: controller.appInfoCache,
             niriEngine: nil,
-            focusedToken: controller.workspaceManager.focusedToken,
+            focusedToken: controller.workspaceManager.confirmedManagedFocusToken,
             settings: controller.settings
         )
 
@@ -218,7 +218,7 @@ import Testing
             workspaceManager: controller.workspaceManager,
             appInfoCache: controller.appInfoCache,
             niriEngine: nil,
-            focusedToken: controller.workspaceManager.focusedToken,
+            focusedToken: controller.workspaceManager.confirmedManagedFocusToken,
             settings: controller.settings
         )
 
@@ -270,7 +270,7 @@ import Testing
             workspaceManager: controller.workspaceManager,
             appInfoCache: controller.appInfoCache,
             niriEngine: nil,
-            focusedToken: controller.workspaceManager.focusedToken,
+            focusedToken: controller.workspaceManager.confirmedManagedFocusToken,
             settings: controller.settings
         )
 

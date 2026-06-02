@@ -1032,7 +1032,7 @@ import QuartzCore
            !controller.workspaceManager.isAppFullscreenActive,
            !controller.workspaceManager.hasPendingNativeFullscreenTransition,
            !controller.shouldSuppressManagedFocusRecovery,
-           let focusedWorkspaceId = controller.activeWorkspace()?.id
+           let focusedWorkspaceId = controller.interactionWorkspace()?.id
         {
             effects.focusValidationWorkspaceIds = [focusedWorkspaceId]
         }
@@ -1111,7 +1111,7 @@ import QuartzCore
         try Task.checkCancellation()
         var seenKeys: Set<WindowModel.WindowKey> = []
         var decisionBasedRemovals: [WindowToken] = []
-        let focusedWorkspaceId = controller.activeWorkspace()?.id
+        let focusedWorkspaceId = controller.interactionWorkspace()?.id
 
         for (ax, pid, winId) in windows {
             let bundleId = controller.appInfoCache.bundleId(for: pid)
@@ -3048,8 +3048,8 @@ import QuartzCore
                 token: entry.token,
                 workspaceId: entry.workspaceId,
                 frame: result.targetFrame,
-                selected: controller.workspaceManager.focusedToken == entry.token
-                    || controller.workspaceManager.pendingFocusedToken == entry.token,
+                selected: controller.workspaceManager.confirmedManagedFocusToken == entry.token
+                    || controller.workspaceManager.activeFocusRequestToken == entry.token,
                 appName: appInfo?.name,
                 icon: appInfo?.icon
             )

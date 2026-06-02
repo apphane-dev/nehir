@@ -156,7 +156,7 @@ enum NiriWindowMoveResult {
     private func finalizeAnimation() {
         guard let controller else { return }
 
-        let focusedTarget = controller.currentKeyboardFocusTargetForRendering()
+        let focusedTarget = controller.currentBorderTarget()
         let preferredFrame: CGRect? = if let focusedTarget,
                                          focusedTarget.isManaged,
                                          let node = controller.niriEngine?.findNode(for: focusedTarget.token)
@@ -177,8 +177,8 @@ enum NiriWindowMoveResult {
         }
 
         if controller.moveMouseToFocusedWindowEnabled,
-           controller.workspaceManager.pendingFocusedToken == nil,
-           let token = controller.workspaceManager.focusedToken
+           controller.workspaceManager.activeFocusRequestToken == nil,
+           let token = controller.workspaceManager.confirmedManagedFocusToken
         {
             controller.moveMouseToWindow(token, preferredFrame: controller.preferredKeyboardFocusFrame(for: token))
         }
@@ -264,9 +264,9 @@ enum NiriWindowMoveResult {
             monitor: refreshInput.monitor,
             windows: refreshInput.windows,
             viewportState: effectiveViewportState,
-            preferredFocusToken: controller.workspaceManager.preferredFocusToken(in: wsId),
-            confirmedFocusedToken: controller.workspaceManager.focusedToken,
-            pendingFocusedToken: controller.workspaceManager.pendingFocusedToken,
+            preferredWorkspaceFocusToken: controller.workspaceManager.preferredWorkspaceFocusToken(in: wsId),
+            confirmedManagedFocusToken: controller.workspaceManager.confirmedManagedFocusToken,
+            activeFocusRequestToken: controller.workspaceManager.activeFocusRequestToken,
             hasCompletedInitialRefresh: controller.layoutRefreshController.layoutState.hasCompletedInitialRefresh,
             useScrollAnimationPath: useScrollAnimationPath,
             removalSeed: removalSeed,
@@ -310,8 +310,8 @@ enum NiriWindowMoveResult {
             frames: frames,
             hiddenHandles: hiddenHandles,
             selectedToken: selectedWindowToken(state: snapshot.viewportState, engine: engine),
-            confirmedFocusedToken: snapshot.confirmedFocusedToken,
-            pendingFocusedToken: snapshot.pendingFocusedToken,
+            confirmedManagedFocusToken: snapshot.confirmedManagedFocusToken,
+            activeFocusRequestToken: snapshot.activeFocusRequestToken,
             engine: engine,
             canRestoreHiddenWorkspaceWindows: snapshot.isActiveWorkspace
         )
@@ -358,7 +358,7 @@ enum NiriWindowMoveResult {
             state: &state,
             windowTokens: windowTokens,
             removal: removal,
-            preferredFocusToken: snapshot.preferredFocusToken
+            preferredWorkspaceFocusToken: snapshot.preferredWorkspaceFocusToken
         )
 
         for window in snapshot.windows {
@@ -454,14 +454,14 @@ enum NiriWindowMoveResult {
         state: inout ViewportState,
         windowTokens: [WindowToken],
         removal: RemovalContext,
-        preferredFocusToken: WindowToken?
+        preferredWorkspaceFocusToken: WindowToken?
     ) -> [WindowToken] {
         let currentSelection = state.selectedNodeId
         _ = pass.engine.syncWindows(
             windowTokens,
             in: pass.wsId,
             selectedNodeId: currentSelection,
-            focusedToken: preferredFocusToken
+            focusedToken: preferredWorkspaceFocusToken
         )
         let newTokens = windowTokens.filter { !removal.existingHandleIds.contains($0) }
 
@@ -554,6 +554,7 @@ enum NiriWindowMoveResult {
 
         if !usesSingleWindowAspectRatio,
            !isGestureOrAnimation,
+           !state.allowsSelectionOffscreen,
            snapshot.isActiveWorkspace,
            let selectedId = state.selectedNodeId,
            let selectedNode = pass.engine.findNode(by: selectedId),
@@ -576,6 +577,7 @@ enum NiriWindowMoveResult {
 
         let ranEnsureVisible = !usesSingleWindowAspectRatio
             && !isGestureOrAnimation
+            && !state.allowsSelectionOffscreen
             && snapshot.isActiveWorkspace
             && state.selectedNodeId != nil
             && pass.engine.findNode(by: state.selectedNodeId!) != nil
@@ -772,8 +774,8 @@ enum NiriWindowMoveResult {
             frames: frames,
             hiddenHandles: hiddenHandles,
             selectedToken: selectedWindowToken(state: state, engine: pass.engine),
-            confirmedFocusedToken: snapshot.confirmedFocusedToken,
-            pendingFocusedToken: snapshot.pendingFocusedToken,
+            confirmedManagedFocusToken: snapshot.confirmedManagedFocusToken,
+            activeFocusRequestToken: snapshot.activeFocusRequestToken,
             engine: pass.engine,
             canRestoreHiddenWorkspaceWindows: snapshot.isActiveWorkspace
         )
@@ -796,8 +798,8 @@ enum NiriWindowMoveResult {
         frames: [WindowToken: CGRect],
         hiddenHandles: [WindowToken: HideSide],
         selectedToken: WindowToken?,
-        confirmedFocusedToken: WindowToken?,
-        pendingFocusedToken: WindowToken?,
+        confirmedManagedFocusToken: WindowToken?,
+        activeFocusRequestToken: WindowToken?,
         engine: NiriLayoutEngine,
         canRestoreHiddenWorkspaceWindows: Bool
     ) -> WorkspaceLayoutDiff {
@@ -820,8 +822,8 @@ enum NiriWindowMoveResult {
                             token: token,
                             frame: frame,
                             selected: selectedToken == token
-                                || confirmedFocusedToken == token
-                                || pendingFocusedToken == token
+                                || confirmedManagedFocusToken == token
+                                || activeFocusRequestToken == token
                         )
                     )
                 }
@@ -856,8 +858,8 @@ enum NiriWindowMoveResult {
                         frame: frame,
                         minimumSize: window.effectiveResizeMinimumSize,
                         selected: selectedToken == token
-                            || confirmedFocusedToken == token
-                            || pendingFocusedToken == token
+                            || confirmedManagedFocusToken == token
+                            || activeFocusRequestToken == token
                     )
                 )
                 continue
@@ -876,13 +878,14 @@ enum NiriWindowMoveResult {
             )
         }
 
-        if let confirmedFocusedToken,
-           !suspendedTokens.contains(confirmedFocusedToken),
-           hiddenHandles[confirmedFocusedToken] == nil,
-           let frame = frames[confirmedFocusedToken]
+        let visualFocusToken = selectedToken ?? activeFocusRequestToken ?? confirmedManagedFocusToken
+        if let visualFocusToken,
+           !suspendedTokens.contains(visualFocusToken),
+           hiddenHandles[visualFocusToken] == nil,
+           let frame = frames[visualFocusToken]
         {
             diff.focusedFrame = LayoutFocusedFrame(
-                token: confirmedFocusedToken,
+                token: visualFocusToken,
                 frame: frame
             )
         } else {
@@ -1094,13 +1097,13 @@ enum NiriWindowMoveResult {
     func focusNeighbor(direction: Direction) {
         guard let controller else { return }
         guard let engine = controller.niriEngine else { return }
-        guard let wsId = controller.activeWorkspace()?.id else { return }
+        guard let wsId = controller.interactionWorkspace()?.id else { return }
 
         var state = controller.workspaceManager.niriViewportState(for: wsId)
         guard let currentId = state.selectedNodeId,
               let currentNode = engine.findNode(by: currentId)
         else {
-            if let lastFocused = controller.workspaceManager.lastFocusedToken(in: wsId),
+            if let lastFocused = controller.workspaceManager.rememberedTiledFocusToken(in: wsId),
                let lastNode = engine.findNode(for: lastFocused)
             {
                 activateNode(
@@ -1491,6 +1494,7 @@ enum NiriWindowMoveResult {
         guard let controller, let engine = controller.niriEngine else { return }
 
         state.selectedNodeId = node.id
+        state.allowsSelectionOffscreen = false
         if !options.ensureVisible, !options.preserveViewportAnchor {
             rebaseViewportAnchor(to: node, in: workspaceId, state: &state)
         }
@@ -1523,6 +1527,15 @@ enum NiriWindowMoveResult {
         if let windowNode = node as? NiriWindow {
             if options.updateTimestamp {
                 engine.updateFocusTimestamp(for: windowNode.id)
+            }
+            if !controller.workspaceManager.isNonManagedFocusActive,
+               let target = controller.managedKeyboardFocusTarget(for: windowNode.token)
+            {
+                _ = controller.renderKeyboardFocusBorder(
+                    for: target,
+                    preferredFrame: windowNode.renderedFrame ?? windowNode.frame,
+                    forceOrdering: false
+                )
             }
         }
 
@@ -1636,7 +1649,7 @@ enum NiriWindowMoveResult {
         var animatingWorkspaceId: WorkspaceDescriptor.ID?
 
         guard let engine = controller.niriEngine else { return }
-        guard let wsId = controller.activeWorkspace()?.id else { return }
+        guard let wsId = controller.interactionWorkspace()?.id else { return }
 
         controller.workspaceManager.withNiriViewportState(for: wsId) { state in
             guard let currentId = state.selectedNodeId,
@@ -1792,7 +1805,7 @@ enum NiriWindowMoveResult {
     ) {
         guard let controller else { return }
         guard let engine = controller.niriEngine else { return }
-        guard let wsId = controller.activeWorkspace()?.id else { return }
+        guard let wsId = controller.interactionWorkspace()?.id else { return }
         guard let monitor = controller.workspaceManager.monitor(for: wsId) else { return }
         let motion = controller.motionPolicy.snapshot()
         let workingFrame = controller.insetWorkingFrame(for: monitor)

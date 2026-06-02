@@ -301,7 +301,7 @@ final class WindowActionHandler {
             return focusedToken.windowId
         }
 
-        guard let interactionWorkspaceId = controller.activeWorkspace()?.id else { return nil }
+        guard let interactionWorkspaceId = controller.interactionWorkspace()?.id else { return nil }
         let lastFloatingFocusedToken = controller.workspaceManager.lastFloatingFocusedToken(
             in: interactionWorkspaceId
         )
@@ -350,8 +350,8 @@ final class WindowActionHandler {
     @discardableResult
     func summonWindowRight(handle: WindowHandle) -> Bool {
         guard let controller,
-              let currentWorkspace = controller.activeWorkspace(),
-              let focusedToken = controller.workspaceManager.focusedToken,
+              let currentWorkspace = controller.interactionWorkspace(),
+              let focusedToken = controller.workspaceManager.confirmedManagedFocusToken,
               let focusedEntry = controller.workspaceManager.entry(for: focusedToken),
               focusedEntry.workspaceId == currentWorkspace.id
         else {
@@ -396,7 +396,7 @@ final class WindowActionHandler {
         guard let controller else { return false }
         guard let engine = controller.niriEngine else { return false }
 
-        let currentWsId = controller.activeWorkspace()?.id
+        let currentWsId = controller.interactionWorkspace()?.id
 
         if workspaceId != currentWsId {
             let wsName = controller.workspaceManager.descriptor(for: workspaceId)?.name ?? ""
@@ -526,7 +526,7 @@ final class WindowActionHandler {
     @discardableResult
     func focusWorkspaceFromBar(named name: String) -> Bool {
         guard let controller else { return false }
-        if let currentWorkspace = controller.activeWorkspace() {
+        if let currentWorkspace = controller.interactionWorkspace() {
             controller.workspaceNavigationHandler.saveNiriViewportState(for: currentWorkspace.id)
         }
 

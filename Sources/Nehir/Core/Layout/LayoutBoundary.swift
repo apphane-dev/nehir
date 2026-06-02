@@ -58,9 +58,9 @@ struct NiriWorkspaceSnapshot {
     let monitor: LayoutMonitorSnapshot
     let windows: [LayoutWindowSnapshot]
     let viewportState: ViewportState
-    let preferredFocusToken: WindowToken?
-    let confirmedFocusedToken: WindowToken?
-    let pendingFocusedToken: WindowToken?
+    let preferredWorkspaceFocusToken: WindowToken?
+    let confirmedManagedFocusToken: WindowToken?
+    let activeFocusRequestToken: WindowToken?
     let hasCompletedInitialRefresh: Bool
     let useScrollAnimationPath: Bool
     let removalSeed: NiriWindowRemovalSeed?

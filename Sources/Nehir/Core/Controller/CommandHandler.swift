@@ -409,7 +409,7 @@ final class CommandHandler {
     ) {
         guard let controller else { return }
         guard let engine = controller.niriEngine else { return }
-        guard let wsId = controller.activeWorkspace()?.id else { return }
+        guard let wsId = controller.interactionWorkspace()?.id else { return }
         guard let monitor = controller.workspaceManager.monitor(for: wsId) else { return }
 
         var state = controller.workspaceManager.niriViewportState(for: wsId)
@@ -418,7 +418,7 @@ final class CommandHandler {
            let node = engine.findNode(by: currentId)
         {
             currentNode = node
-        } else if let lastFocused = controller.workspaceManager.lastFocusedToken(in: wsId),
+        } else if let lastFocused = controller.workspaceManager.rememberedTiledFocusToken(in: wsId),
                   let node = engine.findNode(for: lastFocused)
         {
             state.selectedNodeId = node.id
@@ -475,7 +475,7 @@ final class CommandHandler {
             AXWindowService.isFullscreen(axRef)
         }
 
-        if let token = controller.workspaceManager.focusedToken,
+        if let token = controller.managedCommandTargetToken(),
            let entry = controller.workspaceManager.entry(for: token)
         {
             let currentState = isFullscreen(entry.axRef)

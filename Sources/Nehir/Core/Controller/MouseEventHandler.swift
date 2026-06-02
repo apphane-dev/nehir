@@ -178,6 +178,7 @@ final class MouseEventHandler {
         var isResizing: Bool = false
         var isMoving: Bool = false
         var activeInteractionButton: MouseButton?
+        var activeInteractionWorkspaceId: WorkspaceDescriptor.ID?
 
         var lastFocusFollowsMouseTime: Date = .distantPast
         var lastFocusFollowsMouseToken: WindowToken?
@@ -191,6 +192,7 @@ final class MouseEventHandler {
         var gestureLastAverageX: CGFloat = 0.0
         var gestureLastAverageY: CGFloat = 0.0
         var lockedGestureContext: LockedGestureContext?
+        var suppressGestureUntilTouchesEnd = false
         var pendingTapEvents = PendingTapEvents()
         var debugCounters = DebugCounters()
         var horizontalWheelTracker = NiriScrollTracker(tick: niriWheelScrollTickAmount)
@@ -304,6 +306,7 @@ final class MouseEventHandler {
         state.currentHoveredEdges = []
         state.isResizing = false
         state.activeInteractionButton = nil
+        state.activeInteractionWorkspaceId = nil
         state.pendingTapEvents.clear()
         resetGestureState()
     }
@@ -543,12 +546,14 @@ final class MouseEventHandler {
             state.isMoving = false
             state.moveIsInsertMode = false
             state.activeInteractionButton = nil
+            state.activeInteractionWorkspaceId = nil
         }
 
         if state.isResizing {
             controller.niriEngine?.clearInteractiveResize()
             state.isResizing = false
             state.activeInteractionButton = nil
+            state.activeInteractionWorkspaceId = nil
         }
 
         resetHoveredEdgesIfNeeded()
@@ -567,7 +572,7 @@ final class MouseEventHandler {
     private func workspaceIdForPointer(at location: CGPoint) -> WorkspaceDescriptor.ID? {
         guard let controller else { return nil }
         guard let monitor = location.monitorApproximation(in: controller.workspaceManager.monitors) else {
-            return controller.activeWorkspace()?.id
+            return controller.interactionWorkspace()?.id
         }
         return controller.workspaceManager.activeWorkspaceOrFirst(on: monitor.id)?.id
     }
@@ -770,7 +775,7 @@ final class MouseEventHandler {
         }
 
         guard let engine = controller.niriEngine,
-              let wsId = workspaceIdForPointer(at: location) ?? controller.activeWorkspace()?.id
+              let wsId = workspaceIdForPointer(at: location) ?? controller.interactionWorkspace()?.id
         else {
             return false
         }
@@ -803,6 +808,7 @@ final class MouseEventHandler {
                     state.moveIsInsertMode = isInsertMode
                     state.isMoving = true
                     state.activeInteractionButton = button
+                    state.activeInteractionWorkspaceId = wsId
                     NSCursor.closedHand.set()
 
                     if let entry = controller.workspaceManager.entry(for: tiledWindow.handle),
@@ -846,6 +852,7 @@ final class MouseEventHandler {
             ) {
                 state.isResizing = true
                 state.activeInteractionButton = button
+                state.activeInteractionWorkspaceId = wsId
                 state.currentHoveredEdges = edges
                 controller.niriLayoutHandler.cancelActiveAnimations(for: wsId)
                 edges.cursor.set()
@@ -869,6 +876,7 @@ final class MouseEventHandler {
         ) {
             state.isResizing = true
             state.activeInteractionButton = button
+            state.activeInteractionWorkspaceId = wsId
             state.currentHoveredEdges = edges
             controller.niriLayoutHandler.cancelActiveAnimations(for: wsId)
             edges.cursor.set()
@@ -912,7 +920,7 @@ final class MouseEventHandler {
         if state.isMoving {
             guard shouldAcceptInteractionButton(button) else { return }
             guard let engine = controller.niriEngine,
-                  let wsId = controller.activeWorkspace()?.id
+                  let wsId = state.activeInteractionWorkspaceId ?? controller.interactionWorkspace()?.id
             else {
                 return
             }
@@ -929,8 +937,7 @@ final class MouseEventHandler {
                         {
                             state.dragGhostController?.showSwapTarget(frame: frame)
                         }
-                    } else if let wsId = controller.activeWorkspace()?.id,
-                              let dropFrame = engine.insertionDropzoneFrame(
+                    } else if let dropFrame = engine.insertionDropzoneFrame(
                                   targetWindowId: nodeId,
                                   position: insertPosition,
                                   in: wsId,
@@ -952,7 +959,8 @@ final class MouseEventHandler {
         guard shouldAcceptInteractionButton(button) else { return }
 
         guard let engine = controller.niriEngine,
-              let monitor = controller.monitorForInteraction()
+              let wsId = state.activeInteractionWorkspaceId ?? controller.interactionWorkspace()?.id,
+              let monitor = controller.workspaceManager.monitor(for: wsId)
         else {
             return
         }
@@ -963,7 +971,6 @@ final class MouseEventHandler {
             outer: controller.workspaceManager.outerGaps
         )
         let insetFrame = controller.insetWorkingFrame(for: monitor)
-        guard let wsId = controller.activeWorkspace()?.id else { return }
 
         if engine.interactiveResizeUpdate(
             currentLocation: location,
@@ -984,7 +991,7 @@ final class MouseEventHandler {
         if state.isMoving {
             guard shouldAcceptInteractionButton(button) else { return }
             if let engine = controller.niriEngine,
-               let wsId = controller.activeWorkspace()?.id,
+               let wsId = state.activeInteractionWorkspaceId ?? controller.interactionWorkspace()?.id,
                let monitor = controller.workspaceManager.monitor(for: wsId)
             {
                 let workingFrame = controller.insetWorkingFrame(for: monitor)
@@ -1009,6 +1016,7 @@ final class MouseEventHandler {
             state.isMoving = false
             state.moveIsInsertMode = false
             state.activeInteractionButton = nil
+            state.activeInteractionWorkspaceId = nil
             NSCursor.arrow.set()
             return
         }
@@ -1017,7 +1025,7 @@ final class MouseEventHandler {
         guard shouldAcceptInteractionButton(button) else { return }
 
         if let engine = controller.niriEngine,
-           let wsId = controller.activeWorkspace()?.id,
+           let wsId = state.activeInteractionWorkspaceId ?? controller.interactionWorkspace()?.id,
            let monitor = controller.workspaceManager.monitor(for: wsId)
         {
             let workingFrame = controller.insetWorkingFrame(for: monitor)
@@ -1039,6 +1047,7 @@ final class MouseEventHandler {
 
         state.isResizing = false
         state.activeInteractionButton = nil
+        state.activeInteractionWorkspaceId = nil
         NSCursor.arrow.set()
         state.currentHoveredEdges = []
     }
@@ -1113,7 +1122,7 @@ final class MouseEventHandler {
         let token = focusFollowsMouseToken(for: target)
 
         if token != state.lastFocusFollowsMouseToken,
-           token != controller.workspaceManager.focusedToken
+           token != controller.workspaceManager.confirmedManagedFocusToken
         {
             state.lastFocusFollowsMouseTime = now
             state.lastFocusFollowsMouseToken = token
@@ -1122,14 +1131,17 @@ final class MouseEventHandler {
     }
 
     private func resolveFocusFollowsMouseTarget(at location: CGPoint) -> FocusFollowsMouseTarget? {
-        guard let controller, let workspace = controller.activeWorkspace() else { return nil }
+        guard let controller else { return nil }
+        guard let wsId = workspaceIdForPointer(at: location) ?? controller.interactionWorkspace()?.id else {
+            return nil
+        }
 
         guard let engine = controller.niriEngine,
-              let window = engine.hitTestFocusableWindow(point: location, in: workspace.id)
+              let window = engine.hitTestFocusableWindow(point: location, in: wsId)
         else {
             return nil
         }
-        return .niri(workspaceId: workspace.id, window: window)
+        return .niri(workspaceId: wsId, window: window)
     }
 
     private func focusFollowsMouseToken(for target: FocusFollowsMouseTarget) -> WindowToken {
@@ -1160,6 +1172,14 @@ final class MouseEventHandler {
         let location = snapshot.location
         let phase = NSEvent.Phase(rawValue: snapshot.phaseRawValue)
         let activeTouchCount = snapshot.touches.filter { $0.phase != .ended && $0.phase != .cancelled }.count
+
+        if state.suppressGestureUntilTouchesEnd {
+            if phase == .ended || phase == .cancelled || activeTouchCount == 0 {
+                state.suppressGestureUntilTouchesEnd = false
+            } else {
+                return
+            }
+        }
 
         guard controller.isEnabled else {
             abortActiveGestureIfNeeded()
@@ -1447,10 +1467,25 @@ final class MouseEventHandler {
                 timestamp: timestamp
             )
             endedGestureIsAnimating = endState.viewOffsetPixels.isAnimating
-            selectedWindow = syncViewportSelectionToActiveColumn(columns: columns, state: &endState)
+            if controller.settings.gestureScrollSnap {
+                selectedWindow = syncViewportSelectionToActiveColumn(columns: columns, state: &endState)
+                endState.allowsSelectionOffscreen = false
+            } else {
+                endState.allowsSelectionOffscreen = true
+            }
         }
         if let selectedWindow {
             rememberViewportFocusAnchor(selectedWindow, engine: engine, wsId: wsId)
+            if !controller.workspaceManager.isNonManagedFocusActive,
+               let target = controller.managedKeyboardFocusTarget(for: selectedWindow.token)
+            {
+                _ = controller.renderKeyboardFocusBorder(
+                    for: target,
+                    preferredFrame: selectedWindow.renderedFrame ?? selectedWindow.frame,
+                    forceOrdering: false
+                )
+                controller.focusWindow(selectedWindow.token)
+            }
         }
         controller.recordRuntimeViewportTrace(
             workspaceId: wsId,
@@ -1478,6 +1513,7 @@ final class MouseEventHandler {
             timestamp: timestamp
         )
         resetGestureState()
+        state.suppressGestureUntilTouchesEnd = true
     }
 
     private func cancelCommittedGestureViewportState(for wsId: WorkspaceDescriptor.ID) {
@@ -1488,6 +1524,7 @@ final class MouseEventHandler {
             vstate.settleAtCurrentOffset()
             vstate.selectionProgress = 0.0
             vstate.viewOffsetToRestore = nil
+            vstate.allowsSelectionOffscreen = false
             vstate.activatePrevColumnOnRemoval = nil
             didCancel = true
         }

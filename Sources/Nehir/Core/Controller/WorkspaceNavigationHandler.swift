@@ -198,7 +198,7 @@ final class WorkspaceNavigationHandler {
         guard let controller else { return }
         guard let currentMonitorId = interactionMonitorId(for: controller)
         else { return }
-        guard let currentWsId = controller.activeWorkspace()?.id else { return }
+        guard let currentWsId = controller.interactionWorkspace()?.id else { return }
 
         guard let targetMonitor = controller.workspaceManager.adjacentMonitor(
             from: currentMonitorId,
@@ -210,7 +210,7 @@ final class WorkspaceNavigationHandler {
 
         saveNiriViewportState(for: currentWsId)
         if let engine = controller.niriEngine {
-            if let targetToken = controller.workspaceManager.lastFocusedToken(in: targetWsId),
+            if let targetToken = controller.workspaceManager.rememberedTiledFocusToken(in: targetWsId),
                let targetNode = engine.findNode(for: targetToken)
             {
                 commitWorkspaceSelection(
@@ -247,7 +247,7 @@ final class WorkspaceNavigationHandler {
 
     func switchWorkspace(rawWorkspaceID: String) {
         guard let controller else { return }
-        let currentWorkspace = controller.activeWorkspace()
+        let currentWorkspace = controller.interactionWorkspace()
         if let currentWorkspace,
            currentWorkspace.name == rawWorkspaceID
         {
@@ -284,7 +284,7 @@ final class WorkspaceNavigationHandler {
 
         guard let currentMonitorId = interactionMonitorId(for: controller)
         else { return }
-        guard let currentWorkspace = controller.activeWorkspace() else { return }
+        guard let currentWorkspace = controller.interactionWorkspace() else { return }
 
         let targetWorkspace: WorkspaceDescriptor? = if isNext {
             controller.workspaceManager.nextWorkspaceInOrder(
@@ -320,7 +320,7 @@ final class WorkspaceNavigationHandler {
         guard let controller else { return }
         guard let engine = controller.niriEngine else { return }
 
-        if let focusedToken = controller.workspaceManager.focusedToken,
+        if let focusedToken = controller.workspaceManager.confirmedManagedFocusToken,
            controller.workspaceManager.workspace(for: focusedToken) == workspaceId,
            let focusedNode = engine.findNode(for: focusedToken)
         {
@@ -341,7 +341,7 @@ final class WorkspaceNavigationHandler {
         guard let controller else { return }
         controller.focusBorderController.hide()
 
-        let currentWorkspace = controller.activeWorkspace()
+        let currentWorkspace = controller.interactionWorkspace()
 
         guard let targetWsId = controller.workspaceManager.workspaceId(named: rawWorkspaceID) else { return }
         guard let targetMonitor = controller.workspaceManager.monitorForWorkspace(targetWsId) else { return }
@@ -380,7 +380,7 @@ final class WorkspaceNavigationHandler {
             return
         }
 
-        let currentWorkspace = controller.activeWorkspace()
+        let currentWorkspace = controller.interactionWorkspace()
         if let currentWorkspace {
             saveNiriViewportState(for: currentWorkspace.id)
         }
@@ -519,10 +519,10 @@ final class WorkspaceNavigationHandler {
 
     func moveWindowToAdjacentWorkspace(direction: Direction) {
         guard let controller else { return }
-        guard let token = controller.workspaceManager.focusedToken else { return }
+        guard let token = controller.managedCommandTargetToken() else { return }
         guard let currentMonitorId = interactionMonitorId(for: controller)
         else { return }
-        guard let wsId = controller.activeWorkspace()?.id else { return }
+        guard let wsId = controller.interactionWorkspace()?.id else { return }
 
         guard let targetWorkspace = resolveOrCreateAdjacentWorkspace(
             from: wsId, direction: direction, on: currentMonitorId
@@ -556,10 +556,10 @@ final class WorkspaceNavigationHandler {
     func moveColumnToAdjacentWorkspace(direction: Direction) {
         guard let controller else { return }
         guard let engine = controller.niriEngine else { return }
-        guard let token = controller.workspaceManager.focusedToken else { return }
+        guard let token = controller.managedCommandTargetToken() else { return }
         guard let currentMonitorId = interactionMonitorId(for: controller)
         else { return }
-        guard let wsId = controller.activeWorkspace()?.id else { return }
+        guard let wsId = controller.interactionWorkspace()?.id else { return }
 
         guard let targetWorkspace = resolveOrCreateAdjacentWorkspace(
             from: wsId, direction: direction, on: currentMonitorId
@@ -625,8 +625,8 @@ final class WorkspaceNavigationHandler {
     func moveColumnToWorkspace(rawWorkspaceID: String) {
         guard let controller else { return }
         guard let engine = controller.niriEngine else { return }
-        guard let token = controller.workspaceManager.focusedToken else { return }
-        guard let wsId = controller.activeWorkspace()?.id else { return }
+        guard let token = controller.managedCommandTargetToken() else { return }
+        guard let wsId = controller.interactionWorkspace()?.id else { return }
 
         guard let targetWsId = controller.workspaceManager.workspaceId(for: rawWorkspaceID, createIfMissing: false)
         else { return }
@@ -693,7 +693,7 @@ final class WorkspaceNavigationHandler {
 
     func moveFocusedWindow(toRawWorkspaceID rawWorkspaceID: String) {
         guard let controller else { return }
-        guard let token = controller.workspaceManager.focusedToken else { return }
+        guard let token = controller.managedCommandTargetToken() else { return }
         guard let targetId = controller.workspaceManager.workspaceId(for: rawWorkspaceID, createIfMissing: false),
               let target = controller.workspaceManager.descriptor(for: targetId)
         else {
@@ -811,7 +811,7 @@ final class WorkspaceNavigationHandler {
 
     func moveWindowToWorkspaceOnMonitor(rawWorkspaceID: String, monitorDirection: Direction) {
         guard let controller else { return }
-        guard let token = controller.workspaceManager.focusedToken else { return }
+        guard let token = controller.managedCommandTargetToken() else { return }
         guard let currentMonitorId = interactionMonitorId(for: controller)
         else { return }
         guard let currentWorkspaceId = controller.workspaceManager.workspace(for: token) else { return }

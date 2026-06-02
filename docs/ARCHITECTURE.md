@@ -444,10 +444,13 @@ WorkspaceManager
 │   ├── workspaceSessions: [WorkspaceID: WorkspaceSession]
 │   │   └── niriViewportState: ViewportState?
 │   ├── focus: FocusSession
-│   │   ├── focusedToken: WindowToken?
-│   │   ├── pendingManagedFocus
-│   │   ├── lastTiledFocusedByWorkspace
-│   │   ├── lastFloatingFocusedByWorkspace
+│   │   ├── focusedToken: WindowToken?                  // exposed as confirmedManagedFocusToken
+│   │   ├── pendingManagedFocus: PendingManagedFocusRequest
+│   │   │   ├── token: WindowToken?                      // exposed as activeFocusRequestToken
+│   │   │   ├── workspaceId: WorkspaceDescriptor.ID?
+│   │   │   └── monitorId: Monitor.ID?
+│   │   ├── lastTiledFocusedByWorkspace: [WorkspaceDescriptor.ID: WindowToken]
+│   │   ├── lastFloatingFocusedByWorkspace: [WorkspaceDescriptor.ID: WindowToken]
 │   │   ├── isNonManagedFocusActive
 │   │   └── isAppFullscreenActive
 │   ├── scratchpadToken: WindowToken?
@@ -508,12 +511,12 @@ All three types inherit from `NiriNode` (base class with `id: NodeId`, `parent`,
 | `NiriWindow` | Leaf node. Has `token: WindowToken`, `height: WeightedSize`, `constraints`. |
 | `ProportionalSize` | `.proportion(CGFloat)` or `.fixed(CGFloat)` — column width relative to monitor |
 | `WeightedSize` | `.auto(weight:)` or `.fixed(CGFloat)` — window height within column |
-| `ViewportState` | Horizontal scroll offset: `.static`, `.gesture(ViewGesture)`, or `.spring(SpringAnimation)` |
+| `ViewportState` | Horizontal scroll offset, selected node, and offscreen-browsing allowance: `.static`, `.gesture(ViewGesture)`, or `.spring(SpringAnimation)` |
 | `NodeId` | UUID-based identifier for tree nodes |
 
 **Column width presets** cycle through configurable proportions (default: 1/3, 1/2, 2/3). Full-width mode expands a column to fill the monitor.
 
-**Viewport scrolling:** The viewport tracks which columns are visible. User gestures (trackpad swipe) drive the viewport via `ViewGesture` → `SwipeTracker`, which accumulates deltas and produces spring animations that snap to column boundaries.
+**Viewport scrolling:** The viewport tracks which columns are visible separately from the command/focus target. User gestures (trackpad swipe) drive the viewport via `ViewGesture` → `SwipeTracker`, which accumulates deltas and produces spring animations. During an active gesture Nehir keeps selection, border, hotkey target, and keyboard focus stable so the border does not jump under the fingers. Snap gestures commit the final snapped active tile on release and then request keyboard focus; no-snap gestures are viewport browsing only and allow the selected node to remain offscreen.
 
 **File Organization (28 files):**
 
@@ -540,7 +543,14 @@ The Niri directory is the largest subsystem. Files are organized by responsibili
 
 **File:** `Sources/Nehir/Core/Controller/KeyboardFocusLifecycleCoordinator.swift`
 
-Focus management is complex because Nehir must coordinate its intent with what macOS actually does. The `FocusBridgeCoordinator` manages this:
+Focus management is complex because Nehir must coordinate its own command target with what macOS actually does. Nehir intentionally separates these concepts:
+
+- **Command/border target** (`WMCommandTarget` and `currentBorderTarget()`): the managed window Nehir commands and the visual border should point at.
+- **Confirmed managed focus** (`confirmedManagedFocusToken`): the managed window macOS has actually confirmed through focus observation.
+- **Active focus request** (`activeFocusRequestToken`): transient retry/fronting state while Nehir is asking macOS to focus a window.
+- **Interaction workspace/monitor** (`interactionWorkspace()`): the workspace context used for commands and routing.
+
+The `FocusBridgeCoordinator` manages the request/confirmation part of this model:
 
 **The Deferred Focus Pattern:**
 
@@ -548,7 +558,7 @@ Focus management is complex because Nehir must coordinate its intent with what m
 1. User presses focus-left
 2. CommandHandler identifies target window
 3. FocusBridgeCoordinator.beginManagedRequest(token, workspaceId)
-   → Creates ManagedFocusRequest with status = .pending
+   → Creates an active focus request with status = .pending
 4. Private APIs activate the target app + window
    (_SLPSSetFrontProcessWithOptions, makeKeyWindow)
 5. macOS confirms focus via AX callback
@@ -565,7 +575,7 @@ Focus management is complex because Nehir must coordinate its intent with what m
 | `ManagedFocusRequest` | In-flight request with `requestId`, `retryCount`, `status` (`.pending`/`.confirmed`) |
 | `ActivationEventSource` | How focus was confirmed: `.focusedWindowChanged` (authoritative), `.workspaceDidActivateApplication`, `.cgsFrontAppChanged` |
 
-**Focus serialization:** `focusWindow(_:performFocus:onDeferredFocus:)` serializes focus operations. If a focus request arrives while one is in-flight, it queues as `pendingFocusToken` and fires after the current request completes or times out.
+**Focus serialization:** `focusWindow(_:performFocus:onDeferredFocus:)` serializes focus operations. If a focus request arrives while one is in-flight, it queues as the active focus request successor and fires after the current request completes or times out.
 
 **Close/collapse focus guard:** When the focused window closes, collapses, or otherwise disappears, the OS can immediately report a different same-app window as focused. For terminals and apps with quick-terminal surfaces, that replacement focus often points at another workspace. Nehir treats unrelated same-PID activation on an inactive workspace as a native fallback, not as user workspace navigation, and ignores it unless it matches an explicit `ManagedFocusRequest`. If the disappearing focus target is unmanaged (for example a quick terminal), same-PID fallback is also ignored on the current workspace to avoid scrolling to that app's managed column. This keeps the active workspace stable after closing a Niri-managed window, a managed floating window, or an unmanaged quick-terminal surface. The tradeoff is intentional: native same-app window switching should go through Nehir commands if it must be guaranteed.
 

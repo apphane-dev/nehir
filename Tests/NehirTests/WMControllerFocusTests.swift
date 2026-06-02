@@ -390,7 +390,7 @@ private func waitForFocusRefresh(on controller: WMController) async {
         controller.focusWindow(handle)
 
         #expect(controller.workspaceManager.pendingFocusedHandle == handle)
-        #expect(controller.workspaceManager.pendingFocusedWorkspaceId == workspaceId)
+        #expect(controller.workspaceManager.activeFocusRequestWorkspaceId == workspaceId)
         #expect(controller.workspaceManager.focusedHandle == nil)
         #expect(controller.workspaceManager.isNonManagedFocusActive == true)
         #expect(controller.workspaceManager.lastFocusedHandle(in: workspaceId) == handle)
@@ -434,7 +434,7 @@ private func waitForFocusRefresh(on controller: WMController) async {
 
         #expect(events.isEmpty)
         #expect(controller.workspaceManager.pendingFocusedHandle == nil)
-        #expect(controller.workspaceManager.pendingFocusedWorkspaceId == nil)
+        #expect(controller.workspaceManager.activeFocusRequestWorkspaceId == nil)
         #expect(controller.workspaceManager.focusedHandle == handle)
         #expect(controller.workspaceManager.lastFocusedHandle(in: workspaceId) == handle)
         #expect(controller.workspaceManager.isAppFullscreenActive)
@@ -1007,7 +1007,7 @@ private func waitForFocusRefresh(on controller: WMController) async {
 
         #expect(controller.workspaceManager.activeWorkspace(on: monitorId)?.id == workspaceId)
         #expect(controller.workspaceManager.focusedHandle != inactiveHandle)
-        #expect(controller.currentKeyboardFocusTargetForRendering() == nil)
+        #expect(controller.currentBorderTarget() == nil)
     }
 
     @Test @MainActor func unmanagedSameAppFocusSuppressesCurrentWorkspaceActivation() async {
@@ -1058,7 +1058,7 @@ private func waitForFocusRefresh(on controller: WMController) async {
 
         #expect(controller.workspaceManager.activeWorkspace(on: monitorId)?.id == workspaceId)
         #expect(controller.workspaceManager.focusedHandle != sameWorkspaceHandle)
-        #expect(controller.currentKeyboardFocusTargetForRendering() == nil)
+        #expect(controller.currentBorderTarget() == nil)
     }
 
     @Test @MainActor func focusWindowIsNoOpWhileLocked() {

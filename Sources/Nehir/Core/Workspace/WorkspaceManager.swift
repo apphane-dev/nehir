@@ -1016,27 +1016,27 @@ final class WorkspaceManager {
         sessionState.previousInteractionMonitorId
     }
 
-    var focusedToken: WindowToken? {
+    var confirmedManagedFocusToken: WindowToken? {
         sessionState.focus.focusedToken
     }
 
     var focusedHandle: WindowHandle? {
-        focusedToken.flatMap { windows.handle(for: $0) }
+        confirmedManagedFocusToken.flatMap { windows.handle(for: $0) }
     }
 
-    var pendingFocusedToken: WindowToken? {
+    var activeFocusRequestToken: WindowToken? {
         sessionState.focus.pendingManagedFocus.token
     }
 
     var pendingFocusedHandle: WindowHandle? {
-        pendingFocusedToken.flatMap { windows.handle(for: $0) }
+        activeFocusRequestToken.flatMap { windows.handle(for: $0) }
     }
 
-    var pendingFocusedWorkspaceId: WorkspaceDescriptor.ID? {
+    var activeFocusRequestWorkspaceId: WorkspaceDescriptor.ID? {
         sessionState.focus.pendingManagedFocus.workspaceId
     }
 
-    var pendingFocusedMonitorId: Monitor.ID? {
+    var activeFocusRequestMonitorId: Monitor.ID? {
         sessionState.focus.pendingManagedFocus.monitorId
     }
 
@@ -1606,12 +1606,13 @@ final class WorkspaceManager {
     ) -> Bool {
         var changed = false
 
-        if let nodeId {
-            let currentSelection = niriViewportState(for: workspaceId).selectedNodeId
-            if currentSelection != nodeId {
-                withNiriViewportState(for: workspaceId) { $0.selectedNodeId = nodeId }
-                changed = true
+        let viewportState = niriViewportState(for: workspaceId)
+        if viewportState.selectedNodeId != nodeId || viewportState.allowsSelectionOffscreen {
+            withNiriViewportState(for: workspaceId) {
+                $0.selectedNodeId = nodeId
+                $0.allowsSelectionOffscreen = false
             }
+            changed = true
         }
 
         if let focusedToken {
@@ -1667,7 +1668,7 @@ final class WorkspaceManager {
         return changed
     }
 
-    func lastFocusedToken(in workspaceId: WorkspaceDescriptor.ID) -> WindowToken? {
+    func rememberedTiledFocusToken(in workspaceId: WorkspaceDescriptor.ID) -> WindowToken? {
         sessionState.focus.lastTiledFocusedByWorkspace[workspaceId]
     }
 
@@ -1675,7 +1676,7 @@ final class WorkspaceManager {
         sessionState.focus.lastFloatingFocusedByWorkspace[workspaceId]
     }
 
-    func preferredFocusToken(in workspaceId: WorkspaceDescriptor.ID) -> WindowToken? {
+    func preferredWorkspaceFocusToken(in workspaceId: WorkspaceDescriptor.ID) -> WindowToken? {
         if let pendingToken = eligibleFocusCandidate(
             sessionState.focus.pendingManagedFocus.token,
             in: workspaceId,
@@ -1715,7 +1716,7 @@ final class WorkspaceManager {
         ) {
             return remembered
         }
-        if let preferredTiled = preferredFocusToken(in: workspaceId) {
+        if let preferredTiled = preferredWorkspaceFocusToken(in: workspaceId) {
             return preferredTiled
         }
         if let rememberedFloating = eligibleFocusCandidate(
@@ -3112,7 +3113,10 @@ final class WorkspaceManager {
     }
 
     func setSelection(_ nodeId: NodeId?, for workspaceId: WorkspaceDescriptor.ID) {
-        withNiriViewportState(for: workspaceId) { $0.selectedNodeId = nodeId }
+        withNiriViewportState(for: workspaceId) {
+            $0.selectedNodeId = nodeId
+            $0.allowsSelectionOffscreen = false
+        }
     }
 
     func updateAnimationClock(_ clock: AnimationClock?) {

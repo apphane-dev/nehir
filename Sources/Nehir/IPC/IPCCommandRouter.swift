@@ -306,14 +306,14 @@ final class IPCCommandRouter {
 
 
     private func switchWorkspace(using command: HotkeyCommand) -> ExternalCommandResult {
-        let previousWorkspaceId = controller.activeWorkspace()?.id
+        let previousWorkspaceId = controller.interactionWorkspace()?.id
         let result = controller.commandHandler.performCommand(command)
         guard result == .executed else { return result }
-        return controller.activeWorkspace()?.id == previousWorkspaceId ? .notFound : .executed
+        return controller.interactionWorkspace()?.id == previousWorkspaceId ? .notFound : .executed
     }
 
     private func moveFocusedWindow(using command: HotkeyCommand) -> ExternalCommandResult {
-        guard let token = controller.workspaceManager.focusedToken else { return .notFound }
+        guard let token = controller.workspaceManager.confirmedManagedFocusToken else { return .notFound }
         let previousWorkspaceId = controller.workspaceManager.workspace(for: token)
         let result = controller.commandHandler.performCommand(command)
         guard result == .executed else { return result }
@@ -321,10 +321,10 @@ final class IPCCommandRouter {
     }
 
     private func swapWorkspaceWithMonitor(direction: Direction) -> ExternalCommandResult {
-        let previousWorkspaceId = controller.activeWorkspace()?.id
+        let previousWorkspaceId = controller.interactionWorkspace()?.id
         let result = controller.commandHandler.performCommand(.swapWorkspaceWithMonitor(direction))
         guard result == .executed else { return result }
-        return controller.activeWorkspace()?.id == previousWorkspaceId ? .notFound : .executed
+        return controller.interactionWorkspace()?.id == previousWorkspaceId ? .notFound : .executed
     }
 
     private func raiseAllFloatingWindows() -> ExternalCommandResult {
@@ -368,9 +368,9 @@ final class IPCCommandRouter {
             rawWorkspaceID = resolved
         }
 
-        let previousWorkspaceId = controller.activeWorkspace()?.id
+        let previousWorkspaceId = controller.interactionWorkspace()?.id
         controller.workspaceNavigationHandler.switchWorkspace(rawWorkspaceID: rawWorkspaceID)
-        return controller.activeWorkspace()?.id == previousWorkspaceId ? .notFound : .executed
+        return controller.interactionWorkspace()?.id == previousWorkspaceId ? .notFound : .executed
     }
 
     private func switchWorkspaceAnywhere(to target: WorkspaceTarget) -> ExternalCommandResult {
@@ -385,11 +385,11 @@ final class IPCCommandRouter {
             rawWorkspaceID = resolved
         }
 
-        let previousWorkspaceId = controller.activeWorkspace()?.id
+        let previousWorkspaceId = controller.interactionWorkspace()?.id
         let previousMonitorId = controller.workspaceManager.interactionMonitorId ?? controller.monitorForInteraction()?
             .id
         controller.workspaceNavigationHandler.focusWorkspaceAnywhere(rawWorkspaceID: rawWorkspaceID)
-        let currentWorkspaceId = controller.activeWorkspace()?.id
+        let currentWorkspaceId = controller.interactionWorkspace()?.id
         let currentMonitorId = controller.workspaceManager.interactionMonitorId ?? controller.monitorForInteraction()?
             .id
         return currentWorkspaceId == previousWorkspaceId && currentMonitorId == previousMonitorId ? .notFound :
@@ -400,7 +400,7 @@ final class IPCCommandRouter {
         if let guardResult = validateControllerState() {
             return guardResult
         }
-        guard let token = controller.workspaceManager.focusedToken else { return .notFound }
+        guard let token = controller.workspaceManager.confirmedManagedFocusToken else { return .notFound }
         let rawWorkspaceID: String
         switch resolveWorkspaceTarget(target) {
         case let .failure(result):
@@ -421,7 +421,7 @@ final class IPCCommandRouter {
         if let guardResult = validateControllerState() {
             return guardResult
         }
-        guard let token = controller.workspaceManager.focusedToken else { return .notFound }
+        guard let token = controller.workspaceManager.confirmedManagedFocusToken else { return .notFound }
         let rawWorkspaceID: String
         switch resolveWorkspaceTarget(target) {
         case let .failure(result):

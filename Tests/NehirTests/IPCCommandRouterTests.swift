@@ -113,7 +113,7 @@ private func prepareIPCNiriState(
         )
 
         #expect(result == .executed)
-        #expect(controller.activeWorkspace()?.name == "2")
+        #expect(controller.interactionWorkspace()?.name == "2")
     }
 
     @Test func workspaceFocusNameAcceptsConfiguredDisplayName() {
@@ -130,7 +130,7 @@ private func prepareIPCNiriState(
         )
 
         #expect(result == .executed)
-        #expect(controller.activeWorkspace()?.name == "2")
+        #expect(controller.interactionWorkspace()?.name == "2")
     }
 
     @Test func workspaceFocusNameResolvesWorkspace10AsRawWorkspaceID() {
@@ -147,7 +147,7 @@ private func prepareIPCNiriState(
         )
 
         #expect(result == .executed)
-        #expect(controller.activeWorkspace()?.name == "10")
+        #expect(controller.interactionWorkspace()?.name == "10")
     }
 
     @Test func workspaceFocusNameRejectsAmbiguousDisplayNames() {
@@ -164,7 +164,7 @@ private func prepareIPCNiriState(
         )
 
         #expect(result == .invalidArguments)
-        #expect(controller.activeWorkspace()?.name == "1")
+        #expect(controller.interactionWorkspace()?.name == "1")
     }
 
     @Test func switchWorkspaceTranslatesOneBasedNumbersBeforeRouting() {
@@ -176,7 +176,7 @@ private func prepareIPCNiriState(
         )
 
         #expect(result == .executed)
-        #expect(controller.activeWorkspace()?.name == "2")
+        #expect(controller.interactionWorkspace()?.name == "2")
     }
 
     @Test func switchWorkspaceSupportsWorkspace10() {
@@ -193,7 +193,7 @@ private func prepareIPCNiriState(
         )
 
         #expect(result == .executed)
-        #expect(controller.activeWorkspace()?.name == "10")
+        #expect(controller.interactionWorkspace()?.name == "10")
     }
 
     @Test func switchWorkspaceNextRoutesRelativeCommand() {
@@ -203,7 +203,7 @@ private func prepareIPCNiriState(
         let result = router.handle(.switchWorkspaceNext)
 
         #expect(result == .executed)
-        #expect(controller.activeWorkspace()?.name == "2")
+        #expect(controller.interactionWorkspace()?.name == "2")
     }
 
     @Test func switchWorkspaceReturnsNotFoundWhenTargetWorkspaceIsAlreadyActive() {
@@ -211,19 +211,19 @@ private func prepareIPCNiriState(
         let router = makeIPCCommandRouter(for: controller)
 
         #expect(router.handle(.switchWorkspace(workspaceNumber: 2)) == .executed)
-        #expect(controller.activeWorkspace()?.name == "2")
+        #expect(controller.interactionWorkspace()?.name == "2")
 
         let repeatedSwitchResult = router.handle(
             .switchWorkspace(workspaceNumber: 2)
         )
 
         #expect(repeatedSwitchResult == .notFound)
-        #expect(controller.activeWorkspace()?.name == "2")
+        #expect(controller.interactionWorkspace()?.name == "2")
 
         let backAndForthResult = router.handle(.switchWorkspaceBackAndForth)
 
         #expect(backAndForthResult == .executed)
-        #expect(controller.activeWorkspace()?.name == "1")
+        #expect(controller.interactionWorkspace()?.name == "1")
     }
 
     @Test func switchWorkspaceBackAndForthReturnsToPreviousWorkspace() {
@@ -235,7 +235,7 @@ private func prepareIPCNiriState(
         let result = router.handle(.switchWorkspaceBackAndForth)
 
         #expect(result == .executed)
-        #expect(controller.activeWorkspace()?.name == "1")
+        #expect(controller.interactionWorkspace()?.name == "1")
     }
 
     @Test func moveToWorkspaceTranslatesOneBasedNumbersBeforeRouting() throws {
@@ -324,7 +324,7 @@ private func prepareIPCNiriState(
         let result = router.handle(.focusWindowOrWorkspaceDown)
 
         #expect(result == .executed)
-        #expect(controller.activeWorkspace()?.id == targetWorkspaceId)
+        #expect(controller.interactionWorkspace()?.id == targetWorkspaceId)
         #expect(controller.workspaceManager.workspace(for: token) == sourceWorkspaceId)
     }
 
@@ -340,7 +340,7 @@ private func prepareIPCNiriState(
         let result = router.handle(.focusWindowOrWorkspaceDown)
 
         #expect(result == .executed)
-        #expect(controller.activeWorkspace()?.id == targetWorkspaceId)
+        #expect(controller.interactionWorkspace()?.id == targetWorkspaceId)
     }
 
     @Test func focusWindowOrWorkspaceUpFallsBackFromEmptyWorkspace() throws {
@@ -358,7 +358,7 @@ private func prepareIPCNiriState(
         let result = router.handle(.focusWindowOrWorkspaceUp)
 
         #expect(result == .executed)
-        #expect(controller.activeWorkspace()?.id == targetWorkspaceId)
+        #expect(controller.interactionWorkspace()?.id == targetWorkspaceId)
     }
 
     @Test func centerColumnCommandRecentersNiriViewport() throws {
@@ -812,12 +812,12 @@ private func prepareIPCNiriState(
         )
 
         #expect(result == .executed)
-        #expect(fixture.controller.activeWorkspace()?.id == fixture.secondaryWorkspaceId)
+        #expect(fixture.controller.interactionWorkspace()?.id == fixture.secondaryWorkspaceId)
     }
 
     @Test func windowSummonRightUsesWindowActionHandlerRoute() throws {
         let controller = makeLayoutPlanTestController()
-        let targetWorkspaceId = try #require(controller.activeWorkspace()?.id)
+        let targetWorkspaceId = try #require(controller.interactionWorkspace()?.id)
         let handles = prepareIPCNiriState(
             on: controller,
             assignments: [
@@ -842,7 +842,7 @@ private func prepareIPCNiriState(
         )
 
         #expect(result == .executed)
-        #expect(controller.workspaceManager.lastFocusedToken(in: targetWorkspaceId)?.windowId == 9102)
+        #expect(controller.workspaceManager.rememberedTiledFocusToken(in: targetWorkspaceId)?.windowId == 9102)
     }
 }
 

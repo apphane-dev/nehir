@@ -429,13 +429,13 @@ private func assertWorkspaceSwitchCommandRequestsRememberedFocus(
     action(controller)
     await waitForRefreshWork(on: controller)
     await waitUntil {
-        controller.activeWorkspace()?.id == workspaceTwo &&
-            controller.workspaceManager.pendingFocusedToken == targetHandle.id &&
+        controller.interactionWorkspace()?.id == workspaceTwo &&
+            controller.workspaceManager.activeFocusRequestToken == targetHandle.id &&
             focusRequests.contains { $0.0 == targetHandle.id.pid && $0.1 == UInt32(targetHandle.id.windowId) }
     }
 
-    #expect(controller.activeWorkspace()?.id == workspaceTwo)
-    #expect(controller.workspaceManager.pendingFocusedToken == targetHandle.id)
+    #expect(controller.interactionWorkspace()?.id == workspaceTwo)
+    #expect(controller.workspaceManager.activeFocusRequestToken == targetHandle.id)
     #expect(focusRequests.contains { $0.0 == targetHandle.id.pid && $0.1 == UInt32(targetHandle.id.windowId) })
 }
 
@@ -478,15 +478,15 @@ private func assertWorkspaceSwitchCommandClearsManagedFocusForEmptyTarget(
     action(controller)
     await waitForRefreshWork(on: controller)
     await waitUntil {
-        controller.activeWorkspace()?.id == workspaceTwo &&
-            controller.workspaceManager.focusedToken == nil &&
-            controller.workspaceManager.pendingFocusedToken == nil &&
+        controller.interactionWorkspace()?.id == workspaceTwo &&
+            controller.workspaceManager.confirmedManagedFocusToken == nil &&
+            controller.workspaceManager.activeFocusRequestToken == nil &&
             controller.workspaceManager.isNonManagedFocusActive
     }
 
-    #expect(controller.activeWorkspace()?.id == workspaceTwo)
-    #expect(controller.workspaceManager.focusedToken == nil)
-    #expect(controller.workspaceManager.pendingFocusedToken == nil)
+    #expect(controller.interactionWorkspace()?.id == workspaceTwo)
+    #expect(controller.workspaceManager.confirmedManagedFocusToken == nil)
+    #expect(controller.workspaceManager.activeFocusRequestToken == nil)
     #expect(controller.workspaceManager.isNonManagedFocusActive)
     #expect(focusRequests.isEmpty)
 }
@@ -669,7 +669,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
                 await waitForRefreshWork(on: initialController)
                 initialController.syncMonitorsToNiriEngine()
 
-                guard let workspaceId = initialController.activeWorkspace()?.id,
+                guard let workspaceId = initialController.interactionWorkspace()?.id,
                       let monitor = initialController.workspaceManager.monitor(for: workspaceId),
                       let engine = initialController.niriEngine
                 else {
@@ -820,7 +820,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         let bundleId = "com.example.full-rescan-parent"
         let controller = makeRefreshTestController()
         defer { cleanupRefreshTestController(controller) }
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -936,7 +936,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
             cleanupRefreshTestController(controller)
         }
 
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Expected active workspace")
             return
         }
@@ -972,7 +972,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         }
 
         guard let monitor = controller.workspaceManager.monitors.first,
-              let workspaceId = controller.activeWorkspace()?.id
+              let workspaceId = controller.interactionWorkspace()?.id
         else {
             Issue.record("Expected active workspace")
             return
@@ -1049,7 +1049,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         controller.settings.statusBarShowAppNames = true
 
         guard let monitor = controller.monitorForInteraction(),
-              let workspaceId = controller.activeWorkspace()?.id
+              let workspaceId = controller.interactionWorkspace()?.id
         else {
             Issue.record("Missing active workspace for status bar refresh routing test")
             return
@@ -1215,15 +1215,15 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         let recorder = RefreshEventRecorder()
         installRefreshSpies(on: controller, recorder: recorder)
 
-        let previousFocusedToken = controller.workspaceManager.focusedToken
+        let previousFocusedToken = controller.workspaceManager.confirmedManagedFocusToken
         let previousBorderWindowId = lastAppliedBorderWindowId(on: controller)
 
         controller.workspaceNavigationHandler.switchWorkspace(index: 1)
         await waitForRefreshWork(on: controller)
 
-        #expect(controller.activeWorkspace()?.id == workspaceTwo)
-        #expect(controller.workspaceManager.focusedToken == previousFocusedToken)
-        #expect(controller.workspaceManager.focusedToken == targetHandle.id)
+        #expect(controller.interactionWorkspace()?.id == workspaceTwo)
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == previousFocusedToken)
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == targetHandle.id)
         #expect(lastAppliedBorderWindowId(on: controller) == previousBorderWindowId)
         #expect(lastAppliedBorderWindowId(on: controller) == targetHandle.windowId)
         #expect(controller.niriLayoutHandler.scrollAnimationByDisplay[monitor.displayId] == nil)
@@ -1404,7 +1404,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         controller.workspaceManager.updateNiriViewportState(animatingState, for: workspaceOne)
 
         #expect(controller.workspaceNavigationHandler.moveWindow(handle: focusedHandle, toWorkspaceId: workspaceTwo))
-        #expect(controller.currentKeyboardFocusTargetForRendering()?.workspaceId == workspaceTwo)
+        #expect(controller.currentBorderTarget()?.workspaceId == workspaceTwo)
 
         let rendered = controller.renderKeyboardFocusBorder(
             preferredFrame: CGRect(x: 20, y: 20, width: 640, height: 480)
@@ -1416,7 +1416,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
 
     @Test @MainActor func summonWindowRightIntoNiriUsesImmediateRelayoutOnly() async {
         let controller = makeRefreshTestController()
-        guard let targetWorkspaceId = controller.activeWorkspace()?.id else {
+        guard let targetWorkspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing target workspace for Niri summon-right test")
             return
         }
@@ -1450,13 +1450,13 @@ private func syncNiriWorkspaceStatesForRefreshTests(
 
         #expect(recorder.relayoutEvents.map(\.0) == [.layoutCommand])
         #expect(recorder.relayoutEvents.map(\.1) == [.immediateRelayout])
-        #expect(controller.workspaceManager.lastFocusedToken(in: targetWorkspaceId)?.windowId == 9102)
+        #expect(controller.workspaceManager.rememberedTiledFocusToken(in: targetWorkspaceId)?.windowId == 9102)
         #expect(orderedWindowIds == [9101, 9102, 9103])
     }
 
     @Test @MainActor func paletteSummonWindowRightIntoNiriUsesCapturedAnchorWhenManagedFocusIsNil() async {
         let controller = makeRefreshTestController()
-        guard let targetWorkspaceId = controller.activeWorkspace()?.id,
+        guard let targetWorkspaceId = controller.interactionWorkspace()?.id,
               let sourceWorkspaceId = controller.workspaceManager.workspaceId(for: "2", createIfMissing: true)
         else {
             Issue.record("Missing workspace for palette summon-right Niri test")
@@ -1501,13 +1501,13 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         #expect(recorder.relayoutEvents.map(\.0) == [.layoutCommand])
         #expect(recorder.relayoutEvents.map(\.1) == [.immediateRelayout])
         #expect(controller.workspaceManager.workspace(for: summonedHandle.id) == targetWorkspaceId)
-        #expect(controller.workspaceManager.lastFocusedToken(in: targetWorkspaceId)?.windowId == 9302)
+        #expect(controller.workspaceManager.rememberedTiledFocusToken(in: targetWorkspaceId)?.windowId == 9302)
         #expect(orderedWindowIds == [9301, 9302, 9303])
     }
 
     @Test @MainActor func paletteSummonWindowRightIntoNiriNoOpsWhenAnchorDisappears() async {
         let controller = makeRefreshTestController()
-        guard let targetWorkspaceId = controller.activeWorkspace()?.id,
+        guard let targetWorkspaceId = controller.interactionWorkspace()?.id,
               let sourceWorkspaceId = controller.workspaceManager.workspaceId(for: "2", createIfMissing: true)
         else {
             Issue.record("Missing workspace for stale-anchor Niri test")
@@ -1632,8 +1632,8 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         )
         await waitForRefreshWork(on: controller)
 
-        #expect(controller.activeWorkspace()?.id == workspaceTwo)
-        #expect(controller.workspaceManager.focusedToken == targetToken)
+        #expect(controller.interactionWorkspace()?.id == workspaceTwo)
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == targetToken)
         #expect(recorder.relayoutEvents.map(\.0) == [.appActivationTransition])
         #expect(recorder.relayoutEvents.map(\.1) == [.immediateRelayout])
         #expect(recorder.fullRescanReasons.isEmpty)
@@ -1696,8 +1696,8 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         )
         await waitForRefreshWork(on: controller)
 
-        #expect(controller.activeWorkspace()?.id == workspaceTwo)
-        #expect(controller.workspaceManager.focusedToken == targetToken)
+        #expect(controller.interactionWorkspace()?.id == workspaceTwo)
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == targetToken)
         #expect(controller.workspaceManager.hiddenState(for: targetToken) == nil)
         #expect(!controller.axManager.inactiveWorkspaceWindowIds.contains(targetToken.windowId))
 
@@ -1716,7 +1716,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         controller.enableNiriLayout()
         await waitForRefreshWork(on: controller)
 
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -1748,7 +1748,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         controller.enableNiriLayout()
         await waitForRefreshWork(on: controller)
 
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -1835,7 +1835,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         controller.workspaceNavigationHandler.switchWorkspace(index: 1)
         await waitForSettledRefreshWork(on: controller)
 
-        #expect(controller.activeWorkspace()?.id == workspaceTwo)
+        #expect(controller.interactionWorkspace()?.id == workspaceTwo)
         #expect(controller.workspaceManager.hiddenState(for: token) == nil)
         #expect(!controller.axManager.inactiveWorkspaceWindowIds.contains(token.windowId))
         #expect(controller.axManager.lastAppliedFrame(for: token.windowId) == targetFrame)
@@ -1928,7 +1928,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
             controller.layoutRefreshController.requestFullRescan(reason: .startup)
             await waitForSettledRefreshWork(on: controller)
 
-            guard let workspaceId = controller.activeWorkspace()?.id else {
+            guard let workspaceId = controller.interactionWorkspace()?.id else {
                 Issue.record("Missing active workspace")
                 return
             }
@@ -2000,7 +2000,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
             controller.layoutRefreshController.requestFullRescan(reason: .startup)
             await waitForSettledRefreshWork(on: controller)
 
-            guard let workspaceId = controller.activeWorkspace()?.id else {
+            guard let workspaceId = controller.interactionWorkspace()?.id else {
                 Issue.record("Missing active workspace")
                 return
             }
@@ -2084,7 +2084,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
             controller.layoutRefreshController.requestFullRescan(reason: .startup)
             await waitForSettledRefreshWork(on: controller)
 
-            guard let workspaceId = controller.activeWorkspace()?.id else {
+            guard let workspaceId = controller.interactionWorkspace()?.id else {
                 Issue.record("Missing active workspace")
                 return
             }
@@ -2159,7 +2159,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         controller.layoutRefreshController.requestImmediateRelayout(reason: .workspaceTransition)
         await waitForSettledRefreshWork(on: controller)
 
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -2283,7 +2283,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         controller.layoutRefreshController.requestImmediateRelayout(reason: .workspaceTransition)
         await waitForSettledRefreshWork(on: controller)
 
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -2360,7 +2360,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         controller.layoutRefreshController.requestImmediateRelayout(reason: .workspaceTransition)
         await waitForSettledRefreshWork(on: controller)
 
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -2445,7 +2445,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         controller.layoutRefreshController.requestImmediateRelayout(reason: .workspaceTransition)
         await waitForSettledRefreshWork(on: controller)
 
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -2571,7 +2571,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         defer { cleanupRefreshTestController(controller) }
         controller.motionPolicy.animationsEnabled = false
 
-        guard let workspaceOne = controller.activeWorkspace()?.id,
+        guard let workspaceOne = controller.interactionWorkspace()?.id,
               let workspaceTwo = controller.workspaceManager.workspaceId(for: "2", createIfMissing: true)
         else {
             Issue.record("Missing workspaces for native fullscreen partial enumeration")
@@ -2624,7 +2624,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         defer { cleanupRefreshTestController(controller) }
         controller.motionPolicy.animationsEnabled = false
 
-        guard let workspaceOne = controller.activeWorkspace()?.id,
+        guard let workspaceOne = controller.interactionWorkspace()?.id,
               let workspaceTwo = controller.workspaceManager.workspaceId(for: "2", createIfMissing: true)
         else {
             Issue.record("Missing workspaces for native fullscreen enumeration race")
@@ -2692,7 +2692,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         controller.layoutRefreshController.requestImmediateRelayout(reason: .workspaceTransition)
         await waitForSettledRefreshWork(on: controller)
 
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -2811,7 +2811,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         controller.layoutRefreshController.requestImmediateRelayout(reason: .workspaceTransition)
         await waitForSettledRefreshWork(on: controller)
 
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -2906,7 +2906,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         controller.layoutRefreshController.requestImmediateRelayout(reason: .workspaceTransition)
         await waitForSettledRefreshWork(on: controller)
 
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -2983,7 +2983,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         controller.layoutRefreshController.requestFullRescan(reason: .startup)
         await waitForRefreshWork(on: controller)
 
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -3014,7 +3014,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         #expect(controller.workspaceManager.isAppFullscreenActive == false)
         #expect(controller.workspaceManager.isNonManagedFocusActive == false)
         #expect(controller.workspaceManager.hasPendingNativeFullscreenTransition == false)
-        guard let recoveredToken = controller.workspaceManager.pendingFocusedToken else {
+        guard let recoveredToken = controller.workspaceManager.activeFocusRequestToken else {
             Issue.record("Expected managed focus recovery to resume after native fullscreen restore")
             return
         }
@@ -3027,7 +3027,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         }
         controller.focusWindow(recoveredToken)
 
-        #expect(controller.workspaceManager.pendingFocusedToken == recoveredToken)
+        #expect(controller.workspaceManager.activeFocusRequestToken == recoveredToken)
     }
 
     @Test @MainActor func gapsChangedUsesRelayoutOnly() async {
@@ -3046,7 +3046,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
 
     @Test @MainActor func appHideAndUnhideUseVisibilityRefreshOnly() async {
         let controller = makeRefreshTestController()
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -3116,7 +3116,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         let controller = makeRefreshTestController()
         controller.axManager.currentWindowsAsyncOverride = { [] }
         controller.axEventHandler.windowSubscriptionHandler = { _ in }
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -3148,7 +3148,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
     @Test @MainActor func fullRescanRemovesMissingTrackedWindowOnFirstVerifiedMiss() async {
         let controller = makeRefreshTestController()
         controller.axManager.currentWindowsAsyncOverride = { [] }
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -3176,7 +3176,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
     @Test @MainActor func fullRescanClearsFocusedFloatingBorderWhenWindowMissing() async {
         let controller = makeRefreshTestController()
         controller.axManager.currentWindowsAsyncOverride = { [] }
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -3203,14 +3203,14 @@ private func syncNiriWorkspaceStatesForRefreshTests(
             for: token
         )
         primeFocusedBorder(on: controller, handle: handle)
-        #expect(controller.currentKeyboardFocusTargetForRendering()?.token == token)
+        #expect(controller.currentBorderTarget()?.token == token)
         #expect(lastAppliedBorderWindowId(on: controller) == windowId)
 
         controller.layoutRefreshController.requestFullRescan(reason: .startup)
         await waitForRefreshWork(on: controller)
 
         #expect(controller.workspaceManager.entry(for: token) == nil)
-        #expect(controller.currentKeyboardFocusTargetForRendering() == nil)
+        #expect(controller.currentBorderTarget() == nil)
         #expect(lastAppliedBorderWindowId(on: controller) == nil)
     }
 
@@ -3224,7 +3224,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
             AXManager.FullRescanEnumerationSnapshot(windows: [], failedPIDs: [])
         }
         SkyLight.orderedStateProviderForTests = { _ in nil }
-        guard let workspaceId = controller.activeWorkspace()?.id,
+        guard let workspaceId = controller.interactionWorkspace()?.id,
               let monitor = controller.workspaceManager.monitor(for: workspaceId)
         else {
             Issue.record("Missing active workspace")
@@ -3271,7 +3271,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         controller.axManager.fullRescanEnumerationOverrideForTests = {
             AXManager.FullRescanEnumerationSnapshot(windows: [], failedPIDs: [])
         }
-        guard let workspaceId = controller.activeWorkspace()?.id,
+        guard let workspaceId = controller.interactionWorkspace()?.id,
               let monitor = controller.workspaceManager.monitor(for: workspaceId)
         else {
             Issue.record("Missing active workspace")
@@ -3321,7 +3321,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         controller.axManager.fullRescanEnumerationOverrideForTests = {
             AXManager.FullRescanEnumerationSnapshot(windows: [], failedPIDs: [])
         }
-        guard let workspaceId = controller.activeWorkspace()?.id,
+        guard let workspaceId = controller.interactionWorkspace()?.id,
               let monitor = controller.workspaceManager.monitor(for: workspaceId)
         else {
             Issue.record("Missing active workspace")
@@ -3371,7 +3371,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         controller.axManager.fullRescanEnumerationOverrideForTests = {
             AXManager.FullRescanEnumerationSnapshot(windows: [], failedPIDs: [])
         }
-        guard let workspaceId = controller.activeWorkspace()?.id,
+        guard let workspaceId = controller.interactionWorkspace()?.id,
               let monitor = controller.workspaceManager.monitor(for: workspaceId)
         else {
             Issue.record("Missing active workspace")
@@ -3457,7 +3457,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
 
     @Test @MainActor func fullRescanPreservesTrackedEmacsLikeWindowOnActiveSpaceChange() async {
         let controller = makeRefreshTestController()
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -3491,7 +3491,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
 
     @Test @MainActor func fullRescanPreservesTrackedWindowsForFailedEnumerationPIDs() async {
         let controller = makeRefreshTestController()
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -3606,7 +3606,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
 
     @Test @MainActor func sameWorkspaceWindowRemovalPreservesMultiplePayloads() async {
         let controller = makeRefreshTestController()
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -3660,7 +3660,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
 
     @Test @MainActor func scopedRelayoutDoesNotNarrowPendingGlobalRelayout() async {
         let controller = makeRefreshTestController()
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -3769,7 +3769,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         #expect(recorder.fullRescanReasons.isEmpty)
     }
 
-    @Test @MainActor func focusWindowFromBarRevealsHiddenWindowOnInactiveWorkspace() async {
+    @Test @MainActor func focusWindowFromBarRevealsHiddenWindowOnInteractionWorkspace() async {
         var focusRequests: [(pid_t, UInt32)] = []
         let controller = makeRefreshTestController(
             windowFocusOperations: WindowFocusOperations(
@@ -3817,15 +3817,15 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         #expect(didStartFocus)
         await waitForRefreshWork(on: controller)
         await waitUntil {
-            controller.activeWorkspace()?.id == workspaceTwo &&
+            controller.interactionWorkspace()?.id == workspaceTwo &&
                 controller.workspaceManager.hiddenState(for: targetToken) == nil &&
                 !controller.axManager.inactiveWorkspaceWindowIds.contains(targetToken.windowId) &&
-                controller.workspaceManager.pendingFocusedToken == targetToken &&
+                controller.workspaceManager.activeFocusRequestToken == targetToken &&
                 focusRequests.contains { $0.0 == targetToken.pid && $0.1 == UInt32(targetToken.windowId) }
         }
 
-        #expect(controller.activeWorkspace()?.id == workspaceTwo)
-        #expect(controller.workspaceManager.pendingFocusedToken == targetToken)
+        #expect(controller.interactionWorkspace()?.id == workspaceTwo)
+        #expect(controller.workspaceManager.activeFocusRequestToken == targetToken)
         #expect(controller.workspaceManager.hiddenState(for: targetToken) == nil)
         #expect(!controller.axManager.inactiveWorkspaceWindowIds.contains(targetToken.windowId))
         #expect(focusRequests.contains { $0.0 == targetToken.pid && $0.1 == UInt32(targetToken.windowId) })
@@ -3926,7 +3926,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         let controller = makeRefreshTestController()
         let recorder = RefreshEventRecorder()
         installRefreshSpies(on: controller, recorder: recorder)
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -3962,7 +3962,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
             let controller = makeRefreshTestController()
             let recorder = RefreshEventRecorder()
             installRefreshSpies(on: controller, recorder: recorder)
-            guard let workspaceId = controller.activeWorkspace()?.id else {
+            guard let workspaceId = controller.interactionWorkspace()?.id else {
                 Issue.record("Missing active workspace")
                 return
             }
@@ -4121,7 +4121,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
     @Test @MainActor func activeFullRescanAbsorbsVisibilityReconciliation() async {
         let controller = makeRefreshTestController()
         let gate = AsyncGate()
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }
@@ -4155,7 +4155,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
     @Test @MainActor func pendingRelayoutAbsorbsVisibilityReconciliation() async {
         let controller = makeRefreshTestController()
         let gate = AsyncGate()
-        guard let workspaceId = controller.activeWorkspace()?.id else {
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace")
             return
         }

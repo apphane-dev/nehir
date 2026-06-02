@@ -497,7 +497,7 @@ private func prepareIPCQueryRouterNiriState(
             workspaceManager: controller.workspaceManager,
             appInfoCache: controller.appInfoCache,
             niriEngine: controller.niriEngine,
-            focusedToken: controller.workspaceManager.focusedToken,
+            focusedToken: controller.workspaceManager.confirmedManagedFocusToken,
             settings: controller.settings
         )
         let barWorkspace = try #require(barItems.first(where: { $0.rawName == "1" }))
