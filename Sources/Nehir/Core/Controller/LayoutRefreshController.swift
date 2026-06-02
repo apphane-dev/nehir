@@ -2357,13 +2357,13 @@ import QuartzCore
         for frame: CGRect,
         monitor: Monitor,
         side: HideSide,
-        pid: pid_t,
+        pid _: pid_t,
         reason: HideReason,
         hiddenPlacementMonitors: [HiddenPlacementMonitorContext]? = nil
     ) -> CGPoint? {
         guard let controller else { return nil }
         let scale = backingScale(for: monitor)
-        let baseReveal = Self.hiddenEdgeReveal(isZoomApp: isZoomApp(pid))
+        let baseReveal = Self.hiddenWindowEdgeRevealEpsilon
         let hiddenPlacementMonitor = HiddenPlacementMonitorContext(monitor)
         let resolvedHiddenPlacementMonitors = hiddenPlacementMonitors
             ?? controller.workspaceManager.monitors.map(HiddenPlacementMonitorContext.init)
@@ -2940,14 +2940,6 @@ import QuartzCore
 
     private func observedWindowOrigin(_ entry: WindowModel.Entry) -> CGPoint? {
         observedWindowFrame(entry)?.origin
-    }
-
-    static func hiddenEdgeReveal(isZoomApp: Bool) -> CGFloat {
-        isZoomApp ? 0 : hiddenWindowEdgeRevealEpsilon
-    }
-
-    func isZoomApp(_ pid: pid_t) -> Bool {
-        controller?.appInfoCache.bundleId(for: pid) == "us.zoom.xos"
     }
 
     func parkResizePlaceholderWindow(

@@ -28,12 +28,27 @@ private func makeUnavailableLayoutPlanTestWindow(windowId: Int) -> AXWindowRef {
 }
 
 @Suite(.serialized) struct LayoutRefreshControllerTests {
-    @Test @MainActor func hiddenEdgeRevealUsesOnePointZeroForNonZoomApps() {
-        #expect(LayoutRefreshController.hiddenEdgeReveal(isZoomApp: false) == 1.0)
+    @Test @MainActor func hiddenEdgeRevealUsesOnePointForAllApps() {
+        #expect(LayoutRefreshController.hiddenWindowEdgeRevealEpsilon == 1.0)
     }
 
-    @Test @MainActor func hiddenEdgeRevealUsesZeroForZoom() {
-        #expect(LayoutRefreshController.hiddenEdgeReveal(isZoomApp: true) == 0)
+    @Test @MainActor func workspaceHiddenPlacementUsesPhysicalFrameNotVisibleFrame() {
+        let monitor = HiddenPlacementMonitorContext(
+            id: Monitor.ID(displayId: 1),
+            frame: CGRect(x: 0, y: 0, width: 2056, height: 1329),
+            visibleFrame: CGRect(x: 0, y: 0, width: 1956, height: 1290)
+        )
+        let origin = HiddenWindowPlacementResolver.physicalScreenEdgeOrigin(
+            for: CGSize(width: 1016, height: 1274),
+            requestedSide: .right,
+            targetY: 8,
+            baseReveal: LayoutRefreshController.hiddenWindowEdgeRevealEpsilon,
+            scale: 1,
+            monitor: monitor,
+            monitors: [monitor]
+        )
+
+        #expect(origin == CGPoint(x: 2055, y: 8))
     }
 
     @Test @MainActor func buildMonitorSnapshotUsesConfiguredWorkspaceBarInsetInOverlappingMode() {

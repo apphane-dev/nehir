@@ -84,12 +84,12 @@ enum HiddenWindowPlacementResolver {
             switch side {
             case .left:
                 CGPoint(
-                    x: monitor.visibleFrame.minX - size.width + reveal,
+                    x: monitor.frame.minX - size.width + reveal,
                     y: targetY
                 )
             case .right:
                 CGPoint(
-                    x: monitor.visibleFrame.maxX - reveal,
+                    x: monitor.frame.maxX - reveal,
                     y: targetY
                 )
             }

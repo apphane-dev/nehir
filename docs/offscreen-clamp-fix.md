@@ -99,8 +99,11 @@ Useful confirmed findings:
 - macOS clamps both horizontal and vertical offscreen positions for external app windows.
 - The stale `RefreshFrameContext` cache can make hide verification misleading; live AX
   reads are necessary when diagnosing post-move positions.
-- Workspace-inactive hiding appears acceptable because it parks windows at the right edge
-  with ~1px visible; this is not a true hide.
+- Workspace-inactive hiding appears acceptable because it parks windows at the physical
+  screen edge with ~1px visible; this is not a true hide. Some apps (confirmed with a
+  Zoom call window) clamp to a larger visible strip if requested exactly at the edge,
+  so workspace-inactive parking uses the same 1pt reveal limitation as transient
+  parking rather than an app-specific special case.
 - Using that same right-edge parking for transient left-hidden windows removes the parked
   left corner but causes a visible left-to-right fly during the hide transition.
 - **Unconfirmed hypotheses are not fixes.** A proposed hide strategy may be implemented
@@ -307,6 +310,16 @@ WindowServer to accept the final parked coordinate on the Dock-owned physical ed
 Support stance for fixed Dock: transient hiding is expected to work best with auto-hide
 Dock or with the fixed Dock on a non-parking edge. Fixed Dock on the target parking edge is
 a known degraded/unsupported configuration until a non-position-based hide primitive is
+found.
+
+Current workspace-inactive parking uses the physical monitor frame and a 1pt reveal for
+all apps. This avoids a narrow Zoom-only workaround: the confirmed Zoom call-window issue
+is treated as evidence that exact-edge requests can trigger a wider WindowServer clamp for
+some windows/classes, not as a property unique to Zoom.
+
+Known limitation: Nehir's window "hide" is still position-based parking, not a real
+WindowServer order-out. Parked windows can still expose a thin edge/corner and their
+shadows along screen sides. This is expected until a non-position-based hide primitive is
 found.
 
 No failing test is kept in the tree: the runtime behavior depends on WindowServer/private
