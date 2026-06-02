@@ -344,11 +344,18 @@ extension NiriLayoutEngine {
         viewportFrame: CGRect,
         orientation: Monitor.Orientation
     ) -> Bool {
+        // Pre-park just before the container fully leaves the viewport. Waiting until
+        // exact zero intersection causes a visible final jump when the window is moved
+        // from its near-edge rendered position to the 1pt parking target. Treat a tiny
+        // edge sliver as hidden so parking happens earlier.
+        let preParkMargin: CGFloat = 16
         switch orientation {
         case .horizontal:
-            containerRect.maxX > viewportFrame.minX && containerRect.minX < viewportFrame.maxX
+            return containerRect.maxX > viewportFrame.minX + preParkMargin
+                && containerRect.minX < viewportFrame.maxX - preParkMargin
         case .vertical:
-            containerRect.maxY > viewportFrame.minY && containerRect.minY < viewportFrame.maxY
+            return containerRect.maxY > viewportFrame.minY + preParkMargin
+                && containerRect.minY < viewportFrame.maxY - preParkMargin
         }
     }
 

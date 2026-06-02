@@ -83,6 +83,12 @@ hidden.
 A fixed Dock on a screen edge **makes things worse** for windows hidden to the opposite
 side — see [Dock Presence Affects Clamp Strip Size](#dock-presence-affects-clamp-strip-size).
 
+For multi-monitor setups, the practical recommendation is to arrange monitors
+**vertically** in macOS System Settings. Side-by-side horizontal displays put another
+screen directly next to the horizontal parking edge, so a parked/clamped offscreen window
+can bleed onto the neighboring monitor. A vertical arrangement keeps horizontal parking
+edges away from adjacent displays and produces a better Niri scrolling experience.
+
 The core problem remains: macOS clamps both axes and no tested API can order out
 external app windows. **We are still looking for a working solution.** Do not mark a
 runtime workaround as solved from geometry reasoning or unit tests alone; WindowServer
@@ -101,6 +107,18 @@ Useful confirmed findings:
   only as an experiment until runtime traces and visual testing confirm it. Unit tests can
   cover our chosen coordinates and invariants, but they cannot prove WindowServer accepts
   or renders the result correctly.
+
+## Multi-Monitor Arrangement Recommendation
+
+Nehir's Niri layout scrolls columns horizontally, and transient hiding parks windows near
+horizontal screen edges. Because macOS will not truly move full-size external app windows
+fully offscreen, any parked/clamped remnant near a horizontal edge can become visible on a
+neighboring display when monitors are arranged side-by-side.
+
+For best results, arrange displays **vertically** in macOS System Settings (`Displays >
+Arrange`). A vertical arrangement prevents horizontal parking edges from touching another
+monitor, which avoids the most visible cross-monitor bleed. Side-by-side monitor layouts
+are a known degraded configuration for transient parked-window hiding.
 
 ## Dock Presence Affects Clamp Strip Size
 
@@ -167,7 +185,7 @@ while earlier traces showed ~34px. The threshold may vary with window size or ti
 | 13 | Push all hidden windows to x=monitor.maxX (right edge) | With AX fallback this parks windows at the same 1px right-edge position as workspace-inactive hide, but left-hidden windows visibly fly across the screen to get there. Without AX fallback, SkyLight-only moves can leave left-edge clamps. | |
 | 14 | `SLSSetWindowTransform` / `CGSSetWindowTransform` raw near-zero scale | API returns success but does not hide external app pixels reliably. Raw scale pulls windows toward global origin, causing random-width left-edge clamp artifacts. | Trace: `hideTransform.apply ... result=CGError(rawValue: 0)` followed by visible artifacts |
 | 15 | Anchored `SLSSetWindowTransform` near-zero scale, skip move | API still returns success, but the window remains visually parked at natural left-clamped position — effectively as if nothing happened/worse. Transform is not a usable external-window hide primitive. | |
-| 16 | Explicit 1px edge parking on both sides | **Does not work reliably.** This was only a hypothesis and must not be described as confirmed. Slowly approaching the edge can look stable briefly, but after the window is classified hidden/parked, a visible strip can remain stuck on screen (~15px or more observed). | Trace `runtime-trace-1780413107-1780413122.log`: `hideOrigin.resolve ... placement=(1728,8) result=(1728,8) frame=(1726,8 1626x1068)`, then AX fallback targeted `(1727.5,8)` and observed `(1727,8)` for a 1626px-wide window. |
+| 16 | Explicit 1px edge parking on both sides | **Intermittent mitigation, not a complete fix.** The approach improves the common non-Dock-edge case, but must not be described as fully confirmed or universally reliable. Slowly approaching the edge can look stable briefly, but after the window is classified hidden/parked, a visible strip can remain stuck on screen (~15px or more observed). A later physical-frame variant showed some windows parked at `-851`/`1727`, while another stale/cached-hidden window remained live-clamped at `-812`. | Evidence: one right-edge run requested `placement=(1728,8) result=(1728,8)` for `frame=(1726,8 1626x1068)`, then AX fallback targeted `(1727.5,8)` and observed `(1727,8)` for a 1626px-wide window. Another run requested `experiment=physicalEdge1pt ... result=(-851,8)`, but layout decisions showed one window with `target=-852 ... live=-812`, while neighboring hidden windows were `live=-851`. |
 
 ### Why Right-Hidden Windows Can Appear Invisible — But Are Not Reliable
 
@@ -250,13 +268,46 @@ Do not add a gate in `NiriLayout` that bypasses the hide for columns that
 offscreen, and (2) partially visible but leaking into a neighboring monitor. Both must
 remain hidden.
 
-## Current Code Status
+## Code Status
 
-All runtime experiments described above were reverted. This document is retained as the
-failure log so the same approaches are not retried without new evidence.
+Failed runtime experiments described above were reverted unless explicitly called out as
+active below. This document is retained as the failure log so the same approaches are not
+retried without new evidence.
 
 **Open problem:** there is no confirmed working solution yet for truly hiding transient
 offscreen external app windows.
+
+Active experiment in the tree: explicit 1pt parking on the **physical monitor frame** for
+both sides, without the `y=-10000` vertical push and without using `visibleFrame` edges.
+This is only a hypothesis under test. Do not promote it to a fix unless runtime traces and
+visual testing confirm the settled idle state is acceptable for both narrow and wide
+windows. Look for trace marker `experiment=physicalEdge1pt`.
+
+Iteration finding: live AX evidence suggests one failure mode is stale cached /
+last-applied state. Nehir can classify a window as already parked because its cached frame
+is near the 1pt target, while live AX has drifted/clamped to a larger visible strip
+(`live=-812` instead of requested `-851`). The experiment logs
+`hidePlan.staleCachedAlreadyHidden` and re-applies the parking move when live AX disagrees
+with the cached already-hidden decision.
+
+Iteration finding: visual testing showed parking can happen too late. The window approaches
+the edge, then jumps when it takes the final parked position. The experiment pre-parks
+when only a small edge sliver remains visible (`preParkMargin = 16` in
+`NiriLayout.containerIntersectsViewport`) so the parking move is triggered slightly before
+exact zero intersection.
+
+Iteration finding: fixed Dock should be treated as degraded / unsupported for now, not
+something to tune further with trigger math. In one right-Dock run,
+`visibleFrame.maxX=1641` while `frame.maxX=1728` (Dock inset ≈87px). macOS may reject /
+adjust 1pt parking on the Dock-owned physical edge and leave roughly Dock-width + extra
+visible. A dock-aware trigger experiment (`basePreParkMargin + dockInsetOnThatEdge`) was
+tried and then reverted: it can change when the parking move happens, but it cannot force
+WindowServer to accept the final parked coordinate on the Dock-owned physical edge.
+
+Support stance for fixed Dock: transient hiding is expected to work best with auto-hide
+Dock or with the fixed Dock on a non-parking edge. Fixed Dock on the target parking edge is
+a known degraded/unsupported configuration until a non-position-based hide primitive is
+found.
 
 No failing test is kept in the tree: the runtime behavior depends on WindowServer/private
 SkyLight behavior that unit tests can only simulate. A future fix should first be confirmed

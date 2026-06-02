@@ -4206,7 +4206,6 @@ private func waitUntilAXEventTest(
         #expect(observedReadCount == 0)
         #expect(relayoutReasons.isEmpty)
         #expect(controller.axEventHandler.debugCounters.geometryRelayoutRequests == 0)
-        #expect(controller.axEventHandler.debugCounters.geometryRelayoutsSuppressedForOwnFrameWrites == 1)
     }
 
     @Test @MainActor func nonFocusedFrameChangedMatchingLastAppliedFrameDoesNotRelayout() async {

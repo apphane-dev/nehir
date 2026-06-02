@@ -11,7 +11,7 @@ A scrolling tiling window manager for macOS, built on the Niri column layout par
 - **Window borders** — configurable colored borders on the focused window
 - **Workspace bar** — per-monitor status bar showing workspace names and app icons
 - **Focus follows mouse** — optional hover focus
-- **Multi-monitor support** — seamless window management across displays
+- **Multi-monitor support** — seamless window management across displays. For the best Niri scrolling experience, use an auto-hide Dock and arrange displays vertically in macOS System Settings to avoid parked offscreen windows bleeding onto neighboring monitors.
 - **Overview mode** — bird's-eye view of all windows
 - **Command palette** — fuzzy search for commands
 - **App rules** — per-application layout overrides

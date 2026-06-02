@@ -2231,6 +2231,24 @@ import QuartzCore
         if abs(frame.origin.x - origin.x) < moveEpsilon,
            abs(frame.origin.y - origin.y) < moveEpsilon
         {
+            if reason == .layoutTransient,
+               let liveFrame = try? AXWindowService.frame(entry.axRef)
+            {
+                let liveDx = abs(liveFrame.origin.x - origin.x)
+                let liveDy = abs(liveFrame.origin.y - origin.y)
+                if liveDx > moveEpsilon || liveDy > moveEpsilon {
+                    controller.axManager.recordFrameApplyTrace("hidePlan.staleCachedAlreadyHidden id=\(entry.windowId) cached=\(LayoutTrace.rect(frame)) live=\(LayoutTrace.rect(liveFrame)) requested=\(LayoutTrace.point(origin))")
+                    return .movable(
+                        WindowPositionPlan(
+                            entry: entry,
+                            origin: origin,
+                            frameSize: liveFrame.size,
+                            displayId: monitor.displayId
+                        ),
+                        hiddenState: hiddenState
+                    )
+                }
+            }
             return .alreadyHidden(hiddenState: hiddenState)
         }
 
@@ -2388,11 +2406,32 @@ import QuartzCore
                 monitor: hiddenPlacementMonitor,
                 monitors: resolvedHiddenPlacementMonitors
             )
-            // macOS clamps horizontal offscreen positions, keeping ~40px visible.
-            // Push the window vertically far offscreen instead — y is not clamped.
-            let offscreenY: CGFloat = -10000
-            let result = CGPoint(x: placement.origin.x, y: offscreenY)
-            controller.axManager.recordFrameApplyTrace("hideOrigin.resolve reason=layoutTransient side=\(side) placement=\(LayoutTrace.point(placement.origin)) offscreenY=\(offscreenY) result=\(LayoutTrace.point(result)) frame=\(LayoutTrace.rect(frame))")
+            // Mitigation: explicit 1pt parking on the physical screen edge.
+            // This improves the common non-Dock-edge case, but it is not a complete
+            // WindowServer hide primitive and must not be described as universally
+            // reliable. Prior 1px parking through the normal placement path still
+            // produced stuck visible strips for wide windows. This variant intentionally
+            // uses the full monitor frame (not visibleFrame) and avoids the vertical
+            // offscreen push, so Dock visibleFrame shrinkage and y-clamping are not part
+            // of the parking target.
+            let reveal: CGFloat = Self.hiddenWindowEdgeRevealEpsilon
+            let result: CGPoint = switch orientation {
+            case .horizontal:
+                switch requestedEdge {
+                case .minimum:
+                    CGPoint(x: monitor.frame.minX - frame.width + reveal, y: orthogonalOrigin)
+                case .maximum:
+                    CGPoint(x: monitor.frame.maxX - reveal, y: orthogonalOrigin)
+                }
+            case .vertical:
+                switch requestedEdge {
+                case .minimum:
+                    CGPoint(x: orthogonalOrigin, y: monitor.frame.minY - frame.height + reveal)
+                case .maximum:
+                    CGPoint(x: orthogonalOrigin, y: monitor.frame.maxY - reveal)
+                }
+            }
+            controller.axManager.recordFrameApplyTrace("hideOrigin.resolve experiment=physicalEdge1pt reason=layoutTransient side=\(side) placement=\(LayoutTrace.point(placement.origin)) result=\(LayoutTrace.point(result)) frame=\(LayoutTrace.rect(frame)) monitorFrame=\(LayoutTrace.rect(monitor.frame)) visibleFrame=\(LayoutTrace.rect(monitor.visibleFrame))")
             return result
         }
     }

@@ -183,6 +183,13 @@ Overview                      Option+Command+O
 
 Monitor focus is deliberately separate from the workspace/window model and uses `Control+Command+Tab` and `Control+Command+Grave`.
 
+### Display and Dock recommendations
+
+For the best Niri scrolling experience:
+
+- Use an **auto-hide Dock**. A fixed Dock on the same physical edge used for parking hidden windows is a known degraded configuration: macOS may adjust parked external app windows to the Dock boundary and leave a Dock-width visible strip.
+- Arrange displays **vertically** in macOS System Settings (`Displays > Arrange`) instead of side-by-side horizontally. Nehir parks transient offscreen tiled windows near the horizontal screen edge. With side-by-side monitors, those parked windows can bleed into the neighboring display because macOS does not allow fully hiding external app windows by position alone. A vertical monitor arrangement keeps the horizontal parking edges away from adjacent displays and avoids the most visible bleed artifacts.
+
 The design goal is:
 
 ```text

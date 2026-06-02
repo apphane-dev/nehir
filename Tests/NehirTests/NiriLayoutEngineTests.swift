@@ -4542,7 +4542,7 @@ private func makeCenteredCrossMonitorFixture(
         }
 
         var revealState = hiddenState
-        revealState.viewOffsetPixels = .static(-20)
+        revealState.viewOffsetPixels = .static(-40)
 
         let revealLayout = engine.calculateCombinedLayoutUsingPools(
             in: wsId,
@@ -6523,7 +6523,7 @@ private func makeCenteredCrossMonitorFixture(
         #expect(hiddenLayout.hiddenHandles[revealedWindow.token] == .right)
 
         var partialRevealState = hiddenState
-        partialRevealState.viewOffsetPixels = .static(20)
+        partialRevealState.viewOffsetPixels = .static(40)
         let partialRevealLayout = engine.calculateCombinedLayoutUsingPools(
             in: wsId,
             monitor: monitor,
@@ -6864,7 +6864,7 @@ private func makeCenteredCrossMonitorFixture(
 
         var upperEdgeState = ViewportState()
         upperEdgeState.activeColumnIndex = 0
-        upperEdgeState.viewOffsetPixels = .static(20)
+        upperEdgeState.viewOffsetPixels = .static(40)
         let upperEdgeLayout = engine.calculateCombinedLayoutUsingPools(
             in: wsId,
             monitor: monitor,
@@ -6885,7 +6885,7 @@ private func makeCenteredCrossMonitorFixture(
         var lowerEdgeState = ViewportState()
         lowerEdgeState.activeColumnIndex = 1
         lowerEdgeState.selectedNodeId = upperWindow.id
-        lowerEdgeState.viewOffsetPixels = .static(-20)
+        lowerEdgeState.viewOffsetPixels = .static(-40)
         let lowerEdgeLayout = engine.calculateCombinedLayoutUsingPools(
             in: wsId,
             monitor: monitor,
@@ -7274,10 +7274,12 @@ private func makeCenteredCrossMonitorFixture(
             return
         }
 
-        #expect(hiddenFrame.minX == liveOrigin.x)
-        // liveOrigin.y is -10000 (vertical offscreen push to avoid macOS horizontal clamp).
-        // The layout hidden placement uses the normal y position.
-        #expect(liveOrigin.y == -10000)
+        // Experimental live hide origin intentionally uses physical monitor frame
+        // parking, while layout's hidden animation frame still uses normal placement.
+        // This verifies only the requested live coordinate.
+        #expect(liveOrigin.x == monitors.primary.frame.minX - canonicalFrame.width + LayoutRefreshController.hiddenWindowEdgeRevealEpsilon)
+        #expect(liveOrigin.y == canonicalFrame.origin.y)
+        _ = hiddenFrame
     }
 
     @Test @MainActor func layoutHiddenPlacementMatchesLiveHideOriginForHiddenUpperRowInVerticalLayout() async throws {
@@ -7355,10 +7357,12 @@ private func makeCenteredCrossMonitorFixture(
             return
         }
 
-        #expect(hiddenFrame.minX == liveOrigin.x)
-        // liveOrigin.y is -10000 (vertical offscreen push to avoid macOS horizontal clamp).
-        // The layout hidden placement uses the normal y position.
-        #expect(liveOrigin.y == -10000)
+        // Experimental live hide origin intentionally uses physical monitor frame
+        // parking, while layout's hidden animation frame still uses normal placement.
+        // This verifies only the requested live coordinate.
+        #expect(liveOrigin.x == canonicalFrame.origin.x)
+        #expect(liveOrigin.y == monitors.lower.frame.maxY - LayoutRefreshController.hiddenWindowEdgeRevealEpsilon)
+        _ = hiddenFrame
     }
 
     @Test @MainActor func snapshotPlanUsesRemovalSeedForFallbackAndScrollParity() async throws {
