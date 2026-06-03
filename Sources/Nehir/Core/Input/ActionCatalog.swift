@@ -21,11 +21,15 @@ struct ActionSpec: Equatable {
         ipcCommandName.flatMap(IPCAutomationManifest.commandDescriptor(for:))
     }
 
+    var ipcDescriptors: [IPCCommandDescriptor] {
+        ipcCommandName.map(IPCAutomationManifest.commandDescriptors(for:)) ?? []
+    }
+
     var searchTerms: [String] {
         ActionCatalog.uniqueTerms(
             [title, id]
                 + keywords
-                + (ipcDescriptor.map { [$0.path] + $0.commandWords } ?? [])
+                + ipcDescriptors.flatMap { [$0.path] + $0.commandWords }
         )
     }
 }
@@ -690,39 +694,32 @@ enum ActionCatalog {
                 keywords: ["menu", "anywhere"]
             ),
             action(
-                id: "dumpRuntimeState",
-                command: .dumpRuntimeState,
-                category: .layout,
+                id: "debug.dumpRuntimeState",
+                command: .debugDumpRuntimeState,
+                category: .debugging,
                 binding: .unassigned,
                 keywords: ["debug", "runtime", "state", "dump", "clipboard", "trace"]
             ),
             action(
-                id: "resetRuntimeState",
-                command: .resetRuntimeState,
-                category: .layout,
+                id: "debug.resetRuntimeState",
+                command: .debugResetRuntimeState,
+                category: .debugging,
                 binding: .unassigned,
                 keywords: ["debug", "runtime", "state", "reset", "clear", "rebuild"]
             ),
             action(
-                id: "restartAppClearingRuntimeState",
-                command: .restartAppClearingRuntimeState,
-                category: .layout,
+                id: "debug.restartClearingRuntimeState",
+                command: .debugRestartClearingRuntimeState,
+                category: .debugging,
                 binding: .unassigned,
-                keywords: ["restart", "relaunch", "runtime", "state", "clear", "reset"]
+                keywords: ["debug", "restart", "relaunch", "runtime", "state", "clear", "reset"]
             ),
             action(
-                id: "startRuntimeTraceCapture",
-                command: .startRuntimeTraceCapture,
-                category: .layout,
+                id: "debug.toggleTraceCapture",
+                command: .debugToggleTraceCapture,
+                category: .debugging,
                 binding: KeyBinding(keyCode: UInt32(kVK_ANSI_T), modifiers: UInt32(controlKey | optionKey | cmdKey)),
-                keywords: ["trace", "tracing", "capture", "debug", "events", "start"]
-            ),
-            action(
-                id: "stopRuntimeTraceCapture",
-                command: .stopRuntimeTraceCapture,
-                category: .layout,
-                binding: KeyBinding(keyCode: UInt32(kVK_ANSI_T), modifiers: UInt32(controlKey | optionKey | shiftKey | cmdKey)),
-                keywords: ["trace", "tracing", "capture", "debug", "events", "stop", "dump", "file"]
+                keywords: ["debug", "trace", "tracing", "capture", "runtime", "events", "toggle", "start", "stop"]
             ),
             action(
                 id: "toggleWorkspaceBarVisibility",
@@ -851,11 +848,10 @@ enum ActionCatalog {
         case .assignFocusedWindowToScratchpad: "Assign Focused Window to Scratchpad"
         case .toggleScratchpadWindow: "Toggle Scratchpad Window"
         case .openMenuAnywhere: "Open Menu Anywhere"
-        case .dumpRuntimeState: "Dump Runtime State"
-        case .resetRuntimeState: "Reset Runtime State"
-        case .restartAppClearingRuntimeState: "Restart App Clearing Runtime State"
-        case .startRuntimeTraceCapture: "Start Runtime Trace Capture"
-        case .stopRuntimeTraceCapture: "Stop Runtime Trace Capture"
+        case .debugDumpRuntimeState: "Debug: Dump Runtime State"
+        case .debugResetRuntimeState: "Debug: Reset Runtime State"
+        case .debugRestartClearingRuntimeState: "Debug: Restart Clearing Runtime State"
+        case .debugToggleTraceCapture: "Debug: Toggle Trace Capture"
         case .toggleWorkspaceBarVisibility: "Toggle Workspace Bar"
         case .toggleOverview: "Toggle Overview"
         }
@@ -1003,16 +999,14 @@ enum ActionCatalog {
             .scratchpadToggle
         case .openMenuAnywhere:
             .openMenuAnywhere
-        case .dumpRuntimeState:
-            .dumpRuntimeState
-        case .resetRuntimeState:
-            .resetRuntimeState
-        case .restartAppClearingRuntimeState:
-            .restartAppClearingRuntimeState
-        case .startRuntimeTraceCapture:
-            .startRuntimeTraceCapture
-        case .stopRuntimeTraceCapture:
-            .stopRuntimeTraceCapture
+        case .debugDumpRuntimeState:
+            .debugDumpRuntimeState
+        case .debugResetRuntimeState:
+            .debugResetRuntimeState
+        case .debugRestartClearingRuntimeState:
+            .debugRestartClearingRuntimeState
+        case .debugToggleTraceCapture:
+            .debugToggleTraceCapture
         }
     }
 

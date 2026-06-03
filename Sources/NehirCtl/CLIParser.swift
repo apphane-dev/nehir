@@ -690,7 +690,16 @@ enum CLIParser {
             return .resizeOperation(try parseResizeOperation(token))
         case .sizeChange:
             return .sizeChange(try parseSizeChange(token))
+        case .traceDesiredState:
+            return .traceDesiredState(try parseTraceDesiredState(token))
         }
+    }
+
+    private static func parseTraceDesiredState(_ rawValue: String) throws -> IPCTraceDesiredState {
+        guard let state = IPCTraceDesiredState(rawValue: rawValue) else {
+            throw CLIParseError.usage(usageText)
+        }
+        return state
     }
 
     static let usageText: String = {

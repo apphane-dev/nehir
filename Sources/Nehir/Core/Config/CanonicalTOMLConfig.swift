@@ -83,6 +83,7 @@ struct CanonicalTOMLConfig: Codable, Equatable {
         var enabled: Bool
         var showLabels: Bool
         var showFloatingWindows: Bool
+        var showTraceButton: Bool
         var windowLevel: String
         var position: String
         var notchAware: Bool
@@ -194,6 +195,7 @@ extension CanonicalTOMLConfig {
             enabled: export.workspaceBarEnabled,
             showLabels: export.workspaceBarShowLabels,
             showFloatingWindows: export.workspaceBarShowFloatingWindows,
+            showTraceButton: export.workspaceBarShowTraceButton,
             windowLevel: export.workspaceBarWindowLevel,
             position: export.workspaceBarPosition,
             notchAware: export.workspaceBarNotchAware,
@@ -257,6 +259,7 @@ extension CanonicalTOMLConfig {
             workspaceBarEnabled: workspaceBar.enabled,
             workspaceBarShowLabels: workspaceBar.showLabels,
             workspaceBarShowFloatingWindows: workspaceBar.showFloatingWindows,
+            workspaceBarShowTraceButton: workspaceBar.showTraceButton,
             workspaceBarWindowLevel: workspaceBar.windowLevel,
             workspaceBarPosition: workspaceBar.position,
             workspaceBarNotchAware: workspaceBar.notchAware,
@@ -404,6 +407,7 @@ extension CanonicalTOMLConfig.WorkspaceBar {
         enabled = try container.decodeWithDefault(Bool.self, forKey: .enabled, default: d.enabled)
         showLabels = try container.decodeWithDefault(Bool.self, forKey: .showLabels, default: d.showLabels)
         showFloatingWindows = try container.decodeWithDefault(Bool.self, forKey: .showFloatingWindows, default: d.showFloatingWindows)
+        showTraceButton = try container.decodeWithDefault(Bool.self, forKey: .showTraceButton, default: d.showTraceButton)
         windowLevel = try container.decodeWithDefault(String.self, forKey: .windowLevel, default: d.windowLevel)
         position = try container.decodeWithDefault(String.self, forKey: .position, default: d.position)
         notchAware = try container.decodeWithDefault(Bool.self, forKey: .notchAware, default: d.notchAware)

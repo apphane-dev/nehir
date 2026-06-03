@@ -323,6 +323,10 @@ actor IPCApplicationBridge {
             return .failure(id: id, kind: kind, code: .notFound)
         case .invalidArguments:
             return .failure(id: id, kind: kind, code: .invalidArguments)
+        case .invalidState:
+            return .failure(id: id, kind: kind, code: .invalidState)
+        case .internalError:
+            return .failure(id: id, kind: kind, code: .internalError)
         }
     }
 

@@ -7,4 +7,6 @@ enum ExternalCommandResult: Equatable, Sendable, Error {
     case staleWindowId
     case notFound
     case invalidArguments
+    case invalidState
+    case internalError
 }

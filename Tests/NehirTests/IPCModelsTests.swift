@@ -385,6 +385,15 @@ private func assertRoundTrip<T: Codable & Equatable>(_ value: T) throws {
             IPCCommandRequest.setColumnWidth(change: .adjustProportion(-10))
         )
         try assertRoundTrip(
+            IPCCommandRequest.debugToggleTraceCapture(desiredState: nil)
+        )
+        try assertRoundTrip(
+            IPCCommandRequest.debugToggleTraceCapture(desiredState: .active)
+        )
+        try assertRoundTrip(
+            IPCCommandRequest.debugToggleTraceCapture(desiredState: .inactive)
+        )
+        try assertRoundTrip(
             IPCSizeChange.setFixed(600)
         )
         try assertRoundTrip(
@@ -395,6 +404,15 @@ private func assertRoundTrip<T: Codable & Equatable>(_ value: T) throws {
                 result: IPCResult(version: IPCVersionResult(protocolVersion: 3, appVersion: "1.2.3"))
             )
         )
+    }
+
+    @Test func debugTraceToggleRejectsInvalidDesiredState() {
+        let json = #"{"name":"debug-toggle-trace-capture","arguments":{"desiredState":"invalid"}}"#
+        let data = Data(json.utf8)
+
+        #expect(throws: (any Error).self) {
+            try IPCWire.makeDecoder().decode(IPCCommandRequest.self, from: data)
+        }
     }
 
     @Test func manifestIncludesFocusedMonitorSurface() {
@@ -436,7 +454,15 @@ private func assertRoundTrip<T: Codable & Equatable>(_ value: T) throws {
         let descriptorNames = Set(IPCAutomationManifest.commandDescriptors.map(\.name))
 
         #expect(descriptorNames == Set(IPCCommandName.allCases))
-        #expect(IPCAutomationManifest.commandDescriptors.count == IPCCommandName.allCases.count)
+    }
+
+    @Test func commandDescriptorLookupCanExposeMultipleFormsForSameCommandName() {
+        let descriptors = IPCAutomationManifest.commandDescriptors(for: .debugToggleTraceCapture)
+
+        #expect(descriptors.map(\.path) == [
+            "command debug trace toggle",
+            "command debug trace toggle <active|inactive>",
+        ])
     }
 
     @Test func queryDescriptorsCoverEveryPublicQueryName() {

@@ -63,6 +63,7 @@ public enum IPCResponseStatus: String, Codable, Equatable, Sendable {
 public enum IPCErrorCode: String, Codable, Equatable, Sendable, Error {
     case invalidRequest = "invalid_request"
     case invalidArguments = "invalid_arguments"
+    case invalidState = "invalid_state"
     case protocolMismatch = "protocol_mismatch"
     case disabled = "ignored_disabled"
     case overviewOpen = "ignored_overview"
@@ -276,11 +277,10 @@ public enum IPCCommandName: String, Codable, CaseIterable, Equatable, Sendable {
     case scratchpadAssign = "scratchpad-assign"
     case scratchpadToggle = "scratchpad-toggle"
     case openMenuAnywhere = "open-menu-anywhere"
-    case dumpRuntimeState = "dump-runtime-state"
-    case resetRuntimeState = "reset-runtime-state"
-    case restartAppClearingRuntimeState = "restart-app-clearing-runtime-state"
-    case startRuntimeTraceCapture = "start-runtime-trace-capture"
-    case stopRuntimeTraceCapture = "stop-runtime-trace-capture"
+    case debugDumpRuntimeState = "debug-dump-runtime-state"
+    case debugResetRuntimeState = "debug-reset-runtime-state"
+    case debugRestartClearingRuntimeState = "debug-restart-clearing-runtime-state"
+    case debugToggleTraceCapture = "debug-toggle-trace-capture"
 }
 
 public enum IPCSizeChangeKind: String, Codable, Equatable, Sendable {
@@ -316,11 +316,17 @@ public struct IPCSizeChange: Codable, Equatable, Sendable {
     }
 }
 
+public enum IPCTraceDesiredState: String, Codable, Equatable, Sendable {
+    case active
+    case inactive
+}
+
 public enum IPCCommandArgumentValue: Equatable, Sendable {
     case direction(IPCDirection)
     case integer(Int)
     case resizeOperation(IPCResizeOperation)
     case sizeChange(IPCSizeChange)
+    case traceDesiredState(IPCTraceDesiredState)
 }
 
 public enum IPCCommandRequestConstructionError: Error, Equatable, Sendable {
@@ -399,11 +405,10 @@ public enum IPCCommandRequest: Equatable, Sendable {
     case scratchpadAssign
     case scratchpadToggle
     case openMenuAnywhere
-    case dumpRuntimeState
-    case resetRuntimeState
-    case restartAppClearingRuntimeState
-    case startRuntimeTraceCapture
-    case stopRuntimeTraceCapture
+    case debugDumpRuntimeState
+    case debugResetRuntimeState
+    case debugRestartClearingRuntimeState
+    case debugToggleTraceCapture(desiredState: IPCTraceDesiredState?)
 
     public var name: IPCCommandName {
         switch self {
@@ -547,16 +552,14 @@ public enum IPCCommandRequest: Equatable, Sendable {
             .scratchpadToggle
         case .openMenuAnywhere:
             .openMenuAnywhere
-        case .dumpRuntimeState:
-            .dumpRuntimeState
-        case .resetRuntimeState:
-            .resetRuntimeState
-        case .restartAppClearingRuntimeState:
-            .restartAppClearingRuntimeState
-        case .startRuntimeTraceCapture:
-            .startRuntimeTraceCapture
-        case .stopRuntimeTraceCapture:
-            .stopRuntimeTraceCapture
+        case .debugDumpRuntimeState:
+            .debugDumpRuntimeState
+        case .debugResetRuntimeState:
+            .debugResetRuntimeState
+        case .debugRestartClearingRuntimeState:
+            .debugRestartClearingRuntimeState
+        case .debugToggleTraceCapture:
+            .debugToggleTraceCapture
         }
     }
 
@@ -809,21 +812,23 @@ public enum IPCCommandRequest: Equatable, Sendable {
         case .openMenuAnywhere:
             try requireNoArguments()
             self = .openMenuAnywhere
-        case .dumpRuntimeState:
+        case .debugDumpRuntimeState:
             try requireNoArguments()
-            self = .dumpRuntimeState
-        case .resetRuntimeState:
+            self = .debugDumpRuntimeState
+        case .debugResetRuntimeState:
             try requireNoArguments()
-            self = .resetRuntimeState
-        case .restartAppClearingRuntimeState:
+            self = .debugResetRuntimeState
+        case .debugRestartClearingRuntimeState:
             try requireNoArguments()
-            self = .restartAppClearingRuntimeState
-        case .startRuntimeTraceCapture:
-            try requireNoArguments()
-            self = .startRuntimeTraceCapture
-        case .stopRuntimeTraceCapture:
-            try requireNoArguments()
-            self = .stopRuntimeTraceCapture
+            self = .debugRestartClearingRuntimeState
+        case .debugToggleTraceCapture:
+            if argumentValues.isEmpty {
+                self = .debugToggleTraceCapture(desiredState: nil)
+            } else if argumentValues.count == 1, case let .traceDesiredState(state) = argumentValues[0] {
+                self = .debugToggleTraceCapture(desiredState: state)
+            } else {
+                throw IPCCommandRequestConstructionError.invalidArgumentType
+            }
         }
     }
 }
@@ -863,6 +868,10 @@ extension IPCCommandRequest: Codable {
 
     private struct IPCSizeChangeArguments: Codable, Equatable, Sendable {
         let change: IPCSizeChange
+    }
+
+    private struct IPCTraceDesiredStateArguments: Codable, Equatable, Sendable {
+        let desiredState: IPCTraceDesiredState
     }
 
     public init(from decoder: Decoder) throws {
@@ -1025,16 +1034,19 @@ extension IPCCommandRequest: Codable {
             self = .scratchpadToggle
         case .openMenuAnywhere:
             self = .openMenuAnywhere
-        case .dumpRuntimeState:
-            self = .dumpRuntimeState
-        case .resetRuntimeState:
-            self = .resetRuntimeState
-        case .restartAppClearingRuntimeState:
-            self = .restartAppClearingRuntimeState
-        case .startRuntimeTraceCapture:
-            self = .startRuntimeTraceCapture
-        case .stopRuntimeTraceCapture:
-            self = .stopRuntimeTraceCapture
+        case .debugDumpRuntimeState:
+            self = .debugDumpRuntimeState
+        case .debugResetRuntimeState:
+            self = .debugResetRuntimeState
+        case .debugRestartClearingRuntimeState:
+            self = .debugRestartClearingRuntimeState
+        case .debugToggleTraceCapture:
+            if container.contains(.arguments) {
+                let arguments = try container.decode(IPCTraceDesiredStateArguments.self, forKey: .arguments)
+                self = .debugToggleTraceCapture(desiredState: arguments.desiredState)
+            } else {
+                self = .debugToggleTraceCapture(desiredState: nil)
+            }
         }
     }
 
@@ -1186,16 +1198,16 @@ extension IPCCommandRequest: Codable {
             break
         case .openMenuAnywhere:
             break
-        case .dumpRuntimeState:
+        case .debugDumpRuntimeState:
             break
-        case .resetRuntimeState:
+        case .debugResetRuntimeState:
             break
-        case .restartAppClearingRuntimeState:
+        case .debugRestartClearingRuntimeState:
             break
-        case .startRuntimeTraceCapture:
-            break
-        case .stopRuntimeTraceCapture:
-            break
+        case let .debugToggleTraceCapture(desiredState):
+            if let desiredState {
+                try container.encode(IPCTraceDesiredStateArguments(desiredState: desiredState), forKey: .arguments)
+            }
         }
     }
 }

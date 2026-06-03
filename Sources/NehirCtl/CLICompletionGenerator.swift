@@ -50,28 +50,14 @@ enum CLICompletionGenerator {
               fi
               ;;
             command)
-              local first="${words[3]}"
-              local second="${words[4]}"
-              if (( CURRENT == 3 )); then
-                suggestions="\(shellWords(commandFirstWords))"
-              elif (( CURRENT == 4 )); then
-                case "$first" in
-                  \(renderZshCase(map: commandSlotThreeSuggestionsByFirst))
-                esac
-              elif (( CURRENT == 5 )); then
-                case "$first $second" in
-                  \(renderZshCase(map: commandSlotFourSuggestionsByPath))
-                  *)
-                    case "$first" in
-                      \(renderZshCase(map: commandSlotFourFallbackByFirst))
-                    esac
-                    ;;
-                esac
-              elif (( CURRENT == 6 )); then
-                case "$first $second" in
-                  \(renderZshCase(map: commandSlotFiveSuggestionsByPath))
-                esac
-              fi
+              local command_prefix=""
+              local i
+              for (( i = 3; i < CURRENT; i++ )); do
+                command_prefix="${command_prefix:+$command_prefix }${words[i]}"
+              done
+              case "$command_prefix" in
+                \(renderZshCase(map: commandSuggestionsByPrefix))
+              esac
               ;;
             rule)
               if (( CURRENT == 3 )); then
@@ -157,38 +143,16 @@ enum CLICompletionGenerator {
               return 0
               ;;
             command)
-              first="${COMP_WORDS[2]}"
-              second="${COMP_WORDS[3]}"
-              if [[ ${COMP_CWORD} -eq 2 ]]; then
-                __nehirctl_compgen "\(shellWords(commandFirstWords))"
-                return 0
-              elif [[ ${COMP_CWORD} -eq 3 ]]; then
-                suggestions=""
-                case "$first" in
-                  \(renderBashCase(map: commandSlotThreeSuggestionsByFirst))
-                esac
-                __nehirctl_compgen "$suggestions"
-                return 0
-              elif [[ ${COMP_CWORD} -eq 4 ]]; then
-                suggestions=""
-                case "$first $second" in
-                  \(renderBashCase(map: commandSlotFourSuggestionsByPath))
-                  *)
-                    case "$first" in
-                      \(renderBashCase(map: commandSlotFourFallbackByFirst))
-                    esac
-                    ;;
-                esac
-                __nehirctl_compgen "$suggestions"
-                return 0
-              elif [[ ${COMP_CWORD} -eq 5 ]]; then
-                suggestions=""
-                case "$first $second" in
-                  \(renderBashCase(map: commandSlotFiveSuggestionsByPath))
-                esac
-                __nehirctl_compgen "$suggestions"
-                return 0
-              fi
+              local command_prefix="" i
+              for (( i = 2; i < COMP_CWORD; i++ )); do
+                command_prefix="${command_prefix:+$command_prefix }${COMP_WORDS[i]}"
+              done
+              suggestions=""
+              case "$command_prefix" in
+                \(renderBashCase(map: commandSuggestionsByPrefix))
+              esac
+              __nehirctl_compgen "$suggestions"
+              return 0
               ;;
             rule)
               if [[ ${COMP_CWORD} -eq 2 ]]; then
@@ -263,31 +227,9 @@ enum CLICompletionGenerator {
                 "complete -c nehirctl -f -n '__fish_seen_subcommand_from query; and __fish_seen_subcommand_from \(queryName); and __nehirctl_prev_arg_is --fields' -a '\(field)'"
             }
         }
-        let commandRootLines = commandFirstWords.map { word in
-            "complete -c nehirctl -f -n '__fish_seen_subcommand_from command' -a '\(word)'"
-        }
-        let commandNestedLines = commandSlotThreeSuggestionsByFirst.flatMap { first, suggestions in
+        let commandCompletionLines = commandSuggestionsByPrefix.flatMap { prefix, suggestions in
             suggestions.map { suggestion in
-                "complete -c nehirctl -f -n '__fish_seen_subcommand_from command; and __fish_seen_subcommand_from \(first)' -a '\(suggestion)'"
-            }
-        }
-        let commandPathArgumentLines = commandSlotFourSuggestionsByPath.flatMap { path, suggestions in
-            let pathWords = path.split(separator: " ").map(String.init)
-            guard pathWords.count == 2 else { return [String]() }
-            return suggestions.map { suggestion in
-                "complete -c nehirctl -f -n '__fish_seen_subcommand_from command; and __fish_seen_subcommand_from \(pathWords[0]); and __fish_seen_subcommand_from \(pathWords[1])' -a '\(suggestion)'"
-            }
-        }
-        let commandFallbackLines = commandSlotFourFallbackByFirst.flatMap { first, suggestions in
-            suggestions.map { suggestion in
-                "complete -c nehirctl -f -n '__fish_seen_subcommand_from command; and __fish_seen_subcommand_from \(first)' -a '\(suggestion)'"
-            }
-        }
-        let commandSecondArgumentLines = commandSlotFiveSuggestionsByPath.flatMap { path, suggestions in
-            let pathWords = path.split(separator: " ").map(String.init)
-            guard pathWords.count == 2 else { return [String]() }
-            return suggestions.map { suggestion in
-                "complete -c nehirctl -f -n '__fish_seen_subcommand_from command; and __fish_seen_subcommand_from \(pathWords[0]); and __fish_seen_subcommand_from \(pathWords[1])' -a '\(suggestion)'"
+                "complete -c nehirctl -f -n '\(fishCommandCondition(for: prefix))' -a '\(suggestion)'"
             }
         }
         let ruleLines = ruleActionNames.map { action in
@@ -324,11 +266,7 @@ enum CLICompletionGenerator {
                 + queryLines
                 + queryFlagLines.sorted()
                 + queryFieldLines.sorted()
-                + commandRootLines
-                + commandNestedLines.sorted()
-                + commandPathArgumentLines.sorted()
-                + commandFallbackLines.sorted()
-                + commandSecondArgumentLines.sorted()
+                + commandCompletionLines.sorted()
                 + ruleLines
                 + ruleDefinitionLines
                 + ruleApplyLines
@@ -385,64 +323,27 @@ enum CLICompletionGenerator {
         IPCAutomationManifest.windowActionDescriptors.map(\.name.rawValue)
     }
 
-    private static var commandFirstWords: [String] {
-        sortedUnique(IPCAutomationManifest.commandDescriptors.compactMap { $0.commandWords.first })
-    }
-
-    private static var commandSlotThreeSuggestionsByFirst: [String: [String]] {
+    private static var commandSuggestionsByPrefix: [String: [String]] {
         var map: [String: Set<String>] = [:]
 
         for descriptor in IPCAutomationManifest.commandDescriptors {
-            guard let first = descriptor.commandWords.first else { continue }
-            if descriptor.commandWords.count > 1 {
-                map[first, default: []].insert(descriptor.commandWords[1])
+            for index in descriptor.commandWords.indices {
+                let prefix = pathKey(Array(descriptor.commandWords.prefix(index)))
+                map[prefix, default: []].insert(descriptor.commandWords[index])
             }
+
             if let literals = literalValues(for: descriptor.arguments.first?.kind) {
-                map[first, default: []].formUnion(literals)
+                map[pathKey(descriptor.commandWords), default: []].formUnion(literals)
             }
         }
 
         return map.mapValues { Array($0).sorted() }
     }
 
-    private static var commandSlotFourSuggestionsByPath: [String: [String]] {
-        commandArgumentSuggestionsByPath(argumentIndex: 0, commandWordCount: 2)
-    }
-
-    private static var commandSlotFourFallbackByFirst: [String: [String]] {
-        var map: [String: Set<String>] = [:]
-        for descriptor in IPCAutomationManifest.commandDescriptors where descriptor.commandWords.count == 1 {
-            guard descriptor.arguments.count > 1,
-                  let literals = literalValues(for: descriptor.arguments[1].kind),
-                  let first = descriptor.commandWords.first
-            else {
-                continue
-            }
-            map[first, default: []].formUnion(literals)
-        }
-        return map.mapValues { Array($0).sorted() }
-    }
-
-    private static var commandSlotFiveSuggestionsByPath: [String: [String]] {
-        commandArgumentSuggestionsByPath(argumentIndex: 1, commandWordCount: 2)
-    }
-
-    private static func commandArgumentSuggestionsByPath(
-        argumentIndex: Int,
-        commandWordCount: Int
-    ) -> [String: [String]] {
-        var map: [String: Set<String>] = [:]
-        for descriptor in IPCAutomationManifest.commandDescriptors
-            where descriptor.commandWords.count == commandWordCount
-        {
-            guard descriptor.arguments.count > argumentIndex,
-                  let literals = literalValues(for: descriptor.arguments[argumentIndex].kind)
-            else {
-                continue
-            }
-            map[pathKey(descriptor.commandWords), default: []].formUnion(literals)
-        }
-        return map.mapValues { Array($0).sorted() }
+    private static func fishCommandCondition(for prefix: String) -> String {
+        let prefixWords = prefix.split(separator: " ").map(String.init)
+        return (["__fish_seen_subcommand_from command"] + prefixWords.map { "__fish_seen_subcommand_from \($0)" })
+            .joined(separator: "; and ")
     }
 
     private static var queryFlagsByName: [String: [String]] {
@@ -478,6 +379,8 @@ enum CLICompletionGenerator {
              .windowIndex,
              .sizeChange:
             return nil
+        case .traceDesiredState:
+            return ["active", "inactive"]
         }
     }
 

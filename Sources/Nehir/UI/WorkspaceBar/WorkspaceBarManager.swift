@@ -224,6 +224,9 @@ final class WorkspaceBarManager {
                 },
                 onOpenCommandPalette: { [weak controller] in
                     controller?.openCommandPalette()
+                },
+                onToggleTraceCapture: { [weak controller] in
+                    controller?.toggleRuntimeTraceCapture()
                 }
             )
         )
@@ -337,6 +340,8 @@ final class WorkspaceBarManager {
             showLabels: current.showLabels,
             backgroundOpacity: current.backgroundOpacity,
             barHeight: current.barHeight,
+            showTraceCaptureButton: current.showTraceCaptureButton,
+            traceCaptureStatus: current.traceCaptureStatus,
             accentColor: resolved.accentColor,
             textColor: resolved.textColor
         )
@@ -408,6 +413,8 @@ final class WorkspaceBarManager {
             showLabels: resolved.showLabels,
             backgroundOpacity: resolved.backgroundOpacity,
             barHeight: geometry.barHeight,
+            showTraceCaptureButton: resolved.showTraceButton,
+            traceCaptureStatus: controller?.runtimeTraceCaptureStatus ?? .init(isActive: false, startedAt: nil),
             accentColor: resolved.accentColor,
             textColor: resolved.textColor
         )

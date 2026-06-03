@@ -5,7 +5,7 @@ import Foundation
 /// the new human-readable TOML config keys (e.g., workspace.switch.1).
 enum HotkeyConfigMapping {
     /// TOML section names in output order.
-    static let sectionOrder: [String] = ["workspace", "focus", "move", "layout", "ui"]
+    static let sectionOrder: [String] = ["workspace", "focus", "move", "layout", "debugging", "ui"]
 
     /// Numbered group definitions: each group expands to 9 bindings (1–9).
     /// The internalIdPattern uses `%d` for the index, with the specified offset.
@@ -98,6 +98,11 @@ enum HotkeyConfigMapping {
         ("layout", "toggleScratchpad", "toggleScratchpadWindow"),
         ("layout", "raiseAllFloating", "raiseAllFloatingWindows"),
         ("layout", "rescueOffscreen", "rescueOffscreenWindows"),
+        // debugging
+        ("debugging", "dumpRuntimeState", "debug.dumpRuntimeState"),
+        ("debugging", "resetRuntimeState", "debug.resetRuntimeState"),
+        ("debugging", "restartClearingRuntimeState", "debug.restartClearingRuntimeState"),
+        ("debugging", "toggleTraceCapture", "debug.toggleTraceCapture"),
         // ui
         ("ui", "commandPalette", "openCommandPalette"),
         ("ui", "menuAnywhere", "openMenuAnywhere"),

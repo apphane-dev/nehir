@@ -70,15 +70,15 @@ nehirctl command switch-workspace 2
 nehirctl --help
 ```
 
-## Runtime Debugging
+## Debugging & Tracing
 
-Nehir includes a few runtime-debug commands in the command palette and IPC/CLI surface:
+Nehir includes runtime debugging and trace-capture commands. They are exposed consistently through IPC/CLI, the command palette, and hotkey handling, and appear in the **Debugging & Tracing** category:
 
-- **Dump Runtime State** — copies the current runtime dump to the clipboard and writes it to the unified log
-- **Reset Runtime State** — clears runtime state and reboots tracking from a startup-style rescan
-- **Restart App Clearing Runtime State** — clears runtime state and relaunches the app
-- **Start Runtime Trace Capture** — default hotkey: `Ctrl+Option+Cmd+T`
-- **Stop Runtime Trace Capture** — default hotkey: `Ctrl+Option+Shift+Cmd+T`
+- **Debug: Dump Runtime State** — copies the current runtime debug dump to the clipboard and writes it to the unified log
+- **Debug: Reset Runtime State** — clears runtime debugging state and reboots tracking from a startup-style rescan
+- **Debug: Restart Clearing Runtime State** — clears runtime debugging state and relaunches the app
+- **Debug: Toggle Trace Capture** — default hotkey: `Ctrl+Option+Cmd+T`
+  - IPC/CLI accepts an optional `desiredState` argument (`active` or `inactive`) for idempotent scripting: `nehirctl command debug trace toggle active`
 
 Stopping a trace capture writes a log bundle to:
 
@@ -87,6 +87,8 @@ ${XDG_STATE_HOME:-$HOME/.local/state}/nehir/traces/
 ```
 
 and copies the dumped file path to the clipboard.
+
+For feedback/debug reports: toggle tracing on, reproduce the issue, toggle tracing off, then share the copied trace-bundle path or file. An optional **Show Trace Capture Button** workspace-bar setting provides the same toggle in the bar for advanced users and developers.
 
 For IPC/CLI usage, see [docs/IPC-CLI.md](docs/IPC-CLI.md).
 
