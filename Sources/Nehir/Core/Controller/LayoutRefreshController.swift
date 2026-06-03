@@ -2173,7 +2173,7 @@ import QuartzCore
 
         let verifyEpsilon: CGFloat = 1.0
         for plan in plans {
-            if let observedOrigin = observedWindowOrigin(plan.entry) {
+            if let observedOrigin = liveWindowOrigin(plan.entry) {
                 let dx = abs(observedOrigin.x - plan.origin.x)
                 let dy = abs(observedOrigin.y - plan.origin.y)
                 // Diagnostic: log SkyLight result vs requested
@@ -2182,7 +2182,7 @@ import QuartzCore
                     let fallbackFrame = CGRect(origin: plan.origin, size: plan.frameSize)
                     let axResult = AXWindowService.setFrame(plan.entry.axRef, frame: fallbackFrame)
                     // Diagnostic: log AX fallback result
-                    if let afterFallback = observedWindowOrigin(plan.entry) {
+                    if let afterFallback = liveWindowOrigin(plan.entry) {
                         controller.axManager.recordFrameApplyTrace("hidePlan.axFallback id=\(plan.entry.windowId) axResult=\(axResult) requested=\(LayoutTrace.point(plan.origin)) afterFallback=\(LayoutTrace.point(afterFallback))")
                     } else {
                         controller.axManager.recordFrameApplyTrace("hidePlan.axFallback id=\(plan.entry.windowId) axResult=\(axResult) afterFallback=nil")
@@ -2940,6 +2940,10 @@ import QuartzCore
 
     private func observedWindowOrigin(_ entry: WindowModel.Entry) -> CGPoint? {
         observedWindowFrame(entry)?.origin
+    }
+
+    private func liveWindowOrigin(_ entry: WindowModel.Entry) -> CGPoint? {
+        AXWindowService.framePreferFast(entry.axRef)?.origin
     }
 
     func parkResizePlaceholderWindow(

@@ -80,39 +80,71 @@ enum HiddenWindowPlacementResolver {
     ) -> CGPoint {
         let reveal = baseReveal / max(1.0, scale)
 
-        func origin(for side: HideSide) -> CGPoint {
+        func origin(for side: HideSide, y: CGFloat) -> CGPoint {
             switch side {
             case .left:
                 CGPoint(
                     x: monitor.frame.minX - size.width + reveal,
-                    y: targetY
+                    y: y
                 )
             case .right:
                 CGPoint(
                     x: monitor.frame.maxX - reveal,
-                    y: targetY
+                    y: y
                 )
             }
         }
 
-        let primaryOrigin = origin(for: requestedSide)
-        let primaryOverlap = overlapArea(
-            for: CGRect(origin: primaryOrigin, size: size),
+        let alternateSide: HideSide = requestedSide == .left ? .right : .left
+        let sides = [requestedSide, alternateSide]
+        // The live frame can still be on the source display when a window is assigned
+        // directly to an inactive workspace on another display. Try nearby vertical
+        // parking lanes too, otherwise preserving that source-display Y can leave a
+        // large strip visible on an adjacent monitor.
+        let yCandidates = verticalParkingCandidates(
+            for: size,
+            targetY: targetY,
             monitor: monitor,
             monitors: monitors
         )
-        if primaryOverlap == 0 {
-            return primaryOrigin
+
+        var bestOrigin = origin(for: requestedSide, y: targetY)
+        var bestOverlap = CGFloat.greatestFiniteMagnitude
+        var bestLanePenalty = Int.max
+        var bestSidePenalty = Int.max
+        var bestDistance = CGFloat.greatestFiniteMagnitude
+
+        for (sideIndex, side) in sides.enumerated() {
+            for y in yCandidates {
+                let candidateOrigin = origin(for: side, y: y)
+                let candidateFrame = CGRect(origin: candidateOrigin, size: size)
+                let overlap = overlapArea(
+                    for: candidateFrame,
+                    monitor: monitor,
+                    monitors: monitors
+                )
+                let lanePenalty = verticalOverlap(candidateFrame, monitor.frame) > 0 ? 0 : 1
+                let distance = abs(y - targetY)
+                if lanePenalty < bestLanePenalty
+                    || (lanePenalty == bestLanePenalty && overlap < bestOverlap)
+                    || (lanePenalty == bestLanePenalty
+                        && overlap == bestOverlap
+                        && distance < bestDistance)
+                    || (lanePenalty == bestLanePenalty
+                        && overlap == bestOverlap
+                        && distance == bestDistance
+                        && sideIndex < bestSidePenalty)
+                {
+                    bestOrigin = candidateOrigin
+                    bestOverlap = overlap
+                    bestLanePenalty = lanePenalty
+                    bestSidePenalty = sideIndex
+                    bestDistance = distance
+                }
+            }
         }
 
-        let alternateSide: HideSide = requestedSide == .left ? .right : .left
-        let alternateOrigin = origin(for: alternateSide)
-        let alternateOverlap = overlapArea(
-            for: CGRect(origin: alternateOrigin, size: size),
-            monitor: monitor,
-            monitors: monitors
-        )
-        return alternateOverlap < primaryOverlap ? alternateOrigin : primaryOrigin
+        return bestOrigin
     }
 
     static func placement(
@@ -192,6 +224,37 @@ enum HiddenWindowPlacementResolver {
             resolvedEdge: requestedEdge,
             origin: primaryOrigin
         )
+    }
+
+    private static func verticalOverlap(_ lhs: CGRect, _ rhs: CGRect) -> CGFloat {
+        max(0, min(lhs.maxY, rhs.maxY) - max(lhs.minY, rhs.minY))
+    }
+
+    private static func verticalParkingCandidates(
+        for size: CGSize,
+        targetY: CGFloat,
+        monitor: HiddenPlacementMonitorContext,
+        monitors: [HiddenPlacementMonitorContext]
+    ) -> [CGFloat] {
+        var candidates: [CGFloat] = []
+
+        func append(_ y: CGFloat) {
+            guard y.isFinite else { return }
+            if !candidates.contains(where: { abs($0 - y) < 0.5 }) {
+                candidates.append(y)
+            }
+        }
+
+        append(targetY)
+        append(monitor.frame.minY)
+        append(monitor.frame.maxY - size.height)
+
+        for other in monitors where other.id != monitor.id {
+            append(other.frame.minY - size.height)
+            append(other.frame.maxY)
+        }
+
+        return candidates
     }
 
     private static func overlapArea(

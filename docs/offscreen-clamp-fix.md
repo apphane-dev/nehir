@@ -41,18 +41,18 @@ Combined: a hidden window at target `(-1712, -10000)` is clamped to approximatel
 
 **Neither axis can be used to push a full-size window completely offscreen on macOS.**
 
-### 2. Layout-Pass Cache Returning Stale Pre-Move Positions
+### 2. Layout-Pass Cache Returning Stale Pre-Move Positions — Fixed for Hide Verification
 
 `applyPositionPlans` used `observedWindowOrigin()` which reads through the
 `RefreshFrameContext` cache. This cache is populated once per layout pass — the first time
 `fastFrame` is called for a token (in `resolveHideOperation`). It caches the window's
 **current on-screen position** (e.g., `(1126, 8)`).
 
-After SkyLight moves the window, the verify step reads `observedWindowOrigin` which returns
-the **stale cached** value instead of the real post-move position. This makes every hide
-plan appear to fail, triggering the AX fallback unnecessarily.
+After SkyLight moves the window, the verify step read `observedWindowOrigin()` which could
+return the **stale cached** value instead of the real post-move position. This made hide
+plans appear to fail or obscured the actual WindowServer clamp result.
 
-Diagnostic lesson: hide verification should bypass the layout-pass cache and read directly from AX.
+Fixed: hide-plan verification now bypasses the layout-pass cache and reads live WindowServer bounds (via `AXWindowService.framePreferFast`) when checking post-move positions.
 
 ### 3. Stale Gesture Viewport Regression — Fixed
 
@@ -71,6 +71,19 @@ positions causing visible overlaps and missing columns.
 
 Fixed in `879a330`: tiled windows in tiling mode now skip the proportional restore
 position and move directly to their layout target (`LayoutRefreshController` line ~3416).
+
+### 5. Cross-Monitor Workspace-Inactive Parking Lane — Mitigated
+
+When a window is moved directly to an inactive workspace on another monitor, its live frame
+can still be on the source monitor when Nehir computes the workspace-inactive parking
+origin. Preserving that source-monitor Y can make WindowServer clamp the window against the
+wrong display and leave a large visible strip on the source or adjacent monitor.
+
+Mitigation: workspace-inactive and scratchpad parking now evaluate nearby vertical parking
+lanes and prefer candidates that avoid overlap with other monitors while still intersecting
+the target monitor's vertical band. This does not remove macOS offscreen clamping, but it
+avoids the wrong-display parking coordinates seen in direct built-in ↔ external workspace
+assignment traces.
 
 ## Status
 
@@ -97,8 +110,12 @@ behavior must be confirmed manually in a real trace/run first.
 Useful confirmed findings:
 
 - macOS clamps both horizontal and vertical offscreen positions for external app windows.
-- The stale `RefreshFrameContext` cache can make hide verification misleading; live AX
-  reads are necessary when diagnosing post-move positions.
+- The stale `RefreshFrameContext` cache can make hide verification misleading; hide-plan
+  verification now bypasses that cache and reads live WindowServer bounds when checking
+  post-move positions.
+- Direct moves to inactive workspaces on another monitor can preserve a source-display Y;
+  workspace-inactive parking should choose a target-monitor vertical lane to avoid
+  wrong-display clamp strips.
 - Workspace-inactive hiding appears acceptable because it parks windows at the physical
   screen edge with ~1px visible; this is not a true hide. Some apps (confirmed with a
   Zoom call window) clamp to a larger visible strip if requested exactly at the edge,
@@ -184,7 +201,7 @@ while earlier traces showed ~34px. The threshold may vary with window size or ti
 | 9 | `SLSWindowSetShape` with 1×1 offscreen region | No visible effect. Regular app windows override the shape on each draw cycle. Only works on windows created via `SLSNewWindow`. | |
 | 10 | `SLSTransactionOrderWindow` with mode 1 (kCGSOrderOut) | Transaction ordered the window but `isWindowOrderedIn` still returns `true`. Window remains rendered. | Trace: `hidePlan.orderOut id=985 orderedIn=true` |
 | 11 | `SLSOrderWindow` (direct, non-transaction) with mode 1 | Same result — `isWindowOrderedIn` still `true`. Neither transaction nor direct call orders out regular app windows. | Trace: `hidePlan.orderOut id=985 orderedIn=true` |
-| 12 | Stale cache in `applyPositionPlans` | `observedWindowOrigin` returned pre-move position from cache, making SkyLight moves appear to fail. Useful diagnostic finding, not a hiding approach. | |
+| 12 | Stale cache in `applyPositionPlans` | `observedWindowOrigin` returned pre-move position from cache, making SkyLight moves appear to fail or hiding the real clamp result. Fixed for hide verification by reading live WindowServer bounds; useful diagnostic finding, not a hiding approach. | |
 | 13 | Push all hidden windows to x=monitor.maxX (right edge) | With AX fallback this parks windows at the same 1px right-edge position as workspace-inactive hide, but left-hidden windows visibly fly across the screen to get there. Without AX fallback, SkyLight-only moves can leave left-edge clamps. | |
 | 14 | `SLSSetWindowTransform` / `CGSSetWindowTransform` raw near-zero scale | API returns success but does not hide external app pixels reliably. Raw scale pulls windows toward global origin, causing random-width left-edge clamp artifacts. | Trace: `hideTransform.apply ... result=CGError(rawValue: 0)` followed by visible artifacts |
 | 15 | Anchored `SLSSetWindowTransform` near-zero scale, skip move | API still returns success, but the window remains visually parked at natural left-clamped position — effectively as if nothing happened/worse. Transform is not a usable external-window hide primitive. | |
