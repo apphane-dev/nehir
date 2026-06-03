@@ -78,6 +78,7 @@ enum CLIRenderer {
              .staleWindowId,
              .notFound,
              .invalidArguments,
+             .invalidState,
              .invalidRequest,
              .none:
             return .rejected

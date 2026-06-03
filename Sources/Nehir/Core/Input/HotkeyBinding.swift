@@ -335,4 +335,5 @@ enum HotkeyCategory: String, CaseIterable {
     case monitor = "Monitor"
     case layout = "Layout"
     case column = "Column"
+    case debugging = "Debugging & Tracing"
 }

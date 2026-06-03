@@ -178,16 +178,14 @@ final class CommandHandler {
             return controller.toggleScratchpadWindow()
         case .openMenuAnywhere:
             controller.openMenuAnywhere()
-        case .dumpRuntimeState:
+        case .debugDumpRuntimeState:
             controller.dumpRuntimeState()
-        case .resetRuntimeState:
+        case .debugResetRuntimeState:
             controller.resetRuntimeState()
-        case .restartAppClearingRuntimeState:
+        case .debugRestartClearingRuntimeState:
             controller.restartAppClearingRuntimeState()
-        case .startRuntimeTraceCapture:
-            controller.startRuntimeTraceCapture()
-        case .stopRuntimeTraceCapture:
-            controller.stopRuntimeTraceCapture()
+        case .debugToggleTraceCapture:
+            return controller.toggleRuntimeTraceCapture()
         case .toggleWorkspaceBarVisibility:
             controller.toggleWorkspaceBarVisibility()
         case .toggleOverview:
@@ -200,11 +198,10 @@ final class CommandHandler {
     static func shouldIgnoreCommand(_ command: HotkeyCommand, isOverviewOpen: Bool) -> Bool {
         isOverviewOpen
             && command != .toggleOverview
-            && command != .dumpRuntimeState
-            && command != .resetRuntimeState
-            && command != .restartAppClearingRuntimeState
-            && command != .startRuntimeTraceCapture
-            && command != .stopRuntimeTraceCapture
+            && command != .debugDumpRuntimeState
+            && command != .debugResetRuntimeState
+            && command != .debugRestartClearingRuntimeState
+            && command != .debugToggleTraceCapture
     }
 
 

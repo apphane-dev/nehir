@@ -151,6 +151,10 @@ final class SettingsStore {
         didSet { scheduleSave() }
     }
 
+    var workspaceBarShowTraceButton = SettingsStore.defaultExport.workspaceBarShowTraceButton {
+        didSet { scheduleSave() }
+    }
+
     var workspaceBarWindowLevel = WorkspaceBarWindowLevel(
         rawValue: SettingsStore.defaultExport.workspaceBarWindowLevel
     ) ?? .popup {
@@ -396,6 +400,7 @@ final class SettingsStore {
             workspaceBarEnabled: workspaceBarEnabled,
             workspaceBarShowLabels: workspaceBarShowLabels,
             workspaceBarShowFloatingWindows: workspaceBarShowFloatingWindows,
+            workspaceBarShowTraceButton: workspaceBarShowTraceButton,
             workspaceBarWindowLevel: workspaceBarWindowLevel.rawValue,
             workspaceBarPosition: workspaceBarPosition.rawValue,
             workspaceBarNotchAware: workspaceBarNotchAware,
@@ -476,6 +481,7 @@ final class SettingsStore {
         workspaceBarEnabled = export.workspaceBarEnabled
         workspaceBarShowLabels = export.workspaceBarShowLabels
         workspaceBarShowFloatingWindows = export.workspaceBarShowFloatingWindows
+        workspaceBarShowTraceButton = export.workspaceBarShowTraceButton
         workspaceBarWindowLevel = WorkspaceBarWindowLevel(rawValue: export.workspaceBarWindowLevel) ?? .popup
         workspaceBarPosition = WorkspaceBarPosition(rawValue: export.workspaceBarPosition) ?? .overlappingMenuBar
         workspaceBarNotchAware = export.workspaceBarNotchAware
@@ -689,6 +695,7 @@ final class SettingsStore {
             enabled: override?.enabled ?? workspaceBarEnabled,
             showLabels: override?.showLabels ?? workspaceBarShowLabels,
             showFloatingWindows: override?.showFloatingWindows ?? workspaceBarShowFloatingWindows,
+            showTraceButton: override?.showTraceButton ?? workspaceBarShowTraceButton,
             deduplicateAppIcons: override?.deduplicateAppIcons ?? workspaceBarDeduplicateAppIcons,
             hideEmptyWorkspaces: override?.hideEmptyWorkspaces ?? workspaceBarHideEmptyWorkspaces,
             reserveLayoutSpace: override?.reserveLayoutSpace ?? workspaceBarReserveLayoutSpace,

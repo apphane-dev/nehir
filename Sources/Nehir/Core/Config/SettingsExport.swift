@@ -46,6 +46,7 @@ struct SettingsExport: Equatable {
     var workspaceBarEnabled: Bool
     var workspaceBarShowLabels: Bool
     var workspaceBarShowFloatingWindows: Bool
+    var workspaceBarShowTraceButton: Bool
     var workspaceBarWindowLevel: String
     var workspaceBarPosition: String
     var workspaceBarNotchAware: Bool
@@ -119,6 +120,7 @@ extension SettingsExport {
             workspaceBarEnabled: true,
             workspaceBarShowLabels: true,
             workspaceBarShowFloatingWindows: false,
+            workspaceBarShowTraceButton: false,
             workspaceBarWindowLevel: WorkspaceBarWindowLevel.popup.rawValue,
             workspaceBarPosition: WorkspaceBarPosition.overlappingMenuBar.rawValue,
             workspaceBarNotchAware: true,

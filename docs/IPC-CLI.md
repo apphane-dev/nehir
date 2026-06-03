@@ -28,7 +28,7 @@ This document covers the Nehir automation surface. For the docs hub, see [Docume
   - [Layout & Sizing](#layout--sizing)
   - [Window Management](#window-management)
   - [UI Toggles](#ui-toggles)
-  - [Runtime Debugging](#runtime-debugging)
+  - [Debugging & Tracing](#debugging--tracing)
 - [Queries](#queries)
   - [Query Selectors](#query-selectors)
   - [Query Fields](#query-fields)
@@ -349,22 +349,25 @@ Workspace IDs are positive numeric strings. Direct hotkeys stay limited to `1-9`
 | `command toggle-workspace-bar` | — | command | Toggle workspace bar visibility |
 | `command toggle-overview` | — | command | Toggle the overview surface |
 
-### Runtime Debugging
+### Debugging & Tracing
+
+These commands are exposed consistently through IPC/CLI, the command palette, and hotkey handling. In the command palette and shortcut settings they appear in the **Debugging & Tracing** category.
 
 | Command | Arguments | Surface | Description |
 |---------|-----------|---------|-------------|
-| `command dump-runtime-state` | — | command | Dump runtime state to the clipboard and unified log |
-| `command reset-runtime-state` | — | command | Clear runtime state and rebootstrap from a startup-style full rescan |
-| `command restart-app-clearing-runtime-state` | — | command | Clear runtime state, relaunch the app, and exit the current process |
-| `command start-runtime-trace-capture` | — | command | Start capturing internal runtime trace events |
-| `command stop-runtime-trace-capture` | — | command | Write the captured trace bundle to `${XDG_STATE_HOME:-$HOME/.local/state}/nehir/traces/…` and copy the file path to the clipboard |
+| `command debug dump-runtime-state` | — | command | Dump runtime debugging state to the clipboard and unified log |
+| `command debug reset-runtime-state` | — | command | Clear runtime debugging state and rebootstrap from a startup-style full rescan |
+| `command debug restart-clearing-runtime-state` | — | command | Clear runtime debugging state, relaunch the app, and exit the current process |
+| `command debug trace toggle` | — | command | Start runtime debugging trace capture, or stop and export the active capture |
+| `command debug trace toggle` | `<active\|inactive>` | command | Ensure trace capture is in the desired state (idempotent; returns `executed` even if already in that state) |
 
-The default hotkeys are:
+The default hotkey is:
 
-- `Ctrl+Option+Cmd+T` — Start Runtime Trace Capture
-- `Ctrl+Option+Shift+Cmd+T` — Stop Runtime Trace Capture
+- `Ctrl+Option+Cmd+T` — Debug: Toggle Trace Capture
 
-Runtime dumps include separate focus-target fields so gesture and hotkey bugs can be diagnosed without conflating concepts: `wmCommandTarget`, `wmCommandTargetSource`, `layoutSelection`, `observedManagedFocus`, `focusRequest`, `borderTarget`, `interactionWorkspace`, `interactionMonitor`, and `nonManaged`.
+The optional workspace-bar **Show Trace Capture Button** setting adds the same toggle button to the bar, which is useful when collecting a reproduction trace for feedback.
+
+Runtime dumps include separate focus-target fields so gesture and hotkey bugs can be diagnosed without conflating concepts: `wmCommandTarget`, `wmCommandTargetSource`, `layoutSelection`, `observedManagedFocus`, `focusRequest`, `borderTarget`, `interactionWorkspace`, `interactionMonitor`, `nonManaged`, `runtimeTraceCaptureActive`, `runtimeTraceStartedAt`, and `viewportTraceRecords`.
 
 ---
 
@@ -867,6 +870,7 @@ This envelope is produced locally by the CLI, so it does not include IPC fields 
 |------|---------|
 | `invalid_request` | Malformed, oversized, or unparseable request |
 | `invalid_arguments` | Bad arguments for the command/rule |
+| `invalid_state` | Command is well-formed but not valid in the current runtime state |
 | `protocol_mismatch` | Client/server protocol version mismatch |
 | `ignored_disabled` | Window manager is disabled |
 | `ignored_overview` | Overview surface is open |

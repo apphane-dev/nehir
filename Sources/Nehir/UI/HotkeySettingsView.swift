@@ -526,6 +526,8 @@ struct HotkeySettingsView: View {
             return "Move"
         case "layout":
             return "Layout"
+        case "debugging":
+            return "Debugging & Tracing"
         case "ui":
             return "UI"
         default:

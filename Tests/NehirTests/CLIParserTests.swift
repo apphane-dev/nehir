@@ -17,6 +17,8 @@ private func representativeCommandToken(for kind: IPCCommandArgumentKind) -> Str
         "grow"
     case .sizeChange:
         "+10%"
+    case .traceDesiredState:
+        "active"
     }
 }
 
@@ -34,6 +36,8 @@ private func representativeCommandValue(for kind: IPCCommandArgumentKind) -> IPC
         .resizeOperation(.grow)
     case .sizeChange:
         .sizeChange(.adjustProportion(10))
+    case .traceDesiredState:
+        .traceDesiredState(.active)
     }
 }
 

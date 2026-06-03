@@ -49,6 +49,11 @@ final class WMController {
         let startRuntimeStateDump: String
     }
 
+    struct RuntimeTraceCaptureStatus: Equatable {
+        let isActive: Bool
+        let startedAt: Date?
+    }
+
     struct WorkspaceBarRefreshDebugState {
         var requestCount: Int = 0
         var scheduledCount: Int = 0
@@ -175,6 +180,17 @@ final class WMController {
     private var runtimeTraceCaptureSession: RuntimeTraceCaptureSession?
     @ObservationIgnored
     private var runtimeViewportTraceRecords: [String] = []
+
+    var runtimeTraceCaptureStatus: RuntimeTraceCaptureStatus {
+        RuntimeTraceCaptureStatus(
+            isActive: runtimeTraceCaptureSession != nil,
+            startedAt: runtimeTraceCaptureSession?.startedAt
+        )
+    }
+
+    var isRuntimeTraceCaptureActive: Bool {
+        runtimeTraceCaptureSession != nil
+    }
 
     let animationClock = AnimationClock()
     let motionPolicy: MotionPolicy
@@ -2106,13 +2122,17 @@ final class WMController {
         ].joined(separator: " ")
     }
 
-    func runtimeStateDebugDump(traceLimit: Int = 50) -> String {
+    func runtimeStateDebugDump(
+        traceLimit: Int = 50,
+        traceCaptureStatusOverride: RuntimeTraceCaptureStatus? = nil
+    ) -> String {
         let axSnapshot = axManager.windowStateDebugSnapshot()
         let refreshSnapshot = layoutRefreshController.refreshDebugSnapshot()
         let mouseTapSnapshot = mouseEventHandler.mouseTapDebugSnapshot()
         let mouseWarpSnapshot = mouseWarpHandler.mouseWarpDebugSnapshot()
         let axEventSnapshot = axEventHandler.debugCounters
         let cgsSnapshot = CGSEventObserver.shared.cgsDebugSnapshot()
+        let traceCaptureStatus = traceCaptureStatusOverride ?? runtimeTraceCaptureStatus
 
         let lines: [String] = [
             "WMController runtime state",
@@ -2120,6 +2140,7 @@ final class WMController {
             "accessibilityGranted=\(accessibilityPermissionGranted) lockScreenActive=\(isLockScreenActive) overviewOpen=\(isOverviewOpen()) startedServices=\(hasStartedServices)",
             "focusFollowsMouse=\(focusFollowsMouseEnabled) moveMouseToFocusedWindow=\(moveMouseToFocusedWindowEnabled) mouseWarpPolicyEnabled=\(isMouseWarpPolicyEnabled)",
             "isTransferringWindow=\(isTransferringWindow) hiddenAppPIDs=\(hiddenAppPIDs.count) workspaceBarHiddenMonitors=\(hiddenWorkspaceBarMonitorIds.count)",
+            "runtimeTraceCaptureActive=\(traceCaptureStatus.isActive) runtimeTraceStartedAt=\(traceCaptureStatus.startedAt?.ISO8601Format() ?? "nil") viewportTraceRecords=\(runtimeViewportTraceRecords.count)",
             "workspaceBarRefreshDebugState requestCount=\(workspaceBarRefreshDebugState.requestCount) scheduledCount=\(workspaceBarRefreshDebugState.scheduledCount) executionCount=\(workspaceBarRefreshDebugState.executionCount) isQueued=\(workspaceBarRefreshDebugState.isQueued)",
             "-- Focus Targets --",
             focusTargetDebugDump(),
@@ -2164,6 +2185,11 @@ final class WMController {
     }
 
     func resetRuntimeState() {
+        if runtimeTraceCaptureSession != nil {
+            runtimeTraceCaptureSession = nil
+            runtimeViewportTraceRecords.removeAll(keepingCapacity: true)
+            workspaceBarManager.update()
+        }
         mouseEventHandler.handleInputSuppressionBegan()
         mouseEventHandler.resetDebugStateForTests()
         mouseWarpHandler.resetDebugStateForTests()
@@ -2213,23 +2239,52 @@ final class WMController {
         NSApp.terminate(nil)
     }
 
-    func startRuntimeTraceCapture() {
-        runtimeViewportTraceRecords.removeAll(keepingCapacity: true)
-        runtimeTraceCaptureSession = RuntimeTraceCaptureSession(
-            startedAt: Date(),
-            startRuntimeStateDump: runtimeStateDebugDump(traceLimit: 0)
-        )
-        workspaceManager.resetReconcileTraceForDebug()
+    @discardableResult
+    func toggleRuntimeTraceCapture(desiredState: IPCTraceDesiredState? = nil) -> ExternalCommandResult {
+        switch desiredState {
+        case .active:
+            return isRuntimeTraceCaptureActive ? .executed : startRuntimeTraceCapture()
+        case .inactive:
+            return isRuntimeTraceCaptureActive ? stopRuntimeTraceCapture() : .executed
+        case nil:
+            return isRuntimeTraceCaptureActive ? stopRuntimeTraceCapture() : startRuntimeTraceCapture()
+        }
     }
 
-    func stopRuntimeTraceCapture() {
+    @discardableResult
+    private func startRuntimeTraceCapture() -> ExternalCommandResult {
+        guard runtimeTraceCaptureSession == nil else {
+            Self.runtimeDebugLogger.error("Start runtime trace capture requested while a capture is already active")
+            return .invalidState
+        }
+
+        runtimeViewportTraceRecords.removeAll(keepingCapacity: true)
+        let startedAt = Date()
+        let startRuntimeStateDump = runtimeStateDebugDump(
+            traceLimit: 0,
+            traceCaptureStatusOverride: RuntimeTraceCaptureStatus(isActive: true, startedAt: startedAt)
+        )
+        runtimeTraceCaptureSession = RuntimeTraceCaptureSession(
+            startedAt: startedAt,
+            startRuntimeStateDump: startRuntimeStateDump
+        )
+        workspaceManager.resetReconcileTraceForDebug()
+        workspaceBarManager.update()
+        return .executed
+    }
+
+    @discardableResult
+    private func stopRuntimeTraceCapture() -> ExternalCommandResult {
         guard let session = runtimeTraceCaptureSession else {
             Self.runtimeDebugLogger.error("Stop runtime trace capture requested without an active session")
-            return
+            return .invalidState
         }
 
         let endedAt = Date()
-        let endRuntimeStateDump = runtimeStateDebugDump(traceLimit: 0)
+        let endRuntimeStateDump = runtimeStateDebugDump(
+            traceLimit: 0,
+            traceCaptureStatusOverride: RuntimeTraceCaptureStatus(isActive: false, startedAt: nil)
+        )
         let traceDump = workspaceManager.reconcileTraceDump(limit: nil)
         let duration = endedAt.timeIntervalSince(session.startedAt)
         let fileURL = runtimeTraceCaptureFileURL(startedAt: session.startedAt, endedAt: endedAt)
@@ -2266,10 +2321,13 @@ final class WMController {
             Self.runtimeDebugLogger.info("Wrote runtime trace capture to \(fileURL.path, privacy: .public)")
         } catch {
             Self.runtimeDebugLogger.error("Failed to write runtime trace capture: \(error.localizedDescription, privacy: .public)")
+            return .internalError
         }
 
         runtimeTraceCaptureSession = nil
         runtimeViewportTraceRecords.removeAll(keepingCapacity: true)
+        workspaceBarManager.update()
+        return .executed
     }
 
     func clearManualWindowOverride(for token: WindowToken) {
@@ -2291,7 +2349,7 @@ final class WMController {
     private func runtimeTraceCaptureFileURL(startedAt: Date, endedAt: Date) -> URL {
         let baseDirectory = NehirStoragePaths.live.stateDirectory
             .appendingPathComponent("traces", isDirectory: true)
-        let filename = "runtime-trace-\(Int(startedAt.timeIntervalSince1970))-\(Int(endedAt.timeIntervalSince1970)).log"
+        let filename = "runtime-trace-\(Int(startedAt.timeIntervalSince1970 * 1000))-\(Int(endedAt.timeIntervalSince1970 * 1000)).log"
         return baseDirectory.appendingPathComponent(filename, isDirectory: false)
     }
 

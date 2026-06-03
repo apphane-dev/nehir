@@ -65,6 +65,12 @@ private struct GlobalBarSettingsSection: View {
                         controller.updateWorkspaceBarSettings()
                     }
 
+                Toggle("Show Trace Capture Button", isOn: $settings.workspaceBarShowTraceButton)
+                    .onChange(of: settings.workspaceBarShowTraceButton) { _, _ in
+                        controller.updateWorkspaceBarSettings()
+                    }
+                    .help("Adds a workspace bar button that starts or stops runtime trace capture for debugging reports.")
+
                 Toggle("Deduplicate App Icons", isOn: $settings.workspaceBarDeduplicateAppIcons)
                     .onChange(of: settings.workspaceBarDeduplicateAppIcons) { _, _ in
                         controller.updateWorkspaceBarSettings()
@@ -326,6 +332,15 @@ private struct MonitorBarSettingsSection: View {
                 onReset: { updateSetting { $0.notchAware = nil } }
             )
             .help("Shift bar to the right of the notch on MacBook Pro")
+
+            OverridableToggle(
+                label: "Show Trace Capture Button",
+                value: ms.showTraceButton,
+                globalValue: settings.workspaceBarShowTraceButton,
+                onChange: { newValue in updateSetting { $0.showTraceButton = newValue } },
+                onReset: { updateSetting { $0.showTraceButton = nil } }
+            )
+            .help("Show a trace capture toggle button in the workspace bar")
         }
 
         Section("Position & Level") {

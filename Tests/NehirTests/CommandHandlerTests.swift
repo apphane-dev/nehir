@@ -7,6 +7,35 @@ import Testing
         #expect(HotkeyCommand.openCommandPalette.displayName == "Toggle Command Palette")
     }
 
+    @Test func debugTraceToggleIsStateful() {
+        let controller = makeLayoutPlanTestController()
+        defer {
+            if controller.isRuntimeTraceCaptureActive {
+                _ = controller.toggleRuntimeTraceCapture(desiredState: .inactive)
+            }
+            resetSharedControllerStateForTests()
+        }
+
+        // toggle with no desiredState flips state
+        #expect(!controller.isRuntimeTraceCaptureActive)
+        #expect(controller.toggleRuntimeTraceCapture() == .executed)
+        #expect(controller.isRuntimeTraceCaptureActive)
+        #expect(controller.toggleRuntimeTraceCapture() == .executed)
+        #expect(!controller.isRuntimeTraceCaptureActive)
+
+        // desiredState .active is idempotent
+        #expect(controller.toggleRuntimeTraceCapture(desiredState: .active) == .executed)
+        #expect(controller.isRuntimeTraceCaptureActive)
+        #expect(controller.toggleRuntimeTraceCapture(desiredState: .active) == .executed)
+        #expect(controller.isRuntimeTraceCaptureActive)
+
+        // desiredState .inactive is idempotent
+        #expect(controller.toggleRuntimeTraceCapture(desiredState: .inactive) == .executed)
+        #expect(!controller.isRuntimeTraceCaptureActive)
+        #expect(controller.toggleRuntimeTraceCapture(desiredState: .inactive) == .executed)
+        #expect(!controller.isRuntimeTraceCaptureActive)
+    }
+
     @Test func overviewIgnoresNonOverviewHotkeys() {
         #expect(CommandHandler.shouldIgnoreCommand(.switchWorkspace(1), isOverviewOpen: true) == true)
         #expect(CommandHandler.shouldIgnoreCommand(.move(.left), isOverviewOpen: true) == true)
@@ -76,8 +105,17 @@ import Testing
         }
     }
 
-    @Test func overviewStillAllowsOverviewToggleHotkey() {
+    @Test func overviewStillAllowsOverviewAndDebuggingHotkeys() {
         #expect(CommandHandler.shouldIgnoreCommand(.toggleOverview, isOverviewOpen: true) == false)
         #expect(CommandHandler.shouldIgnoreCommand(.toggleOverview, isOverviewOpen: false) == false)
+
+        for command in [
+            HotkeyCommand.debugDumpRuntimeState,
+            .debugResetRuntimeState,
+            .debugRestartClearingRuntimeState,
+            .debugToggleTraceCapture,
+        ] {
+            #expect(CommandHandler.shouldIgnoreCommand(command, isOverviewOpen: true) == false)
+        }
     }
 }

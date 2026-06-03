@@ -180,16 +180,14 @@ final class IPCCommandRouter {
             return toggleScratchpad()
         case .openMenuAnywhere:
             return controller.commandHandler.performCommand(.openMenuAnywhere)
-        case .dumpRuntimeState:
-            return controller.commandHandler.performCommand(.dumpRuntimeState)
-        case .resetRuntimeState:
-            return controller.commandHandler.performCommand(.resetRuntimeState)
-        case .restartAppClearingRuntimeState:
-            return controller.commandHandler.performCommand(.restartAppClearingRuntimeState)
-        case .startRuntimeTraceCapture:
-            return controller.commandHandler.performCommand(.startRuntimeTraceCapture)
-        case .stopRuntimeTraceCapture:
-            return controller.commandHandler.performCommand(.stopRuntimeTraceCapture)
+        case .debugDumpRuntimeState:
+            return controller.commandHandler.performCommand(.debugDumpRuntimeState)
+        case .debugResetRuntimeState:
+            return controller.commandHandler.performCommand(.debugResetRuntimeState)
+        case .debugRestartClearingRuntimeState:
+            return controller.commandHandler.performCommand(.debugRestartClearingRuntimeState)
+        case .debugToggleTraceCapture(let desiredState):
+            return controller.toggleRuntimeTraceCapture(desiredState: desiredState)
         }
     }
 

@@ -72,6 +72,7 @@ position = "overlappingMenuBar"
 reserveLayoutSpace = false
 showFloatingWindows = false
 showLabels = true
+showTraceButton = false
 windowLevel = "popup"
 xOffset = 0.0
 yOffset = 0.0

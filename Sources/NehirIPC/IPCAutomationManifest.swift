@@ -43,6 +43,7 @@ public enum IPCCommandArgumentKind: String, Codable, CaseIterable, Equatable, Se
     case windowIndex = "window-index"
     case resizeOperation = "resize-operation"
     case sizeChange = "size-change"
+    case traceDesiredState = "trace-desired-state"
 
     public var usagePlaceholder: String {
         switch self {
@@ -56,6 +57,8 @@ public enum IPCCommandArgumentKind: String, Codable, CaseIterable, Equatable, Se
             "<grow|shrink>"
         case .sizeChange:
             "<size-change>"
+        case .traceDesiredState:
+            "<active|inactive>"
         }
     }
 }
@@ -250,6 +253,10 @@ public enum IPCAutomationManifest {
     private static let sizeChangeArgument = IPCCommandArgumentDescriptor(
         kind: .sizeChange,
         summary: "Size change such as 100, 50%, +10, or -10%."
+    )
+    private static let traceDesiredStateArgument = IPCCommandArgumentDescriptor(
+        kind: .traceDesiredState,
+        summary: "Desired trace capture state: \"active\" or \"inactive\"."
     )
 
     private static func command(
@@ -726,11 +733,11 @@ public enum IPCAutomationManifest {
         ),
         command(["scratchpad", "toggle"], name: .scratchpadToggle, summary: "Show or hide the scratchpad window."),
         command(["open-menu-anywhere"], name: .openMenuAnywhere, summary: "Open the menu surface anywhere."),
-        command(["dump-runtime-state"], name: .dumpRuntimeState, summary: "Dump runtime state to the clipboard and unified log."),
-        command(["reset-runtime-state"], name: .resetRuntimeState, summary: "Clear runtime state and rebootstrap from a startup-style rescan."),
-        command(["restart-app-clearing-runtime-state"], name: .restartAppClearingRuntimeState, summary: "Clear runtime state, relaunch the app, and exit the current process."),
-        command(["start-runtime-trace-capture"], name: .startRuntimeTraceCapture, summary: "Begin capturing internal runtime trace events for later export."),
-        command(["stop-runtime-trace-capture"], name: .stopRuntimeTraceCapture, summary: "Write the captured runtime trace bundle to disk and copy the file path to the clipboard."),
+        command(["debug", "dump-runtime-state"], name: .debugDumpRuntimeState, summary: "Dump runtime debugging state to the clipboard and unified log."),
+        command(["debug", "reset-runtime-state"], name: .debugResetRuntimeState, summary: "Clear runtime debugging state and rebootstrap from a startup-style rescan."),
+        command(["debug", "restart-clearing-runtime-state"], name: .debugRestartClearingRuntimeState, summary: "Clear runtime debugging state, relaunch the app, and exit the current process."),
+        command(["debug", "trace", "toggle"], name: .debugToggleTraceCapture, summary: "Start runtime debugging trace capture, or stop and export the active capture."),
+        command(["debug", "trace", "toggle"], name: .debugToggleTraceCapture, summary: "Ensure trace capture is in the desired state (idempotent).", arguments: [traceDesiredStateArgument]),
         command(
             ["toggle-workspace-bar"],
             name: .toggleWorkspaceBar,
@@ -919,8 +926,12 @@ public enum IPCAutomationManifest {
         queryDescriptors.first { $0.name == name }
     }
 
+    public static func commandDescriptors(for name: IPCCommandName) -> [IPCCommandDescriptor] {
+        commandDescriptors.filter { $0.name == name }
+    }
+
     public static func commandDescriptor(for name: IPCCommandName) -> IPCCommandDescriptor? {
-        commandDescriptors.first { $0.name == name }
+        commandDescriptors(for: name).first
     }
 
     public static func ruleActionDescriptor(for name: IPCRuleActionName) -> IPCRuleActionDescriptor? {
