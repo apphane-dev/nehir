@@ -1,4 +1,8 @@
-# Nehir
+<h1 align="center">
+  <img src="Resources/Logo.png" alt="Nehir" width="600" />
+</h1>
+
+<img src="Resources/AppIcon.png" align="right" width="128" />
 
 A scrolling tiling window manager for macOS, built on the Niri column layout paradigm.
 
