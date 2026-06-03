@@ -362,6 +362,68 @@ private func makeBorderTestContext() -> CGContext? {
         #expect(manager.lastAppliedFocusedFrameForTests == frame)
     }
 
+    @Test @MainActor func disablingBorderDestroysBackingWindow() {
+        var releaseIds: [UInt32] = []
+        var hideCount = 0
+
+        let operations = BorderWindow.Operations(
+            createBorderWindow: { _ in 911 },
+            releaseBorderWindow: { releaseIds.append($0) },
+            configureWindow: { _, _, _ in },
+            setWindowTags: { _, _ in },
+            createWindowContext: { _ in makeBorderTestContext() },
+            setWindowShape: { _, _ in },
+            flushWindow: { _ in },
+            transactionMove: { _, _ in },
+            transactionMoveAndOrder: { _, _, _, _, _ in },
+            transactionHide: { _ in hideCount += 1 },
+            backingScaleForFrame: { _ in 2.0 }
+        )
+        let manager = BorderManager(
+            config: BorderConfig(enabled: true, width: 4, color: .systemBlue),
+            borderWindowOperations: operations,
+            cornerRadiusProvider: { _ in nil }
+        )
+        defer { manager.cleanup() }
+
+        manager.updateFocusedWindow(frame: CGRect(x: 120, y: 90, width: 800, height: 600), windowId: 101)
+        manager.setEnabled(false)
+
+        #expect(hideCount == 1)
+        #expect(releaseIds == [911])
+        #expect(manager.lastAppliedFocusedWindowIdForTests == nil)
+        #expect(manager.lastAppliedFocusedFrameForTests == nil)
+    }
+
+    @Test @MainActor func updateConfigDisablingBorderDestroysBackingWindow() {
+        var releaseIds: [UInt32] = []
+
+        let operations = BorderWindow.Operations(
+            createBorderWindow: { _ in 912 },
+            releaseBorderWindow: { releaseIds.append($0) },
+            configureWindow: { _, _, _ in },
+            setWindowTags: { _, _ in },
+            createWindowContext: { _ in makeBorderTestContext() },
+            setWindowShape: { _, _ in },
+            flushWindow: { _ in },
+            transactionMove: { _, _ in },
+            transactionMoveAndOrder: { _, _, _, _, _ in },
+            transactionHide: { _ in },
+            backingScaleForFrame: { _ in 2.0 }
+        )
+        let manager = BorderManager(
+            config: BorderConfig(enabled: true, width: 4, color: .systemBlue),
+            borderWindowOperations: operations,
+            cornerRadiusProvider: { _ in nil }
+        )
+        defer { manager.cleanup() }
+
+        manager.updateFocusedWindow(frame: CGRect(x: 120, y: 90, width: 800, height: 600), windowId: 101)
+        manager.updateConfig(BorderConfig(enabled: false, width: 4, color: .systemBlue))
+
+        #expect(releaseIds == [912])
+    }
+
     @Test @MainActor func createFailureDoesNotPoisonManagerFrameDedupe() {
         var createCount = 0
         var flushCount = 0

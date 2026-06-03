@@ -7072,21 +7072,16 @@ private func waitUntilAXEventTest(
     func createdWindowRetryPreservesCreateTimeSecondaryInteractionMonitor() async {
         await withAXFrameProviderIsolationForTests {
             let bundleId = "com.example.secondary-interaction-retry"
+            let primaryMonitor = makeAXEventTestMonitor()
+            let secondaryMonitor = makeAXEventSecondaryMonitor()
             let controller = makeAXEventTestController(
                 trackedBundleId: bundleId,
                 workspaceConfigurations: [
-                    WorkspaceConfiguration(name: "1", monitorAssignment: .main),
-                    WorkspaceConfiguration(name: "6", monitorAssignment: .secondary)
+                    WorkspaceConfiguration(name: "1", monitorAssignment: .specificDisplay(OutputId(from: primaryMonitor))),
+                    WorkspaceConfiguration(name: "6", monitorAssignment: .specificDisplay(OutputId(from: secondaryMonitor)))
                 ]
             )
-            let primaryMonitor = makeAXEventTestMonitor()
-            let secondaryMonitor = makeAXEventSecondaryMonitor()
             controller.workspaceManager.applyMonitorConfigurationChange([primaryMonitor, secondaryMonitor])
-            controller.windowRuleEngine.rebuild(
-                rules: [
-                    AppRule(bundleId: bundleId, assignToWorkspace: "1")
-                ]
-            )
 
             guard let primaryWorkspaceId = controller.workspaceManager.workspaceId(for: "1", createIfMissing: false),
                   let secondaryWorkspaceId = controller.workspaceManager.workspaceId(for: "6", createIfMissing: false)
@@ -7095,15 +7090,21 @@ private func waitUntilAXEventTest(
                 return
             }
 
+            #expect(controller.workspaceManager.monitorId(for: primaryWorkspaceId) == primaryMonitor.id)
+            #expect(controller.workspaceManager.monitorId(for: secondaryWorkspaceId) == secondaryMonitor.id)
             #expect(controller.workspaceManager.setActiveWorkspace(primaryWorkspaceId, on: primaryMonitor.id))
             #expect(controller.workspaceManager.setActiveWorkspace(secondaryWorkspaceId, on: secondaryMonitor.id))
             _ = controller.workspaceManager.setInteractionMonitor(secondaryMonitor.id)
+            let createTimeWorkspaceId = controller.workspaceManager.activeWorkspaceOrFirst(on: secondaryMonitor.id)?.id
 
             let pid = getpid()
             let createdWindowId: UInt32 = 8321
             let createdInfo = makeAXEventWindowInfo(id: createdWindowId, pid: pid, frame: .zero)
             var windowInfoReady = false
             var windowInfoLookupCount = 0
+            let previousFastFrameProvider = AXWindowService.fastFrameProviderForTests
+            AXWindowService.fastFrameProviderForTests = { _ in nil }
+            defer { AXWindowService.fastFrameProviderForTests = previousFastFrameProvider }
             controller.axEventHandler.spaceDisplayResolver = { _, _ in nil }
             controller.axEventHandler.windowInfoProvider = { windowId in
                 guard windowId == createdWindowId else { return nil }
@@ -7122,6 +7123,7 @@ private func waitUntilAXEventTest(
                 )
             }
 
+            controller.axEventHandler.windowInfoProviderIsAuthoritativeForTests = true
             controller.axEventHandler.cgsEventObserver(
                 CGSEventObserver.shared,
                 didReceive: .created(windowId: createdWindowId, spaceId: 96)
@@ -7135,7 +7137,7 @@ private func waitUntilAXEventTest(
 
             #expect(windowInfoLookupCount >= 2)
             #expect(controller.workspaceManager.entry(forPid: pid, windowId: Int(createdWindowId))?
-                .workspaceId == secondaryWorkspaceId)
+                .workspaceId == createTimeWorkspaceId)
         }
     }
 

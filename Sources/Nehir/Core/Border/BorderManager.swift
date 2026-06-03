@@ -27,9 +27,10 @@ final class BorderManager {
     }
 
     func setEnabled(_ enabled: Bool) {
+        let wasEnabled = config.enabled
         config.enabled = enabled
-        if !enabled {
-            hideBorder()
+        if !enabled, wasEnabled {
+            disableBorder()
         }
     }
 
@@ -38,7 +39,7 @@ final class BorderManager {
         config = newConfig
 
         if !config.enabled, wasEnabled {
-            hideBorder()
+            disableBorder()
         } else if config.enabled {
             borderWindow?.updateConfig(config)
         }
@@ -105,6 +106,12 @@ final class BorderManager {
         clearBorderState()
         surfaceCoordinator.unregister(id: surfaceID)
         registeredSurfaceWindowNumber = nil
+    }
+
+    private func disableBorder() {
+        hideBorder()
+        borderWindow?.destroy()
+        borderWindow = nil
     }
 
     var lastAppliedFocusedWindowIdForTests: Int? {
