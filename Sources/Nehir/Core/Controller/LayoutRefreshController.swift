@@ -2,6 +2,9 @@ import AppKit
 import Foundation
 import QuartzCore
 
+private let maxAnimationFrameRate: Double = 60.0
+private let animationFrameThrottleSlack: Double = 0.9
+
 @MainActor final class LayoutRefreshController: NSObject {
     typealias PostLayoutAction = @MainActor () -> Void
 
@@ -170,6 +173,7 @@ import QuartzCore
         var isFullEnumerationInProgress: Bool = false
         var displayLinksByDisplay: [CGDirectDisplayID: CADisplayLink] = [:]
         var refreshRateByDisplay: [CGDirectDisplayID: Double] = [:]
+        var lastAnimationTickByDisplay: [CGDirectDisplayID: CFTimeInterval] = [:]
         var closingAnimationsByDisplay: [CGDirectDisplayID: [Int: ClosingAnimation]] = [:]
         var screenChangeObserver: NSObjectProtocol?
         var hasCompletedInitialRefresh: Bool = false
@@ -224,6 +228,13 @@ import QuartzCore
             return nil
         }
         let link = screen.displayLink(target: self, selector: #selector(displayLinkFired(_:)))
+        let refreshRate = layoutState.refreshRateByDisplay[displayId] ?? 60.0
+        let preferredFrameRate = min(maxAnimationFrameRate, max(refreshRate, 1.0))
+        link.preferredFrameRateRange = CAFrameRateRange(
+            minimum: Float(min(30.0, preferredFrameRate)),
+            maximum: Float(preferredFrameRate),
+            preferred: Float(preferredFrameRate)
+        )
         layoutState.displayLinksByDisplay[displayId] = link
         return link
     }
@@ -238,6 +249,7 @@ import QuartzCore
         }
 
         layoutState.closingAnimationsByDisplay.removeValue(forKey: displayId)
+        layoutState.lastAnimationTickByDisplay.removeValue(forKey: displayId)
 
         if migrateAnimations {
             if let wsId = niriHandler.scrollAnimationByDisplay.removeValue(forKey: displayId) {
@@ -265,8 +277,21 @@ import QuartzCore
         guard let displayId = layoutState.displayLinksByDisplay.first(where: { $0.value === displayLink })?.key
         else { return }
 
-        niriHandler.tickScrollAnimation(targetTime: displayLink.targetTimestamp, displayId: displayId)
-        tickClosingAnimations(targetTime: displayLink.targetTimestamp, displayId: displayId)
+        // Nehir's animation ticks fan out into AX frame writes and SkyLight/WindowServer
+        // composition work. On high-refresh displays, running the layout pipeline at 120Hz
+        // doubles WindowServer pressure with little visual benefit, so cap the effective
+        // tick rate even if CADisplayLink delivers more callbacks than requested.
+        let targetTime = displayLink.targetTimestamp
+        let minimumFrameInterval = 1.0 / maxAnimationFrameRate
+        if let lastTick = layoutState.lastAnimationTickByDisplay[displayId],
+           targetTime - lastTick < minimumFrameInterval * animationFrameThrottleSlack
+        {
+            return
+        }
+        layoutState.lastAnimationTickByDisplay[displayId] = targetTime
+
+        niriHandler.tickScrollAnimation(targetTime: targetTime, displayId: displayId)
+        tickClosingAnimations(targetTime: targetTime, displayId: displayId)
     }
 
     func startScrollAnimation(for workspaceId: WorkspaceDescriptor.ID) {
@@ -341,6 +366,7 @@ import QuartzCore
            layoutState.closingAnimationsByDisplay[displayId].map({ $0.isEmpty }) ?? true
         {
             // Idle display links must not remain cached after teardown.
+            layoutState.lastAnimationTickByDisplay.removeValue(forKey: displayId)
             if let link = layoutState.displayLinksByDisplay.removeValue(forKey: displayId) {
                 link.invalidate()
             }
