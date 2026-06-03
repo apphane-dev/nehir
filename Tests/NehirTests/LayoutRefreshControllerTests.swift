@@ -51,6 +51,89 @@ private func makeUnavailableLayoutPlanTestWindow(windowId: Int) -> AXWindowRef {
         #expect(origin == CGPoint(x: 2055, y: 8))
     }
 
+    @Test @MainActor func workspaceHiddenPlacementAvoidsAdjacentMonitorWhenSourceYBelongsToOtherDisplay() {
+        let builtIn = HiddenPlacementMonitorContext(
+            id: Monitor.ID(displayId: 1),
+            frame: CGRect(x: 0, y: 0, width: 2056, height: 1329),
+            visibleFrame: CGRect(x: 0, y: 0, width: 2056, height: 1329)
+        )
+        let external = HiddenPlacementMonitorContext(
+            id: Monitor.ID(displayId: 2),
+            frame: CGRect(x: -263, y: 1329, width: 2560, height: 1440),
+            visibleFrame: CGRect(x: -263, y: 1329, width: 2560, height: 1440)
+        )
+
+        let origin = HiddenWindowPlacementResolver.physicalScreenEdgeOrigin(
+            for: CGSize(width: 1268, height: 1424),
+            requestedSide: .right,
+            targetY: 1337,
+            baseReveal: LayoutRefreshController.hiddenWindowEdgeRevealEpsilon,
+            scale: 1,
+            monitor: builtIn,
+            monitors: [builtIn, external]
+        )
+
+        #expect(origin == CGPoint(x: 2055, y: -95))
+        let parkedFrame = CGRect(origin: origin, size: CGSize(width: 1268, height: 1424))
+        let overlap = parkedFrame.intersection(external.frame)
+        #expect(overlap.width * overlap.height == 0)
+    }
+
+    @Test @MainActor func workspaceHiddenPlacementUsesTargetMonitorLaneWhenTargetYIsOutsideTargetDisplay() {
+        let builtIn = HiddenPlacementMonitorContext(
+            id: Monitor.ID(displayId: 1),
+            frame: CGRect(x: 0, y: 0, width: 2056, height: 1329),
+            visibleFrame: CGRect(x: 0, y: 0, width: 2056, height: 1329)
+        )
+        let external = HiddenPlacementMonitorContext(
+            id: Monitor.ID(displayId: 2),
+            frame: CGRect(x: -263, y: 1329, width: 2560, height: 1440),
+            visibleFrame: CGRect(x: -263, y: 1329, width: 2560, height: 1440)
+        )
+
+        let origin = HiddenWindowPlacementResolver.physicalScreenEdgeOrigin(
+            for: CGSize(width: 1016, height: 1274),
+            requestedSide: .right,
+            targetY: 8,
+            baseReveal: LayoutRefreshController.hiddenWindowEdgeRevealEpsilon,
+            scale: 1,
+            monitor: external,
+            monitors: [builtIn, external]
+        )
+
+        #expect(origin == CGPoint(x: 2296, y: 1329))
+    }
+
+    @Test @MainActor func workspaceHiddenPlacementPrefersTargetLaneOverOffBandZeroOverlap() {
+        let left = HiddenPlacementMonitorContext(
+            id: Monitor.ID(displayId: 1),
+            frame: CGRect(x: -1920, y: 0, width: 1920, height: 1080),
+            visibleFrame: CGRect(x: -1920, y: 0, width: 1920, height: 1080)
+        )
+        let target = HiddenPlacementMonitorContext(
+            id: Monitor.ID(displayId: 2),
+            frame: CGRect(x: 0, y: 0, width: 1920, height: 1080),
+            visibleFrame: CGRect(x: 0, y: 0, width: 1920, height: 1080)
+        )
+        let right = HiddenPlacementMonitorContext(
+            id: Monitor.ID(displayId: 3),
+            frame: CGRect(x: 1920, y: 0, width: 1920, height: 1080),
+            visibleFrame: CGRect(x: 1920, y: 0, width: 1920, height: 1080)
+        )
+
+        let origin = HiddenWindowPlacementResolver.physicalScreenEdgeOrigin(
+            for: CGSize(width: 800, height: 600),
+            requestedSide: .right,
+            targetY: 100,
+            baseReveal: LayoutRefreshController.hiddenWindowEdgeRevealEpsilon,
+            scale: 1,
+            monitor: target,
+            monitors: [left, target, right]
+        )
+
+        #expect(origin == CGPoint(x: 1919, y: 100))
+    }
+
     @Test @MainActor func buildMonitorSnapshotUsesConfiguredWorkspaceBarInsetInOverlappingMode() {
         let monitor = Monitor(
             id: Monitor.ID(displayId: 91),
