@@ -4,7 +4,14 @@ run = """
 # Kill any running Nehir instances to avoid port/state conflicts
 pkill -x Nehir 2>/dev/null || true
 sleep 0.5
-swift test --no-parallel
+
+# Xcode 26.4.1's swiftpm-testing-helper can SIGTRAP when the socket-backed
+# IPCServerTests run late in the full Swift Testing process on GitHub's
+# macos-26 image. Keep the coverage, but run that suite in its own helper
+# process so leaked Foundation/Dispatch state from earlier AppKit-heavy tests
+# cannot take down the whole invocation.
+swift test --no-parallel --skip IPCServerTests
+swift test --no-parallel --filter IPCServerTests
 """
 
 [tasks."test:compile"]
