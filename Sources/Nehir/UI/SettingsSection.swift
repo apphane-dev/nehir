@@ -2,6 +2,7 @@ import SwiftUI
 
 enum SettingsSection: String, CaseIterable, Identifiable {
     case general
+    case diagnostics
     case niri
     case monitors
     case workspaces
@@ -16,6 +17,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
     var displayName: String {
         switch self {
         case .general: "General"
+        case .diagnostics: "Diagnostics"
         case .niri: "Niri Layout"
         case .monitors: "Monitors"
         case .workspaces: "Workspaces"
@@ -28,6 +30,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
     var icon: String {
         switch self {
         case .general: "gearshape"
+        case .diagnostics: "exclamationmark.triangle"
         case .niri: "scroll"
         case .monitors: "display"
         case .workspaces: "rectangle.3.group"
@@ -51,7 +54,7 @@ enum SettingsSectionGroup: String, CaseIterable, Identifiable {
     var sections: [SettingsSection] {
         switch self {
         case .basics:
-            [.general]
+            [.general, .diagnostics]
         case .layouts:
             [.niri, .monitors]
         case .workspace:

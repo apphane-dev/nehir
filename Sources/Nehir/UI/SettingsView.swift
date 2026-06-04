@@ -1,16 +1,26 @@
+import Observation
 import SwiftUI
+
+@MainActor @Observable
+final class SettingsNavigationModel {
+    var selectedSection: SettingsSection
+
+    init(selectedSection: SettingsSection = .general) {
+        self.selectedSection = selectedSection
+    }
+}
 
 struct SettingsView: View {
     @Bindable var settings: SettingsStore
     @Bindable var controller: WMController
-    @State private var selectedSection: SettingsSection = .general
+    @Bindable var navigation: SettingsNavigationModel
 
     var body: some View {
         NavigationSplitView {
-            SettingsSidebar(selection: $selectedSection)
+            SettingsSidebar(selection: $navigation.selectedSection)
         } detail: {
             SettingsDetailView(
-                section: selectedSection,
+                section: navigation.selectedSection,
                 settings: settings,
                 controller: controller
             )
