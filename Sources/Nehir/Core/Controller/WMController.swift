@@ -180,6 +180,8 @@ final class WMController {
     private var runtimeTraceCaptureSession: RuntimeTraceCaptureSession?
     @ObservationIgnored
     private var runtimeViewportTraceRecords: [String] = []
+    @ObservationIgnored
+    private var runtimeResizeTraceRecords: [String] = []
 
     var runtimeTraceCaptureStatus: RuntimeTraceCaptureStatus {
         RuntimeTraceCaptureStatus(
@@ -1904,6 +1906,25 @@ final class WMController {
         copyDebugTextToPasteboard(snapshot.formattedDump())
     }
 
+    func syncNiriResizeTraceSink() {
+        guard let engine = niriEngine else { return }
+        if runtimeTraceCaptureSession != nil {
+            engine.resizeTraceSink = { [weak self] message in
+                self?.recordRuntimeResizeTrace(message)
+            }
+        } else {
+            engine.resizeTraceSink = nil
+        }
+    }
+
+    func recordRuntimeResizeTrace(_ message: String) {
+        guard runtimeTraceCaptureSession != nil else { return }
+        runtimeResizeTraceRecords.append(Date().ISO8601Format() + " " + message)
+        if runtimeResizeTraceRecords.count > 400 {
+            runtimeResizeTraceRecords.removeFirst(runtimeResizeTraceRecords.count - 400)
+        }
+    }
+
     func recordRuntimeViewportTrace(
         workspaceId: WorkspaceDescriptor.ID,
         reason: String
@@ -1946,6 +1967,7 @@ final class WMController {
             "selectedNode=\(selectedNode)",
             "preferredFocus=\(preferredFocus)",
             "confirmedFocus=\(confirmedFocus)",
+            "resizeCommandSeq=\(engine.resizeCommandGeneration)",
             "layout=\(layoutDecisions)"
         ]
         .joined(separator: " ")
@@ -1987,7 +2009,7 @@ final class WMController {
                 let selected = state.selectedNodeId == window.id ? ":selected" : ""
                 return "w\(token.windowId)\(selected){cur=\(current),target=\(target),last=\(last),live=\(live),replacement=\(replacement),observed=\(observed),\(hidden)}"
             }.joined(separator: ",")
-            return "c\(colIdx)[x=\(String(format: "%.1f", columnXForDebug(colIdx, columns: columns, gap: gap))),w=\(String(format: "%.1f", column.cachedWidth))]{\(windows)}"
+            return "c\(colIdx)[\(niriColumnSizingDebug(column, index: colIdx, columns: columns, gap: gap))]{\(windows)}"
         }.joined(separator: "|")
     }
 
@@ -2026,6 +2048,45 @@ final class WMController {
     private func columnXForDebug(_ index: Int, columns: [NiriContainer], gap: CGFloat) -> CGFloat {
         guard index > 0 else { return 0 }
         return columns.prefix(index).reduce(CGFloat(0)) { $0 + $1.cachedWidth + gap }
+    }
+
+    private func niriWidthSpecDebug(_ spec: ProportionalSize) -> String {
+        switch spec {
+        case let .proportion(proportion):
+            String(format: "prop:%.4f", proportion)
+        case let .fixed(width):
+            String(format: "fix:%.1f", width)
+        }
+    }
+
+    private func niriColumnSizingDebug(
+        _ column: NiriContainer,
+        index: Int,
+        columns: [NiriContainer],
+        gap: CGFloat
+    ) -> String {
+        let now = animationClock.now()
+        let animationText: String
+        if let animation = column.widthAnimation {
+            animationText = String(
+                format: "anim=%.1f->%.1f vel=%.1f",
+                animation.value(at: now),
+                animation.target,
+                animation.velocity(at: now)
+            )
+        } else {
+            animationText = "anim=nil"
+        }
+        return [
+            String(format: "x=%.1f", columnXForDebug(index, columns: columns, gap: gap)),
+            String(format: "cached=%.1f", column.cachedWidth),
+            "spec=\(niriWidthSpecDebug(column.width))",
+            "target=\(column.targetWidth.map { String(format: "%.1f", $0) } ?? "nil")",
+            "preset=\(column.presetWidthIdx.map(String.init) ?? "nil")",
+            "full=\(column.isFullWidth)",
+            "manual=\(column.hasManualSingleWindowWidthOverride)",
+            animationText
+        ].joined(separator: ",")
     }
 
     private func compactRect(_ rect: CGRect) -> String {
@@ -2140,7 +2201,7 @@ final class WMController {
             "accessibilityGranted=\(accessibilityPermissionGranted) lockScreenActive=\(isLockScreenActive) overviewOpen=\(isOverviewOpen()) startedServices=\(hasStartedServices)",
             "focusFollowsMouse=\(focusFollowsMouseEnabled) moveMouseToFocusedWindow=\(moveMouseToFocusedWindowEnabled) mouseWarpPolicyEnabled=\(isMouseWarpPolicyEnabled)",
             "isTransferringWindow=\(isTransferringWindow) hiddenAppPIDs=\(hiddenAppPIDs.count) workspaceBarHiddenMonitors=\(hiddenWorkspaceBarMonitorIds.count)",
-            "runtimeTraceCaptureActive=\(traceCaptureStatus.isActive) runtimeTraceStartedAt=\(traceCaptureStatus.startedAt?.ISO8601Format() ?? "nil") viewportTraceRecords=\(runtimeViewportTraceRecords.count)",
+            "runtimeTraceCaptureActive=\(traceCaptureStatus.isActive) runtimeTraceStartedAt=\(traceCaptureStatus.startedAt?.ISO8601Format() ?? "nil") viewportTraceRecords=\(runtimeViewportTraceRecords.count) resizeTraceRecords=\(runtimeResizeTraceRecords.count)",
             "workspaceBarRefreshDebugState requestCount=\(workspaceBarRefreshDebugState.requestCount) scheduledCount=\(workspaceBarRefreshDebugState.scheduledCount) executionCount=\(workspaceBarRefreshDebugState.executionCount) isQueued=\(workspaceBarRefreshDebugState.isQueued)",
             "-- Focus Targets --",
             focusTargetDebugDump(),
@@ -2188,6 +2249,8 @@ final class WMController {
         if runtimeTraceCaptureSession != nil {
             runtimeTraceCaptureSession = nil
             runtimeViewportTraceRecords.removeAll(keepingCapacity: true)
+            runtimeResizeTraceRecords.removeAll(keepingCapacity: true)
+            syncNiriResizeTraceSink()
             workspaceBarManager.update()
         }
         mouseEventHandler.handleInputSuppressionBegan()
@@ -2259,6 +2322,7 @@ final class WMController {
         }
 
         runtimeViewportTraceRecords.removeAll(keepingCapacity: true)
+        runtimeResizeTraceRecords.removeAll(keepingCapacity: true)
         let startedAt = Date()
         let startRuntimeStateDump = runtimeStateDebugDump(
             traceLimit: 0,
@@ -2268,6 +2332,7 @@ final class WMController {
             startedAt: startedAt,
             startRuntimeStateDump: startRuntimeStateDump
         )
+        syncNiriResizeTraceSink()
         workspaceManager.resetReconcileTraceForDebug()
         workspaceBarManager.update()
         return .executed
@@ -2291,6 +2356,9 @@ final class WMController {
         let viewportTraceDump = runtimeViewportTraceRecords.isEmpty
             ? "viewport trace empty"
             : runtimeViewportTraceRecords.joined(separator: "\n")
+        let resizeTraceDump = runtimeResizeTraceRecords.isEmpty
+            ? "resize trace empty"
+            : runtimeResizeTraceRecords.joined(separator: "\n")
         let body = [
             "Nehir runtime trace capture",
             "startedAt=\(session.startedAt.ISO8601Format())",
@@ -2305,6 +2373,9 @@ final class WMController {
             "",
             "## Niri viewport trace",
             viewportTraceDump,
+            "",
+            "## Niri resize trace",
+            resizeTraceDump,
             "",
             "## Runtime state at end",
             endRuntimeStateDump,
@@ -2326,6 +2397,8 @@ final class WMController {
 
         runtimeTraceCaptureSession = nil
         runtimeViewportTraceRecords.removeAll(keepingCapacity: true)
+        runtimeResizeTraceRecords.removeAll(keepingCapacity: true)
+        syncNiriResizeTraceSink()
         workspaceBarManager.update()
         return .executed
     }

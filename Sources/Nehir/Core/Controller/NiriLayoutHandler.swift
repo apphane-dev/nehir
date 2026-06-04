@@ -1424,6 +1424,7 @@ enum NiriWindowMoveResult {
         engine.renderStyle.tabIndicatorWidth = TabbedColumnOverlayManager.tabIndicatorWidth
         engine.animationClock = controller.animationClock
         controller.niriEngine = engine
+        controller.syncNiriResizeTraceSink()
 
         syncMonitorsToNiriEngine()
 

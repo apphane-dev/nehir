@@ -144,6 +144,14 @@ final class NiriLayoutEngine {
     var presetWindowHeights: [PresetSize] = NiriLayoutEngine.defaultPresetWindowHeights
     var defaultColumnWidth: CGFloat? = 0.5
 
+    var resizeTraceSink: ((String) -> Void)?
+    private(set) var resizeCommandGeneration: UInt64 = 0
+
+    func nextResizeCommandId() -> UInt64 {
+        resizeCommandGeneration += 1
+        return resizeCommandGeneration
+    }
+
     init(maxVisibleColumns: Int = 2, infiniteLoop: Bool = false) {
         self.maxVisibleColumns = max(1, min(5, maxVisibleColumns))
         self.infiniteLoop = infiniteLoop
