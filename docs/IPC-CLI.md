@@ -312,7 +312,7 @@ Workspace IDs are positive numeric strings. Direct hotkeys stay limited to `1-9`
 | `command move-column-to-workspace` | `<number>` | niri | Move focused column to workspace by index |
 | `command move-column-to-workspace up` | — | niri | Move focused column to the adjacent workspace above |
 | `command move-column-to-workspace down` | — | niri | Move focused column to the adjacent workspace below |
-| `command toggle-column-tabbed` | — | niri | Toggle tabbed mode for the focused column |
+| `command toggle-column-tabbed` | — | niri | Toggle tabbed mode for the focused column. If the focused column is transiently forced-tabbed because its stacked minimum heights overflow the current column, this splits into columns only while the overflow still exists; otherwise it preserves the column. |
 | `command toggle-column-full-width` | — | niri | Toggle full-width mode for the focused column |
 | `command cycle-column-width forward` | — | command | Cycle column width presets forward |
 | `command cycle-column-width backward` | — | command | Cycle column width presets backward |

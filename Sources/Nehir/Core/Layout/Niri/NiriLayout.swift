@@ -146,6 +146,9 @@ extension NiriLayoutEngine {
             .roundedToPhysicalPixels(scale: effectiveScale)
 
         if let singleWindowContext = singleWindowLayoutContext(in: workspaceId) {
+            for container in containers {
+                container.usesOverflowTabbedMode = false
+            }
             layoutSingleWindowWorkspace(
                 singleWindowContext,
                 workingFrame: workingFrame,
@@ -172,6 +175,19 @@ extension NiriLayoutEngine {
                     container.resolveAndCacheHeight(workingAreaHeight: workingFrame.height, gaps: primaryGap)
                 }
             }
+        }
+
+        let availableStackSpan: CGFloat = switch orientation {
+        case .horizontal: workingFrame.height
+        case .vertical: workingFrame.width
+        }
+        for container in containers {
+            container.usesOverflowTabbedMode = shouldUseStackOverflowTabbedMode(
+                container: container,
+                availableSpan: availableStackSpan,
+                secondaryGap: secondaryGap,
+                orientation: orientation
+            )
         }
 
         let containerSpans: [CGFloat] = switch orientation {
@@ -686,6 +702,42 @@ extension NiriLayoutEngine {
         )
     }
 
+    private func shouldUseStackOverflowTabbedMode(
+        container: NiriContainer,
+        availableSpan: CGFloat,
+        secondaryGap: CGFloat,
+        orientation: Monitor.Orientation
+    ) -> Bool {
+        guard !container.isTabbed else { return false }
+
+        let windows = container.windowNodes
+        guard windows.count > 1,
+              windows.allSatisfy({ $0.sizingMode == .normal })
+        else {
+            return false
+        }
+
+        let overflow = stackOverflowMetrics(
+            windows: windows,
+            availableSpan: availableSpan,
+            gaps: secondaryGap,
+            orientation: orientation
+        )
+
+        if overflow.overflows, LayoutTrace.isEnabled {
+            LayoutTrace.log(
+                "stackOverflow.tabbed column=\(container.id.uuid.uuidString) "
+                    + "windows=\(windows.count) "
+                    + "required=\(String(format: "%.1f", overflow.requiredSpan)) "
+                    + "available=\(String(format: "%.1f", availableSpan)) "
+                    + "orientation=\(orientation) "
+                    + "active=\(container.activeWindow?.token.windowId.description ?? "nil")"
+            )
+        }
+
+        return overflow.overflows
+    }
+
     private func layoutContainer(
         container: NiriContainer,
         canonicalContainerRect: CGRect,
@@ -701,7 +753,9 @@ extension NiriLayoutEngine {
         container.frame = canonicalContainerRect
         container.renderedFrame = renderedContainerRect
 
-        let tabOffset = container.isTabbed ? renderStyle.tabIndicatorWidth : 0
+        let isEffectivelyTabbed = container.isEffectivelyTabbed
+
+        let tabOffset = isEffectivelyTabbed ? renderStyle.tabIndicatorWidth : 0
         let contentRect = CGRect(
             x: canonicalContainerRect.origin.x + tabOffset,
             y: canonicalContainerRect.origin.y,
@@ -712,7 +766,12 @@ extension NiriLayoutEngine {
         let windows = container.windowNodes
         guard !windows.isEmpty else { return }
 
-        let isTabbed = container.isTabbed
+        let isTabbed = isEffectivelyTabbed
+        let activeTileIdx = windows.isEmpty ? 0 : container.activeTileIdx.clamped(to: 0 ... (windows.count - 1))
+        for (idx, window) in windows.enumerated() {
+            window.isHiddenInTabbedMode = isTabbed && idx != activeTileIdx
+        }
+
         let time = animationTime ?? CACurrentMediaTime()
 
         let availableSpace: CGFloat = switch orientation {

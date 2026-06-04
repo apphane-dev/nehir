@@ -198,7 +198,6 @@ func resetSharedControllerStateForTests() {
     AppRulesWindowController.shared.windowForTests?.close()
     OwnedWindowRegistry.shared.resetForTests()
     NativeFullscreenPlaceholderManager.materializesWindowsForTests = false
-    ResizePlaceholderManager.materializesWindowsForTests = false
 
     AppAXContext.contextFactoryForTests = nil
     AppAXContext.onWindowDestroyed = nil

@@ -1174,44 +1174,6 @@ private func workspaceConfigurations(
         #expect(manager.cachedConstraints(for: newToken) == nil)
     }
 
-    @Test @MainActor func rekeyWindowDropsResizePlaceholderState() {
-        let defaults = makeWorkspaceManagerTestDefaults()
-        let settings = SettingsStore(defaults: defaults)
-        settings.workspaceConfigurations = [
-            WorkspaceConfiguration(name: "1", monitorAssignment: .main)
-        ]
-
-        let manager = WorkspaceManager(settings: settings)
-        let monitor = makeWorkspaceManagerTestMonitor(displayId: 10, name: "Main", x: 0, y: 0)
-        manager.applyMonitorConfigurationChange([monitor])
-
-        guard let workspaceId = manager.workspaceId(for: "1", createIfMissing: true) else {
-            Issue.record("Failed to create workspace")
-            return
-        }
-
-        let token = manager.addWindow(
-            makeWorkspaceManagerTestWindow(windowId: 2194),
-            pid: 2194,
-            windowId: 2194,
-            to: workspaceId
-        )
-        manager.setResizePlaceholderState(
-            ResizePlaceholderState(
-                workspaceId: workspaceId,
-                frame: CGRect(x: 20, y: 30, width: 240, height: 180),
-                minimumSize: CGSize(width: 420, height: 320)
-            ),
-            for: token
-        )
-
-        let newToken = WindowToken(pid: token.pid, windowId: 2195)
-        let newAXRef = makeWorkspaceManagerTestWindow(windowId: 2195)
-        #expect(manager.rekeyWindow(from: token, to: newToken, newAXRef: newAXRef) != nil)
-        #expect(manager.resizePlaceholderState(for: token) == nil)
-        #expect(manager.resizePlaceholderState(for: newToken) == nil)
-    }
-
     @Test @MainActor func floatingFocusDoesNotPoisonTiledPreferredFocus() {
         let defaults = makeWorkspaceManagerTestDefaults()
         let settings = SettingsStore(defaults: defaults)

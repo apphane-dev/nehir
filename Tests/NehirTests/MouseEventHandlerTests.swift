@@ -919,73 +919,6 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
         #expect(engine.interactiveResize == nil)
     }
 
-    @Test @MainActor func optionRightMouseDragStartsAndUpdatesResizeFromPlaceholder() async {
-        let fixture = await prepareMouseResizeFixture()
-        guard let engine = fixture.controller.niriEngine,
-              let resizeWindow = engine.findNode(for: fixture.handle),
-              let column = engine.findColumn(containing: resizeWindow, in: fixture.workspaceId),
-              let monitor = fixture.controller.workspaceManager.monitor(for: fixture.workspaceId)
-        else {
-            Issue.record("Missing Niri placeholder resize state")
-            return
-        }
-
-        let surfaceId = "resize-placeholder-mouse-test-\(fixture.handle.id.windowId)"
-        OwnedWindowRegistry.shared.registerWindowNumber(
-            surfaceId: surfaceId,
-            kind: .resizePlaceholder,
-            windowNumber: 98_901,
-            frameProvider: { fixture.nodeFrame },
-            visibilityProvider: { true },
-            hitTestPolicy: .interactive,
-            capturePolicy: .excluded,
-            suppressesManagedFocusRecovery: false
-        )
-        defer {
-            OwnedWindowRegistry.shared.unregister(surfaceId: surfaceId)
-            fixture.controller.resizePlaceholderManager.removeAll()
-        }
-
-        fixture.controller.workspaceManager.setResizePlaceholderState(
-            ResizePlaceholderState(
-                workspaceId: fixture.workspaceId,
-                frame: fixture.nodeFrame,
-                minimumSize: CGSize(width: fixture.nodeFrame.width + 200, height: fixture.nodeFrame.height + 100)
-            ),
-            for: fixture.handle.id
-        )
-        fixture.controller.resizePlaceholderManager.update(
-            ResizePlaceholderUpdate(
-                token: fixture.handle.id,
-                workspaceId: fixture.workspaceId,
-                frame: fixture.nodeFrame,
-                selected: true,
-                appName: nil,
-                icon: nil
-            )
-        )
-
-        let originalWidth = column.cachedWidth
-        let insetFrame = fixture.controller.insetWorkingFrame(for: monitor)
-        let maxWidth = insetFrame.width - CGFloat(fixture.controller.workspaceManager.gaps)
-        let expectedWidth = min(originalWidth + 24, maxWidth)
-        let start = CGPoint(x: fixture.nodeFrame.maxX - 20, y: fixture.nodeFrame.midY)
-        let end = CGPoint(x: start.x + 24, y: start.y)
-
-        #expect(fixture.controller.isPointInOwnWindow(start))
-
-        fixture.handler.pressedMouseButtonsProvider = { 2 }
-        fixture.handler.dispatchMouseDown(at: start, modifiers: [.maskAlternate], button: .right)
-        fixture.handler.dispatchMouseDragged(at: end, button: .right)
-        fixture.handler.pressedMouseButtonsProvider = { 0 }
-        fixture.handler.dispatchMouseUp(at: end, button: .right)
-        await fixture.controller.layoutRefreshController.waitForRefreshWorkForTests()
-
-        #expect(fixture.handler.state.isResizing == false)
-        #expect(engine.interactiveResize == nil)
-        #expect(abs(column.cachedWidth - expectedWidth) < 0.001)
-    }
-
     @Test @MainActor func optionRightMouseTapCallbackSuppressesClaimedResizeEvents() async {
         let fixture = await prepareMouseResizeFixture()
 
@@ -1818,53 +1751,6 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
 
         #expect(registry.contains(point: fixture.location))
         sendCommittingTrackpadGesture(to: fixture.handler, at: fixture.location)
-
-        #expect(fixture.handler.state.gesturePhase == .idle)
-    }
-
-    @Test @MainActor func resizePlaceholderStillBlocksTrackpadGesture() async {
-        let fixture = await prepareMouseResizeFixture()
-        let registry = OwnedWindowRegistry.shared
-        let surfaceId = "resize-placeholder-gesture-test-\(fixture.handle.id.windowId)"
-        registry.resetForTests()
-        registry.registerWindowNumber(
-            surfaceId: surfaceId,
-            kind: .resizePlaceholder,
-            windowNumber: 98_902,
-            frameProvider: { fixture.nodeFrame },
-            visibilityProvider: { true },
-            hitTestPolicy: .interactive,
-            capturePolicy: .excluded,
-            suppressesManagedFocusRecovery: false
-        )
-        fixture.controller.workspaceManager.setResizePlaceholderState(
-            ResizePlaceholderState(
-                workspaceId: fixture.workspaceId,
-                frame: fixture.nodeFrame,
-                minimumSize: CGSize(width: fixture.nodeFrame.width + 200, height: fixture.nodeFrame.height + 100)
-            ),
-            for: fixture.handle.id
-        )
-        fixture.controller.resizePlaceholderManager.update(
-            ResizePlaceholderUpdate(
-                token: fixture.handle.id,
-                workspaceId: fixture.workspaceId,
-                frame: fixture.nodeFrame,
-                selected: true,
-                appName: nil,
-                icon: nil
-            )
-        )
-        defer {
-            registry.unregister(surfaceId: surfaceId)
-            fixture.controller.resizePlaceholderManager.removeAll()
-            registry.resetForTests()
-        }
-
-        sendCommittingTrackpadGesture(
-            to: fixture.handler,
-            at: CGPoint(x: fixture.nodeFrame.midX, y: fixture.nodeFrame.midY)
-        )
 
         #expect(fixture.handler.state.gesturePhase == .idle)
     }

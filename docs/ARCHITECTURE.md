@@ -371,6 +371,8 @@ The Niri layout engine follows this contract:
 
 This separation means layout logic can be unit-tested without any macOS UI or accessibility infrastructure. The `LayoutRefreshController` feeds workspace snapshots to the active engine and collects frame outputs, then `AXManager.applyFramesParallel()` writes the frames to actual windows.
 
+When AX readback shows that a real app refused or clamped a requested resize, the refresh controller records an inferred runtime minimum (`inferredResizeMinimumSize`) on the window model and requests another relayout. The corrected minimum is fed into future layout snapshots, so the real accepted size—not substitute geometry—is used by the layout engine.
+
 ### 3.6 Thread Safety Model
 
 **`@MainActor` everywhere.** Nearly all code in Nehir runs on the main thread, including:
@@ -507,7 +509,7 @@ All three types inherit from `NiriNode` (base class with `id: NodeId`, `parent`,
 | Type | Purpose |
 |------|---------|
 | `NiriRoot` | Per-workspace container. Owns column list and node index. |
-| `NiriContainer` | A column. Has `displayMode` (`.normal` or `.tabbed`), `width: ProportionalSize`, `activeTileIdx`. |
+| `NiriContainer` | A column. Has `displayMode` (`.normal` or `.tabbed`), transient `usesOverflowTabbedMode`, `width: ProportionalSize`, `activeTileIdx`. |
 | `NiriWindow` | Leaf node. Has `token: WindowToken`, `height: WeightedSize`, `constraints`. |
 | `ProportionalSize` | `.proportion(CGFloat)` or `.fixed(CGFloat)` — column width relative to monitor |
 | `WeightedSize` | `.auto(weight:)` or `.fixed(CGFloat)` — window height within column |
@@ -538,6 +540,8 @@ The Niri directory is the largest subsystem. Files are organized by responsibili
 **Interactive Move/Resize:** Users can drag windows between columns using Option+Shift+click. `InteractiveMove` tracks the drag state (origin column, hover target). `DragGhostController` captures a `ScreenCaptureKit` thumbnail of the dragged window and displays it as a semi-transparent ghost. `SwapTargetOverlay` highlights the drop target. On release, the engine performs a column insertion or window swap. Interactive resize (`InteractiveResize`) allows edge-dragging to change column widths or window heights.
 
 **Constraint Solving:** `NiriAxisSolver` (in `NiriConstraintSolver.swift`) distributes available space among windows in a column while respecting per-window min/max size constraints. Windows with `isConstraintFixed` get exact sizes; remaining space is distributed by weight. This runs during every layout calculation and handles edge cases like tabbed columns (all windows share the same height).
+
+**Overflow tabbing:** If the sum of stacked windows' minimum heights plus gaps exceeds the current column height (or, on vertically oriented monitors, minimum widths plus gaps exceed the current column width), a normal column enters transient `usesOverflowTabbedMode`. This makes the column behave like tabbed for that layout pass without changing its persisted `displayMode`, preventing impossible stack geometry and WindowServer position clamps. The overflow state is computed before hidden/offscreen column placement, so returning from offscreen should already have the correct tabbed frames. If the user toggles tabbed mode while this state is active, Nehir splits the windows into separate columns only when the stacked layout still overflows; otherwise it simply clears the transient forced-tab state and preserves the column.
 
 ### 4.5 Focus Lifecycle
 

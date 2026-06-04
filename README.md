@@ -10,7 +10,7 @@ A scrolling tiling window manager for macOS, built on the Niri column layout par
 
 ## Features
 
-- **Niri scrolling column layout** — windows arranged in columns that scroll horizontally
+- **Niri scrolling column layout** — windows arranged in columns that scroll horizontally, with automatic overflow tabbing when stacked windows cannot fit at their minimum heights
 - **Workspace management** — multiple workspaces with hotkey switching
 - **Window borders** — configurable colored borders on the focused window
 - **Workspace bar** — per-monitor status bar showing workspace names and app icons
