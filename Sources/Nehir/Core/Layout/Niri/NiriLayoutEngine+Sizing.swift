@@ -7,6 +7,92 @@ extension NiriLayoutEngine {
         case window(CGFloat)
     }
 
+    private enum ResizeWidthSource: String {
+        case cachedWidth
+        case resolvedSpec
+        case presetCycle
+        case fullWidthToggle
+        case availableWidthExpansion
+    }
+
+    private func fmt(_ value: CGFloat?) -> String {
+        guard let value else { return "nil" }
+        return String(format: "%.1f", value)
+    }
+
+    private func widthSpecDescription(_ width: ProportionalSize) -> String {
+        switch width {
+        case let .proportion(proportion):
+            return String(format: "proportion(%.4f)", proportion)
+        case let .fixed(width):
+            return String(format: "fixed(%.1f)", width)
+        }
+    }
+
+    private func windowWidthSnapshot(_ window: NiriWindow?) -> String {
+        guard let window else { return "window=nil" }
+        let maxWidth = window.constraints.maxSize.width > 0 ? fmt(window.constraints.maxSize.width) : "none"
+        return [
+            "window=\(window.token.windowId)",
+            "resolved=\(fmt(window.resolvedWidth))",
+            "frame=\(fmt(window.frame?.width))",
+            "min=\(fmt(window.constraints.minSize.width))",
+            "max=\(maxWidth)",
+            "mode=\(window.sizingMode)"
+        ].joined(separator: ",")
+    }
+
+    private func widthAnimationSnapshot(_ column: NiriContainer) -> String {
+        let now = animationClock?.now() ?? CACurrentMediaTime()
+        guard let animation = column.widthAnimation else {
+            return "anim=none"
+        }
+        return [
+            "animCurrent=\(fmt(CGFloat(animation.value(at: now))))",
+            "animFrom=\(fmt(CGFloat(animation.from)))",
+            "animTarget=\(fmt(CGFloat(animation.target)))",
+            "animVelocity=\(fmt(CGFloat(animation.velocity(at: now))))",
+            "targetWidth=\(fmt(column.targetWidth))"
+        ].joined(separator: ",")
+    }
+
+    private func columnWidthSnapshot(
+        _ column: NiriContainer,
+        in workspaceId: WorkspaceDescriptor.ID,
+        workingFrame: CGRect,
+        gaps: CGFloat,
+        window: NiriWindow? = nil
+    ) -> String {
+        let currentSpec = column.isFullWidth ? ProportionalSize.proportion(1) : column.width
+        let resolvedSpec = resolvedColumnPixels(
+            currentSpec,
+            for: column,
+            workingFrame: workingFrame,
+            gaps: gaps
+        )
+        let columnIndex = columnIndex(of: column, in: workspaceId).map(String.init) ?? "nil"
+        return [
+            "columnIndex=\(columnIndex)",
+            "widthSpec=\(widthSpecDescription(column.width))",
+            "effectiveSpec=\(widthSpecDescription(currentSpec))",
+            "cached=\(fmt(column.cachedWidth))",
+            "resolvedSpec=\(fmt(resolvedSpec))",
+            "targetWidth=\(fmt(column.targetWidth))",
+            "presetIdx=\(column.presetWidthIdx.map(String.init) ?? "nil")",
+            "full=\(column.isFullWidth)",
+            "manual=\(column.hasManualSingleWindowWidthOverride)",
+            widthAnimationSnapshot(column),
+            windowWidthSnapshot(window ?? column.activeWindow ?? column.windowNodes.first)
+        ].joined(separator: " ")
+    }
+
+    private func traceResize(_ message: @autoclosure () -> String) {
+        guard resizeTraceSink != nil || LayoutTrace.isEnabled else { return }
+        let text = message()
+        resizeTraceSink?(text)
+        LayoutTrace.log("resizeTrace \(text)")
+    }
+
     private func cachedWidthForResizeStart(
         _ column: NiriContainer,
         in workspaceId: WorkspaceDescriptor.ID,
@@ -141,7 +227,11 @@ extension NiriLayoutEngine {
         motion: MotionSnapshot,
         state: inout ViewportState,
         workingFrame: CGRect,
-        gaps: CGFloat
+        gaps: CGFloat,
+        commandId: UInt64? = nil,
+        commandKind: String? = nil,
+        source: ResizeWidthSource? = nil,
+        targetWindow: NiriWindow? = nil
     ) {
         cancelInteractiveResize(for: column, in: workspaceId)
 
@@ -158,6 +248,7 @@ extension NiriLayoutEngine {
             gaps: gaps
         )
 
+        let beforeAnimation = widthAnimationSnapshot(column)
         let didStartWidthAnimation = column.animateWidthTo(
             newWidth: targetPixels,
             clock: animationClock,
@@ -165,6 +256,15 @@ extension NiriLayoutEngine {
             displayRefreshRate: displayRefreshRate,
             animated: motion.animationsEnabled
         )
+        if let commandId, let commandKind, let source {
+            traceResize(
+                "cmd=\(commandId) apply kind=\(commandKind) source=\(source.rawValue) "
+                    + "previous=\(fmt(previousWidth)) targetPixels=\(fmt(targetPixels)) "
+                    + "newSpec=\(widthSpecDescription(newWidth)) presetIdx=\(presetIndex.map(String.init) ?? "nil") "
+                    + "animations=\(motion.animationsEnabled) didStartAnimation=\(didStartWidthAnimation) "
+                    + "beforeAnim{\(beforeAnimation)} after{\(columnWidthSnapshot(column, in: workspaceId, workingFrame: workingFrame, gaps: gaps, window: targetWindow))}"
+            )
+        }
 
         ensureSelectionVisibleForPendingWidth(
             column,
@@ -303,6 +403,8 @@ extension NiriLayoutEngine {
         gaps: CGFloat
     ) {
         guard !presetColumnWidths.isEmpty else { return }
+        let commandId = nextResizeCommandId()
+        let commandKind = "toggleColumnWidth(\(forwards ? "forward" : "backward"))"
 
         let previousWidth = cachedWidthForResizeStart(
             column,
@@ -373,6 +475,12 @@ extension NiriLayoutEngine {
             workingFrame: workingFrame,
             gaps: gaps
         )
+        traceResize(
+            "cmd=\(commandId) compute kind=\(commandKind) source=\(ResizeWidthSource.presetCycle.rawValue) "
+                + "previous=\(fmt(previousWidth)) currentSpec=\(widthSpecDescription(currentSpec)) "
+                + "nextPreset=\(nextIdx) newSpec=\(widthSpecDescription(newWidth)) "
+                + "state{\(columnWidthSnapshot(column, in: workspaceId, workingFrame: workingFrame, gaps: gaps, window: targetWindow))}"
+        )
 
         applyColumnWidth(
             column,
@@ -383,7 +491,11 @@ extension NiriLayoutEngine {
             motion: motion,
             state: &state,
             workingFrame: workingFrame,
-            gaps: gaps
+            gaps: gaps,
+            commandId: commandId,
+            commandKind: commandKind,
+            source: .presetCycle,
+            targetWindow: targetWindow
         )
     }
 
@@ -416,8 +528,11 @@ extension NiriLayoutEngine {
         motion: MotionSnapshot = .enabled,
         state: inout ViewportState,
         workingFrame: CGRect,
-        gaps: CGFloat
+        gaps: CGFloat,
+        commandKind: String = "setColumnWidth",
+        targetWindow: NiriWindow? = nil
     ) {
+        let commandId = nextResizeCommandId()
         let previousWidth = cachedWidthForResizeStart(
             column,
             in: workspaceId,
@@ -439,6 +554,12 @@ extension NiriLayoutEngine {
             workingFrame: workingFrame,
             gaps: gaps
         )
+        traceResize(
+            "cmd=\(commandId) compute kind=\(commandKind) change=\(change) source=\(ResizeWidthSource.resolvedSpec.rawValue) "
+                + "previous=\(fmt(previousWidth)) currentPixels=\(fmt(currentPixels)) "
+                + "currentSpec=\(widthSpecDescription(currentSpec)) newSpec=\(widthSpecDescription(newWidth)) "
+                + "state{\(columnWidthSnapshot(column, in: workspaceId, workingFrame: workingFrame, gaps: gaps, window: targetWindow))}"
+        )
 
         applyColumnWidth(
             column,
@@ -449,7 +570,11 @@ extension NiriLayoutEngine {
             motion: motion,
             state: &state,
             workingFrame: workingFrame,
-            gaps: gaps
+            gaps: gaps,
+            commandId: commandId,
+            commandKind: commandKind,
+            source: .resolvedSpec,
+            targetWindow: targetWindow
         )
     }
 
@@ -470,7 +595,9 @@ extension NiriLayoutEngine {
             motion: motion,
             state: &state,
             workingFrame: workingFrame,
-            gaps: gaps
+            gaps: gaps,
+            commandKind: "setWindowWidth",
+            targetWindow: window
         )
     }
 
@@ -482,6 +609,8 @@ extension NiriLayoutEngine {
         workingFrame: CGRect,
         gaps: CGFloat
     ) {
+        let commandId = nextResizeCommandId()
+        let commandKind = "toggleFullWidth"
         let workingAreaWidth = workingFrame.width
         let previousWidth = cachedWidthForResizeStart(
             column,
@@ -513,12 +642,24 @@ extension NiriLayoutEngine {
             targetPixels = resolvedColumnPixels(.proportion(1), for: column, workingFrame: workingFrame, gaps: gaps)
         }
 
+        traceResize(
+            "cmd=\(commandId) compute kind=\(commandKind) source=\(ResizeWidthSource.fullWidthToggle.rawValue) "
+                + "previous=\(fmt(previousWidth)) targetPixels=\(fmt(targetPixels)) "
+                + "state{\(columnWidthSnapshot(column, in: workspaceId, workingFrame: workingFrame, gaps: gaps))}"
+        )
+        let beforeAnimation = widthAnimationSnapshot(column)
         let didStartWidthAnimation = column.animateWidthTo(
             newWidth: targetPixels,
             clock: animationClock,
             config: windowMovementAnimationConfig,
             displayRefreshRate: displayRefreshRate,
             animated: motion.animationsEnabled
+        )
+        traceResize(
+            "cmd=\(commandId) apply kind=\(commandKind) source=\(ResizeWidthSource.fullWidthToggle.rawValue) "
+                + "previous=\(fmt(previousWidth)) targetPixels=\(fmt(targetPixels)) "
+                + "animations=\(motion.animationsEnabled) didStartAnimation=\(didStartWidthAnimation) "
+                + "beforeAnim{\(beforeAnimation)} after{\(columnWidthSnapshot(column, in: workspaceId, workingFrame: workingFrame, gaps: gaps))}"
         )
 
         ensureSelectionVisibleForPendingWidth(
@@ -620,6 +761,8 @@ extension NiriLayoutEngine {
 
         guard let leftmostColX, let activeColX else { return }
 
+        let commandId = nextResizeCommandId()
+        let commandKind = "expandColumnToAvailableWidth"
         let previousWidth = cachedWidthForResizeStart(
             column,
             in: workspaceId,
@@ -627,6 +770,12 @@ extension NiriLayoutEngine {
             gaps: gaps
         )
         let targetWidth = (column.cachedWidth + availableWidth).clamped(to: 1 ... NiriSizeChange.maxPixels)
+        traceResize(
+            "cmd=\(commandId) compute kind=\(commandKind) source=\(ResizeWidthSource.availableWidthExpansion.rawValue) "
+                + "previous=\(fmt(previousWidth)) available=\(fmt(availableWidth)) target=\(fmt(targetWidth)) "
+                + "viewX=\(fmt(viewX)) activeColX=\(fmt(activeColX)) leftmostColX=\(fmt(leftmostColX)) "
+                + "state{\(columnWidthSnapshot(column, in: workspaceId, workingFrame: workingFrame, gaps: gaps))}"
+        )
         applyColumnWidth(
             column,
             width: .fixed(targetWidth),
@@ -636,7 +785,10 @@ extension NiriLayoutEngine {
             motion: motion,
             state: &state,
             workingFrame: workingFrame,
-            gaps: gaps
+            gaps: gaps,
+            commandId: commandId,
+            commandKind: commandKind,
+            source: .availableWidthExpansion
         )
 
         let targetOffset = leftmostColX - gaps - activeColX
