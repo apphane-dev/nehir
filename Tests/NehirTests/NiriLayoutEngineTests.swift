@@ -458,6 +458,111 @@ private func makeCenteredCrossMonitorFixture(
         )
     }
 
+    @MainActor
+    private func toggleColumnTabbedInFixture(_ fixture: SingleColumnFocusFixture) -> Bool {
+        let workingFrame = fixture.controller.insetWorkingFrame(for: fixture.monitor)
+        let gap = CGFloat(fixture.controller.workspaceManager.gaps)
+        var result = false
+        fixture.controller.workspaceManager.withNiriViewportState(for: fixture.workspaceId) { state in
+            result = fixture.engine.toggleColumnTabbed(
+                in: fixture.workspaceId,
+                state: &state,
+                motion: fixture.controller.motionPolicy.snapshot(),
+                workingFrame: workingFrame,
+                gaps: gap
+            )
+        }
+        return result
+    }
+
+    @Test @MainActor func togglingRealTabbedColumnWithoutOverflowPreservesColumn() async {
+        let fixture = await makeSingleColumnFocusFixture(displayMode: .tabbed)
+        for window in [fixture.bottomWindow, fixture.middleWindow, fixture.topWindow] {
+            window.constraints = WindowSizeConstraints(minSize: CGSize(width: 1, height: 100), maxSize: .zero, isFixed: false)
+        }
+
+        #expect(toggleColumnTabbedInFixture(fixture))
+
+        let columns = fixture.engine.columns(in: fixture.workspaceId)
+        #expect(columns.count == 1)
+        #expect(columns[0] === fixture.column)
+        #expect(fixture.column.displayMode == .normal)
+        #expect(!fixture.column.usesOverflowTabbedMode)
+        #expect(fixture.column.windowNodes.map(\.token) == [fixture.bottomToken, fixture.middleToken, fixture.topToken])
+        #expect(fixture.column.windowNodes.allSatisfy { !$0.isHiddenInTabbedMode })
+    }
+
+    @Test @MainActor func togglingRealTabbedOverflowColumnSplitsIntoColumns() async {
+        let fixture = await makeSingleColumnFocusFixture(displayMode: .tabbed)
+        for window in [fixture.bottomWindow, fixture.middleWindow, fixture.topWindow] {
+            window.constraints = WindowSizeConstraints(minSize: CGSize(width: 1, height: 700), maxSize: .zero, isFixed: false)
+        }
+
+        #expect(toggleColumnTabbedInFixture(fixture))
+
+        let columns = fixture.engine.columns(in: fixture.workspaceId)
+        #expect(columns.count == 3)
+        #expect(columns.allSatisfy { $0.displayMode == .normal })
+        #expect(columns.allSatisfy { $0.windowNodes.count == 1 })
+        let splitTokens = columns.flatMap { $0.windowNodes.map(\.token) }.sorted { $0.windowId < $1.windowId }
+        let expectedTokens = [fixture.bottomToken, fixture.middleToken, fixture.topToken].sorted { $0.windowId < $1.windowId }
+        #expect(splitTokens == expectedTokens)
+        #expect(columns.flatMap(\.windowNodes).allSatisfy { !$0.isHiddenInTabbedMode })
+    }
+
+    @Test @MainActor func togglingForcedTabbedColumnWithoutCurrentOverflowClearsForcedStateOnly() async {
+        let fixture = await makeSingleColumnFocusFixture(displayMode: .normal)
+        fixture.column.usesOverflowTabbedMode = true
+        fixture.engine.updateTabbedColumnVisibility(column: fixture.column)
+        for window in [fixture.bottomWindow, fixture.middleWindow, fixture.topWindow] {
+            window.constraints = WindowSizeConstraints(minSize: CGSize(width: 1, height: 100), maxSize: .zero, isFixed: false)
+        }
+
+        #expect(toggleColumnTabbedInFixture(fixture))
+
+        let columns = fixture.engine.columns(in: fixture.workspaceId)
+        #expect(columns.count == 1)
+        #expect(columns[0] === fixture.column)
+        #expect(fixture.column.displayMode == .normal)
+        #expect(!fixture.column.usesOverflowTabbedMode)
+        #expect(fixture.column.windowNodes.map(\.token) == [fixture.bottomToken, fixture.middleToken, fixture.topToken])
+        #expect(fixture.column.windowNodes.allSatisfy { !$0.isHiddenInTabbedMode })
+    }
+
+    @Test func verticalOrientationWidthOverflowUsesForcedTabbedMode() {
+        let engine = NiriLayoutEngine()
+        let workspaceId = UUID()
+        let root = NiriRoot(workspaceId: workspaceId)
+        engine.roots[workspaceId] = root
+
+        let column = NiriContainer()
+        root.appendChild(column)
+
+        let firstToken = makeTestHandle(pid: 7101).id
+        let secondToken = makeTestHandle(pid: 7102).id
+        let firstWindow = NiriWindow(token: firstToken)
+        let secondWindow = NiriWindow(token: secondToken)
+        firstWindow.constraints = WindowSizeConstraints(minSize: CGSize(width: 700, height: 1), maxSize: .zero, isFixed: false)
+        secondWindow.constraints = WindowSizeConstraints(minSize: CGSize(width: 700, height: 1), maxSize: .zero, isFixed: false)
+        column.appendChild(firstWindow)
+        column.appendChild(secondWindow)
+        engine.tokenToNode[firstToken] = firstWindow
+        engine.tokenToNode[secondToken] = secondWindow
+
+        let frames = engine.calculateLayout(
+            state: ViewportState(),
+            workspaceId: workspaceId,
+            monitorFrame: CGRect(x: 0, y: 0, width: 1_000, height: 1_200),
+            gaps: (horizontal: 8, vertical: 8),
+            orientation: .vertical
+        )
+
+        #expect(column.usesOverflowTabbedMode)
+        #expect(!firstWindow.isHiddenInTabbedMode)
+        #expect(secondWindow.isHiddenInTabbedMode)
+        #expect(frames[firstToken]?.origin.x == frames[secondToken]?.origin.x)
+    }
+
     private func makeVisibleColumnFixture(
         visibleCount: Int,
         extraColumns: Int = 2,
@@ -4058,136 +4163,6 @@ private func makeCenteredCrossMonitorFixture(
         #expect(!plan.diff.frameChanges.contains { $0.token == token })
         #expect(!hasHideVisibilityChange(plan.diff.visibilityChanges, token: token))
         #expect(!hasShowVisibilityChange(plan.diff.visibilityChanges, token: token))
-    }
-
-    @Test @MainActor func tooSmallWindowEmitsResizePlaceholderInsteadOfFrameChangeInNiri() async throws {
-        let controller = makeLayoutPlanTestController()
-        guard let monitor = controller.workspaceManager.monitors.first,
-              let workspaceId = controller.workspaceManager.activeWorkspaceOrFirst(on: monitor.id)?.id
-        else {
-            Issue.record("Missing monitor or active workspace for Niri resize placeholder test")
-            return
-        }
-
-        controller.enableNiriLayout()
-        await waitForLayoutPlanRefreshWork(on: controller)
-        controller.syncMonitorsToNiriEngine()
-
-        let token = addLayoutPlanTestWindow(on: controller, workspaceId: workspaceId, windowId: 3902)
-        _ = controller.workspaceManager.setManagedFocus(token, in: workspaceId, onMonitor: monitor.id)
-        let constraints = WindowSizeConstraints(
-            minSize: CGSize(width: 2500, height: 1200),
-            maxSize: CGSize(width: 5000, height: 5000),
-            isFixed: false
-        )
-        controller.workspaceManager.setCachedConstraints(constraints, for: token)
-
-        let plans = try await controller.niriLayoutHandler.layoutWithNiriEngine(
-            activeWorkspaces: [workspaceId]
-        )
-        guard let plan = plans.first else {
-            Issue.record("Expected a Niri layout plan for resize placeholder test")
-            return
-        }
-
-        let placeholder = plan.diff.resizePlaceholders.first { $0.token == token }
-        #expect(placeholder != nil)
-        #expect(placeholder?.minimumSize == constraints.minSize)
-        #expect(placeholder?.selected == true)
-        #expect(!plan.diff.frameChanges.contains { $0.token == token })
-    }
-
-    @Test @MainActor func fittingMinimumWidthUsesRealSpanForNiriColumnPlacement() async throws {
-        let controller = makeLayoutPlanTestController()
-        guard let monitor = controller.workspaceManager.monitors.first,
-              let workspaceId = controller.workspaceManager.activeWorkspaceOrFirst(on: monitor.id)?.id
-        else {
-            Issue.record("Missing monitor or active workspace for Niri fitting minimum test")
-            return
-        }
-
-        controller.enableNiriLayout()
-        await waitForLayoutPlanRefreshWork(on: controller)
-        controller.syncMonitorsToNiriEngine()
-        controller.niriEngine?.presetColumnWidths = [.proportion(0.5), .proportion(0.5)]
-
-        let constrainedToken = addLayoutPlanTestWindow(on: controller, workspaceId: workspaceId, windowId: 3905)
-        let nextToken = addLayoutPlanTestWindow(on: controller, workspaceId: workspaceId, windowId: 3906)
-        _ = controller.workspaceManager.setManagedFocus(constrainedToken, in: workspaceId, onMonitor: monitor.id)
-        let constraints = WindowSizeConstraints(
-            minSize: CGSize(width: 1200, height: 500),
-            maxSize: CGSize(width: 5000, height: 5000),
-            isFixed: false
-        )
-        controller.workspaceManager.setCachedConstraints(constraints, for: constrainedToken)
-
-        let plans = try await controller.niriLayoutHandler.layoutWithNiriEngine(
-            activeWorkspaces: [workspaceId]
-        )
-        guard let plan = plans.first,
-              let constrainedFrame = plan.diff.frameChanges.first(where: { $0.token == constrainedToken })?.frame,
-              let nextFrame = plan.diff.frameChanges.first(where: { $0.token == nextToken })?.frame
-        else {
-            Issue.record("Expected Niri frames for fitting minimum test")
-            return
-        }
-
-        #expect(!plan.diff.resizePlaceholders.contains { $0.token == constrainedToken })
-        #expect(constrainedFrame.width >= constraints.minSize.width - 0.5)
-        #expect(nextFrame.minX >= constrainedFrame.maxX - 0.5)
-    }
-
-    @Test @MainActor func activatingResizePlaceholderSelectsNiriNodeForCommands() async throws {
-        let controller = makeLayoutPlanTestController()
-        guard let monitor = controller.workspaceManager.monitors.first,
-              let workspaceId = controller.workspaceManager.activeWorkspaceOrFirst(on: monitor.id)?.id
-        else {
-            Issue.record("Missing monitor or active workspace for Niri resize placeholder selection test")
-            return
-        }
-
-        controller.enableNiriLayout()
-        await waitForLayoutPlanRefreshWork(on: controller)
-        controller.syncMonitorsToNiriEngine()
-
-        let firstToken = addLayoutPlanTestWindow(on: controller, workspaceId: workspaceId, windowId: 3903)
-        let placeholderToken = addLayoutPlanTestWindow(on: controller, workspaceId: workspaceId, windowId: 3904)
-        let plans = try await controller.niriLayoutHandler.layoutWithNiriEngine(
-            activeWorkspaces: [workspaceId]
-        )
-        controller.layoutRefreshController.executeLayoutPlans(plans)
-
-        guard let engine = controller.niriEngine,
-              let firstNode = engine.findNode(for: firstToken),
-              let placeholderNode = engine.findNode(for: placeholderToken),
-              let placeholderFrame = placeholderNode.frame
-        else {
-            Issue.record("Missing Niri nodes for resize placeholder selection test")
-            return
-        }
-
-        controller.workspaceManager.withNiriViewportState(for: workspaceId) { state in
-            state.selectedNodeId = firstNode.id
-        }
-        controller.workspaceManager.setResizePlaceholderState(
-            ResizePlaceholderState(
-                workspaceId: workspaceId,
-                frame: placeholderFrame,
-                minimumSize: CGSize(width: placeholderFrame.width + 200, height: placeholderFrame.height + 100)
-            ),
-            for: placeholderToken
-        )
-
-        controller.setBordersEnabled(true)
-        let expectedBorderFrame = placeholderNode.renderedFrame ?? placeholderFrame
-        controller.activateResizePlaceholder(placeholderToken)
-
-        let selectedState = controller.workspaceManager.niriViewportState(for: workspaceId)
-        #expect(selectedState.selectedNodeId == placeholderNode.id)
-        #expect(controller.workspaceManager.confirmedManagedFocusToken == placeholderToken)
-        #expect(controller.currentBorderTarget()?.token == placeholderToken)
-        #expect(lastAppliedBorderWindowIdForLayoutPlanTests(on: controller) == placeholderToken.windowId)
-        #expect(lastAppliedBorderFrameForLayoutPlanTests(on: controller) == expectedBorderFrame)
     }
 
     @Test @MainActor func snapshotPlanIncludesViewportPatchAndActivationForNewWindow() async throws {

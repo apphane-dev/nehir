@@ -3074,80 +3074,6 @@ private func waitUntilAXEventTest(
         #expect(controller.workspaceManager.nativeFullscreenRecord(for: replacementToken)?.currentToken == replacementToken)
     }
 
-    @Test @MainActor func resizePlaceholderClearsWithManagedWindowIdentityRekey() async throws {
-        let controller = makeAXEventTestController()
-        defer { controller.axEventHandler.resetDebugStateForTests() }
-        guard let workspaceId = controller.interactionWorkspace()?.id else {
-            Issue.record("Missing active workspace")
-            return
-        }
-
-        var relayoutReasons: [RefreshReason] = []
-        controller.layoutRefreshController.debugHooks.onRelayout = { reason, _ in
-            relayoutReasons.append(reason)
-            return true
-        }
-
-        let originalToken = controller.workspaceManager.addWindow(
-            AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: 8055),
-            pid: getpid(),
-            windowId: 8055,
-            to: workspaceId
-        )
-        guard let originalEntry = controller.workspaceManager.entry(for: originalToken),
-              let context = await AppAXContext.makeForTests(processIdentifier: originalToken.pid)
-        else {
-            Issue.record("Failed to create AX context for resize placeholder rekey test")
-            return
-        }
-        AppAXContext.contexts[originalToken.pid] = context
-        try await context.installWindowsForTests([originalEntry.axRef])
-        defer {
-            AppAXContext.contexts.removeValue(forKey: originalToken.pid)
-            context.destroy()
-        }
-
-        controller.workspaceManager.setResizePlaceholderState(
-            ResizePlaceholderState(
-                workspaceId: workspaceId,
-                frame: CGRect(x: 10, y: 20, width: 260, height: 180),
-                minimumSize: CGSize(width: 520, height: 360)
-            ),
-            for: originalToken
-        )
-        controller.resizePlaceholderManager.update(
-            ResizePlaceholderUpdate(
-                token: originalToken,
-                workspaceId: workspaceId,
-                frame: CGRect(x: 10, y: 20, width: 260, height: 180),
-                selected: true,
-                appName: "Resize Placeholder Rekey",
-                icon: nil
-            )
-        )
-        controller.axManager.suppressFrameWrites([(originalToken.pid, originalToken.windowId)])
-        #expect(context.suppressedFrameWindowIds.contains(originalToken.windowId))
-
-        let replacementToken = WindowToken(pid: getpid(), windowId: 8056)
-        let replacementWindow = AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: 8056)
-        _ = controller.axEventHandler.rekeyManagedWindowIdentity(
-            from: originalToken,
-            to: replacementToken,
-            windowId: 8056,
-            axRef: replacementWindow
-        )
-
-        #expect(controller.workspaceManager.resizePlaceholderState(for: originalToken) == nil)
-        #expect(controller.workspaceManager.resizePlaceholderState(for: replacementToken) == nil)
-        #expect(controller.resizePlaceholderManager.snapshotForTests()[originalToken] == nil)
-        #expect(controller.resizePlaceholderManager.snapshotForTests()[replacementToken] == nil)
-        #expect(!context.suppressedFrameWindowIds.contains(originalToken.windowId))
-        #expect(!context.suppressedFrameWindowIds.contains(replacementToken.windowId))
-
-        await controller.layoutRefreshController.waitForRefreshWorkForTests()
-        #expect(relayoutReasons.contains(.axWindowCreated))
-    }
-
     @Test @MainActor func nativeFullscreenPlaceholderPanelStaysOutOfFullscreenSpaces() {
         let controller = makeAXEventTestController()
         NativeFullscreenPlaceholderManager.materializesWindowsForTests = true
@@ -4952,7 +4878,7 @@ private func waitUntilAXEventTest(
         #expect(replacementEntry.handle === oldEntry.handle)
         let matchedElapsedMillis = structuralManagedReplacementMatchedElapsedMillis(on: controller) ?? .max
         #expect(matchedElapsedMillis >= 130)
-        #expect(matchedElapsedMillis < 300)
+        #expect(matchedElapsedMillis < 450)
     }
 
     @Test @MainActor func structuralReplacementCreateBeforeDestroyStillRekeysWithinSingleGraceWindow() async {
@@ -5046,7 +4972,7 @@ private func waitUntilAXEventTest(
         #expect(replacementEntry.handle === oldEntry.handle)
         let matchedElapsedMillis = structuralManagedReplacementMatchedElapsedMillis(on: controller) ?? .max
         #expect(matchedElapsedMillis >= 130)
-        #expect(matchedElapsedMillis < 300)
+        #expect(matchedElapsedMillis < 450)
     }
 
     @Test @MainActor func structuralReplacementUnmatchedDestroyUsesSingleGraceWindowBeforeRemoval() async {

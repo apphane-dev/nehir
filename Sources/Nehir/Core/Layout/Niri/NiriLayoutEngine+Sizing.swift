@@ -118,7 +118,7 @@ extension NiriLayoutEngine {
     }
 
     private func tabOffset(for column: NiriContainer) -> CGFloat {
-        column.isTabbed ? renderStyle.tabIndicatorWidth : 0
+        column.isEffectivelyTabbed ? renderStyle.tabIndicatorWidth : 0
     }
 
     private func columnWidth(forWindowWidth windowWidth: CGFloat, in column: NiriContainer) -> CGFloat {
@@ -419,9 +419,21 @@ extension NiriLayoutEngine {
         let nextIdx: Int
         if !column.isFullWidth, let currentIdx = column.presetWidthIdx {
             if forwards {
-                nextIdx = (currentIdx + 1) % presetCount
+                guard currentIdx + 1 < presetCount else {
+                    traceResize(
+                        "cmd=\(commandId) compute kind=\(commandKind) source=\(ResizeWidthSource.presetCycle.rawValue) previous=\(fmt(previousWidth)) currentPreset=\(currentIdx) atBoundary=true state{\(columnWidthSnapshot(column, in: workspaceId, workingFrame: workingFrame, gaps: gaps, window: targetWindow))}"
+                    )
+                    return
+                }
+                nextIdx = currentIdx + 1
             } else {
-                nextIdx = (currentIdx - 1 + presetCount) % presetCount
+                guard currentIdx > 0 else {
+                    traceResize(
+                        "cmd=\(commandId) compute kind=\(commandKind) source=\(ResizeWidthSource.presetCycle.rawValue) previous=\(fmt(previousWidth)) currentPreset=\(currentIdx) atBoundary=true state{\(columnWidthSnapshot(column, in: workspaceId, workingFrame: workingFrame, gaps: gaps, window: targetWindow))}"
+                    )
+                    return
+                }
+                nextIdx = currentIdx - 1
             }
         } else {
             let currentTile: CGFloat
@@ -452,7 +464,7 @@ extension NiriLayoutEngine {
                     case let .window(resolved):
                         currentWindow + 1 < resolved
                     }
-                } ?? 0
+                } ?? (presetCount - 1)
             } else {
                 let matchingIndex = presetColumnWidths.lastIndex { preset in
                     switch resolvedPresetWidth(preset, for: column, workingFrame: workingFrame, gaps: gaps) {
@@ -462,7 +474,7 @@ extension NiriLayoutEngine {
                         resolved + 1 < currentWindow
                     }
                 }
-                nextIdx = matchingIndex ?? (presetCount - 1)
+                nextIdx = matchingIndex ?? 0
             }
         }
 
@@ -864,7 +876,7 @@ extension NiriLayoutEngine {
         }
 
         let minHeightTaken: CGFloat
-        if column.isTabbed {
+        if column.isEffectivelyTabbed {
             minHeightTaken = 0
         } else {
             minHeightTaken = column.windowNodes
@@ -891,7 +903,7 @@ extension NiriLayoutEngine {
         guard let column = findColumn(containing: window, in: workspaceId) else { return }
         cancelInteractiveResize(for: column, in: workspaceId)
 
-        if column.isTabbed {
+        if column.isEffectivelyTabbed {
             for tile in column.windowNodes {
                 tile.height = .auto(weight: 1)
                 tile.savedHeight = nil

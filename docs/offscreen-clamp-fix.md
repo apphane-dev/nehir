@@ -41,6 +41,8 @@ Combined: a hidden window at target `(-1712, -10000)` is clamped to approximatel
 
 **Neither axis can be used to push a full-size window completely offscreen on macOS.**
 
+Resize and minimum-size handling intentionally does not use substitute panels or synthetic offscreen geometry. If AX readback proves that an app accepted a larger size than requested, Nehir stores the observed size as an inferred runtime minimum and relayouts with that real constraint. If a vertical stack cannot fit the resulting minimum heights, the Niri column enters transient overflow-tabbed mode instead of asking WindowServer for impossible below-screen positions.
+
 ### 2. Layout-Pass Cache Returning Stale Pre-Move Positions — Fixed for Hide Verification
 
 `applyPositionPlans` used `observedWindowOrigin()` which reads through the

@@ -123,7 +123,7 @@ struct WindowSizeConstraints: Equatable {
         WindowSizeConstraints(minSize: minSize, maxSize: maxSize, isFixed: isFixed)
     }
 
-    func relaxedForResizePlaceholder() -> WindowSizeConstraints {
+    func relaxedForLayoutFeasibility() -> WindowSizeConstraints {
         guard !isFixed else { return normalized() }
         return WindowSizeConstraints(
             minSize: .init(width: 1, height: 1),
@@ -601,6 +601,12 @@ class NiriContainer: NiriNode {
 
     var isTabbed: Bool {
         displayMode == .tabbed
+    }
+
+    var usesOverflowTabbedMode: Bool = false
+
+    var isEffectivelyTabbed: Bool {
+        isTabbed || usesOverflowTabbedMode
     }
 
     var activeWindow: NiriWindow? {

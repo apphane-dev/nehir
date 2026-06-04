@@ -183,6 +183,8 @@ Overview                      Option+Command+O
 
 Monitor focus is deliberately separate from the workspace/window model and uses `Control+Command+Tab` and `Control+Command+Grave`.
 
+`Toggle column tabbed` normally switches the focused column between stacked and tabbed. If Nehir temporarily forced a column into overflow-tabbed mode because the stacked windows cannot fit at their minimum heights, the same command splits the windows into separate columns only while that overflow still exists. If the stack now fits, the command just clears the transient forced-tab state and preserves the column.
+
 ### Display and Dock recommendations
 
 For the best Niri scrolling experience:

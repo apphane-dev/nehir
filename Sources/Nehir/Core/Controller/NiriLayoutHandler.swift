@@ -851,19 +851,9 @@ enum NiriWindowMoveResult {
             }
 
             guard let frame = frames[token] else { continue }
-            if window.needsResizePlaceholder(for: frame) {
-                diff.resizePlaceholders.append(
-                    .init(
-                        token: token,
-                        frame: frame,
-                        minimumSize: window.effectiveResizeMinimumSize,
-                        selected: selectedToken == token
-                            || confirmedManagedFocusToken == token
-                            || activeFocusRequestToken == token
-                    )
-                )
-                continue
-            }
+            // Apply too-small computed frames directly and let AX feedback teach
+            // the runtime minimum from the real accepted size. That keeps the
+            // real window in layout flow instead of inventing substitute geometry.
             let forceApply = if let node = engine.findNode(for: token) {
                 node.sizingMode == .fullscreen
             } else {
@@ -973,7 +963,7 @@ enum NiriWindowMoveResult {
     ) -> [TabbedColumnOverlayInfo] {
         guard let controller else { return [] }
         var infos: [TabbedColumnOverlayInfo] = []
-        for column in engine.columns(in: workspaceId) where column.isTabbed {
+        for column in engine.columns(in: workspaceId) where column.isEffectivelyTabbed {
             guard let frame = column.renderedFrame ?? column.frame else { continue }
             let visibleColumnFrame = frame.intersection(monitor.visibleFrame)
             guard TabbedColumnOverlayManager.shouldShowOverlay(

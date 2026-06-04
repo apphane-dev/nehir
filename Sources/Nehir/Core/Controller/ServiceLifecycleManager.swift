@@ -182,7 +182,6 @@ final class ServiceLifecycleManager {
         let affectedWorkspaces = controller.workspaceManager.removeWindowsForApp(pid: pid)
         for token in removedTokens {
             controller.nativeFullscreenPlaceholderManager.remove(token)
-            controller.clearResizePlaceholder(for: token)
         }
         for workspaceId in affectedWorkspaces {
             if let monitorId = controller.workspaceManager.monitorId(for: workspaceId),
@@ -341,7 +340,6 @@ final class ServiceLifecycleManager {
 
         controller.tabbedOverlayManager.removeAll()
         controller.nativeFullscreenPlaceholderManager.removeAll()
-        controller.resizePlaceholderManager.removeAll()
         controller.focusBorderController.cleanup()
         controller.cleanupUIOnStop()
 

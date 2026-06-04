@@ -334,7 +334,8 @@ extension NiriLayoutEngine {
         let colX = columnX(at: colIdx)
         let screenX = workingFrame.origin.x + colX + targetViewOffset + centeringOffset
 
-        let tabOffset = column.isTabbed ? renderStyle.tabIndicatorWidth : 0
+        let isEffectivelyTabbed = column.isEffectivelyTabbed
+        let tabOffset = isEffectivelyTabbed ? renderStyle.tabIndicatorWidth : 0
         let contentY = workingFrame.origin.y
         let availableHeight = workingFrame.height
 
@@ -344,12 +345,12 @@ extension NiriLayoutEngine {
         let targetY: CGFloat
         let targetHeight: CGFloat
 
-        let fallbackHeight: CGFloat = if windowNodes.count == 1 || column.isTabbed {
+        let fallbackHeight: CGFloat = if windowNodes.count == 1 || isEffectivelyTabbed {
             max(1, availableHeight - gaps * 2)
         } else {
             max(1, (availableHeight - gaps * CGFloat(windowNodes.count + 1)) / CGFloat(windowNodes.count))
         }
-        if windowNodes.count == 1 || column.isTabbed {
+        if windowNodes.count == 1 || isEffectivelyTabbed {
             targetY = contentY + gaps
             targetHeight = windowNodes[windowIndex].resolvedHeight ?? fallbackHeight
         } else {
@@ -460,7 +461,7 @@ extension NiriLayoutEngine {
     }
 
     func tilesOrigin(column: NiriContainer) -> CGPoint {
-        let xOffset = column.isTabbed ? renderStyle.tabIndicatorWidth : 0
+        let xOffset = column.isEffectivelyTabbed ? renderStyle.tabIndicatorWidth : 0
         return CGPoint(x: xOffset, y: 0)
     }
 }

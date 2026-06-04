@@ -124,7 +124,7 @@ extension NiriLayoutEngine {
             return step > 0 ? currentSelection.nextSibling() : currentSelection.prevSibling()
         }
 
-        if container.isTabbed {
+        if container.isEffectivelyTabbed {
             return moveSelectionWithinContainerTabbed(
                 direction: direction,
                 in: container,
@@ -611,7 +611,7 @@ extension NiriLayoutEngine {
         let clampedVisualIndex = min(max(visualIndex, 0), windows.count - 1)
         let storageIndex = windows.count - 1 - clampedVisualIndex
         currentColumn.setActiveTileIdx(storageIndex)
-        if currentColumn.isTabbed {
+        if currentColumn.isEffectivelyTabbed {
             updateTabbedColumnVisibility(column: currentColumn)
         }
 

@@ -114,14 +114,6 @@ final class WMController {
         return manager
     }()
     @ObservationIgnored
-    lazy var resizePlaceholderManager: ResizePlaceholderManager = {
-        let manager = ResizePlaceholderManager()
-        manager.onActivate = { [weak self] token in
-            self?.activateResizePlaceholder(token)
-        }
-        return manager
-    }()
-    @ObservationIgnored
     private(set) lazy var focusBorderController = FocusBorderController(controller: self)
     @ObservationIgnored
     private lazy var workspaceBarManager: WorkspaceBarManager = .init(motionPolicy: motionPolicy)
@@ -1457,7 +1449,6 @@ final class WMController {
             preferredMonitor: preferredMonitor,
             frame: frame
         )
-        clearResizePlaceholder(for: token)
         _ = workspaceManager.setWindowMode(.floating, for: token)
         workspaceManager.updateFloatingGeometry(
             frame: frame,
@@ -1649,7 +1640,6 @@ final class WMController {
                 for: entry,
                 preferredMonitor: referenceMonitor
             )
-            clearResizePlaceholder(for: token)
             _ = workspaceManager.setWindowMode(.floating, for: token)
             if let targetFrame {
                 workspaceManager.updateFloatingGeometry(
@@ -1687,19 +1677,6 @@ final class WMController {
         }
     }
 
-    func clearResizePlaceholder(for token: WindowToken, restoreFrameWrites: Bool = true) {
-        let hadPlaceholder = workspaceManager.resizePlaceholderState(for: token) != nil
-            || resizePlaceholderManager.hasPlaceholder(for: token)
-        layoutRefreshController.clearResizePlaceholderFallbackEvidence(for: token)
-        resizePlaceholderManager.remove(token)
-        workspaceManager.setResizePlaceholderState(nil, for: token)
-        guard restoreFrameWrites, hadPlaceholder else { return }
-        let frameEntry = workspaceManager.entry(for: token)
-            .map { (pid: $0.pid, windowId: $0.windowId) }
-            ?? (pid: token.pid, windowId: token.windowId)
-        axManager.unsuppressFrameWrites([frameEntry])
-        axManager.forceApplyNextFrame(for: frameEntry.windowId)
-    }
 
     func trackedModeForLifecycle(
         decision: WindowDecision,
@@ -2265,7 +2242,6 @@ final class WMController {
         resetWorkspaceBarRefreshDebugStateForTests()
         tabbedOverlayManager.removeAll()
         nativeFullscreenPlaceholderManager.removeAll()
-        resizePlaceholderManager.removeAll()
         focusBorderController.cleanup()
         workspaceManager.resetRuntimeStateForDebug()
         hiddenAppPIDs.removeAll()
@@ -2543,7 +2519,6 @@ final class WMController {
                     affectedWorkspaceIds.insert(existingEntry.workspaceId)
                     cleanupScratchpadWindowResourcesIfNeeded(for: token)
                     nativeFullscreenPlaceholderManager.remove(token)
-                    clearResizePlaceholder(for: token)
                     _ = workspaceManager.removeWindow(pid: token.pid, windowId: token.windowId)
                     relayoutNeeded = true
                 } else if evaluation.decision.disposition != .undecided {
@@ -2758,7 +2733,6 @@ final class WMController {
         ) else {
             cleanupScratchpadWindowResourcesIfNeeded(for: token)
             nativeFullscreenPlaceholderManager.remove(token)
-            clearResizePlaceholder(for: token)
             _ = workspaceManager.removeWindow(pid: token.pid, windowId: token.windowId)
             layoutRefreshController.requestRelayout(
                 reason: .windowRuleReevaluation,
@@ -3162,67 +3136,6 @@ extension WMController {
         return changed
     }
 
-    func activateResizePlaceholder(_ token: WindowToken) {
-        guard let entry = workspaceManager.entry(for: token) else { return }
-        guard workspaceManager.resizePlaceholderState(for: token) != nil else { return }
-        guard !isLockScreenActive else { return }
-        if hasStartedServices {
-            guard !isFrontmostAppLockScreen() else { return }
-        }
-        selectResizePlaceholder(entry)
-        performWindowFronting(pid: entry.pid, windowId: entry.windowId, axRef: entry.axRef)
-    }
-
-    @discardableResult
-    private func selectResizePlaceholder(_ entry: WindowModel.Entry) -> Bool {
-        let token = entry.token
-        syncResizePlaceholderLayoutSelection(entry)
-        let changed = workspaceManager.setManagedFocus(
-            token,
-            in: entry.workspaceId,
-            onMonitor: workspaceManager.monitorId(for: entry.workspaceId)
-        )
-        _ = focusBridge.cancelManagedRequest(matching: token, workspaceId: entry.workspaceId)
-        focusBridge.discardPendingFocus(token)
-        if let frame = preferredKeyboardFocusFrame(for: token)
-            ?? entry.observedState.frame
-            ?? entry.desiredState.floatingFrame
-        {
-            _ = updateManagedKeyboardFocusBorder(
-                token: token,
-                preferredFrame: frame,
-                forceOrdering: true
-            )
-        }
-        if changed {
-            layoutRefreshController.requestImmediateRelayout(
-                reason: .appActivationTransition,
-                affectedWorkspaceIds: [entry.workspaceId]
-            )
-        }
-        return changed
-    }
-
-    @discardableResult
-    func selectResizePlaceholderForInteraction(_ token: WindowToken) -> Bool {
-        guard let entry = workspaceManager.entry(for: token) else { return false }
-        guard workspaceManager.resizePlaceholderState(for: token) != nil else { return false }
-        return selectResizePlaceholder(entry)
-    }
-
-    private func syncResizePlaceholderLayoutSelection(_ entry: WindowModel.Entry) {
-        let workspaceId = entry.workspaceId
-        let token = entry.token
-
-        if let node = niriEngine?.findNode(for: token) {
-            _ = workspaceManager.commitWorkspaceSelection(
-                nodeId: node.id,
-                focusedToken: token,
-                in: workspaceId,
-                onMonitor: workspaceManager.monitorId(for: workspaceId)
-            )
-        }
-    }
 
     func focusWindow(_ token: WindowToken) {
         guard let entry = workspaceManager.entry(for: token) else { return }
@@ -3234,11 +3147,6 @@ extension WMController {
             selectNativeFullscreenPlaceholder(entry)
             return
         }
-        if workspaceManager.resizePlaceholderState(for: token) != nil {
-            selectResizePlaceholder(entry)
-            return
-        }
-
         _ = workspaceManager.beginManagedFocusRequest(
             token,
             in: entry.workspaceId,

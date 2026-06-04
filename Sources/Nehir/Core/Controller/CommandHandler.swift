@@ -479,7 +479,6 @@ final class CommandHandler {
             if currentState {
                 _ = controller.workspaceManager.requestNativeFullscreenExit(token, initiatedByCommand: true)
                 guard setFullscreen(entry.axRef, false) else {
-                    controller.clearResizePlaceholder(for: token)
                     _ = controller.workspaceManager.markNativeFullscreenSuspended(token)
                     return
                 }
@@ -511,7 +510,6 @@ final class CommandHandler {
 
         _ = controller.workspaceManager.requestNativeFullscreenExit(token, initiatedByCommand: true)
         guard setFullscreen(entry.axRef, false) else {
-            controller.clearResizePlaceholder(for: token)
             _ = controller.workspaceManager.markNativeFullscreenSuspended(token)
             return
         }
@@ -587,8 +585,17 @@ final class CommandHandler {
 
     private func toggleColumnTabbedInNiri() {
         guard let controller else { return }
-        controller.niriLayoutHandler.withNiriWorkspaceContext { engine, wsId, motion, state, _, _, _ in
-            if engine.toggleColumnTabbed(in: wsId, state: state, motion: motion) {
+        controller.niriLayoutHandler.withNiriWorkspaceContext { engine, wsId, motion, state, monitor, workingFrame, gaps in
+            let orientation = engine.monitor(for: monitor.id)?.orientation
+                ?? controller.settings.effectiveOrientation(for: monitor)
+            if engine.toggleColumnTabbed(
+                in: wsId,
+                state: &state,
+                motion: motion,
+                workingFrame: workingFrame,
+                gaps: gaps,
+                orientation: orientation
+            ) {
                 controller.layoutRefreshController.requestImmediateRelayout(reason: .layoutCommand)
                 if engine.hasAnyWindowAnimationsRunning(in: wsId) {
                     controller.layoutRefreshController.startScrollAnimation(for: wsId)
