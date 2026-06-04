@@ -66,6 +66,7 @@ struct WorkspaceBarSnapshot: Equatable {
     let barHeight: CGFloat
     let showTraceCaptureButton: Bool
     let traceCaptureStatus: WMController.RuntimeTraceCaptureStatus
+    let hasDisplayDiagnosticsWarning: Bool
     let accentColor: SettingsColor?
     let textColor: SettingsColor?
 
@@ -96,6 +97,7 @@ struct WorkspaceBarView: View {
     let onActivateScratchpad: () -> Void
     let onOpenCommandPalette: () -> Void
     let onToggleTraceCapture: () -> Void
+    let onOpenDiagnostics: () -> Void
 
     var body: some View {
         WorkspaceBarContentView(
@@ -105,7 +107,8 @@ struct WorkspaceBarView: View {
             onFocusWindow: onFocusWindow,
             onActivateScratchpad: onActivateScratchpad,
             onOpenCommandPalette: onOpenCommandPalette,
-            onToggleTraceCapture: onToggleTraceCapture
+            onToggleTraceCapture: onToggleTraceCapture,
+            onOpenDiagnostics: onOpenDiagnostics
         )
     }
 }
@@ -122,7 +125,8 @@ struct WorkspaceBarMeasurementView: View {
             onFocusWindow: { _ in },
             onActivateScratchpad: {},
             onOpenCommandPalette: {},
-            onToggleTraceCapture: {}
+            onToggleTraceCapture: {},
+            onOpenDiagnostics: {}
         )
         .fixedSize(horizontal: true, vertical: false)
     }
@@ -137,6 +141,7 @@ private struct WorkspaceBarContentView: View {
     let onActivateScratchpad: () -> Void
     let onOpenCommandPalette: () -> Void
     let onToggleTraceCapture: () -> Void
+    let onOpenDiagnostics: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @Environment(\.accessibilityReduceTransparency) private var accessibilityReduceTransparency
@@ -216,6 +221,14 @@ private struct WorkspaceBarContentView: View {
                     accentColor: accentColor,
                     textColor: textColor,
                     onToggleTraceCapture: onToggleTraceCapture
+                )
+            }
+
+            if snapshot.hasDisplayDiagnosticsWarning {
+                DisplayDiagnosticsBarButton(
+                    iconSize: iconSize,
+                    itemHeight: itemHeight,
+                    onOpenDiagnostics: onOpenDiagnostics
                 )
             }
 
@@ -734,6 +747,38 @@ private struct TraceCaptureBarButton: View {
         }
         .accessibilityLabel(accessibilityText)
         .help(helpText)
+    }
+}
+
+@MainActor
+private struct DisplayDiagnosticsBarButton: View {
+    let iconSize: CGFloat
+    let itemHeight: CGFloat
+    let onOpenDiagnostics: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: onOpenDiagnostics) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: max(10, iconSize * 0.7), weight: .semibold))
+                .foregroundStyle(.yellow)
+                .frame(width: itemHeight, height: itemHeight)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .scaleEffect(isHovered ? 1.03 : 1.0)
+        .background {
+            if isHovered {
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(.regularMaterial)
+            }
+        }
+        .onHover { hovering in
+            isHovered = hovering
+        }
+        .accessibilityLabel("Display Diagnostics Warning")
+        .help("Open Display and Dock Diagnostics")
     }
 }
 

@@ -21,6 +21,8 @@ struct SettingsDetailView: View {
                 settings: settings,
                 controller: controller,
             )
+        case .diagnostics:
+            DisplayDiagnosticsSettingsTab()
         case .niri:
             NiriSettingsTab(settings: settings, controller: controller)
         case .monitors:

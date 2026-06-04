@@ -227,6 +227,14 @@ final class WorkspaceBarManager {
                 },
                 onToggleTraceCapture: { [weak controller] in
                     controller?.toggleRuntimeTraceCapture()
+                },
+                onOpenDiagnostics: { [weak controller, weak settings] in
+                    guard let controller, let settings else { return }
+                    SettingsWindowController.shared.show(
+                        settings: settings,
+                        controller: controller,
+                        section: .diagnostics
+                    )
                 }
             )
         )
@@ -342,6 +350,7 @@ final class WorkspaceBarManager {
             barHeight: current.barHeight,
             showTraceCaptureButton: current.showTraceCaptureButton,
             traceCaptureStatus: current.traceCaptureStatus,
+            hasDisplayDiagnosticsWarning: current.hasDisplayDiagnosticsWarning,
             accentColor: resolved.accentColor,
             textColor: resolved.textColor
         )
@@ -415,6 +424,7 @@ final class WorkspaceBarManager {
             barHeight: geometry.barHeight,
             showTraceCaptureButton: resolved.showTraceButton,
             traceCaptureStatus: controller?.runtimeTraceCaptureStatus ?? .init(isActive: false, startedAt: nil),
+            hasDisplayDiagnosticsWarning: DisplayEnvironmentDiagnostics.evaluate(monitors: monitorProvider()).hasWarnings,
             accentColor: resolved.accentColor,
             textColor: resolved.textColor
         )
