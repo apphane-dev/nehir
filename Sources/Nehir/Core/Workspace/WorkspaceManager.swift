@@ -2429,13 +2429,15 @@ final class WorkspaceManager {
         from oldToken: WindowToken,
         to newToken: WindowToken,
         newAXRef: AXWindowRef,
-        managedReplacementMetadata: ManagedReplacementMetadata? = nil
+        managedReplacementMetadata: ManagedReplacementMetadata? = nil,
+        replacingExistingDuplicate: Bool = false
     ) -> WindowModel.Entry? {
         guard let entry = windows.rekeyWindow(
             from: oldToken,
             to: newToken,
             newAXRef: newAXRef,
-            managedReplacementMetadata: managedReplacementMetadata
+            managedReplacementMetadata: managedReplacementMetadata,
+            replacingExistingDuplicate: replacingExistingDuplicate
         ) else {
             return nil
         }

@@ -554,13 +554,25 @@ extension NiriLayoutEngine {
     }
 
     @discardableResult
-    func rekeyWindow(from oldToken: WindowToken, to newToken: WindowToken) -> Bool {
-        guard oldToken != newToken,
-              tokenToNode[newToken] == nil,
-              let node = tokenToNode.removeValue(forKey: oldToken)
-        else {
+    func rekeyWindow(
+        from oldToken: WindowToken,
+        to newToken: WindowToken,
+        replacingExistingDuplicate: Bool = false
+    ) -> Bool {
+        guard oldToken != newToken else { return false }
+
+        guard let node = tokenToNode[oldToken] else {
             return false
         }
+
+        if tokenToNode[newToken] != nil {
+            guard replacingExistingDuplicate else { return false }
+            removeWindow(token: newToken)
+            framePool.removeValue(forKey: newToken)
+            hiddenPool.removeValue(forKey: newToken)
+        }
+
+        tokenToNode.removeValue(forKey: oldToken)
 
         node.token = newToken
         tokenToNode[newToken] = node

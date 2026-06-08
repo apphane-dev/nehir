@@ -406,7 +406,8 @@ final class WindowModel {
         from oldToken: WindowToken,
         to newToken: WindowToken,
         newAXRef: AXWindowRef,
-        managedReplacementMetadata: ManagedReplacementMetadata? = nil
+        managedReplacementMetadata: ManagedReplacementMetadata? = nil,
+        replacingExistingDuplicate: Bool = false
     ) -> Entry? {
         if oldToken == newToken {
             guard let entry = entries[oldToken] else { return nil }
@@ -420,11 +421,18 @@ final class WindowModel {
             return entry
         }
 
-        guard entries[newToken] == nil,
-              let entry = entries.removeValue(forKey: oldToken)
-        else {
+        guard let entry = entries[oldToken] else {
             return nil
         }
+
+        if let duplicateEntry = entries[newToken] {
+            guard replacingExistingDuplicate else { return nil }
+            missingDetectionCountByToken.removeValue(forKey: newToken)
+            removeIndexes(for: duplicateEntry, token: newToken, windowId: newToken.windowId)
+            entries.removeValue(forKey: newToken)
+        }
+
+        entries.removeValue(forKey: oldToken)
 
         entry.handle.id = newToken
         entry.axRef = newAXRef
