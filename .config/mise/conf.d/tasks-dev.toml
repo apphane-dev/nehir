@@ -8,6 +8,30 @@ description = "Build and run Nehir (release)"
 depends = ["build:release"]
 run = ".build/release/Nehir"
 
+[tasks."dev:clean"]
+description = "Kill any running Nehir instance, clear runtime state, then start Nehir"
+depends = ["build"]
+run = '''
+set -euo pipefail
+
+pkill -x Nehir 2>/dev/null || true
+pkill -f '.build/.*/Nehir' 2>/dev/null || true
+sleep 0.5
+
+state_home="${XDG_STATE_HOME:-$HOME/.local/state}"
+rm -f "$state_home/nehir/runtime-state.json"
+
+swift run Nehir
+'''
+
+[tasks."trace:clean"]
+description = "Remove Nehir trace captures"
+run = '''
+set -euo pipefail
+state_home="${XDG_STATE_HOME:-$HOME/.local/state}"
+rm -rf "$state_home/nehir/traces"
+'''
+
 [tasks."debug"]
 description = "Run Nehir with layout tracing, capturing into a fresh timestamped log file"
 depends = ["build"]
@@ -28,3 +52,27 @@ trap 'kill "$stream_pid" 2>/dev/null' EXIT INT TERM
 sleep 0.5
 NEHIR_LAYOUT_TRACE=1 swift run Nehir
 """
+
+[tasks."downloads"]
+description = "Show GitHub Release download counts for Nehir release zips"
+quiet = true
+run = '''
+set -euo pipefail
+
+repo="guria/nehir"
+asset_pattern='^Nehir-.*\\.zip$'
+
+gh api "repos/$repo/releases" --paginate \
+  --jq '.[] as $release
+    | $release.assets[]
+    | select(.name | test("'"$asset_pattern"'"))
+    | [$release.tag_name, .download_count]
+    | @tsv' \
+  | awk '
+      { rows[++n] = $0; total += $2 }
+      END {
+        print "total\t" total
+        print "tag\tdownloads"
+        for (i = 1; i <= n; i++) print rows[i]
+      }'
+'''
