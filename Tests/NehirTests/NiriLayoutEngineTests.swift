@@ -6171,6 +6171,53 @@ private func makeCenteredCrossMonitorFixture(
         #expect(column.presetWidthIdx == 3)
     }
 
+    @Test func toggleColumnWidthWrapsAtPresetBoundaries() {
+        let engine = NiriLayoutEngine(maxVisibleColumns: 3)
+        engine.presetColumnWidths = [
+            .proportion(1.0 / 3.0),
+            .proportion(0.5),
+            .proportion(0.666)
+        ]
+        let wsId = UUID()
+
+        let window = engine.addWindow(handle: makeTestHandle(), to: wsId, afterSelection: nil)
+        guard let column = engine.column(of: window) else {
+            Issue.record("Expected column for preset boundary wrap test")
+            return
+        }
+
+        var state = ViewportState()
+        let workingFrame = CGRect(x: 0, y: 0, width: 1600, height: 900)
+
+        column.width = .proportion(1.0 / 3.0)
+        column.presetWidthIdx = 0
+        engine.toggleColumnWidth(
+            column,
+            forwards: false,
+            in: wsId,
+            state: &state,
+            workingFrame: workingFrame,
+            gaps: 8
+        )
+        #expect(column.width == .proportion(0.666))
+        #expect(column.presetWidthIdx == 2)
+
+        engine.toggleColumnWidth(
+            column,
+            forwards: true,
+            in: wsId,
+            state: &state,
+            workingFrame: workingFrame,
+            gaps: 8
+        )
+        if case let .proportion(proportion) = column.width {
+            #expect(abs(proportion - 1.0 / 3.0) < 0.001)
+        } else {
+            Issue.record("Expected wrapped column width to use first proportional preset")
+        }
+        #expect(column.presetWidthIdx == 0)
+    }
+
     @Test func balanceSizesUsesExplicitDefaultWidthAndResetsManualState() {
         let engine = NiriLayoutEngine(maxVisibleColumns: 3)
         engine.presetColumnWidths = [
