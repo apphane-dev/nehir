@@ -162,7 +162,10 @@ jobs:
           set -euo pipefail
 
           NOTARY_KEY_PATH="$RUNNER_TEMP/AuthKey_${APPLE_NOTARY_KEY_ID}.p8"
-          printf '%s' "$APPLE_NOTARY_KEY_P8" > "$NOTARY_KEY_PATH"
+          # Ensure the PEM content ends with a newline
+          printf '%s\n' "$APPLE_NOTARY_KEY_P8" > "$NOTARY_KEY_PATH"
+          # Sanity check
+          head -1 "$NOTARY_KEY_PATH" | grep -q 'BEGIN PRIVATE KEY' || { echo "APPLE_NOTARY_KEY_P8 secret does not start with BEGIN PRIVATE KEY"; exit 1; }
 
           xcrun notarytool store-credentials nehir-notary \
             --key "$NOTARY_KEY_PATH" \
