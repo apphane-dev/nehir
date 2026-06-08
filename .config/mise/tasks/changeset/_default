@@ -4,19 +4,41 @@
 #USAGE   choices "patch" "minor" "major" "none"
 #USAGE }
 #USAGE arg "<summary>" help="User-facing release note summary"
+#USAGE flag "--contributors <handles>" help="Comma-separated GitHub handles to acknowledge in release notes"
 set -euo pipefail
 
+CONTRIBUTORS="${usage_contributors:-}"
 if [ -n "${usage_bump:-}" ]; then
   BUMP="$usage_bump"
   SUMMARY="${usage_summary:-}"
 else
   if [ "$#" -lt 2 ]; then
-    echo "Usage: mise run changeset -- <patch|minor|major|none> <summary>" >&2
+    echo "Usage: mise run changeset -- <patch|minor|major|none> <summary> [--contributors handles]" >&2
     exit 1
   fi
   BUMP="$1"
   shift
-  SUMMARY="$*"
+  SUMMARY_PARTS=()
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --contributors)
+        shift
+        if [ "$#" -eq 0 ]; then
+          echo "--contributors requires a comma-separated value" >&2
+          exit 1
+        fi
+        CONTRIBUTORS="$1"
+        ;;
+      --contributors=*)
+        CONTRIBUTORS="${1#--contributors=}"
+        ;;
+      *)
+        SUMMARY_PARTS+=("$1")
+        ;;
+    esac
+    shift || true
+  done
+  SUMMARY="${SUMMARY_PARTS[*]}"
 fi
 case "$BUMP" in
   patch|minor|major|none) ;;
@@ -32,6 +54,14 @@ if [ -z "$SUMMARY" ]; then
   exit 1
 fi
 
+CONTRIBUTOR_LINE=""
+if [ -n "$CONTRIBUTORS" ]; then
+  NORMALIZED_CONTRIBUTORS="$(printf '%s' "$CONTRIBUTORS" | tr ',' '\n' | sed -E 's/^ *@?//; s/ *$//' | awk 'NF' | awk 'BEGIN { first = 1 } { if (!first) printf ", "; printf "%s", $0; first = 0 }')"
+  if [ -n "$NORMALIZED_CONTRIBUTORS" ]; then
+    CONTRIBUTOR_LINE="contributors: [$NORMALIZED_CONTRIBUTORS]"
+  fi
+fi
+
 ROOT_DIR="$(git rev-parse --show-toplevel)"
 mkdir -p "$ROOT_DIR/.changeset"
 
@@ -45,6 +75,7 @@ FILE="$ROOT_DIR/.changeset/$(date +%Y%m%d%H%M%S)-$SLUG.md"
 cat > "$FILE" <<EOF
 ---
 "nehir": $BUMP
+$CONTRIBUTOR_LINE
 ---
 
 $SUMMARY

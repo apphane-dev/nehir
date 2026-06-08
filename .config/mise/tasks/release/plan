@@ -23,6 +23,7 @@ priority = {"none": 0, "patch": 1, "minor": 2, "major": 3}
 reverse = {v: k for k, v in priority.items()}
 pattern = re.compile(r"^---\s*\n(?P<frontmatter>.*?)\n---\s*\n(?P<body>.*)$", re.S)
 release_line = re.compile(r'^\s*["\']?nehir["\']?\s*:\s*(major|minor|patch|none)\s*$', re.I)
+contributors_line = re.compile(r'^\s*contributors\s*:\s*\[?[@A-Za-z0-9,._ -]*\]?\s*$', re.I)
 max_bump = 0
 
 for path in files:
@@ -40,7 +41,9 @@ for path in files:
             continue
         line_match = release_line.match(line)
         if not line_match:
-            raise SystemExit(f"Invalid Nehir changeset release line in {path}: {line}")
+            if contributors_line.match(line):
+                continue
+            raise SystemExit(f"Invalid Nehir changeset frontmatter line in {path}: {line}")
         found = True
         max_bump = max(max_bump, priority[line_match.group(1).lower()])
     if not found:

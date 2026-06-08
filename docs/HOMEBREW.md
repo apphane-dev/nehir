@@ -41,10 +41,13 @@ Changesets use the official Changesets frontmatter shape:
 ```markdown
 ---
 "nehir": patch
+contributors: [github-handle]
 ---
 
 Short user-facing description of the change.
 ```
+
+Use optional `contributors: [...]` frontmatter for reports or contributions; release notes render those handles as linked thanks, e.g. `Thanks [@github-handle](https://github.com/github-handle).`
 
 Supported bump types are:
 

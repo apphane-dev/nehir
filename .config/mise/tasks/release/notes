@@ -69,7 +69,36 @@ if not files:
 
 pattern = re.compile(r"^---\s*\n(?P<frontmatter>.*?)\n---\s*\n(?P<body>.*)$", re.S)
 release_line = re.compile(r'^\s*["\']?[^"\':]+["\']?\s*:\s*(major|minor|patch|none)\s*$', re.I)
+contributors_line = re.compile(r'^\s*contributors\s*:\s*(?P<value>.+?)\s*$', re.I)
 entries = []
+
+def parse_contributors(value: str) -> list[str]:
+    value = value.strip()
+    if value.startswith("[") and value.endswith("]"):
+        value = value[1:-1]
+    contributors = []
+    for item in value.split(","):
+        handle = item.strip().strip('"\'').removeprefix("@")
+        if not handle:
+            continue
+        if not re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?", handle):
+            raise SystemExit(f"Invalid GitHub contributor handle: {handle}")
+        contributors.append(handle)
+    return contributors
+
+
+def format_thanks(contributors: list[str]) -> str:
+    links = [f"[@{handle}](https://github.com/{handle})" for handle in contributors]
+    if not links:
+        return ""
+    if len(links) == 1:
+        joined = links[0]
+    elif len(links) == 2:
+        joined = f"{links[0]} and {links[1]}"
+    else:
+        joined = f"{', '.join(links[:-1])}, and {links[-1]}"
+    return f" Thanks {joined}."
+
 
 for path in files:
     text = path.read_text().strip()
@@ -81,14 +110,22 @@ for path in files:
     body = match.group("body").strip()
     if not frontmatter:
         raise SystemExit(f"Empty changeset frontmatter: {path}")
+    contributors = []
     for line in frontmatter.splitlines():
-        if line.strip() and not release_line.match(line):
-            raise SystemExit(f"Invalid Changesets release line in {path}: {line}")
+        if not line.strip():
+            continue
+        if release_line.match(line):
+            continue
+        contributor_match = contributors_line.match(line)
+        if contributor_match:
+            contributors.extend(parse_contributors(contributor_match.group("value")))
+            continue
+        raise SystemExit(f"Invalid Changesets frontmatter line in {path}: {line}")
     if not body:
         raise SystemExit(f"Empty changeset body: {path}")
 
     normalized = " ".join(line.strip() for line in body.splitlines() if line.strip())
-    entries.append(normalized)
+    entries.append(normalized + format_thanks(contributors))
 
 lines = ["## Changes", ""]
 for item in entries:

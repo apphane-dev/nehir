@@ -10,6 +10,7 @@ Format:
 ```markdown
 ---
 "nehir": patch
+contributors: [github-handle]
 ---
 
 Short user-facing description of the change.
@@ -26,6 +27,12 @@ mise run changeset -- major "Changed configuration format incompatibly."
 Supported bump types are `patch`, `minor`, `major`, and `none`. The release
 workflow calculates the next app version from pending changesets and the current
 `Info.plist` version.
+
+When a change is based on a report or contribution, add a parseable
+`contributors: [github-handle]` frontmatter line with comma-separated GitHub
+handles so release notes can collect acknowledgements automatically while keeping
+body text easy to concatenate. Generated notes format acknowledgements as
+`Thanks [@github-handle](https://github.com/github-handle).`
 
 To release, run the `Release` GitHub Actions workflow manually. It updates
 `Info.plist`, generates `docs/releases/vX.Y.Z.md`, creates the version tag,
