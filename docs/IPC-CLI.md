@@ -340,6 +340,8 @@ Workspace IDs are positive numeric strings. Direct hotkeys stay limited to `1-9`
 | `command scratchpad assign` | — | command | Assign the focused window to the scratchpad |
 | `command scratchpad toggle` | — | command | Show or hide the scratchpad window |
 
+When a managed floating window has keyboard focus, focused-window commands target that floating window even if the Niri viewport selection still points at a tiled window underneath it.
+
 ### UI Toggles
 
 | Command | Arguments | Surface | Description |

@@ -556,7 +556,7 @@ final class WorkspaceNavigationHandler {
     func moveColumnToAdjacentWorkspace(direction: Direction) {
         guard let controller else { return }
         guard let engine = controller.niriEngine else { return }
-        guard let token = controller.managedCommandTargetToken() else { return }
+        guard let token = controller.managedLayoutCommandTargetToken() else { return }
         guard let currentMonitorId = interactionMonitorId(for: controller)
         else { return }
         guard let wsId = controller.interactionWorkspace()?.id else { return }
@@ -625,7 +625,7 @@ final class WorkspaceNavigationHandler {
     func moveColumnToWorkspace(rawWorkspaceID: String) {
         guard let controller else { return }
         guard let engine = controller.niriEngine else { return }
-        guard let token = controller.managedCommandTargetToken() else { return }
+        guard let token = controller.managedLayoutCommandTargetToken() else { return }
         guard let wsId = controller.interactionWorkspace()?.id else { return }
 
         guard let targetWsId = controller.workspaceManager.workspaceId(for: rawWorkspaceID, createIfMissing: false)

@@ -1348,7 +1348,7 @@ final class WMController {
         return NSScreen.screens.first(where: { $0.displayId == monitor.displayId })
     }
 
-    func managedCommandTarget() -> WMCommandTarget? {
+    private func layoutSelectionCommandTarget() -> WMCommandTarget? {
         if let workspaceId = interactionWorkspace()?.id,
            let engine = niriEngine,
            let selectedNodeId = workspaceManager.niriViewportState(for: workspaceId).selectedNodeId,
@@ -1362,9 +1362,14 @@ final class WMController {
             )
         }
 
+        return nil
+    }
+
+    func managedCommandTarget() -> WMCommandTarget? {
         if let token = workspaceManager.confirmedManagedFocusToken,
            let workspaceId = workspaceManager.workspace(for: token),
-           workspaceManager.entry(for: token) != nil
+           let entry = workspaceManager.entry(for: token),
+           entry.mode == .floating
         {
             return WMCommandTarget(
                 token: token,
@@ -1377,6 +1382,33 @@ final class WMController {
             ?? NSWorkspace.shared.frontmostApplication?.processIdentifier
         let frontmostToken = commandHandler.frontmostFocusedWindowTokenProvider?()
             ?? frontmostPid.flatMap { axEventHandler.focusedWindowToken(for: $0) }
+        if let frontmostToken,
+           let workspaceId = workspaceManager.workspace(for: frontmostToken),
+           let entry = workspaceManager.entry(for: frontmostToken),
+           entry.mode == .floating
+        {
+            return WMCommandTarget(
+                token: frontmostToken,
+                workspaceId: workspaceId,
+                source: .frontmostManagedFallback
+            )
+        }
+
+        if let target = layoutSelectionCommandTarget() {
+            return target
+        }
+
+        if let token = workspaceManager.confirmedManagedFocusToken,
+           let workspaceId = workspaceManager.workspace(for: token),
+           workspaceManager.entry(for: token) != nil
+        {
+            return WMCommandTarget(
+                token: token,
+                workspaceId: workspaceId,
+                source: .confirmedManagedFocus
+            )
+        }
+
         guard let frontmostToken,
               let workspaceId = workspaceManager.workspace(for: frontmostToken),
               workspaceManager.entry(for: frontmostToken) != nil
@@ -1392,6 +1424,10 @@ final class WMController {
 
     func managedCommandTargetToken() -> WindowToken? {
         managedCommandTarget()?.token
+    }
+
+    func managedLayoutCommandTargetToken() -> WindowToken? {
+        layoutSelectionCommandTarget()?.token ?? managedCommandTargetToken()
     }
 
     private func focusedManagedTokenForCommand() -> WindowToken? {
