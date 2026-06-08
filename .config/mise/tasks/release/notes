@@ -99,7 +99,7 @@ lines += [
     "",
     "## Notes",
     "",
-    "Nehir is currently distributed as an unsigned app. macOS may show Gatekeeper warnings until Developer ID signing and notarization are configured.",
+    "Nehir is distributed as a signed and notarized app. If macOS still shows a Gatekeeper warning, right-click the app and choose Open.",
     "",
     "Nehir requires Accessibility permission to manage windows.",
     "",

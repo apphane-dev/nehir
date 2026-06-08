@@ -136,6 +136,21 @@ Run tests:
 mise run test
 ```
 
-## Current signing status
+## Apple Developer ID signing and notarization
 
-Releases are unsigned until Apple Developer ID signing and notarization are configured. Users may see Gatekeeper warnings and must grant Accessibility permission manually.
+Releases are signed with a Developer ID Application certificate and notarized through Apple's notary service. The release workflow handles signing and notarization automatically.
+
+### Required repository secrets
+
+Configure these secrets in `Guria/nehir` → Settings → Secrets and variables → Actions:
+
+| Secret | Description |
+|---|---|
+| `APPLE_DEVELOPER_ID_CERT_P12_BASE64` | Base64-encoded Developer ID Application `.p12` certificate |
+| `APPLE_DEVELOPER_ID_CERT_PASSWORD` | Password used when exporting the `.p12` from Keychain |
+| `APPLE_SIGNING_IDENTITY` | Full codesigning identity string, e.g. `Developer ID Application: Name (TEAMID)` |
+| `APPLE_NOTARY_KEY_ID` | App Store Connect API key ID |
+| `APPLE_NOTARY_ISSUER_ID` | App Store Connect API issuer ID |
+| `APPLE_NOTARY_KEY_P8` | Full contents of the App Store Connect API `.p8` private key |
+
+The certificate is exported from Keychain Access as a `.p12` (Personal Information Exchange) containing the certificate and private key. The API key is created in App Store Connect → Users and Access → Integrations → App Store Connect API.
