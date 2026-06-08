@@ -492,7 +492,6 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
             uniqueKeysWithValues: wmController.settings.hotkeyBindings.map { ($0.id, $0.binding) }
         )
         return ActionCatalog.allSpecs()
-            .filter { $0.visibility != .hidden }
             .map { spec in
                 let trigger = bindingsByID[spec.id]
                 let bindingDisplay = trigger.flatMap { $0.isUnassigned ? nil : $0.displayString }

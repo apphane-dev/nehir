@@ -20,6 +20,7 @@ enum HotkeyConfigMapping {
         NumberedGroup(section: "workspace", key: "switch", internalIdPattern: "switchWorkspace.%d", indexOffset: -1),
         NumberedGroup(section: "workspace", key: "moveTo", internalIdPattern: "moveToWorkspace.%d", indexOffset: -1),
         NumberedGroup(section: "workspace", key: "moveColumnTo", internalIdPattern: "moveColumnToWorkspace.%d", indexOffset: -1),
+        NumberedGroup(section: "workspace", key: "focusAnywhere", internalIdPattern: "focusWorkspaceAnywhere.%d", indexOffset: -1),
         NumberedGroup(section: "focus", key: "column", internalIdPattern: "focusColumn.%d", indexOffset: -1),
         NumberedGroup(section: "focus", key: "windowInColumn", internalIdPattern: "focusWindowInColumn.%d", indexOffset: 0),
         NumberedGroup(section: "move", key: "columnToIndex", internalIdPattern: "moveColumnToIndex.%d", indexOffset: 0),
@@ -31,6 +32,10 @@ enum HotkeyConfigMapping {
         ("workspace", "backAndForth", "workspaceBackAndForth"),
         ("workspace", "next", "switchWorkspace.next"),
         ("workspace", "previous", "switchWorkspace.previous"),
+        ("workspace", "swapWithMonitorLeft", "swapWorkspaceWithMonitor.left"),
+        ("workspace", "swapWithMonitorRight", "swapWorkspaceWithMonitor.right"),
+        ("workspace", "swapWithMonitorUp", "swapWorkspaceWithMonitor.up"),
+        ("workspace", "swapWithMonitorDown", "swapWorkspaceWithMonitor.down"),
         // focus
         ("focus", "left", "focus.left"),
         ("focus", "down", "focus.down"),
@@ -123,6 +128,12 @@ enum HotkeyConfigMapping {
                 let internalIdx = n + g.indexOffset
                 let internalId = String(format: g.internalIdPattern, internalIdx)
                 map[configKey] = internalId
+            }
+        }
+        for n in 1...9 {
+            for direction in ["left", "right", "up", "down"] {
+                map["move.windowToWorkspaceOnMonitor.\(n).\(direction)"] =
+                    "moveWindowToWorkspaceOnMonitor.\(n - 1).\(direction)"
             }
         }
         return map

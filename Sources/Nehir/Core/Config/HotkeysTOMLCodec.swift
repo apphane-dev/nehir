@@ -45,6 +45,13 @@ enum HotkeysTOMLCodec {
                     lines.append("\(singleton.key) = \(quoted(value))")
                 }
             }
+
+            // Handle generated config keys that are not represented by a compact group.
+            for configKey in bindingMap.keys.sorted() where configKey.hasPrefix("\(section).") {
+                guard let value = bindingMap.removeValue(forKey: configKey) else { continue }
+                let key = String(configKey.dropFirst(section.count + 1))
+                lines.append("\(quoted(key)) = \(quoted(value))")
+            }
         }
 
         let output = lines.joined(separator: "\n") + "\n"

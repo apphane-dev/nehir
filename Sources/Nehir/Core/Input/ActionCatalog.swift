@@ -1,19 +1,12 @@
 import Carbon
 import NehirIPC
 
-enum HotkeyVisibility: String {
-    case normal
-    case advanced
-    case hidden
-}
-
 struct ActionSpec: Equatable {
     let id: String
     let command: HotkeyCommand
     let title: String
     let keywords: [String]
     let category: HotkeyCategory
-    let visibility: HotkeyVisibility
     let defaultBinding: KeyBinding
     let ipcCommandName: IPCCommandName?
 
@@ -65,10 +58,6 @@ enum ActionCatalog {
 
     static func category(for id: String) -> HotkeyCategory? {
         spec(for: id)?.category
-    }
-
-    static func visibility(for id: String) -> HotkeyVisibility? {
-        spec(for: id)?.visibility
     }
 
     static func defaultHotkeyBindings() -> [HotkeyBinding] {
@@ -206,56 +195,48 @@ enum ActionCatalog {
                 command: .focusDownOrLeft,
                 category: .focus,
                 binding: .unassigned,
-                visibility: .advanced
             ),
             action(
                 id: "focusUpOrRight",
                 command: .focusUpOrRight,
                 category: .focus,
                 binding: .unassigned,
-                visibility: .advanced
             ),
             action(
                 id: "focusWindowTop",
                 command: .focusWindowTop,
                 category: .focus,
                 binding: .unassigned,
-                visibility: .advanced
             ),
             action(
                 id: "focusWindowBottom",
                 command: .focusWindowBottom,
                 category: .focus,
                 binding: .unassigned,
-                visibility: .advanced
             ),
             action(
                 id: "focusWindowDownOrTop",
                 command: .focusWindowDownOrTop,
                 category: .focus,
                 binding: .unassigned,
-                visibility: .advanced
             ),
             action(
                 id: "focusWindowUpOrBottom",
                 command: .focusWindowUpOrBottom,
                 category: .focus,
                 binding: .unassigned,
-                visibility: .advanced
             ),
             action(
                 id: "focusWindowOrWorkspaceDown",
                 command: .focusWindowOrWorkspaceDown,
                 category: .focus,
                 binding: .unassigned,
-                visibility: .advanced
             ),
             action(
                 id: "focusWindowOrWorkspaceUp",
                 command: .focusWindowOrWorkspaceUp,
                 category: .focus,
                 binding: .unassigned,
-                visibility: .advanced
             )
         ])
 
@@ -265,14 +246,12 @@ enum ActionCatalog {
                 command: .centerColumn,
                 category: .layout,
                 binding: .unassigned,
-                visibility: .advanced
             ),
             action(
                 id: "centerVisibleColumns",
                 command: .centerVisibleColumns,
                 category: .layout,
                 binding: .unassigned,
-                visibility: .advanced
             )
         ])
 
@@ -313,9 +292,43 @@ enum ActionCatalog {
                     command: .moveColumnToWorkspace(idx),
                     category: .workspace,
                     binding: .unassigned,
-                    visibility: .advanced
-                )
+                    )
             )
+        }
+
+        for direction in [Direction.left, .right, .up, .down] {
+            specs.append(
+                action(
+                    id: "swapWorkspaceWithMonitor.\(direction.rawValue)",
+                    command: .swapWorkspaceWithMonitor(direction),
+                    category: .workspace,
+                    binding: .unassigned,
+                    )
+            )
+        }
+
+        for idx in 0 ..< 9 {
+            specs.append(
+                action(
+                    id: "focusWorkspaceAnywhere.\(idx)",
+                    command: .focusWorkspaceAnywhere(idx),
+                    category: .workspace,
+                    binding: .unassigned,
+                    )
+            )
+        }
+
+        for idx in 0 ..< 9 {
+            for direction in [Direction.left, .right, .up, .down] {
+                specs.append(
+                    action(
+                        id: "moveWindowToWorkspaceOnMonitor.\(idx).\(direction.rawValue)",
+                        command: .moveWindowToWorkspaceOnMonitor(workspaceIndex: idx, monitorDirection: direction),
+                        category: .workspace,
+                        binding: .unassigned,
+                            )
+                )
+            }
         }
 
         specs.append(contentsOf: [
@@ -351,56 +364,48 @@ enum ActionCatalog {
                 command: .moveWindowDown,
                 category: .move,
                 binding: .unassigned,
-                visibility: .hidden
             ),
             action(
                 id: "moveWindowUp",
                 command: .moveWindowUp,
                 category: .move,
                 binding: .unassigned,
-                visibility: .hidden
             ),
             action(
                 id: "moveWindowDownOrToWorkspaceDown",
                 command: .moveWindowDownOrToWorkspaceDown,
                 category: .move,
                 binding: .unassigned,
-                visibility: .advanced
             ),
             action(
                 id: "moveWindowUpOrToWorkspaceUp",
                 command: .moveWindowUpOrToWorkspaceUp,
                 category: .move,
                 binding: .unassigned,
-                visibility: .advanced
             ),
             action(
                 id: "consumeOrExpelWindowLeft",
                 command: .consumeOrExpelWindowLeft,
                 category: .move,
                 binding: .unassigned,
-                visibility: .hidden
             ),
             action(
                 id: "consumeOrExpelWindowRight",
                 command: .consumeOrExpelWindowRight,
                 category: .move,
                 binding: .unassigned,
-                visibility: .hidden
             ),
             action(
                 id: "consumeWindowIntoColumn",
                 command: .consumeWindowIntoColumn,
                 category: .move,
                 binding: .unassigned,
-                visibility: .advanced
             ),
             action(
                 id: "expelWindowFromColumn",
                 command: .expelWindowFromColumn,
                 category: .move,
                 binding: .unassigned,
-                visibility: .advanced
             )
         ])
 
@@ -495,8 +500,7 @@ enum ActionCatalog {
                     command: .focusColumn(idx),
                     category: .focus,
                     binding: KeyBinding(keyCode: code, modifiers: UInt32(optionKey | controlKey)),
-                    visibility: .advanced
-                )
+                    )
             )
         }
 
@@ -507,8 +511,7 @@ enum ActionCatalog {
                     command: .focusWindowInColumn(idx),
                     category: .focus,
                     binding: .unassigned,
-                    visibility: .advanced
-                )
+                    )
             )
         }
 
@@ -519,8 +522,7 @@ enum ActionCatalog {
                     command: .moveColumnToIndex(idx),
                     category: .column,
                     binding: .unassigned,
-                    visibility: .advanced
-                )
+                    )
             )
         }
 
@@ -530,42 +532,36 @@ enum ActionCatalog {
                 command: .cycleColumnWidthForward,
                 category: .column,
                 binding: KeyBinding(keyCode: UInt32(kVK_ANSI_Period), modifiers: UInt32(optionKey)),
-                visibility: .advanced
             ),
             action(
                 id: "cycleColumnWidthBackward",
                 command: .cycleColumnWidthBackward,
                 category: .column,
                 binding: KeyBinding(keyCode: UInt32(kVK_ANSI_Comma), modifiers: UInt32(optionKey)),
-                visibility: .advanced
             ),
             action(
                 id: "cycleWindowWidthForward",
                 command: .cycleWindowWidthForward,
                 category: .column,
                 binding: .unassigned,
-                visibility: .advanced
             ),
             action(
                 id: "cycleWindowWidthBackward",
                 command: .cycleWindowWidthBackward,
                 category: .column,
                 binding: .unassigned,
-                visibility: .advanced
             ),
             action(
                 id: "cycleWindowHeightForward",
                 command: .cycleWindowHeightForward,
                 category: .column,
                 binding: .unassigned,
-                visibility: .advanced
             ),
             action(
                 id: "cycleWindowHeightBackward",
                 command: .cycleWindowHeightBackward,
                 category: .column,
                 binding: .unassigned,
-                visibility: .advanced
             ),
             action(
                 id: "toggleColumnFullWidth",
@@ -578,21 +574,18 @@ enum ActionCatalog {
                 command: .expandColumnToAvailableWidth,
                 category: .column,
                 binding: KeyBinding(keyCode: UInt32(kVK_ANSI_F), modifiers: UInt32(optionKey | controlKey)),
-                visibility: .advanced
             ),
             action(
                 id: "resetWindowHeight",
                 command: .resetWindowHeight,
                 category: .column,
                 binding: KeyBinding(keyCode: UInt32(kVK_ANSI_R), modifiers: UInt32(optionKey | controlKey)),
-                visibility: .advanced
             ),
             action(
                 id: "setColumnWidth.decrease10Percent",
                 command: .setColumnWidth(.adjustProportion(-10)),
                 category: .column,
                 binding: KeyBinding(keyCode: UInt32(kVK_ANSI_Minus), modifiers: UInt32(optionKey)),
-                visibility: .advanced,
                 keywords: ["shrink column", "resize column"]
             ),
             action(
@@ -600,7 +593,6 @@ enum ActionCatalog {
                 command: .setColumnWidth(.adjustProportion(10)),
                 category: .column,
                 binding: KeyBinding(keyCode: UInt32(kVK_ANSI_Equal), modifiers: UInt32(optionKey)),
-                visibility: .advanced,
                 keywords: ["grow column", "resize column"]
             ),
             action(
@@ -608,7 +600,6 @@ enum ActionCatalog {
                 command: .setWindowWidth(.adjustProportion(-10)),
                 category: .column,
                 binding: .unassigned,
-                visibility: .advanced,
                 keywords: ["shrink window", "resize window"]
             ),
             action(
@@ -616,7 +607,6 @@ enum ActionCatalog {
                 command: .setWindowWidth(.adjustProportion(10)),
                 category: .column,
                 binding: .unassigned,
-                visibility: .advanced,
                 keywords: ["grow window", "resize window"]
             ),
             action(
@@ -624,7 +614,6 @@ enum ActionCatalog {
                 command: .setWindowHeight(.adjustProportion(-10)),
                 category: .column,
                 binding: KeyBinding(keyCode: UInt32(kVK_ANSI_Minus), modifiers: UInt32(optionKey | shiftKey)),
-                visibility: .advanced,
                 keywords: ["shorter window", "resize window"]
             ),
             action(
@@ -632,7 +621,6 @@ enum ActionCatalog {
                 command: .setWindowHeight(.adjustProportion(10)),
                 category: .column,
                 binding: KeyBinding(keyCode: UInt32(kVK_ANSI_Equal), modifiers: UInt32(optionKey | shiftKey)),
-                visibility: .advanced,
                 keywords: ["taller window", "resize window"]
             ),
             action(
@@ -745,7 +733,6 @@ enum ActionCatalog {
         command: HotkeyCommand,
         category: HotkeyCategory,
         binding: KeyBinding,
-        visibility: HotkeyVisibility = .normal,
         keywords: [String] = []
     ) -> ActionSpec {
         let title = displayName(for: command)
@@ -755,7 +742,6 @@ enum ActionCatalog {
             title: title,
             keywords: uniqueTerms(keywords + [title, id]),
             category: category,
-            visibility: visibility,
             defaultBinding: defaultBinding(for: binding),
             ipcCommandName: ipcCommandName(for: command)
         )

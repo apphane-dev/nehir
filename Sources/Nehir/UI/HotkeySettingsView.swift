@@ -101,12 +101,7 @@ private struct HotkeySettingsSection: Identifiable {
 
 enum HotkeySettingsDisplayModel {
     static func isVisible(bindingId: String) -> Bool {
-        switch ActionCatalog.visibility(for: bindingId) ?? .normal {
-        case .normal:
-            true
-        case .advanced, .hidden:
-            false
-        }
+        ActionCatalog.spec(for: bindingId) != nil
     }
 
     static func matchesSearch(_ query: String, binding: HotkeyBinding) -> Bool {
