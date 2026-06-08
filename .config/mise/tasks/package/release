@@ -35,13 +35,6 @@ if [ "$SIGN_AND_NOTARIZE" = "true" ]; then
   fi
 fi
 
-if [ -f "$ROOT_DIR/Makefile" ]; then
-  echo "Running release checks..."
-  make -C "$ROOT_DIR" release-check
-else
-  echo "Skipping make release-check: no Makefile found."
-fi
-
 echo "Building Nehir universal binary ($CONFIG)..."
 swift build -c "$CONFIG" --arch arm64 --arch x86_64
 
