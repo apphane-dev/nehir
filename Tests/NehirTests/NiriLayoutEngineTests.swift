@@ -1968,6 +1968,40 @@ private func makeCenteredCrossMonitorFixture(
         #expect(window.constraints.maxSize.width == 800)
     }
 
+    @Test func constraintApplicationCancelsWidthAnimationWhenRuntimeMinimumExceedsTarget() {
+        let engine = NiriLayoutEngine()
+        let wsId = UUID()
+        let window = engine.addWindow(handle: makeTestHandle(), to: wsId, afterSelection: nil)
+        guard let column = engine.column(of: window) else {
+            Issue.record("Expected column for runtime minimum animation clamp test")
+            return
+        }
+
+        column.cachedWidth = 401.6
+        column.widthAnimation = SpringAnimation(
+            from: 606.4,
+            to: 401.6,
+            initialVelocity: 0,
+            startTime: 0,
+            config: engine.windowMovementAnimationConfig,
+            displayRefreshRate: 60
+        )
+        column.targetWidth = 401.6
+
+        engine.updateWindowConstraints(
+            for: window.token,
+            constraints: WindowSizeConstraints(
+                minSize: CGSize(width: 668, height: 100),
+                maxSize: .zero,
+                isFixed: false
+            )
+        )
+
+        #expect(column.cachedWidth == 668)
+        #expect(column.targetWidth == nil)
+        #expect(column.widthAnimation == nil)
+    }
+
     @Test func solverRedistributesSpaceAfterMaxCapsWithoutReviolatingThem() {
         let outputs = NiriAxisSolver.solve(
             windows: [
@@ -6199,7 +6233,11 @@ private func makeCenteredCrossMonitorFixture(
             workingFrame: workingFrame,
             gaps: 8
         )
-        #expect(column.width == .proportion(0.666))
+        if case let .proportion(proportion) = column.width {
+            #expect(abs(proportion - 0.666) < 0.001)
+        } else {
+            Issue.record("Expected wrapped column width to use last proportional preset")
+        }
         #expect(column.presetWidthIdx == 2)
 
         engine.toggleColumnWidth(

@@ -85,11 +85,30 @@ extension NiriLayoutEngine {
         let normalized = constraints.normalized()
         guard node.constraints != normalized else { return }
         node.constraints = normalized
-        if let column = node.parent as? NiriContainer, column.cachedWidth > 0 {
-            let bounds = column.widthBounds()
-            column.cachedWidth = max(column.cachedWidth, bounds.min)
-            if let maxWidth = bounds.max {
-                column.cachedWidth = min(column.cachedWidth, maxWidth)
+        clampColumnWidthToBounds(for: node)
+    }
+
+    func clampColumnWidthToBounds(for token: WindowToken) {
+        guard let node = tokenToNode[token] else { return }
+        clampColumnWidthToBounds(for: node)
+    }
+
+    private func clampColumnWidthToBounds(for node: NiriNode) {
+        guard let column = node.parent as? NiriContainer, column.cachedWidth > 0 else { return }
+
+        let bounds = column.widthBounds()
+        column.cachedWidth = max(column.cachedWidth, bounds.min)
+        if let maxWidth = bounds.max {
+            column.cachedWidth = min(column.cachedWidth, maxWidth)
+        }
+
+        if let targetWidth = column.targetWidth {
+            let clampedTargetWidth = bounds.max.map { min(max(targetWidth, bounds.min), $0) }
+                ?? max(targetWidth, bounds.min)
+            if abs(clampedTargetWidth - targetWidth) > 0.001 {
+                column.cachedWidth = clampedTargetWidth
+                column.widthAnimation = nil
+                column.targetWidth = nil
             }
         }
     }

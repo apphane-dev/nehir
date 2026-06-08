@@ -371,7 +371,7 @@ The Niri layout engine follows this contract:
 
 This separation means layout logic can be unit-tested without any macOS UI or accessibility infrastructure. The `LayoutRefreshController` feeds workspace snapshots to the active engine and collects frame outputs, then `AXManager.applyFramesParallel()` writes the frames to actual windows.
 
-When AX readback shows that a real app refused or clamped a requested resize, the refresh controller records an inferred runtime minimum (`inferredResizeMinimumSize`) on the window model and requests another relayout. The corrected minimum is fed into future layout snapshots, so the real accepted size—not substitute geometry—is used by the layout engine.
+When AX readback shows that a real app refused or clamped a requested resize, the refresh controller records an inferred runtime minimum (`inferredResizeMinimumSize`) on the window model, immediately clamps the affected Niri column away from the refused optimistic target, and requests an immediate relayout. The corrected minimum is fed into future layout snapshots, so the real accepted size—not substitute geometry—is used by the layout engine.
 
 ### 3.6 Thread Safety Model
 

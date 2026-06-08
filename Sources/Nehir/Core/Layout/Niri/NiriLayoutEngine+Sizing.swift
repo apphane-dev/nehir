@@ -417,13 +417,13 @@ extension NiriLayoutEngine {
         let targetWindow = targetWindow ?? column.activeWindow ?? column.windowNodes.first
 
         let nextIdx: Int
+        let wrappedPresetBoundary: Bool
         if !column.isFullWidth, let currentIdx = column.presetWidthIdx {
-            nextIdx = if forwards {
-                (currentIdx + 1) % presetCount
-            } else {
-                (currentIdx - 1 + presetCount) % presetCount
-            }
+            let rawNextIdx = forwards ? currentIdx + 1 : currentIdx - 1
+            wrappedPresetBoundary = rawNextIdx < 0 || rawNextIdx >= presetCount
+            nextIdx = (rawNextIdx + presetCount) % presetCount
         } else {
+            wrappedPresetBoundary = false
             let currentTile: CGFloat
             if let singleWindowContext = singleWindowLayoutContext(in: workspaceId),
                singleWindowContext.container === column,
@@ -478,7 +478,7 @@ extension NiriLayoutEngine {
         traceResize(
             "cmd=\(commandId) compute kind=\(commandKind) source=\(ResizeWidthSource.presetCycle.rawValue) "
                 + "previous=\(fmt(previousWidth)) currentSpec=\(widthSpecDescription(currentSpec)) "
-                + "nextPreset=\(nextIdx) newSpec=\(widthSpecDescription(newWidth)) "
+                + "wrappedBoundary=\(wrappedPresetBoundary) nextPreset=\(nextIdx) newSpec=\(widthSpecDescription(newWidth)) "
                 + "state{\(columnWidthSnapshot(column, in: workspaceId, workingFrame: workingFrame, gaps: gaps, window: targetWindow))}"
         )
 

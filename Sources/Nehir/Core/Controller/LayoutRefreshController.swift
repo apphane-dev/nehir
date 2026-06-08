@@ -2970,6 +2970,12 @@ import QuartzCore
             mergedMinimumSize.width > $0.width || mergedMinimumSize.height > $0.height
         } ?? true
         controller.workspaceManager.setInferredResizeMinimumSize(mergedMinimumSize, for: entry.token)
+        if let engine = controller.niriEngine {
+            var constraints = controller.workspaceManager.cachedConstraints(for: entry.token) ?? .unconstrained
+            constraints.minSize.width = max(constraints.minSize.width, mergedMinimumSize.width)
+            constraints.minSize.height = max(constraints.minSize.height, mergedMinimumSize.height)
+            engine.updateWindowConstraints(for: entry.token, constraints: constraints)
+        }
         controller.axManager.recordFrameApplyTrace(
             "resizeMin.learn id=\(entry.windowId) source=refusal target=\(LayoutTrace.rect(result.targetFrame)) observed=\(LayoutTrace.rect(result.writeResult.observedFrame)) minimum=\(String(format: "%.1fx%.1f", mergedMinimumSize.width, mergedMinimumSize.height))"
         )
@@ -2982,7 +2988,12 @@ import QuartzCore
             )
         }
         if inferredMinimumIncreased {
-            requestRelayout(reason: .axWindowChanged, affectedWorkspaceIds: [entry.workspaceId])
+            for tiledEntry in controller.workspaceManager.tiledEntries(in: entry.workspaceId)
+                where controller.workspaceManager.hiddenState(for: tiledEntry.token) == nil
+            {
+                controller.axManager.forceApplyNextFrame(for: tiledEntry.windowId)
+            }
+            requestImmediateRelayout(reason: .layoutCommand, affectedWorkspaceIds: [entry.workspaceId])
         }
     }
 
