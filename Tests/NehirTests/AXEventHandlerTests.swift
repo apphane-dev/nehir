@@ -2503,6 +2503,66 @@ private func waitUntilAXEventTest(
         #expect(controller.workspaceManager.layoutReason(for: replacementToken) == .standard)
     }
 
+    @Test @MainActor func nativeFullscreenDuplicateRestoredTokenRekeyPreservesManagedIdentityAndNiriNode() {
+        let controller = makeAXEventTestController()
+        defer { controller.axEventHandler.resetDebugStateForTests() }
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
+            Issue.record("Missing active workspace")
+            return
+        }
+
+        controller.enableNiriLayout()
+        guard let engine = controller.niriEngine else {
+            Issue.record("Missing Niri engine")
+            return
+        }
+
+        let replacementToken = controller.workspaceManager.addWindow(
+            AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: 8046),
+            pid: getpid(),
+            windowId: 8046,
+            to: workspaceId
+        )
+        let restoredToken = controller.workspaceManager.addWindow(
+            AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: 8047),
+            pid: getpid(),
+            windowId: 8047,
+            to: workspaceId
+        )
+        guard let replacementEntry = controller.workspaceManager.entry(for: replacementToken) else {
+            Issue.record("Missing replacement entry")
+            return
+        }
+
+        let replacementNode = engine.addWindow(
+            token: replacementToken,
+            to: workspaceId,
+            afterSelection: nil,
+            focusedToken: replacementToken
+        )
+        let duplicateNode = engine.addWindow(
+            token: restoredToken,
+            to: workspaceId,
+            afterSelection: replacementNode.id,
+            focusedToken: replacementToken
+        )
+
+        let restoredEntry = controller.axEventHandler.rekeyManagedWindowIdentity(
+            from: replacementToken,
+            to: restoredToken,
+            windowId: UInt32(restoredToken.windowId),
+            axRef: AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: restoredToken.windowId),
+            replacingExistingDuplicate: true
+        )
+
+        #expect(restoredEntry?.handle === replacementEntry.handle)
+        #expect(controller.workspaceManager.entry(for: replacementToken) == nil)
+        #expect(controller.workspaceManager.entry(for: restoredToken)?.handle === replacementEntry.handle)
+        #expect(engine.findNode(for: replacementToken) == nil)
+        #expect(engine.findNode(for: restoredToken)?.id == replacementNode.id)
+        #expect(engine.findNode(by: duplicateNode.id) == nil)
+    }
+
     @Test @MainActor func nativeFullscreenSameTokenReplacementSuspensionClearsFocusedBorderAndRelayouts() async {
         let controller = makeAXEventTestController()
         defer { controller.axEventHandler.resetDebugStateForTests() }

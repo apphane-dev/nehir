@@ -1860,7 +1860,14 @@ final class AXEventHandler: CGSEventDelegate {
             }
             return .restored(scheduledRelayout: scheduledRelayout)
         }
-        guard let entry = rekeyManagedWindowIdentity(from: record.currentToken, to: token, windowId: windowId, axRef: axRef)
+        let hasDuplicateRestoredToken = controller.workspaceManager.entry(for: token) != nil
+        guard let entry = rekeyManagedWindowIdentity(
+            from: record.currentToken,
+            to: token,
+            windowId: windowId,
+            axRef: axRef,
+            replacingExistingDuplicate: hasDuplicateRestoredToken
+        )
         else {
             return .notRestored
         }
@@ -1999,7 +2006,8 @@ final class AXEventHandler: CGSEventDelegate {
         to newToken: WindowToken,
         windowId: UInt32,
         axRef: AXWindowRef,
-        managedReplacementMetadata: ManagedReplacementMetadata? = nil
+        managedReplacementMetadata: ManagedReplacementMetadata? = nil,
+        replacingExistingDuplicate: Bool = false
     ) -> WindowModel.Entry? {
         guard let controller else { return nil }
 
@@ -2007,13 +2015,18 @@ final class AXEventHandler: CGSEventDelegate {
             from: oldToken,
             to: newToken,
             newAXRef: axRef,
-            managedReplacementMetadata: managedReplacementMetadata
+            managedReplacementMetadata: managedReplacementMetadata,
+            replacingExistingDuplicate: replacingExistingDuplicate
         )
         else {
             return nil
         }
 
-        _ = controller.niriEngine?.rekeyWindow(from: oldToken, to: newToken)
+        _ = controller.niriEngine?.rekeyWindow(
+            from: oldToken,
+            to: newToken,
+            replacingExistingDuplicate: replacingExistingDuplicate
+        )
         controller.nativeFullscreenPlaceholderManager.rekey(from: oldToken, to: newToken)
 
         controller.focusBridge.rekeyPendingFocus(from: oldToken, to: newToken)
@@ -2944,6 +2957,7 @@ final class AXEventHandler: CGSEventDelegate {
                 return
             }
             controller.layoutRefreshController.requestFullRescan(reason: .activeSpaceChanged)
+            self.cleanupClosedNativeFullscreenPlaceholderIfNeeded(record)
         }
         pendingNativeFullscreenStaleCleanupTasks[originalToken] = Task { @MainActor [weak self] in
             try? await Task.sleep(for: Self.nativeFullscreenStaleCleanupDelay)
@@ -2962,6 +2976,26 @@ final class AXEventHandler: CGSEventDelegate {
             }
             controller.layoutRefreshController.requestFullRescan(reason: .activeSpaceChanged)
         }
+    }
+
+    private func cleanupClosedNativeFullscreenPlaceholderIfNeeded(
+        _ record: WorkspaceManager.NativeFullscreenRecord
+    ) {
+        guard let controller,
+              !controller.workspaceManager.isAppFullscreenActive,
+              resolveAXWindowRef(windowId: UInt32(record.currentToken.windowId), pid: record.currentToken.pid) == nil
+        else {
+            return
+        }
+
+        let removedEntries = controller.workspaceManager.expireStaleTemporarilyUnavailableNativeFullscreenRecords(
+            staleInterval: 0
+        )
+        guard !removedEntries.isEmpty else { return }
+        for entry in removedEntries {
+            controller.nativeFullscreenPlaceholderManager.remove(entry.token)
+        }
+        controller.layoutRefreshController.requestFullRescan(reason: .activeSpaceChanged)
     }
 
     func cancelNativeFullscreenLifecycleTasks(for originalToken: WindowToken) {
