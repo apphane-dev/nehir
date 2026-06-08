@@ -11,9 +11,14 @@ on:
         description: "Optional tag/asset suffix, e.g. rc.1 or beta.1"
         type: string
         required: false
+      resume_notary_run_id:
+        description: "Optional previous workflow run ID containing nehir-notary-<version> artifact"
+        type: string
+        required: false
 
 permissions:
   contents: write
+  actions: read
 
 concurrency:
   group: release
@@ -150,12 +155,41 @@ jobs:
             --key-id "$APPLE_NOTARY_KEY_ID" \
             --issuer "$APPLE_NOTARY_ISSUER_ID"
 
-      - name: Build signed and notarized release ZIP
+      - name: Build signed app and submit notarization
+        if: ${{ inputs.resume_notary_run_id == '' }}
         env:
           RELEASE_ZIP_PATH: ${{ github.workspace }}/${{ steps.version.outputs.zip }}
           SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           NOTARIZE_PROFILE: nehir-notary
+          NOTARIZE_SUBMIT_ONLY: true
         run: mise run package:release -- true
+
+      - name: Upload notarization resume artifact
+        if: ${{ inputs.resume_notary_run_id == '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: nehir-notary-${{ steps.version.outputs.version }}
+          path: |
+            dist/Nehir-notary.zip
+            dist/notary-submission-id.txt
+            dist/release-metadata.env
+          retention-days: 7
+
+      - name: Download notarization resume artifact
+        if: ${{ inputs.resume_notary_run_id != '' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: nehir-notary-${{ steps.version.outputs.version }}
+          path: dist
+          run-id: ${{ inputs.resume_notary_run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Wait for notarization, staple, and create release ZIP
+        env:
+          RELEASE_ZIP_PATH: ${{ github.workspace }}/${{ steps.version.outputs.zip }}
+          NOTARIZE_PROFILE: nehir-notary
+          NOTARIZE_WAIT_TIMEOUT: 25m
+        run: mise run package:finalize-notarization
 
       - name: Create release tag
         shell: bash

@@ -82,6 +82,8 @@ The workflow will:
 
 If any publishing step fails before changeset cleanup, pending changesets remain in `.changeset/` so the release can be retried safely. Release tags are created only after the signed and notarized build succeeds. `Info.plist` and generated release notes are not committed during release prep; they are stamped in the workflow workspace only, so failed runs do not advance the source version.
 
+The workflow uploads a short-lived notarization resume artifact immediately after submitting to Apple. If the wait step times out but the submission later completes, rerun the workflow with `resume_notary_run_id` set to the previous workflow run ID. The rerun downloads the exact submitted `Nehir-notary.zip`, waits on the existing Apple submission ID from the artifact, staples it, and continues publishing without creating a new notarization submission.
+
 ## Prereleases
 
 Prereleases are also published to the RC cask in the Homebrew tap. Users can install the current preview build with:

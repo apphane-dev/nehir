@@ -14,6 +14,9 @@ APP_DIR="$ROOT_DIR/dist/Nehir.app"
 VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$ROOT_DIR/Info.plist")"
 RELEASE_ZIP_PATH="${RELEASE_ZIP_PATH:-$ROOT_DIR/dist/Nehir-$VERSION.zip}"
 NOTARY_ZIP_PATH="$ROOT_DIR/dist/Nehir-notary.zip"
+NOTARIZE_WAIT_TIMEOUT="${NOTARIZE_WAIT_TIMEOUT:-25m}"
+NOTARIZE_SUBMIT_ONLY="${NOTARIZE_SUBMIT_ONLY:-false}"
+NOTARY_SUBMISSION_ID_PATH="${NOTARY_SUBMISSION_ID_PATH:-$ROOT_DIR/dist/notary-submission-id.txt}"
 
 # Configure these via environment variables when you have an Apple Developer ID.
 SIGNING_IDENTITY="${SIGNING_IDENTITY:-}"
@@ -90,8 +93,24 @@ if [ "$SIGN_AND_NOTARIZE" = "true" ]; then
   rm -f "$NOTARY_ZIP_PATH"
   ditto -c -k --keepParent "$APP_DIR" "$NOTARY_ZIP_PATH"
 
-  echo "Submitting for notarization (this may take a few minutes)..."
-  xcrun notarytool submit "$NOTARY_ZIP_PATH" --keychain-profile "$NOTARIZE_PROFILE" --wait
+  if [ "$NOTARIZE_SUBMIT_ONLY" = "true" ]; then
+    echo "Submitting for notarization without waiting..."
+    SUBMISSION_OUTPUT=$(xcrun notarytool submit "$NOTARY_ZIP_PATH" --keychain-profile "$NOTARIZE_PROFILE" --output-format json)
+    SUBMISSION_ID=$(python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])' <<< "$SUBMISSION_OUTPUT")
+    printf '%s\n' "$SUBMISSION_ID" > "$NOTARY_SUBMISSION_ID_PATH"
+    cat > "$ROOT_DIR/dist/release-metadata.env" <<EOF
+VERSION=$VERSION
+RELEASE_ZIP_PATH=$RELEASE_ZIP_PATH
+NOTARY_ZIP_PATH=$NOTARY_ZIP_PATH
+SUBMISSION_ID=$SUBMISSION_ID
+EOF
+    echo "Submitted notarization: $SUBMISSION_ID"
+    echo "Notary ZIP and submission metadata are ready in dist/."
+    exit 0
+  fi
+
+  echo "Submitting for notarization (timeout: $NOTARIZE_WAIT_TIMEOUT)..."
+  xcrun notarytool submit "$NOTARY_ZIP_PATH" --keychain-profile "$NOTARIZE_PROFILE" --wait --timeout "$NOTARIZE_WAIT_TIMEOUT"
 
   echo "Stapling notarization ticket..."
   xcrun stapler staple "$APP_DIR"
