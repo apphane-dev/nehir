@@ -624,6 +624,50 @@ private func prepareIPCNiriState(
         #expect(idleRouter.handle(.toggleFocusedWindowFloating) == .notFound)
     }
 
+    @Test @MainActor func toggleFocusedWindowFloatingTargetsFocusedFloatingWindowOverNiriSelection() async throws {
+        let controller = makeLayoutPlanTestController()
+        controller.enableNiriLayout()
+        let router = makeIPCCommandRouter(for: controller)
+        let workspaceId = try #require(controller.workspaceManager.workspaceId(for: "1", createIfMissing: false))
+        let monitor = try #require(controller.workspaceManager.monitor(for: workspaceId))
+        let tiledToken = addLayoutPlanTestWindow(on: controller, workspaceId: workspaceId, windowId: 2_451)
+        let floatingToken = addLayoutPlanTestWindow(on: controller, workspaceId: workspaceId, windowId: 2_452)
+
+        _ = controller.workspaceManager.setManagedFocus(tiledToken, in: workspaceId, onMonitor: monitor.id)
+        controller.layoutRefreshController.requestImmediateRelayout(reason: .workspaceTransition)
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+        _ = controller.transitionWindowMode(for: floatingToken, to: .floating, preferredMonitor: monitor)
+        _ = controller.workspaceManager.setManagedFocus(floatingToken, in: workspaceId, onMonitor: monitor.id)
+
+        #expect(controller.managedCommandTarget()?.token == floatingToken)
+        #expect(router.handle(.toggleFocusedWindowFloating) == .executed)
+        #expect(controller.workspaceManager.entry(for: floatingToken)?.mode == .tiling)
+        #expect(controller.workspaceManager.entry(for: tiledToken)?.mode == .tiling)
+    }
+
+    @Test @MainActor func moveFocusedWindowTracksFrontmostFloatingCommandTarget() async throws {
+        let controller = makeLayoutPlanTestController()
+        controller.enableNiriLayout()
+        let router = makeIPCCommandRouter(for: controller)
+        let workspaceOne = try #require(controller.workspaceManager.workspaceId(for: "1", createIfMissing: false))
+        let workspaceTwo = try #require(controller.workspaceManager.workspaceId(for: "2", createIfMissing: false))
+        let monitor = try #require(controller.workspaceManager.monitor(for: workspaceOne))
+        let tiledToken = addLayoutPlanTestWindow(on: controller, workspaceId: workspaceOne, windowId: 2_453)
+        let floatingToken = addLayoutPlanTestWindow(on: controller, workspaceId: workspaceOne, windowId: 2_454)
+
+        _ = controller.workspaceManager.setManagedFocus(tiledToken, in: workspaceOne, onMonitor: monitor.id)
+        controller.layoutRefreshController.requestImmediateRelayout(reason: .workspaceTransition)
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+        _ = controller.transitionWindowMode(for: floatingToken, to: .floating, preferredMonitor: monitor)
+        controller.commandHandler.frontmostAppPidProvider = { floatingToken.pid }
+        controller.commandHandler.frontmostFocusedWindowTokenProvider = { floatingToken }
+
+        #expect(controller.managedCommandTarget()?.token == floatingToken)
+        #expect(router.handle(.moveToWorkspace(workspaceNumber: 2)) == .executed)
+        #expect(controller.workspaceManager.workspace(for: floatingToken) == workspaceTwo)
+        #expect(controller.workspaceManager.workspace(for: tiledToken) == workspaceOne)
+    }
+
     @Test func scratchpadToggleReturnsExecutedForPendingAsyncReveal() throws {
         let controller = makeLayoutPlanTestController()
         let router = makeIPCCommandRouter(for: controller)
