@@ -97,6 +97,8 @@ import Testing
     @Test func niriWindowMoveActionsUsePublicCommandDescriptors() throws {
         let down = try #require(ActionCatalog.spec(for: "moveWindowDown"))
         let fallback = try #require(ActionCatalog.spec(for: "moveWindowDownOrToWorkspaceDown"))
+        let consumeOrExpelLeft = try #require(ActionCatalog.spec(for: "consumeOrExpelWindowLeft"))
+        let consumeOrExpelRight = try #require(ActionCatalog.spec(for: "consumeOrExpelWindowRight"))
         let consume = try #require(ActionCatalog.spec(for: "consumeWindowIntoColumn"))
         let expel = try #require(ActionCatalog.spec(for: "expelWindowFromColumn"))
 
@@ -104,9 +106,34 @@ import Testing
         #expect(down.ipcDescriptor?.path == "command move-window-down")
         #expect(fallback.ipcCommandName == .moveWindowDownOrToWorkspaceDown)
         #expect(fallback.ipcDescriptor?.path == "command move-window-down-or-to-workspace-down")
+        #expect(consumeOrExpelLeft.ipcCommandName == .consumeOrExpelWindowLeft)
+        #expect(consumeOrExpelLeft.ipcDescriptor?.path == "command consume-or-expel-window-left")
+        #expect(consumeOrExpelRight.ipcCommandName == .consumeOrExpelWindowRight)
+        #expect(consumeOrExpelRight.ipcDescriptor?.path == "command consume-or-expel-window-right")
         #expect(consume.ipcCommandName == .consumeWindowIntoColumn)
         #expect(consume.ipcDescriptor?.path == "command consume-window-into-column")
         #expect(expel.ipcCommandName == .expelWindowFromColumn)
         #expect(expel.ipcDescriptor?.path == "command expel-window-from-column")
+    }
+
+    @Test func allCatalogActionsAreAssignableSearchableConfigurableAndPubliclyInvokable() {
+        for spec in ActionCatalog.allSpecs() {
+            #expect(HotkeySettingsDisplayModel.isVisible(bindingId: spec.id), "\(spec.id) should be visible in hotkey assignment UI")
+            #expect(HotkeyConfigMapping.configKey(forInternalId: spec.id) != nil, "\(spec.id) should have a TOML config key")
+            #expect(spec.ipcCommandName != nil, "\(spec.id) should have an IPC/CLI command")
+        }
+    }
+
+    @Test func generatedWorkspaceActionsAreCataloguedForAllAccessPaths() throws {
+        let swap = try #require(ActionCatalog.spec(for: "swapWorkspaceWithMonitor.left"))
+        let focusAnywhere = try #require(ActionCatalog.spec(for: "focusWorkspaceAnywhere.0"))
+        let moveOnMonitor = try #require(ActionCatalog.spec(for: "moveWindowToWorkspaceOnMonitor.0.left"))
+
+        #expect(swap.ipcDescriptor?.path == "command swap-workspace-with-monitor <left|right|up|down>")
+        #expect(focusAnywhere.ipcDescriptor?.path == "command switch-workspace anywhere <number>")
+        #expect(moveOnMonitor.ipcDescriptor?.path == "command move-to-workspace on-monitor <number> <left|right|up|down>")
+        #expect(HotkeyConfigMapping.configKey(forInternalId: swap.id) == "workspace.swapWithMonitorLeft")
+        #expect(HotkeyConfigMapping.configKey(forInternalId: focusAnywhere.id) == "workspace.focusAnywhere.1")
+        #expect(HotkeyConfigMapping.configKey(forInternalId: moveOnMonitor.id) == "move.windowToWorkspaceOnMonitor.1.left")
     }
 }
