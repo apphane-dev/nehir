@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+#MISE description="Wait for an existing Apple notarization submission, staple, and create release ZIP"
+set -euo pipefail
+
+ROOT_DIR="$(git rev-parse --show-toplevel)"
+APP_DIR="$ROOT_DIR/dist/Nehir.app"
+NOTARY_ZIP_PATH="${NOTARY_ZIP_PATH:-$ROOT_DIR/dist/Nehir-notary.zip}"
+SUBMISSION_ID="${NOTARY_SUBMISSION_ID:-}"
+SUBMISSION_ID_PATH="${NOTARY_SUBMISSION_ID_PATH:-$ROOT_DIR/dist/notary-submission-id.txt}"
+NOTARIZE_PROFILE="${NOTARIZE_PROFILE:-}"
+NOTARIZE_WAIT_TIMEOUT="${NOTARIZE_WAIT_TIMEOUT:-25m}"
+RELEASE_ZIP_PATH="${RELEASE_ZIP_PATH:-}"
+
+if [ -z "$NOTARIZE_PROFILE" ]; then
+  echo "NOTARIZE_PROFILE must be set" >&2
+  exit 1
+fi
+if [ -z "$SUBMISSION_ID" ]; then
+  if [ ! -f "$SUBMISSION_ID_PATH" ]; then
+    echo "Missing submission id: set NOTARY_SUBMISSION_ID or provide $SUBMISSION_ID_PATH" >&2
+    exit 1
+  fi
+  SUBMISSION_ID="$(tr -d '[:space:]' < "$SUBMISSION_ID_PATH")"
+fi
+if [ -z "$SUBMISSION_ID" ]; then
+  echo "Notary submission id is empty" >&2
+  exit 1
+fi
+if [ ! -f "$NOTARY_ZIP_PATH" ]; then
+  echo "Missing notary ZIP: $NOTARY_ZIP_PATH" >&2
+  exit 1
+fi
+
+if [ -z "$RELEASE_ZIP_PATH" ]; then
+  VERSION="${VERSION:-}"
+  if [ -z "$VERSION" ] && [ -f "$ROOT_DIR/dist/release-metadata.env" ]; then
+    VERSION="$(grep '^VERSION=' "$ROOT_DIR/dist/release-metadata.env" | cut -d= -f2-)"
+  fi
+  if [ -z "$VERSION" ]; then
+    VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$ROOT_DIR/Info.plist")"
+  fi
+  RELEASE_ZIP_PATH="$ROOT_DIR/dist/Nehir-$VERSION.zip"
+fi
+
+echo "Waiting for notarization submission $SUBMISSION_ID (timeout: $NOTARIZE_WAIT_TIMEOUT)..."
+xcrun notarytool wait "$SUBMISSION_ID" --keychain-profile "$NOTARIZE_PROFILE" --timeout "$NOTARIZE_WAIT_TIMEOUT"
+
+rm -rf "$APP_DIR"
+ditto -x -k "$NOTARY_ZIP_PATH" "$ROOT_DIR/dist"
+
+if [ ! -d "$APP_DIR" ]; then
+  echo "Expected $APP_DIR after extracting $NOTARY_ZIP_PATH" >&2
+  exit 1
+fi
+
+echo "Stapling notarization ticket..."
+xcrun stapler staple "$APP_DIR"
+
+echo "Verifying notarization..."
+spctl --assess --verbose=2 "$APP_DIR"
+
+echo "Creating release ZIP: $RELEASE_ZIP_PATH"
+rm -f "$RELEASE_ZIP_PATH"
+ditto -c -k --keepParent "$APP_DIR" "$RELEASE_ZIP_PATH"
+shasum -a 256 "$RELEASE_ZIP_PATH"
