@@ -418,22 +418,10 @@ extension NiriLayoutEngine {
 
         let nextIdx: Int
         if !column.isFullWidth, let currentIdx = column.presetWidthIdx {
-            if forwards {
-                guard currentIdx + 1 < presetCount else {
-                    traceResize(
-                        "cmd=\(commandId) compute kind=\(commandKind) source=\(ResizeWidthSource.presetCycle.rawValue) previous=\(fmt(previousWidth)) currentPreset=\(currentIdx) atBoundary=true state{\(columnWidthSnapshot(column, in: workspaceId, workingFrame: workingFrame, gaps: gaps, window: targetWindow))}"
-                    )
-                    return
-                }
-                nextIdx = currentIdx + 1
+            nextIdx = if forwards {
+                (currentIdx + 1) % presetCount
             } else {
-                guard currentIdx > 0 else {
-                    traceResize(
-                        "cmd=\(commandId) compute kind=\(commandKind) source=\(ResizeWidthSource.presetCycle.rawValue) previous=\(fmt(previousWidth)) currentPreset=\(currentIdx) atBoundary=true state{\(columnWidthSnapshot(column, in: workspaceId, workingFrame: workingFrame, gaps: gaps, window: targetWindow))}"
-                    )
-                    return
-                }
-                nextIdx = currentIdx - 1
+                (currentIdx - 1 + presetCount) % presetCount
             }
         } else {
             let currentTile: CGFloat
