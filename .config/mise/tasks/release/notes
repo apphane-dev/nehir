@@ -136,7 +136,12 @@ lines += [
     "",
     "## Notes",
     "",
-    "Nehir is distributed as a signed and notarized app. If macOS still shows a Gatekeeper warning, right-click the app and choose Open.",
+    (
+        "This is a prerelease build and is not signed or notarized. "
+        "To open it, right-click the app and choose Open, then confirm in the dialog."
+        if "-" in tag.lstrip("v")
+        else "Nehir is distributed as a signed and notarized app. If macOS still shows a Gatekeeper warning, right-click the app and choose Open."
+    ),
     "",
     "Nehir requires Accessibility permission to manage windows.",
     "",
