@@ -2160,6 +2160,73 @@ final class WMController {
         ].joined(separator: " ")
     }
 
+    private func visibleUnmanagedWindowServerDebugDump() -> String {
+        guard let windows = CGWindowListCopyWindowInfo(.optionAll, kCGNullWindowID) as? [[String: Any]] else {
+            return "unavailable"
+        }
+
+        let trackedWindowIds = Set(workspaceManager.trackedWindowIdsForDebug())
+        let visibleCandidates = windows.compactMap { info -> String? in
+            let windowId = (info[kCGWindowNumber as String] as? NSNumber)?.uint32Value
+            guard let windowId, !trackedWindowIds.contains(Int(windowId)) else { return nil }
+
+            let layer = (info[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0
+            guard layer == 0 else { return nil }
+
+            let isOnscreen = (info[kCGWindowIsOnscreen as String] as? NSNumber)?.boolValue ?? false
+            guard isOnscreen else { return nil }
+
+            guard let bounds = info[kCGWindowBounds as String] as? [String: Any],
+                  let x = (bounds["X"] as? NSNumber)?.doubleValue,
+                  let y = (bounds["Y"] as? NSNumber)?.doubleValue,
+                  let width = (bounds["Width"] as? NSNumber)?.doubleValue,
+                  let height = (bounds["Height"] as? NSNumber)?.doubleValue,
+                  width >= 80,
+                  height >= 80
+            else { return nil }
+
+            let pid = (info[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value ?? 0
+            let ownerName = info[kCGWindowOwnerName as String] as? String ?? "nil"
+            let title = info[kCGWindowName as String] as? String ?? "nil"
+            let runningApp = NSRunningApplication(processIdentifier: pid)
+            let bundleId = runningApp?.bundleIdentifier ?? "nil"
+            let activationPolicy = runningApp.map { String(describing: $0.activationPolicy) } ?? "nil"
+            let axSummary = visibleUnmanagedWindowAXDebugSummary(pid: pid, windowId: windowId)
+            return "windowId=\(windowId) pid=\(pid) owner=\(ownerName) bundleId=\(bundleId) title=\(title) frame={{\(x), \(y)}, {\(width), \(height)}} activationPolicy=\(activationPolicy) \(axSummary)"
+        }
+
+        return visibleCandidates.isEmpty ? "none" : visibleCandidates.joined(separator: "\n")
+    }
+
+    private func visibleUnmanagedWindowAXDebugSummary(pid: pid_t, windowId: UInt32) -> String {
+        let appElement = AXUIElementCreateApplication(pid)
+
+        var attributeNames: CFArray?
+        let namesResult = AXUIElementCopyAttributeNames(appElement, &attributeNames)
+
+        var windowsValue: CFTypeRef?
+        let windowsResult = AXUIElementCopyAttributeValue(
+            appElement,
+            kAXWindowsAttribute as CFString,
+            &windowsValue
+        )
+
+        let axWindowIds: [Int]
+        if windowsResult == .success, let elements = windowsValue as? [AXUIElement] {
+            axWindowIds = elements.compactMap { element in
+                var axWindowId: CGWindowID = 0
+                guard _AXUIElementGetWindow(element, &axWindowId) == .success else { return nil }
+                return Int(axWindowId)
+            }
+        } else {
+            axWindowIds = []
+        }
+
+        let axContainsWindow = axWindowIds.contains(Int(windowId))
+        let axAttributeCount = (attributeNames as? [Any])?.count ?? 0
+        return "axAppAttributeNamesResult=\(namesResult.rawValue) axAppAttributeCount=\(axAttributeCount) axWindowsResult=\(windowsResult.rawValue) axWindowsCount=\(axWindowIds.count) axContainsWindow=\(axContainsWindow)"
+    }
+
     func runtimeStateDebugDump(
         traceLimit: Int = 50,
         traceCaptureStatusOverride: RuntimeTraceCaptureStatus? = nil
@@ -2188,6 +2255,8 @@ final class WMController {
             "lastAppliedFrames=\(axSnapshot.lastAppliedFrameCount) pendingFrameWrites=\(axSnapshot.pendingFrameWriteCount) recentFailures=\(axSnapshot.recentFrameWriteFailureCount) retryBudget=\(axSnapshot.retryBudgetCount) forceApply=\(axSnapshot.forceApplyWindowIdCount) pendingObservers=\(axSnapshot.pendingFrameObserverCount) observerRequests=\(axSnapshot.observerRequestIdCount) rekeyedWindowIds=\(axSnapshot.rekeyedWindowIdCount) inactiveWorkspaceWindowIds=\(axSnapshot.inactiveWorkspaceWindowIdCount)",
             "-- Managed Windows --",
             workspaceManager.runtimeWindowDebugDump(),
+            "-- Visible Unmanaged WindowServer Windows --",
+            visibleUnmanagedWindowServerDebugDump(),
             "-- AX Window State --",
             axManager.windowStateDebugDump(windowIds: workspaceManager.trackedWindowIdsForDebug()),
             "-- Niri Viewports --",
