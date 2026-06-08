@@ -48,14 +48,11 @@ jobs:
       - name: Plan release from changesets
         id: version
         env:
+          PRERELEASE: ${{ inputs.prerelease }}
           PRERELEASE_SUFFIX: ${{ inputs.prerelease_suffix }}
         shell: bash
         run: |
           set -euo pipefail
-          if [ "${{ inputs.prerelease }}" = "true" ] && [ -z "${PRERELEASE_SUFFIX}" ]; then
-            echo "prerelease_suffix is required when prerelease=true, for example rc.1 or beta.1" >&2
-            exit 1
-          fi
           if [ "${{ inputs.prerelease }}" != "true" ] && [ -n "${PRERELEASE_SUFFIX}" ]; then
             echo "prerelease_suffix requires prerelease=true" >&2
             exit 1

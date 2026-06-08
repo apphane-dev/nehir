@@ -89,12 +89,29 @@ elif bump == "minor":
 elif bump == "patch":
     patch += 1
 base_version = f"{major}.{minor}.{patch}"
+prerelease = os.environ.get("PRERELEASE", "").strip().lower() == "true"
 prerelease_suffix = os.environ.get("PRERELEASE_SUFFIX", "").strip()
-if prerelease_suffix:
+if prerelease:
+    if not prerelease_suffix:
+        result = subprocess.run(
+            ["git", "tag", "--list", f"v{base_version}-rc.*"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        latest_rc = 0
+        rc_pattern = re.compile(rf"^v{re.escape(base_version)}-rc\.(\d+)$")
+        for line in result.stdout.splitlines():
+            match = rc_pattern.match(line.strip())
+            if match:
+                latest_rc = max(latest_rc, int(match.group(1)))
+        prerelease_suffix = f"rc.{latest_rc + 1}"
     if not re.fullmatch(r"[0-9A-Za-z][0-9A-Za-z.-]*", prerelease_suffix):
         raise SystemExit(f"Invalid prerelease suffix: {prerelease_suffix}")
     version = f"{base_version}-{prerelease_suffix}"
 else:
+    if prerelease_suffix:
+        raise SystemExit("PRERELEASE_SUFFIX requires PRERELEASE=true")
     version = base_version
 tag = f"v{version}"
 notes = f"docs/releases/{tag}.md"

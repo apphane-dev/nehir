@@ -97,9 +97,9 @@ To publish a GitHub prerelease and update `nehir@rc`:
 1. Open `Guria/nehir` → **Actions** → **Release**.
 2. Click **Run workflow** on `main`.
 3. Enable `prerelease`.
-4. Set `prerelease_suffix`, for example `rc.1` or `beta.1`.
+4. Optionally set `prerelease_suffix`, for example `rc.1` or `beta.1`. If omitted, the workflow uses the next available `rc.N` suffix for the calculated base version.
 
-The workflow tags the release as `vX.Y.Z-<suffix>`, creates `dist/Nehir-X.Y.Z-<suffix>.zip`, marks the GitHub Release as a prerelease with notes showing only changes since the last RC, and updates `Guria/homebrew-tap/Casks/nehir@rc.rb`. It skips changeset cleanup so the same pending changesets remain available for the next stable release.
+The workflow tags the release as `vX.Y.Z-<suffix>` (for example `vX.Y.Z-rc.1` when the suffix is auto-selected), creates `dist/Nehir-X.Y.Z-<suffix>.zip`, marks the GitHub Release as a prerelease with notes showing only changes since the last RC, and updates `Guria/homebrew-tap/Casks/nehir@rc.rb`. It skips changeset cleanup so the same pending changesets remain available for the next stable release.
 
 ## Mise file tasks
 
@@ -107,10 +107,22 @@ Release helper commands are exposed as mise file tasks under `.config/mise/tasks
 
 ## Useful local checks
 
-Preview the calculated next release:
+Preview the calculated next stable release:
 
 ```bash
 mise run release:plan
+```
+
+Preview the calculated next prerelease with an auto-selected `rc.N` suffix:
+
+```bash
+PRERELEASE=true mise run release:plan
+```
+
+Preview a prerelease with an explicit suffix:
+
+```bash
+PRERELEASE=true PRERELEASE_SUFFIX=beta.1 mise run release:plan
 ```
 
 Create a changeset:
