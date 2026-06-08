@@ -102,7 +102,7 @@ To publish a GitHub prerelease and update `nehir@rc`:
 3. Enable `prerelease`.
 4. Optionally set `prerelease_suffix`, for example `rc.1` or `beta.1`. If omitted, the workflow uses the next available `rc.N` suffix for the calculated base version.
 
-The workflow tags the release as `vX.Y.Z-<suffix>` (for example `vX.Y.Z-rc.1` when the suffix is auto-selected), creates `dist/Nehir-X.Y.Z-<suffix>.zip`, marks the GitHub Release as a prerelease with notes showing only changes since the last RC, and updates `Guria/homebrew-tap/Casks/nehir@rc.rb`. It skips changeset cleanup so the same pending changesets remain available for the next stable release.
+The workflow tags the release as `vX.Y.Z-<suffix>` (for example `vX.Y.Z-rc.1` when the suffix is auto-selected), creates `dist/Nehir-X.Y.Z-<suffix>.zip`, marks the GitHub Release as a prerelease with notes showing only changes since the last RC, and updates `Guria/homebrew-tap/Casks/nehir@rc.rb`. Prerelease builds are ad-hoc signed and skip Apple Developer ID notarization for now. It skips changeset cleanup so the same pending changesets remain available for the next stable release.
 
 ## Mise file tasks
 

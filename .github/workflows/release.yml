@@ -92,6 +92,7 @@ jobs:
           mise run release:apply -- "${ARGS[@]}"
 
       - name: Import Apple Developer ID certificate
+        if: ${{ !inputs.prerelease }}
         env:
           CERT_P12_BASE64: ${{ secrets.APPLE_DEVELOPER_ID_CERT_P12_BASE64 }}
           CERT_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_CERT_PASSWORD }}
@@ -128,6 +129,7 @@ jobs:
           security find-identity -v -p codesigning "$KEYCHAIN_PATH"
 
       - name: Configure Apple notarization credentials
+        if: ${{ !inputs.prerelease }}
         env:
           APPLE_NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
           APPLE_NOTARY_ISSUER_ID: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
@@ -153,7 +155,7 @@ jobs:
             --issuer "$APPLE_NOTARY_ISSUER_ID"
 
       - name: Build signed app and submit notarization
-        if: ${{ inputs.resume_notary_run_id == '' }}
+        if: ${{ !inputs.prerelease && inputs.resume_notary_run_id == '' }}
         env:
           RELEASE_ZIP_PATH: ${{ github.workspace }}/${{ steps.version.outputs.zip }}
           SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
@@ -161,8 +163,14 @@ jobs:
           NOTARIZE_SUBMIT_ONLY: true
         run: mise run package:release -- true
 
+      - name: Build prerelease app without notarization
+        if: ${{ inputs.prerelease }}
+        env:
+          RELEASE_ZIP_PATH: ${{ github.workspace }}/${{ steps.version.outputs.zip }}
+        run: mise run package:release -- false
+
       - name: Upload notarization resume artifact
-        if: ${{ inputs.resume_notary_run_id == '' }}
+        if: ${{ !inputs.prerelease && inputs.resume_notary_run_id == '' }}
         uses: actions/upload-artifact@v4
         with:
           name: nehir-notary-${{ steps.version.outputs.version }}
@@ -173,7 +181,7 @@ jobs:
           retention-days: 7
 
       - name: Download notarization resume artifact
-        if: ${{ inputs.resume_notary_run_id != '' }}
+        if: ${{ !inputs.prerelease && inputs.resume_notary_run_id != '' }}
         uses: actions/download-artifact@v4
         with:
           name: nehir-notary-${{ steps.version.outputs.version }}
@@ -182,6 +190,7 @@ jobs:
           github-token: ${{ github.token }}
 
       - name: Wait for notarization, staple, and create release ZIP
+        if: ${{ !inputs.prerelease }}
         env:
           RELEASE_ZIP_PATH: ${{ github.workspace }}/${{ steps.version.outputs.zip }}
           NOTARIZE_PROFILE: nehir-notary
