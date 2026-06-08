@@ -38,6 +38,6 @@ CI checks that source/user-visible changes include a `.changeset/*.md` file. If 
 
 Normal releases are automated through GitHub Actions. Do not manually bump `Info.plist`, create release notes, tag a version, or update the Homebrew tap for a standard release.
 
-Release maintainers run the `Release` workflow manually on `main`. The workflow calculates the next version from pending changesets, updates `Info.plist`, generates `docs/releases/vX.Y.Z.md`, creates the tag and GitHub Release, updates the Homebrew tap, and clears consumed changesets after publishing succeeds.
+Release maintainers run the `Release` workflow manually on `main`. The workflow calculates the next version from the latest stable tag plus pending changesets, stamps `Info.plist` and generated release notes in the workflow workspace only, creates the tag and GitHub Release after the signed/notarized build succeeds, updates the Homebrew tap, and clears consumed changesets after publishing succeeds.
 
 See [docs/HOMEBREW.md](docs/HOMEBREW.md) for the full release setup and flow.

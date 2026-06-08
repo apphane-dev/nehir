@@ -89,33 +89,6 @@ jobs:
           fi
           mise run release:apply -- "${ARGS[@]}"
 
-      - name: Commit release prep
-        if: ${{ !inputs.prerelease }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add Info.plist "${{ steps.version.outputs.notes }}"
-          if git diff --cached --quiet; then
-            echo "Release prep already committed."
-          else
-            git commit -m "Prepare release ${{ steps.version.outputs.version }}"
-            git push origin main
-          fi
-
-      - name: Create release tag
-        shell: bash
-        run: |
-          set -euo pipefail
-          TAG="${{ steps.version.outputs.tag }}"
-          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
-            echo "Tag already exists: $TAG" >&2
-            exit 1
-          fi
-          git tag "$TAG"
-          git push origin "$TAG"
-
       - name: Import Apple Developer ID certificate
         env:
           CERT_P12_BASE64: ${{ secrets.APPLE_DEVELOPER_ID_CERT_P12_BASE64 }}
@@ -166,6 +139,11 @@ jobs:
           printf '%s\n' "$APPLE_NOTARY_KEY_P8" > "$NOTARY_KEY_PATH"
           # Sanity check
           head -1 "$NOTARY_KEY_PATH" | grep -q 'BEGIN PRIVATE KEY' || { echo "APPLE_NOTARY_KEY_P8 secret does not start with BEGIN PRIVATE KEY"; exit 1; }
+          tail -1 "$NOTARY_KEY_PATH" | grep -q 'END PRIVATE KEY' || { echo "APPLE_NOTARY_KEY_P8 secret does not end with END PRIVATE KEY; check for literal \\n sequences or truncated paste"; exit 1; }
+          if grep -q '\\n' "$NOTARY_KEY_PATH"; then
+            echo "APPLE_NOTARY_KEY_P8 contains literal \\n sequences. Copy the raw .p8 file contents instead: pbcopy < AuthKey_XXXX.p8" >&2
+            exit 1
+          fi
 
           xcrun notarytool store-credentials nehir-notary \
             --key "$NOTARY_KEY_PATH" \
@@ -178,6 +156,18 @@ jobs:
           SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           NOTARIZE_PROFILE: nehir-notary
         run: mise run package:release -- true
+
+      - name: Create release tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.version.outputs.tag }}"
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "Tag already exists: $TAG" >&2
+            exit 1
+          fi
+          git tag "$TAG"
+          git push origin "$TAG"
 
       - name: Compute SHA-256
         id: checksum
@@ -286,6 +276,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # release:apply stamps Info.plist and generates notes in the working tree for
+          # this run only. Do not commit those generated release-prep files.
+          git reset --hard HEAD
+          rm -f "${{ steps.version.outputs.notes }}"
+
           git checkout main
           git pull --ff-only origin main
 

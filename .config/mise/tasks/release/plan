@@ -49,14 +49,34 @@ for path in files:
 if max_bump == 0:
     raise SystemExit("Only 'none' changesets found; refusing to create a versioned release")
 
-with (root / "Info.plist").open("rb") as plist_file:
-    plist = plistlib.load(plist_file)
-current = plist.get("CFBundleShortVersionString")
-if not isinstance(current, str):
-    raise SystemExit("Info.plist CFBundleShortVersionString is missing or invalid")
+def latest_stable_tag_version():
+    result = subprocess.run(
+        ["git", "tag", "--list", "v[0-9]*.[0-9]*.[0-9]*", "--sort=-version:refname"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    for line in result.stdout.splitlines():
+        tag = line.strip()
+        if not tag or "-" in tag:
+            continue
+        version = tag.removeprefix("v")
+        parts = version.split(".")
+        if len(parts) == 3 and all(part.isdigit() for part in parts):
+            return version
+    return None
+
+current = latest_stable_tag_version()
+if current is None:
+    with (root / "Info.plist").open("rb") as plist_file:
+        plist = plistlib.load(plist_file)
+    current = plist.get("CFBundleShortVersionString")
+    if not isinstance(current, str):
+        raise SystemExit("Info.plist CFBundleShortVersionString is missing or invalid and no stable release tag exists")
+
 parts = current.split(".")
 if len(parts) != 3 or not all(part.isdigit() for part in parts):
-    raise SystemExit(f"Unsupported version format: {current}")
+    raise SystemExit(f"Unsupported base version format: {current}")
 major, minor, patch = map(int, parts)
 bump = reverse[max_bump]
 if bump == "major":

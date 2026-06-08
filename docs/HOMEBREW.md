@@ -69,19 +69,18 @@ Instead:
 The workflow will:
 
 1. Read pending `.changeset/*.md` files.
-2. Calculate the next app version from the highest bump type and current `Info.plist` version.
-3. Update `CFBundleShortVersionString` in `Info.plist`.
-4. Generate `docs/releases/vX.Y.Z.md`.
-5. Commit release prep back to `main`.
-6. Create tag `vX.Y.Z` on the release-prep commit.
-7. Build `dist/Nehir-X.Y.Z.zip`.
-8. Create the GitHub Release using the generated release notes.
-9. Compute the release ZIP SHA-256.
-10. Update `Guria/homebrew-tap/Casks/nehir.rb` with the new version and checksum.
-11. Commit and push the tap update.
-12. Clear consumed pending changesets from `main` after publishing succeeds.
+2. Calculate the next app version from the latest stable semantic version tag and the highest pending bump type, falling back to `Info.plist` only when no stable tag exists.
+3. Stamp `CFBundleShortVersionString` in the workflow working tree only.
+4. Generate `docs/releases/vX.Y.Z.md` in the workflow working tree only.
+5. Build, sign, and notarize `dist/Nehir-X.Y.Z.zip`.
+6. Create tag `vX.Y.Z` on the source commit after the signed/notarized build succeeds.
+7. Create the GitHub Release using the generated release notes.
+8. Compute the release ZIP SHA-256.
+9. Update `Guria/homebrew-tap/Casks/nehir.rb` with the new version and checksum.
+10. Commit and push the tap update.
+11. Clear consumed pending changesets from `main` after publishing succeeds.
 
-If any publishing step fails before changeset cleanup, pending changesets remain in `.changeset/` so the release can be retried safely.
+If any publishing step fails before changeset cleanup, pending changesets remain in `.changeset/` so the release can be retried safely. Release tags are created only after the signed and notarized build succeeds. `Info.plist` and generated release notes are not committed during release prep; they are stamped in the workflow workspace only, so failed runs do not advance the source version.
 
 ## Prereleases
 
@@ -98,7 +97,7 @@ To publish a GitHub prerelease and update `nehir@rc`:
 3. Enable `prerelease`.
 4. Set `prerelease_suffix`, for example `rc.1` or `beta.1`.
 
-The workflow tags the release as `vX.Y.Z-<suffix>`, creates `dist/Nehir-X.Y.Z-<suffix>.zip`, marks the GitHub Release as a prerelease with notes showing only changes since the last RC, and updates `Guria/homebrew-tap/Casks/nehir@rc.rb`. It skips committing release prep and changeset cleanup so the same pending changesets remain available for the next stable release.
+The workflow tags the release as `vX.Y.Z-<suffix>`, creates `dist/Nehir-X.Y.Z-<suffix>.zip`, marks the GitHub Release as a prerelease with notes showing only changes since the last RC, and updates `Guria/homebrew-tap/Casks/nehir@rc.rb`. It skips changeset cleanup so the same pending changesets remain available for the next stable release.
 
 ## Mise file tasks
 
