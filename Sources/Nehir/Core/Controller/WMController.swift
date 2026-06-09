@@ -1948,7 +1948,8 @@ final class WMController {
 
     func recordRuntimeViewportTrace(
         workspaceId: WorkspaceDescriptor.ID,
-        reason: String
+        reason: String,
+        details: [String] = []
     ) {
         guard runtimeTraceCaptureSession != nil else { return }
         guard let engine = niriEngine else { return }
@@ -1972,11 +1973,12 @@ final class WMController {
             gap: gap
         )
 
-        let line = [
+        let line = ([
             Date().ISO8601Format(),
             "workspace=\(workspaceName)",
             "id=\(workspaceId.uuidString)",
-            "reason=\(reason)",
+            "reason=\(reason)"
+        ] + details + [
             "columns=\(columns.count)",
             "activeColumnIndex=\(state.activeColumnIndex)",
             String(format: "currentOffset=%.1f", state.viewOffsetPixels.current()),
@@ -1990,7 +1992,7 @@ final class WMController {
             "confirmedFocus=\(confirmedFocus)",
             "resizeCommandSeq=\(engine.resizeCommandGeneration)",
             "layout=\(layoutDecisions)"
-        ]
+        ])
         .joined(separator: " ")
 
         runtimeViewportTraceRecords.append(line)
