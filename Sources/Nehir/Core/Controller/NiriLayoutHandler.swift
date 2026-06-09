@@ -1489,8 +1489,9 @@ enum NiriWindowMoveResult {
     ) {
         guard let controller, let engine = controller.niriEngine else { return }
 
+        let allowsSelectionOffscreen = options.preserveViewportAnchor && !options.ensureVisible
         state.selectedNodeId = node.id
-        state.allowsSelectionOffscreen = false
+        state.allowsSelectionOffscreen = allowsSelectionOffscreen
         if !options.ensureVisible, !options.preserveViewportAnchor {
             rebaseViewportAnchor(to: node, in: workspaceId, state: &state)
         }
@@ -1519,6 +1520,11 @@ enum NiriWindowMoveResult {
             in: workspaceId,
             onMonitor: controller.workspaceManager.monitorId(for: workspaceId)
         )
+        if allowsSelectionOffscreen {
+            controller.workspaceManager.withNiriViewportState(for: workspaceId) {
+                $0.allowsSelectionOffscreen = true
+            }
+        }
 
         if let windowNode = node as? NiriWindow {
             if options.updateTimestamp {

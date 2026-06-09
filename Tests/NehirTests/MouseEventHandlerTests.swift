@@ -2697,8 +2697,10 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
         #expect(controller.workspaceManager.focusedHandle == firstHandle)
         #expect(controller.workspaceManager.pendingFocusedHandle == secondHandle)
         #expect(updatedState.selectedNodeId == secondNode.id)
-        #expect(updatedState.activeColumnIndex == secondColumnIndex)
+        #expect(secondColumnIndex != initialState.activeColumnIndex)
+        #expect(updatedState.activeColumnIndex == initialState.activeColumnIndex)
         #expect(updatedState.viewOffsetPixels.target() == initialState.viewOffsetPixels.target())
+        #expect(updatedState.allowsSelectionOffscreen)
         #expect(controller.niriLayoutHandler.scrollAnimationByDisplay[monitor.displayId] == nil)
     }
 
