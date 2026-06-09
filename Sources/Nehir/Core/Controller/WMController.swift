@@ -1590,9 +1590,7 @@ final class WMController {
         axManager.cancelPendingFrameJobs(frameEntry)
         axManager.unsuppressFrameWrites(frameEntry)
         AXWindowService.unpinAXElement(for: UInt32(token.windowId))
-        if workspaceManager.clearScratchpadIfMatches(token) {
-            requestWorkspaceProjectionRefresh()
-        }
+        _ = workspaceManager.clearScratchpadIfMatches(token)
     }
 
     func cleanupScratchpadWindowResourcesIfNeeded(for token: WindowToken) {
@@ -1629,7 +1627,6 @@ final class WMController {
             side: preferredSide,
             reason: .scratchpad
         )
-        requestWorkspaceProjectionRefresh()
         recoverFocusAfterScratchpadHide(
             in: entry.workspaceId,
             excluding: entry.token,
@@ -2868,9 +2865,7 @@ final class WMController {
             return .notFound
         }
 
-        if workspaceManager.setScratchpadToken(token) {
-            requestWorkspaceProjectionRefresh()
-        }
+        _ = workspaceManager.setScratchpadToken(token)
 
         guard let updatedEntry = workspaceManager.entry(for: token),
               let hideMonitor = workspaceManager.monitor(for: updatedEntry.workspaceId) ?? preferredMonitor
