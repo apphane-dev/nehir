@@ -392,7 +392,7 @@ private func waitUntilAXEventTest(
         await controller.waitForWorkspaceBarRefreshForTests()
         await waitUntilAXEventTest { relayoutReasons == [.windowRuleReevaluation] }
 
-        #expect(controller.workspaceBarRefreshDebugState.requestCount == 1)
+        #expect(controller.workspaceBarRefreshDebugState.requestCount == 2)
         #expect(relayoutReasons == [.windowRuleReevaluation])
         #expect(controller.workspaceManager.entry(forPid: getpid(), windowId: 812)?.mode == .floating)
         #expect(controller.workspaceManager.entry(forPid: getpid(), windowId: 812)?.workspaceId == sourceWorkspaceId)

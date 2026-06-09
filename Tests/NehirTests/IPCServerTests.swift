@@ -1111,6 +1111,8 @@ private func makeTestFocusEvent(id: String, title: String) -> IPCEventEnvelope {
             windowId: 1401,
             to: workspaceId
         )
+        await controller.waitForWorkspaceBarRefreshForTests()
+        controller.resetWorkspaceBarRefreshDebugStateForTests()
 
         let server = IPCServer(
             controller: controller,
@@ -1192,6 +1194,8 @@ private func makeTestFocusEvent(id: String, title: String) -> IPCEventEnvelope {
             windowId: 1501,
             to: workspaceId
         )
+        await controller.waitForWorkspaceBarRefreshForTests()
+        controller.resetWorkspaceBarRefreshDebugStateForTests()
 
         let server = IPCServer(
             controller: controller,

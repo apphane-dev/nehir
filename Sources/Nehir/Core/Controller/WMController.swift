@@ -228,6 +228,9 @@ final class WMController {
         workspaceManager.onSessionStateChanged = { [weak self] in
             self?.handleSessionStateChanged()
         }
+        workspaceManager.onProjectionInvalidated = { [weak self] invalidation in
+            self?.requestProjectionRefresh(invalidation)
+        }
         focusPolicyEngine.onLeaseChanged = { [weak self] lease in
             self?.workspaceManager.recordReconcileEvent(
                 .focusLeaseChanged(

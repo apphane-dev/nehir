@@ -223,6 +223,11 @@ final class WorkspaceManager {
 
     var onGapsChanged: (() -> Void)?
     var onSessionStateChanged: (() -> Void)?
+    var onProjectionInvalidated: ((ProjectionInvalidationRequest) -> Void)?
+
+    private func invalidateWorkspaceProjection(reason: String) {
+        onProjectionInvalidated?(.init(.workspaceProjection, reason: reason))
+    }
 
     init(settings: SettingsStore) {
         self.settings = settings
@@ -2441,6 +2446,7 @@ final class WorkspaceManager {
                 source: .workspaceManager
             )
         )
+        invalidateWorkspaceProjection(reason: "windowAdded")
         return token
     }
 
@@ -2497,6 +2503,7 @@ final class WorkspaceManager {
             notifySessionStateChanged()
         }
 
+        invalidateWorkspaceProjection(reason: "windowRekeyed")
         return entry
     }
 
@@ -2857,6 +2864,7 @@ final class WorkspaceManager {
         _ = removeNativeFullscreenRecord(containing: entry.token)
         handleWindowRemoved(entry.token, in: entry.workspaceId)
         _ = windows.removeWindow(key: entry.token)
+        invalidateWorkspaceProjection(reason: "windowRemoved")
         return entry
     }
 
@@ -2880,6 +2888,9 @@ final class WorkspaceManager {
                 source: .workspaceManager
             )
         )
+        if previousWorkspace != workspace {
+            invalidateWorkspaceProjection(reason: "workspaceAssignmentChanged")
+        }
     }
 
     func workspace(for token: WindowToken) -> WorkspaceDescriptor.ID? {
@@ -2891,6 +2902,7 @@ final class WorkspaceManager {
     }
 
     func setHiddenState(_ state: WindowModel.HiddenState?, for token: WindowToken) {
+        let previousState = windows.hiddenState(for: token)
         windows.setHiddenState(state, for: token)
         if let workspaceId = workspace(for: token) {
             recordReconcileEvent(
@@ -2902,6 +2914,9 @@ final class WorkspaceManager {
                     source: .workspaceManager
                 )
             )
+        }
+        if previousState != state {
+            invalidateWorkspaceProjection(reason: "hiddenStateChanged")
         }
     }
 
@@ -2918,6 +2933,7 @@ final class WorkspaceManager {
     }
 
     func setLayoutReason(_ reason: LayoutReason, for token: WindowToken) {
+        let previousReason = windows.layoutReason(for: token)
         windows.setLayoutReason(reason, for: token)
         guard let workspaceId = workspace(for: token) else { return }
         switch reason {
@@ -2942,6 +2958,9 @@ final class WorkspaceManager {
                     source: .workspaceManager
                 )
             )
+        }
+        if previousReason != reason {
+            invalidateWorkspaceProjection(reason: "layoutReasonChanged")
         }
     }
 

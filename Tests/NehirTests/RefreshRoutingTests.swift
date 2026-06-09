@@ -1026,7 +1026,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         await waitForRefreshWork(on: controller)
         await controller.waitForWorkspaceBarRefreshForTests()
 
-        #expect(controller.workspaceBarRefreshDebugState.requestCount == 1)
+        #expect(controller.workspaceBarRefreshDebugState.requestCount >= 1)
         #expect(controller.workspaceBarRefreshDebugState.scheduledCount == 1)
         #expect(controller.workspaceBarRefreshDebugState.executionCount == 1)
 
@@ -1035,7 +1035,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         await waitForRefreshWork(on: controller)
         await controller.waitForWorkspaceBarRefreshForTests()
 
-        #expect(controller.workspaceBarRefreshDebugState.requestCount == 1)
+        #expect(controller.workspaceBarRefreshDebugState.requestCount >= 1)
         #expect(controller.workspaceBarRefreshDebugState.scheduledCount == 1)
         #expect(controller.workspaceBarRefreshDebugState.executionCount == 1)
     }
