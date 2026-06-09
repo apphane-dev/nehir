@@ -86,6 +86,7 @@ enum NiriWindowMoveResult {
         let windowAnimationsRunning = engine.tickAllWindowAnimations(in: wsId, at: targetTime)
         let columnAnimationsRunning = engine.tickAllColumnAnimations(in: wsId, at: targetTime)
 
+        var didFinishAnimations = false
         controller.workspaceManager.withNiriViewportState(for: wsId) { state in
             let viewportAnimationRunning = state.advanceAnimations(at: targetTime)
 
@@ -109,17 +110,20 @@ enum NiriWindowMoveResult {
                 || windowAnimationsRunning
                 || columnAnimationsRunning
 
-            if !animationsOngoing {
-                self.finalizeAnimation()
-                var activeIds = Set<WorkspaceDescriptor.ID>()
-                for mon in controller.workspaceManager.monitors {
-                    if let ws = controller.workspaceManager.activeWorkspaceOrFirst(on: mon.id) {
-                        activeIds.insert(ws.id)
-                    }
+            didFinishAnimations = !animationsOngoing
+        }
+
+        if didFinishAnimations {
+            finalizeAnimation()
+            var activeIds = Set<WorkspaceDescriptor.ID>()
+            for mon in controller.workspaceManager.monitors {
+                if let ws = controller.workspaceManager.activeWorkspaceOrFirst(on: mon.id) {
+                    activeIds.insert(ws.id)
                 }
-                controller.layoutRefreshController.hideInactiveWorkspaces(activeWorkspaceIds: activeIds)
-                controller.layoutRefreshController.stopScrollAnimation(for: displayId)
             }
+            controller.layoutRefreshController.hideInactiveWorkspaces(activeWorkspaceIds: activeIds)
+            controller.layoutRefreshController.stopScrollAnimation(for: displayId)
+            controller.mouseEventHandler.refreshFocusFollowsMouseAtCurrentPointer()
         }
     }
 
@@ -178,7 +182,8 @@ enum NiriWindowMoveResult {
 
         if controller.moveMouseToFocusedWindowEnabled,
            controller.workspaceManager.activeFocusRequestToken == nil,
-           let token = controller.workspaceManager.confirmedManagedFocusToken
+           let token = controller.workspaceManager.confirmedManagedFocusToken,
+           !controller.shouldSuppressMouseMoveToFocusedWindow(for: token)
         {
             controller.moveMouseToWindow(token, preferredFrame: controller.preferredKeyboardFocusFrame(for: token))
         }
@@ -1052,6 +1057,7 @@ enum NiriWindowMoveResult {
         engine.updateTabbedColumnVisibility(column: column)
 
         let target = windows[storageIndex]
+        controller.suppressMouseMoveToFocusedWindow(for: target.token)
         var state = controller.workspaceManager.niriViewportState(for: workspaceId)
         if let monitor = controller.workspaceManager.monitor(for: workspaceId) {
             let gap = CGFloat(controller.workspaceManager.gaps)

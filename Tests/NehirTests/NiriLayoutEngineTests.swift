@@ -3614,6 +3614,7 @@ private func makeCenteredCrossMonitorFixture(
         #expect(fixture.column.activeTileIdx == 2)
         #expect(fixture.column.activeVisualTileIdx == 0)
         #expect(fixture.column.activeWindow?.token == fixture.topToken)
+        #expect(fixture.controller.shouldSuppressMouseMoveToFocusedWindow(for: fixture.topToken))
         #expect(fixture.controller.workspaceManager.niriViewportState(for: fixture.workspaceId)
             .selectedNodeId == fixture.topWindow.id)
         #expect(!fixture.topWindow.isHiddenInTabbedMode)

@@ -182,6 +182,7 @@ final class MouseEventHandler {
 
         var lastFocusFollowsMouseTime: Date = .distantPast
         var lastFocusFollowsMouseToken: WindowToken?
+        var suppressFocusFollowsMouseUntil: Date = .distantPast
         let focusFollowsMouseDebounce: TimeInterval = 0.1
         var dragGhostController: DragGhostController?
         var moveIsInsertMode: Bool = false
@@ -204,6 +205,7 @@ final class MouseEventHandler {
     weak var controller: WMController?
     var state = State()
     var pressedMouseButtonsProvider: @MainActor () -> Int = { Int(NSEvent.pressedMouseButtons) }
+    var mouseLocationProvider: @MainActor () -> CGPoint = { NSEvent.mouseLocation }
 
     init(controller: WMController) {
         self.controller = controller
@@ -317,6 +319,15 @@ final class MouseEventHandler {
             return
         }
         handleMouseMovedFromTap(at: location)
+    }
+
+    func refreshFocusFollowsMouseAtCurrentPointer() {
+        guard !isInputSuppressed else { return }
+        handleMouseMovedFromTap(at: mouseLocationProvider())
+    }
+
+    func resetFocusFollowsMouseTimeForTesting() {
+        state.lastFocusFollowsMouseTime = .distantPast
     }
 
     @discardableResult
@@ -737,6 +748,7 @@ final class MouseEventHandler {
 
     private func shouldHandleFocusFollowsMouse(at location: CGPoint) -> Bool {
         guard !state.isResizing, !isViewportGestureActive else { return false }
+        guard Date() >= state.suppressFocusFollowsMouseUntil else { return false }
         guard let controller else { return false }
         guard let monitor = location.monitorApproximation(in: controller.workspaceManager.monitors),
               let workspace = controller.workspaceManager.activeWorkspaceOrFirst(on: monitor.id)
@@ -758,6 +770,9 @@ final class MouseEventHandler {
         if shouldBlockOwnWindowInput(at: location) {
             return false
         }
+
+        markRecentFloatingPointerInteractionIfNeeded(at: location)
+        suppressMouseMoveToFocusedWindowForPointerTarget(at: location)
 
         guard let engine = controller.niriEngine,
               let wsId = workspaceIdForPointer(at: location) ?? controller.interactionWorkspace()?.id
@@ -869,6 +884,9 @@ final class MouseEventHandler {
         guard let controller else { return }
         guard controller.isEnabled else { return }
         if controller.isOverviewOpen() { return }
+        if button == .left {
+            markRecentFloatingPointerInteractionIfNeeded(at: location)
+        }
         if requirePressedButtonCheck {
             guard pressedMouseButtonsProvider() & button.pressedMask != 0 else { return }
         }
@@ -943,6 +961,9 @@ final class MouseEventHandler {
     private func handleMouseUpFromTap(at location: CGPoint, button: MouseButton) {
         guard let controller else { return }
         if controller.isOverviewOpen() { return }
+        if button == .left {
+            markRecentFloatingPointerInteractionIfNeeded(at: location)
+        }
 
         if state.isMoving {
             guard shouldAcceptInteractionButton(button) else { return }
@@ -1077,18 +1098,28 @@ final class MouseEventHandler {
         guard let target = resolveFocusFollowsMouseTarget(at: location) else { return }
         let token = focusFollowsMouseToken(for: target)
 
-        if token != state.lastFocusFollowsMouseToken,
-           token != controller.workspaceManager.confirmedManagedFocusToken
+        guard token != controller.workspaceManager.confirmedManagedFocusToken else { return }
+        if token == state.lastFocusFollowsMouseToken,
+           token == controller.workspaceManager.activeFocusRequestToken
         {
-            state.lastFocusFollowsMouseTime = now
-            state.lastFocusFollowsMouseToken = token
-            activateFocusFollowsMouseTarget(target)
+            return
         }
+
+        state.lastFocusFollowsMouseTime = now
+        state.lastFocusFollowsMouseToken = token
+        activateFocusFollowsMouseTarget(target)
     }
 
     private func resolveFocusFollowsMouseTarget(at location: CGPoint) -> FocusFollowsMouseTarget? {
         guard let controller else { return nil }
         guard let wsId = workspaceIdForPointer(at: location) ?? controller.interactionWorkspace()?.id else {
+            return nil
+        }
+
+        if isFloatingWindowCoveringPointer(at: location, in: wsId)
+            || hasVisibleFloatingWindowOverNiriLayout(in: wsId)
+            || controller.unmanagedWindowServerWindowCovers(point: location)
+        {
             return nil
         }
 
@@ -1100,6 +1131,65 @@ final class MouseEventHandler {
         return .niri(workspaceId: wsId, window: window)
     }
 
+    private func isFloatingWindowCoveringPointer(
+        at location: CGPoint,
+        in workspaceId: WorkspaceDescriptor.ID
+    ) -> Bool {
+        floatingEntryCoveringPointer(at: location, in: workspaceId) != nil
+    }
+
+    private func hasVisibleFloatingWindowOverNiriLayout(in workspaceId: WorkspaceDescriptor.ID) -> Bool {
+        guard let controller else { return false }
+
+        if let focusedToken = controller.workspaceManager.confirmedManagedFocusToken,
+           let focusedEntry = controller.workspaceManager.entry(for: focusedToken),
+           focusedEntry.workspaceId == workspaceId,
+           focusedEntry.mode == .tiling
+        {
+            return false
+        }
+
+        let layoutFrame = controller.workspaceManager.monitor(for: workspaceId)?.visibleFrame
+        return controller.workspaceManager.floatingEntries(in: workspaceId).contains { entry in
+            guard entry.observedState.isVisible, entry.hiddenReason == nil else { return false }
+            let frame = floatingFrame(for: entry)
+            guard let frame else { return true }
+            return layoutFrame.map { frame.intersects($0) } ?? true
+        }
+    }
+
+    private func floatingEntryCoveringPointer(
+        at location: CGPoint,
+        in workspaceId: WorkspaceDescriptor.ID
+    ) -> WindowModel.Entry? {
+        guard let controller else { return nil }
+        return controller.workspaceManager.floatingEntries(in: workspaceId).first { entry in
+            guard entry.observedState.isVisible, entry.hiddenReason == nil else { return false }
+            return floatingFrame(for: entry)?.contains(location) ?? false
+        }
+    }
+
+    private func floatingFrame(for entry: WindowModel.Entry) -> CGRect? {
+        entry.observedState.frame
+            ?? entry.desiredState.floatingFrame
+            ?? entry.floatingState?.lastFrame
+            ?? AXWindowService.framePreferFast(entry.axRef)
+    }
+
+    private func markRecentFloatingPointerInteractionIfNeeded(at location: CGPoint) {
+        guard let controller else { return }
+        let workspaceId = workspaceIdForPointer(at: location) ?? controller.interactionWorkspace()?.id
+        let floatingEntry = workspaceId.flatMap {
+            floatingEntryCoveringPointer(at: location, in: $0)
+        }
+        if let floatingEntry {
+            controller.suppressMouseMoveToFocusedWindow(for: floatingEntry.token)
+        }
+        let isOverUnmanaged = controller.unmanagedWindowServerWindowCovers(point: location)
+        guard floatingEntry != nil || isOverUnmanaged else { return }
+        state.suppressFocusFollowsMouseUntil = Date().addingTimeInterval(2.0)
+    }
+
     private func focusFollowsMouseToken(for target: FocusFollowsMouseTarget) -> WindowToken {
         switch target {
         case let .niri(_, window):
@@ -1107,11 +1197,17 @@ final class MouseEventHandler {
         }
     }
 
+    private func suppressMouseMoveToFocusedWindowForPointerTarget(at location: CGPoint) {
+        guard let target = resolveFocusFollowsMouseTarget(at: location) else { return }
+        controller?.suppressMouseMoveToFocusedWindow(for: focusFollowsMouseToken(for: target))
+    }
+
     private func activateFocusFollowsMouseTarget(_ target: FocusFollowsMouseTarget) {
         guard let controller else { return }
 
         switch target {
         case let .niri(workspaceId, window):
+            controller.suppressMouseMoveToFocusedWindow(for: window.token)
             controller.workspaceManager.withNiriViewportState(for: workspaceId) { vstate in
                 controller.niriLayoutHandler.activateNode(
                     window,
@@ -1432,7 +1528,8 @@ final class MouseEventHandler {
         }
         if let selectedWindow {
             rememberViewportFocusAnchor(selectedWindow, engine: engine, wsId: wsId)
-            if !controller.workspaceManager.isNonManagedFocusActive,
+            if !controller.focusFollowsMouseEnabled,
+               !controller.workspaceManager.isNonManagedFocusActive,
                let target = controller.managedKeyboardFocusTarget(for: selectedWindow.token)
             {
                 _ = controller.renderKeyboardFocusBorder(
@@ -1440,6 +1537,7 @@ final class MouseEventHandler {
                     preferredFrame: selectedWindow.renderedFrame ?? selectedWindow.frame,
                     forceOrdering: false
                 )
+                controller.suppressMouseMoveToFocusedWindow(for: selectedWindow.token)
                 controller.focusWindow(selectedWindow.token)
             }
         }
@@ -1451,6 +1549,9 @@ final class MouseEventHandler {
             controller.layoutRefreshController.startScrollAnimation(for: wsId)
         } else {
             controller.layoutRefreshController.requestImmediateRelayout(reason: .interactiveGesture)
+            if controller.focusFollowsMouseEnabled {
+                refreshFocusFollowsMouseAtCurrentPointer()
+            }
         }
     }
 

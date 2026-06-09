@@ -234,7 +234,103 @@ private func waitForFocusRefresh(on controller: WMController) async {
         }
     }
 
+    @Test @MainActor func moveMouseToFocusedWarpsToEmptyWorkspaceMonitorOnSwitch() async {
+        let operations = WindowFocusOperations(
+            activateApp: { _ in },
+            focusSpecificWindow: { _, _, _ in },
+            raiseWindow: { _ in }
+        )
+        let fixture = makeTwoMonitorFocusController(windowFocusOperations: operations)
+        let controller = fixture.controller
+        let sourceHandle = addManagedTestWindow(
+            on: controller,
+            pid: getpid(),
+            windowId: 441,
+            workspaceId: fixture.primaryWorkspaceId
+        )
+        _ = controller.workspaceManager.setManagedFocus(
+            sourceHandle,
+            in: fixture.primaryWorkspaceId,
+            onMonitor: fixture.primaryMonitor.id
+        )
+        controller.setMoveMouseToFocusedWindow(true)
 
+        var warpedPoints: [CGPoint] = []
+        controller.warpMouseCursorPosition = { point in
+            warpedPoints.append(point)
+        }
+
+        controller.workspaceNavigationHandler.switchWorkspace(index: 1)
+        await waitForFocusRefresh(on: controller)
+
+        #expect(controller.interactionWorkspace()?.id == fixture.secondaryWorkspaceId)
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == nil)
+        #expect(warpedPoints == [
+            ScreenCoordinateSpace.toWindowServer(
+                point: fixture.secondaryMonitor.visibleFrame.center,
+                displayId: fixture.secondaryMonitor.displayId
+            )
+        ])
+    }
+
+    @Test @MainActor func workspaceBarWindowClickDoesNotMoveMouseToFocusedWindow() async {
+        await withAXFrameProviderIsolationForTests {
+            let operations = WindowFocusOperations(
+                activateApp: { _ in },
+                focusSpecificWindow: { _, _, _ in },
+                raiseWindow: { _ in }
+            )
+            let (controller, workspaceId, handle) = makeFocusTestController(windowFocusOperations: operations)
+            let otherHandle = addManagedTestWindow(
+                on: controller,
+                pid: getpid(),
+                windowId: 442,
+                workspaceId: workspaceId
+            )
+            guard let entry = controller.workspaceManager.entry(for: handle.id),
+                  let monitor = controller.workspaceManager.monitor(for: workspaceId),
+                  let screen = NSScreen.screens.first
+            else {
+                Issue.record("Missing workspace-bar mouse warp suppression fixture")
+                return
+            }
+            _ = controller.workspaceManager.setManagedFocus(
+                otherHandle,
+                in: workspaceId,
+                onMonitor: monitor.id
+            )
+            controller.setMoveMouseToFocusedWindow(true)
+
+            let frame = CGRect(
+                x: screen.frame.midX - 120,
+                y: screen.frame.midY - 80,
+                width: 240,
+                height: 160
+            )
+            AXWindowService.fastFrameProviderForTests = { axRef in
+                axRef.windowId == handle.id.windowId ? frame : nil
+            }
+            defer { AXWindowService.fastFrameProviderForTests = nil }
+
+            var warpedPoints: [CGPoint] = []
+            controller.warpMouseCursorPosition = { point in
+                warpedPoints.append(point)
+            }
+
+            controller.focusWindowFromBar(token: handle.id)
+            await waitForFocusRefresh(on: controller)
+            controller.axEventHandler.handleManagedAppActivation(
+                entry: entry,
+                isWorkspaceActive: true,
+                appFullscreen: false,
+                source: .focusedWindowChanged,
+                confirmRequest: true
+            )
+
+            #expect(controller.workspaceManager.confirmedManagedFocusToken == handle.id)
+            #expect(warpedPoints.isEmpty)
+        }
+    }
 
     @Test @MainActor func toggleWorkspaceBarVisibilityHidesOnlyInteractionMonitorAndPreservesSettings() async {
         let primaryMonitor = Monitor(
@@ -350,6 +446,27 @@ private func waitForFocusRefresh(on controller: WMController) async {
         #expect(controller.workspaceManager.pendingFocusedHandle == handle)
         #expect(controller.workspaceManager.isAppFullscreenActive == true)
         #expect(controller.workspaceManager.isNonManagedFocusActive == true)
+    }
+
+    @Test @MainActor func ownedWindowCloseClearsPreservedNonManagedFocus() {
+        let operations = WindowFocusOperations(
+            activateApp: { _ in },
+            focusSpecificWindow: { _, _, _ in },
+            raiseWindow: { _ in }
+        )
+        let (controller, workspaceId, handle) = makeFocusTestController(windowFocusOperations: operations)
+        _ = controller.workspaceManager.confirmManagedFocus(
+            handle.id,
+            in: workspaceId,
+            appFullscreen: false,
+            activateWorkspaceOnMonitor: false
+        )
+        _ = controller.workspaceManager.enterNonManagedFocus(appFullscreen: false, preserveFocusedToken: true)
+
+        controller.handleOwnedFocusSuppressingWindowClosed()
+
+        #expect(controller.workspaceManager.focusedHandle == handle)
+        #expect(controller.workspaceManager.isNonManagedFocusActive == false)
     }
 
     @Test @MainActor func focusWindowSelectsNativeFullscreenPlaceholderWithoutAXFocus() async {

@@ -116,6 +116,18 @@ All files are watched for changes — edits are applied live without restarting.
 
 See [Configuration Principles](docs/CONFIGURATION.md) for the design rationale.
 
+### Mouse focus behavior
+
+Two settings interact here:
+
+- `moveMouseToFocusedWindow` moves the pointer after focus changes, but Nehir treats it primarily as a keyboard/command-navigation affordance. Pointer-originated focus changes do not warp the cursor: mouse hover/click, workspace bar clicks, tab overlay clicks, trackpad gestures, scroll animations, and floating-window clicks/drags all preserve pointer position.
+- Empty workspace command switching is the main intentional exception: when there is no focused window target, Nehir warps to the target monitor center so the pointer lands on the display you navigated to.
+- `focusFollowsMouse` is debounced and refreshes after scroll/swipe animations settle and after owned Nehir UI windows (Settings, App Rules, Command Palette) close, because those interactions may not generate a fresh mouse-move event.
+- With `focusFollowsMouse` enabled, swipe gesture end updates the viewport selection but does not commit focus to the snapped column; final focus follows the pointer after the gesture/animation settles.
+- Tiled hover focus is disabled while a floating window is the active surface above the Niri layout, so moving toward that floating window does not accidentally focus and raise a tiled column behind it.
+- A floating window that is merely visible but behind the active tiled window does not disable tiled hover focus.
+- Hover focus is also blocked over visible unmanaged WindowServer windows and briefly suppressed after floating/unmanaged pointer interaction so clicking or dragging those windows does not immediately activate a tiled column behind them.
+
 ### Default Shortcut Model
 
 Nehir defaults are stored and shown as physical key chords.
@@ -168,6 +180,7 @@ The original project tried to accommodate a wide range of user requests; Nehir d
 - **Split TOML configuration.** Runtime config is organized under `~/.config/nehir/` with separate files for settings, hotkeys, workspaces, app rules, and monitor overrides.
 - **Close/collapse focus stays local.** When macOS reports another same-app window as focused after closing or collapsing the current one, Nehir treats that as native fallback focus rather than user navigation. Same-app fallback to inactive workspaces is ignored, and unmanaged quick-terminal fallback is also ignored on the current workspace so the viewport does not scroll to that app's managed column. Explicit Nehir focus commands still take precedence.
 - **Configurable gesture scroll snap.** Trackpad swipe gestures can snap to column boundaries or stop freely mid-scroll. Controlled by `gestures.scrollSnap` in `settings.toml` (default `true`).
+- **Smarter mouse focus and cursor warp.** Pointer-initiated focus no longer makes `moveMouseToFocusedWindow` jump the cursor, and hover focus is constrained around floating/unmanaged windows to fit the Niri layout model.
 - **Built-in runtime debugging tools.** Nehir now ships command-palette and IPC/CLI actions to dump runtime state, reset/rebootstrap runtime state, restart while clearing runtime state, and capture runtime trace bundles under `${XDG_STATE_HOME:-$HOME/.local/state}/nehir/traces/`.
 
 ## License

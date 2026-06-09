@@ -1757,7 +1757,8 @@ final class AXEventHandler: CGSEventDelegate {
         if shouldConfirmRequest,
            controller.moveMouseToFocusedWindowEnabled,
            controller.workspaceManager.confirmedManagedFocusToken == entry.token,
-           !controller.workspaceManager.isNonManagedFocusActive
+           !controller.workspaceManager.isNonManagedFocusActive,
+           !controller.shouldSuppressMouseMoveToFocusedWindow(for: entry.token)
         {
             controller.moveMouseToWindow(entry.token, preferredFrame: preferredMouseFrame)
         }

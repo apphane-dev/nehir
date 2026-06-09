@@ -32,7 +32,8 @@ private func makeIPCFloatingRaiseOperations(
         },
         orderWindow: { windowId in
             recorder.events.append(.order(Int(windowId)))
-        }
+        },
+        visibleWindowInfoProvider: { [] }
     )
 }
 
