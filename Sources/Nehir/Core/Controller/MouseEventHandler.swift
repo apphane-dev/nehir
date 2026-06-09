@@ -1323,6 +1323,17 @@ final class MouseEventHandler {
             state.gestureLastAverageX = avgX
             state.gestureLastAverageY = avgY
             state.gesturePhase = .armed
+            controller.recordRuntimeViewportTrace(
+                workspaceId: currentContext.wsId,
+                reason: "touch_scroll_gesture_armed",
+                details: [
+                    "input=trackpadTouches",
+                    "requiredFingers=\(requiredFingers)",
+                    "activeTouches=\(activeTouchCount)",
+                    "phase=\(phase.rawValue)",
+                    String(format: "startTouch=%.3f,%.3f", avgX, avgY)
+                ]
+            )
 
         case .armed,
              .committed:
@@ -1358,6 +1369,18 @@ final class MouseEventHandler {
 
                 rawDeltaX = cumulativeX
                 state.gesturePhase = .committed
+                controller.recordRuntimeViewportTrace(
+                    workspaceId: wsId,
+                    reason: "touch_scroll_gesture_committed",
+                    details: [
+                        "input=trackpadTouches",
+                        "requiredFingers=\(requiredFingers)",
+                        "activeTouches=\(activeTouchCount)",
+                        String(format: "cumulativeX=%.3f", cumulativeX),
+                        String(format: "cumulativeY=%.3f", cumulativeY),
+                        String(format: "threshold=%.3f", niriTouchpadGestureRecognitionThreshold)
+                    ]
+                )
             } else {
                 rawDeltaX = (avgX - state.gestureLastAverageX) * macNormalizedTouchPositionToNiriGestureUnits
             }
@@ -1414,7 +1437,15 @@ final class MouseEventHandler {
             didApply = true
         }
         if didApply {
-            controller.recordRuntimeViewportTrace(workspaceId: wsId, reason: "trackpad_update")
+            controller.recordRuntimeViewportTrace(
+                workspaceId: wsId,
+                reason: "touch_scroll_gesture_update",
+                details: [
+                    "input=trackpadTouches",
+                    String(format: "delta=%.3f", delta),
+                    "phase=committed"
+                ]
+            )
             controller.layoutRefreshController.requestImmediateRelayout(reason: .interactiveGesture)
         }
     }
@@ -1502,8 +1533,11 @@ final class MouseEventHandler {
             .backingScaleFactor ?? 2.0
 
         var selectedWindow: NiriWindow?
+        var previousActiveColumnIndex: Int?
+        var endedActiveColumnIndex: Int?
         var endedGestureIsAnimating = false
         controller.workspaceManager.withNiriViewportState(for: wsId) { endState in
+            previousActiveColumnIndex = endState.activeColumnIndex
             endState.endGesture(
                 columns: columns,
                 gap: gap,
@@ -1519,6 +1553,7 @@ final class MouseEventHandler {
                 timestamp: timestamp
             )
             endedGestureIsAnimating = endState.viewOffsetPixels.isAnimating
+            endedActiveColumnIndex = endState.activeColumnIndex
             if controller.settings.gestureScrollSnap {
                 selectedWindow = syncViewportSelectionToActiveColumn(columns: columns, state: &endState)
                 endState.allowsSelectionOffscreen = false
@@ -1541,9 +1576,27 @@ final class MouseEventHandler {
                 controller.focusWindow(selectedWindow.token)
             }
         }
+        let focusSelectionDisposition: String
+        if selectedWindow == nil {
+            focusSelectionDisposition = "none"
+        } else if controller.focusFollowsMouseEnabled {
+            focusSelectionDisposition = "suppressed"
+        } else if controller.workspaceManager.isNonManagedFocusActive {
+            focusSelectionDisposition = "suppressedNonManagedFocus"
+        } else {
+            focusSelectionDisposition = "requested"
+        }
         controller.recordRuntimeViewportTrace(
             workspaceId: wsId,
-            reason: "gesture_end snap=\(controller.settings.gestureScrollSnap)"
+            reason: "touch_scroll_gesture_end",
+            details: [
+                "input=trackpadTouches",
+                "snap=\(controller.settings.gestureScrollSnap)",
+                "focusSelection=\(focusSelectionDisposition)",
+                "focusFollowsMouse=\(controller.focusFollowsMouseEnabled)",
+                "previousActiveColumnIndex=\(previousActiveColumnIndex.map(String.init) ?? "nil")",
+                "endedActiveColumnIndex=\(endedActiveColumnIndex.map(String.init) ?? "nil")"
+            ]
         )
         if endedGestureIsAnimating {
             controller.layoutRefreshController.startScrollAnimation(for: wsId)
