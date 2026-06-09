@@ -32,6 +32,8 @@ Use:
 - `major` for incompatible changes.
 - `none` only for internal notes that should not drive a version bump.
 
+Release notes preserve structured Markdown in changeset bodies. For breaking changes, start the body with `BREAKING:` / `BREAKING CHANGE:` or use a `major` bump; those entries render in a separate **Breaking changes** section. Keep unrelated non-breaking fixes in separate changesets.
+
 CI checks that source/user-visible changes include a `.changeset/*.md` file. If a PR truly has no release-note impact, apply the `no release note` label.
 
 ## Releases

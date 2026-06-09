@@ -28,11 +28,21 @@ Supported bump types are `patch`, `minor`, `major`, and `none`. The release
 workflow calculates the next app version from pending changesets and the current
 `Info.plist` version.
 
+Breaking changes render in a separate **Breaking changes** section when either
+of these is true:
+
+- The changeset bump is `major`.
+- The body starts with `BREAKING:` or `BREAKING CHANGE:`.
+
+Keep the first line short and user-facing. Add explanation or migration details
+as follow-up paragraphs or nested bullets. Put unrelated non-breaking fixes in a
+separate changeset so they stay under **Changes**.
+
 When a change is based on a report or contribution, add a parseable
 `contributors: [github-handle]` frontmatter line with comma-separated GitHub
-handles so release notes can collect acknowledgements automatically while keeping
-body text easy to concatenate. Generated notes format acknowledgements as
-`Thanks [@github-handle](https://github.com/github-handle).`
+handles. Generated notes render these as plain `@github-handle` mentions in the
+entry thanks line so GitHub can populate its native release **Contributors**
+footer.
 
 To release, run the `Release` GitHub Actions workflow manually. It updates
 `Info.plist`, generates `docs/releases/vX.Y.Z.md`, creates the version tag,

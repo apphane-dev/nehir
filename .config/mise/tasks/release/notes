@@ -70,6 +70,7 @@ if not files:
 pattern = re.compile(r"^---\s*\n(?P<frontmatter>.*?)\n---\s*\n(?P<body>.*)$", re.S)
 release_line = re.compile(r'^\s*["\']?[^"\':]+["\']?\s*:\s*(major|minor|patch|none)\s*$', re.I)
 contributors_line = re.compile(r'^\s*contributors\s*:\s*(?P<value>.+?)\s*$', re.I)
+breaking_prefix = re.compile(r"^(?:\*\*)?BREAKING(?: CHANGE)?(?::\*\*|\*\*:|:)\s*", re.I)
 entries = []
 
 def parse_contributors(value: str) -> list[str]:
@@ -87,17 +88,81 @@ def parse_contributors(value: str) -> list[str]:
     return contributors
 
 
+def strip_breaking_prefix(body: str) -> tuple[str, bool]:
+    stripped = body.lstrip()
+    match = breaking_prefix.match(stripped)
+    if not match:
+        return body, False
+    return stripped[match.end():].lstrip(), True
+
+
 def format_thanks(contributors: list[str]) -> str:
-    links = [f"[@{handle}](https://github.com/{handle})" for handle in contributors]
-    if not links:
+    mentions = [f"@{handle}" for handle in contributors]
+    if not mentions:
         return ""
-    if len(links) == 1:
-        joined = links[0]
-    elif len(links) == 2:
-        joined = f"{links[0]} and {links[1]}"
+    if len(mentions) == 1:
+        joined = mentions[0]
+    elif len(mentions) == 2:
+        joined = f"{mentions[0]} and {mentions[1]}"
     else:
-        joined = f"{', '.join(links[:-1])}, and {links[-1]}"
-    return f" Thanks {joined}."
+        joined = f"{', '.join(mentions[:-1])}, and {mentions[-1]}"
+    return f"Thanks {joined}."
+
+
+def append_sentence(line: str, sentence: str) -> str:
+    if not sentence:
+        return line
+    separator = " " if line.rstrip().endswith((".", "!", "?")) else ". "
+    return f"{line}{separator}{sentence}"
+
+
+def append_thanks(rendered: list[str], contributors: list[str]) -> list[str]:
+    thanks = format_thanks(contributors)
+    if not thanks:
+        return rendered
+    for index in range(len(rendered) - 1, -1, -1):
+        stripped = rendered[index].strip()
+        if stripped and not is_list_item(stripped):
+            rendered[index] = append_sentence(rendered[index], thanks)
+            return rendered
+    return rendered + ["", f"  {thanks}"]
+
+
+def is_list_item(line: str) -> bool:
+    return bool(re.match(r"^(?:[-*+] |\d+[.)] )", line))
+
+
+def trim_blank_edges(lines: list[str]) -> list[str]:
+    while lines and not lines[0].strip():
+        lines.pop(0)
+    while lines and not lines[-1].strip():
+        lines.pop()
+    return lines
+
+
+def render_entry(body: str, contributors: list[str]) -> list[str]:
+    body_lines = trim_blank_edges([line.rstrip() for line in body.splitlines()])
+    if not body_lines:
+        return []
+
+    # Preserve intentionally structured Markdown. In particular, a summary
+    # followed by bullets should render as one top-level change with nested
+    # detail bullets, not as a single flattened sentence containing "-" text.
+    if len(body_lines) == 1:
+        line = body_lines[0].strip()
+        if is_list_item(line):
+            return append_thanks([line], contributors)
+        return [append_sentence(f"- {line}", format_thanks(contributors))]
+
+    first = body_lines[0].strip()
+    if is_list_item(first):
+        return append_thanks([line.strip() if line.strip() else "" for line in body_lines], contributors)
+
+    rendered = [f"- {first}"]
+    for line in body_lines[1:]:
+        stripped = line.strip()
+        rendered.append(f"  {stripped}" if stripped else "")
+    return append_thanks(rendered, contributors)
 
 
 for path in files:
@@ -111,10 +176,13 @@ for path in files:
     if not frontmatter:
         raise SystemExit(f"Empty changeset frontmatter: {path}")
     contributors = []
+    is_breaking = False
     for line in frontmatter.splitlines():
         if not line.strip():
             continue
-        if release_line.match(line):
+        release_match = release_line.match(line)
+        if release_match:
+            is_breaking = is_breaking or release_match.group(1).lower() == "major"
             continue
         contributor_match = contributors_line.match(line)
         if contributor_match:
@@ -124,13 +192,34 @@ for path in files:
     if not body:
         raise SystemExit(f"Empty changeset body: {path}")
 
-    normalized = " ".join(line.strip() for line in body.splitlines() if line.strip())
-    entries.append(normalized + format_thanks(contributors))
+    body, body_marks_breaking = strip_breaking_prefix(body)
+    is_breaking = is_breaking or body_marks_breaking
+    if not body:
+        raise SystemExit(f"Empty changeset body after BREAKING marker: {path}")
 
-lines = ["## Changes", ""]
-for item in entries:
-    prefix = "- " if not item.startswith("- ") else ""
-    lines.append(f"{prefix}{item}")
+    rendered = render_entry(body, contributors)
+    if not rendered:
+        raise SystemExit(f"Empty changeset body: {path}")
+    entries.append({"breaking": is_breaking, "rendered": rendered})
+
+def append_section(lines: list[str], title: str, section_entries: list[list[str]]) -> None:
+    if not section_entries:
+        return
+    if lines:
+        lines.append("")
+    lines.extend([f"## {title}", ""])
+    for entry in section_entries:
+        lines.extend(entry)
+        lines.append("")
+    while lines and lines[-1] == "":
+        lines.pop()
+
+breaking_entries = [entry["rendered"] for entry in entries if entry["breaking"]]
+change_entries = [entry["rendered"] for entry in entries if not entry["breaking"]]
+
+lines = []
+append_section(lines, "Breaking changes", breaking_entries)
+append_section(lines, "Changes", change_entries)
 
 lines += [
     "",

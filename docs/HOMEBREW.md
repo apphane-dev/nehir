@@ -47,7 +47,11 @@ contributors: [github-handle]
 Short user-facing description of the change.
 ```
 
-Use optional `contributors: [...]` frontmatter for reports or contributions; release notes render those handles as linked thanks, e.g. `Thanks [@github-handle](https://github.com/github-handle).`
+Use optional `contributors: [...]` frontmatter for reports or contributions; release notes render those handles as plain `@github-handle` mentions in the entry thanks line so GitHub can populate its native release **Contributors** footer.
+
+Release notes preserve structured Markdown in changeset bodies. A summary followed by bullets renders as one top-level change with nested details.
+
+Breaking changes render in a separate **Breaking changes** section when the bump is `major` or the body starts with `BREAKING:` / `BREAKING CHANGE:`. Keep the first line short, put migration details in follow-up paragraphs or nested bullets, and use a separate changeset for unrelated non-breaking fixes.
 
 Supported bump types are:
 
