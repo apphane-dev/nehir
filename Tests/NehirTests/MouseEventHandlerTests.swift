@@ -99,6 +99,7 @@ private func makeMouseEventTestController(
         ownedWindowRegistry: ownedWindowRegistry
     )
     controller.lockScreenObserver.frontmostApplicationProvider = { nil }
+    controller.unmanagedWindowServerWindowFramesProvider = { _ in [] }
     let frame = CGRect(x: 0, y: 0, width: 1920, height: 1080)
     let monitor = Monitor(
         id: Monitor.ID(displayId: 1),
@@ -568,6 +569,65 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
         let after = fixture.controller.workspaceManager.niriViewportState(for: fixture.workspaceId)
         #expect(abs(after.viewOffsetPixels.current() - before) < 0.005)
         #expect(after.viewOffsetPixels.isGesture == false)
+    }
+
+    @Test @MainActor func focusFollowsMouseRefreshesAfterScrollAnimationSettles() async {
+        let controller = makeMouseEventTestController()
+        controller.enableNiriLayout()
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+        controller.syncMonitorsToNiriEngine()
+        controller.setFocusFollowsMouse(true)
+
+        guard let workspaceId = controller.interactionWorkspace()?.id,
+              let engine = controller.niriEngine,
+              let monitor = controller.workspaceManager.monitor(for: workspaceId)
+        else {
+            Issue.record("Missing Niri context for post-animation focus-follow regression test")
+            return
+        }
+
+        populateNiriWorkspaceForMouseTests(
+            controller: controller,
+            engine: engine,
+            workspaceId: workspaceId,
+            monitor: monitor,
+            startingWindowId: 960,
+            count: 3
+        )
+        controller.layoutRefreshController.requestImmediateRelayout(reason: .workspaceTransition)
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+
+        let focusedToken = controller.workspaceManager.confirmedManagedFocusToken
+        let entries = controller.workspaceManager.entries(in: workspaceId)
+        let hoverTarget = entries.compactMap { entry -> (WindowModel.Entry, CGPoint)? in
+            guard entry.token != focusedToken,
+                  let node = engine.findNode(for: entry.handle),
+                  let frame = node.renderedFrame ?? node.frame
+            else { return nil }
+            let point = frame.center
+            guard monitor.visibleFrame.contains(point),
+                  engine.hitTestFocusableWindow(point: point, in: workspaceId)?.token == entry.token
+            else { return nil }
+            return (entry, point)
+        }.first
+        guard let hoverTarget else {
+            Issue.record("Expected a visible non-focused Niri window for post-animation focus-follow regression test")
+            return
+        }
+
+        controller.mouseEventHandler.mouseLocationProvider = { hoverTarget.1 }
+        #expect(controller.niriLayoutHandler.registerScrollAnimation(
+            workspaceId,
+            on: monitor.displayId
+        ))
+
+        controller.niriLayoutHandler.tickScrollAnimation(
+            targetTime: CACurrentMediaTime() + 5,
+            displayId: monitor.displayId
+        )
+
+        #expect(controller.niriLayoutHandler.scrollAnimationByDisplay[monitor.displayId] == nil)
+        #expect(controller.workspaceManager.pendingFocusedHandle == hoverTarget.0.handle)
     }
 
     @Test @MainActor func trackpadGestureStartsFromCurrentAnimationOffset() async {
@@ -1206,6 +1266,107 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
         #expect(handler.state.lockedGestureContext == nil)
         #expect(finalizedState.viewOffsetPixels.isGesture == false)
         #expect(finalizedState.viewOffsetPixels.isAnimating)
+    }
+
+    @Test @MainActor func trackpadGestureFocusSuppressesMouseMoveToFocusedWindow() async {
+        let fixture = await prepareMouseWheelScrollFixture()
+        let controller = fixture.controller
+        controller.settings.gestureInvertDirection = false
+        controller.settings.gestureScrollSnap = true
+        controller.setMoveMouseToFocusedWindow(true)
+
+        guard let engine = controller.niriEngine else {
+            Issue.record("Missing Niri engine for trackpad focus warp suppression test")
+            return
+        }
+
+        let baseTime = CACurrentMediaTime()
+        fixture.handler.receiveTapGestureEvent(
+            .init(
+                location: fixture.location,
+                phaseRawValue: NSEvent.Phase.began.rawValue,
+                timestamp: baseTime,
+                touches: makeGestureTouchSamples(xPositions: [0.20, 0.25, 0.30])
+            )
+        )
+        fixture.handler.receiveTapGestureEvent(
+            .init(
+                location: fixture.location,
+                phaseRawValue: NSEvent.Phase.changed.rawValue,
+                timestamp: baseTime + 0.016,
+                touches: makeGestureTouchSamples(xPositions: [0.60, 0.65, 0.70])
+            )
+        )
+        fixture.handler.receiveTapGestureEvent(
+            .init(
+                location: fixture.location,
+                phaseRawValue: NSEvent.Phase.ended.rawValue,
+                timestamp: baseTime + 0.032,
+                touches: []
+            )
+        )
+
+        let finalizedState = controller.workspaceManager.niriViewportState(for: fixture.workspaceId)
+        guard let selectedNodeId = finalizedState.selectedNodeId,
+              let selectedWindow = engine.findNode(by: selectedNodeId) as? NiriWindow
+        else {
+            Issue.record("Missing selected niri window after trackpad gesture")
+            return
+        }
+
+        #expect(controller.shouldSuppressMouseMoveToFocusedWindow(for: selectedWindow.token))
+    }
+
+    @Test @MainActor func trackpadGestureDoesNotCommitSelectedFocusWhenFocusFollowsMouseIsEnabled() async {
+        let fixture = await prepareMouseWheelScrollFixture()
+        let controller = fixture.controller
+        controller.settings.gestureInvertDirection = false
+        controller.settings.gestureScrollSnap = true
+        controller.setFocusFollowsMouse(true)
+
+        guard let engine = controller.niriEngine,
+              let focusedBefore = controller.workspaceManager.confirmedManagedFocusToken
+        else {
+            Issue.record("Missing Niri engine or focused token for FFM gesture focus test")
+            return
+        }
+
+        let baseTime = CACurrentMediaTime()
+        fixture.handler.receiveTapGestureEvent(
+            .init(
+                location: fixture.location,
+                phaseRawValue: NSEvent.Phase.began.rawValue,
+                timestamp: baseTime,
+                touches: makeGestureTouchSamples(xPositions: [0.20, 0.25, 0.30])
+            )
+        )
+        fixture.handler.receiveTapGestureEvent(
+            .init(
+                location: fixture.location,
+                phaseRawValue: NSEvent.Phase.changed.rawValue,
+                timestamp: baseTime + 0.016,
+                touches: makeGestureTouchSamples(xPositions: [0.60, 0.65, 0.70])
+            )
+        )
+        fixture.handler.receiveTapGestureEvent(
+            .init(
+                location: fixture.location,
+                phaseRawValue: NSEvent.Phase.ended.rawValue,
+                timestamp: baseTime + 0.032,
+                touches: []
+            )
+        )
+
+        let finalizedState = controller.workspaceManager.niriViewportState(for: fixture.workspaceId)
+        guard let selectedNodeId = finalizedState.selectedNodeId,
+              let selectedWindow = engine.findNode(by: selectedNodeId) as? NiriWindow
+        else {
+            Issue.record("Missing selected niri window after trackpad gesture")
+            return
+        }
+
+        #expect(selectedWindow.token != focusedBefore)
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == focusedBefore)
     }
 
     @Test @MainActor func trackpadGestureWaitsForNiriRecognitionThreshold() async {
@@ -1879,6 +2040,596 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
 
         #expect(controller.workspaceManager.focusedHandle == fullscreenHandle)
         #expect(controller.workspaceManager.pendingFocusedHandle == nil)
+    }
+
+    @Test @MainActor func focusFollowsMouseDoesNotActivateTiledWindowBehindFloatingWindow() async {
+        let controller = makeMouseEventTestController()
+        controller.enableNiriLayout()
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+        controller.syncMonitorsToNiriEngine()
+        controller.setFocusFollowsMouse(true)
+
+        guard let workspaceId = controller.interactionWorkspace()?.id,
+              let engine = controller.niriEngine,
+              let monitor = controller.workspaceManager.monitor(for: workspaceId)
+        else {
+            Issue.record("Missing Niri context for floating hover occlusion regression test")
+            return
+        }
+
+        let firstToken = controller.workspaceManager.addWindow(
+            makeMouseEventTestWindow(windowId: 931),
+            pid: getpid(),
+            windowId: 931,
+            to: workspaceId
+        )
+        let secondToken = controller.workspaceManager.addWindow(
+            makeMouseEventTestWindow(windowId: 932),
+            pid: getpid(),
+            windowId: 932,
+            to: workspaceId
+        )
+        let floatingToken = controller.workspaceManager.addWindow(
+            makeMouseEventTestWindow(windowId: 933),
+            pid: getpid(),
+            windowId: 933,
+            to: workspaceId,
+            mode: .floating
+        )
+        guard let firstHandle = controller.workspaceManager.handle(for: firstToken),
+              let secondHandle = controller.workspaceManager.handle(for: secondToken)
+        else {
+            Issue.record("Missing handles for floating hover occlusion regression test")
+            return
+        }
+
+        let tiledHandles = [firstHandle, secondHandle]
+        _ = engine.syncWindows(
+            tiledHandles,
+            in: workspaceId,
+            selectedNodeId: nil,
+            focusedHandle: firstHandle
+        )
+        _ = controller.workspaceManager.setManagedFocus(firstHandle, in: workspaceId, onMonitor: monitor.id)
+        controller.layoutRefreshController.requestImmediateRelayout(reason: .workspaceTransition)
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+
+        guard let secondNode = engine.findNode(for: secondHandle),
+              let secondFrame = secondNode.frame
+        else {
+            Issue.record("Missing tiled target frame for floating hover occlusion regression test")
+            return
+        }
+
+        let floatingFrame = CGRect(
+            x: secondFrame.midX - 80,
+            y: secondFrame.midY - 60,
+            width: 160,
+            height: 120
+        )
+        controller.workspaceManager.updateFloatingGeometry(
+            frame: floatingFrame,
+            for: floatingToken,
+            restoreToFloating: true
+        )
+
+        controller.mouseEventHandler.dispatchMouseMoved(at: floatingFrame.center)
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == firstToken)
+        #expect(controller.workspaceManager.activeFocusRequestToken == nil)
+    }
+
+    @Test @MainActor func focusFollowsMouseDoesNotActivateTiledWindowBehindUnmanagedWindow() async {
+        let controller = makeMouseEventTestController()
+        controller.enableNiriLayout()
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+        controller.syncMonitorsToNiriEngine()
+        controller.setFocusFollowsMouse(true)
+
+        guard let workspaceId = controller.interactionWorkspace()?.id,
+              let engine = controller.niriEngine,
+              let monitor = controller.workspaceManager.monitor(for: workspaceId)
+        else {
+            Issue.record("Missing Niri context for unmanaged hover occlusion regression test")
+            return
+        }
+
+        let firstToken = controller.workspaceManager.addWindow(
+            makeMouseEventTestWindow(windowId: 934),
+            pid: getpid(),
+            windowId: 934,
+            to: workspaceId
+        )
+        let secondToken = controller.workspaceManager.addWindow(
+            makeMouseEventTestWindow(windowId: 935),
+            pid: getpid(),
+            windowId: 935,
+            to: workspaceId
+        )
+        guard let firstHandle = controller.workspaceManager.handle(for: firstToken),
+              let secondHandle = controller.workspaceManager.handle(for: secondToken)
+        else {
+            Issue.record("Missing handles for unmanaged hover occlusion regression test")
+            return
+        }
+
+        _ = engine.syncWindows(
+            [firstHandle, secondHandle],
+            in: workspaceId,
+            selectedNodeId: nil,
+            focusedHandle: firstHandle
+        )
+        _ = controller.workspaceManager.setManagedFocus(firstHandle, in: workspaceId, onMonitor: monitor.id)
+        controller.layoutRefreshController.requestImmediateRelayout(reason: .workspaceTransition)
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+
+        guard let secondNode = engine.findNode(for: secondHandle),
+              let secondFrame = secondNode.frame
+        else {
+            Issue.record("Missing tiled target frame for unmanaged hover occlusion regression test")
+            return
+        }
+
+        let unmanagedFrame = CGRect(
+            x: secondFrame.midX - 80,
+            y: secondFrame.midY - 60,
+            width: 160,
+            height: 120
+        )
+        controller.unmanagedWindowServerWindowFramesProvider = { _ in [unmanagedFrame] }
+
+        controller.mouseEventHandler.dispatchMouseMoved(at: unmanagedFrame.center)
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == firstToken)
+        #expect(controller.workspaceManager.activeFocusRequestToken == nil)
+    }
+
+    @Test @MainActor func focusFollowsMouseDoesNotActivateTiledWindowWhileFloatingWindowIsVisible() async {
+        let controller = makeMouseEventTestController()
+        controller.enableNiriLayout()
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+        controller.syncMonitorsToNiriEngine()
+        controller.setFocusFollowsMouse(true)
+
+        guard let workspaceId = controller.interactionWorkspace()?.id,
+              let engine = controller.niriEngine,
+              let monitor = controller.workspaceManager.monitor(for: workspaceId)
+        else {
+            Issue.record("Missing Niri context for visible floating focus-follow regression test")
+            return
+        }
+
+        let firstToken = controller.workspaceManager.addWindow(
+            makeMouseEventTestWindow(windowId: 929),
+            pid: getpid(),
+            windowId: 929,
+            to: workspaceId
+        )
+        let secondToken = controller.workspaceManager.addWindow(
+            makeMouseEventTestWindow(windowId: 930),
+            pid: getpid(),
+            windowId: 930,
+            to: workspaceId
+        )
+        let floatingToken = controller.workspaceManager.addWindow(
+            makeMouseEventTestWindow(windowId: 928),
+            pid: getpid(),
+            windowId: 928,
+            to: workspaceId,
+            mode: .floating
+        )
+        guard let firstHandle = controller.workspaceManager.handle(for: firstToken),
+              let secondHandle = controller.workspaceManager.handle(for: secondToken),
+              let floatingHandle = controller.workspaceManager.handle(for: floatingToken)
+        else {
+            Issue.record("Missing handles for visible floating focus-follow regression test")
+            return
+        }
+
+        _ = engine.syncWindows(
+            [firstHandle, secondHandle],
+            in: workspaceId,
+            selectedNodeId: nil,
+            focusedHandle: firstHandle
+        )
+        _ = controller.workspaceManager.setManagedFocus(floatingHandle, in: workspaceId, onMonitor: monitor.id)
+        let floatingFrame = CGRect(x: monitor.visibleFrame.midX - 100, y: monitor.visibleFrame.midY - 80, width: 200, height: 160)
+        controller.workspaceManager.updateFloatingGeometry(
+            frame: floatingFrame,
+            for: floatingToken,
+            restoreToFloating: true
+        )
+        controller.layoutRefreshController.requestImmediateRelayout(reason: .workspaceTransition)
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+
+        guard let secondNode = engine.findNode(for: secondHandle),
+              let secondFrame = secondNode.frame
+        else {
+            Issue.record("Missing tiled target frame for visible floating focus-follow regression test")
+            return
+        }
+        let tiledPointOutsideFloating = CGPoint(x: secondFrame.midX, y: secondFrame.minY + 24)
+        #expect(secondFrame.contains(tiledPointOutsideFloating))
+        #expect(!floatingFrame.contains(tiledPointOutsideFloating))
+
+        controller.mouseEventHandler.dispatchMouseMoved(at: tiledPointOutsideFloating)
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == floatingToken)
+        #expect(controller.workspaceManager.activeFocusRequestToken == nil)
+    }
+
+    @Test @MainActor func focusFollowsMouseActivatesTiledWindowWhenFloatingWindowIsBehindActiveTile() async {
+        let controller = makeMouseEventTestController()
+        controller.enableNiriLayout()
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+        controller.syncMonitorsToNiriEngine()
+        controller.setFocusFollowsMouse(true)
+
+        guard let workspaceId = controller.interactionWorkspace()?.id,
+              let engine = controller.niriEngine,
+              let monitor = controller.workspaceManager.monitor(for: workspaceId)
+        else {
+            Issue.record("Missing Niri context for behind-floating focus-follow regression test")
+            return
+        }
+
+        let firstToken = controller.workspaceManager.addWindow(
+            makeMouseEventTestWindow(windowId: 931),
+            pid: getpid(),
+            windowId: 931,
+            to: workspaceId
+        )
+        let secondToken = controller.workspaceManager.addWindow(
+            makeMouseEventTestWindow(windowId: 932),
+            pid: getpid(),
+            windowId: 932,
+            to: workspaceId
+        )
+        let floatingToken = controller.workspaceManager.addWindow(
+            makeMouseEventTestWindow(windowId: 933),
+            pid: getpid(),
+            windowId: 933,
+            to: workspaceId,
+            mode: .floating
+        )
+        guard let firstHandle = controller.workspaceManager.handle(for: firstToken),
+              let secondHandle = controller.workspaceManager.handle(for: secondToken)
+        else {
+            Issue.record("Missing handles for behind-floating focus-follow regression test")
+            return
+        }
+
+        _ = engine.syncWindows(
+            [firstHandle, secondHandle],
+            in: workspaceId,
+            selectedNodeId: nil,
+            focusedHandle: firstHandle
+        )
+        _ = controller.workspaceManager.setManagedFocus(firstHandle, in: workspaceId, onMonitor: monitor.id)
+        controller.workspaceManager.updateFloatingGeometry(
+            frame: CGRect(x: monitor.visibleFrame.midX - 100, y: monitor.visibleFrame.midY - 80, width: 200, height: 160),
+            for: floatingToken,
+            restoreToFloating: true
+        )
+        controller.layoutRefreshController.requestImmediateRelayout(reason: .workspaceTransition)
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+
+        guard let secondNode = engine.findNode(for: secondHandle),
+              let secondFrame = secondNode.frame
+        else {
+            Issue.record("Missing tiled target frame for behind-floating focus-follow regression test")
+            return
+        }
+
+        controller.mouseEventHandler.dispatchMouseMoved(at: CGPoint(x: secondFrame.midX, y: secondFrame.minY + 24))
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+
+        #expect(controller.workspaceManager.pendingFocusedHandle == secondHandle)
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == firstToken)
+    }
+
+    @Test @MainActor func floatingMouseInitiatedFocusDoesNotMoveMouseToFocusedWindow() async {
+        let controller = makeMouseEventTestController()
+        controller.enableNiriLayout()
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+        controller.syncMonitorsToNiriEngine()
+        controller.setMoveMouseToFocusedWindow(true)
+
+        guard let workspaceId = controller.interactionWorkspace()?.id,
+              let engine = controller.niriEngine,
+              let monitor = controller.workspaceManager.monitor(for: workspaceId)
+        else {
+            Issue.record("Missing Niri context for floating mouse warp regression test")
+            return
+        }
+
+        let tiledToken = controller.workspaceManager.addWindow(
+            makeMouseEventTestWindow(windowId: 939),
+            pid: getpid(),
+            windowId: 939,
+            to: workspaceId
+        )
+        let floatingToken = controller.workspaceManager.addWindow(
+            makeMouseEventTestWindow(windowId: 940),
+            pid: getpid(),
+            windowId: 940,
+            to: workspaceId,
+            mode: .floating
+        )
+        guard let tiledHandle = controller.workspaceManager.handle(for: tiledToken),
+              let floatingEntry = controller.workspaceManager.entry(for: floatingToken)
+        else {
+            Issue.record("Missing handles for floating mouse warp regression test")
+            return
+        }
+
+        _ = engine.syncWindows(
+            [tiledHandle],
+            in: workspaceId,
+            selectedNodeId: nil,
+            focusedHandle: tiledHandle
+        )
+        _ = controller.workspaceManager.setManagedFocus(tiledHandle, in: workspaceId, onMonitor: monitor.id)
+        let floatingFrame = CGRect(x: 200, y: 120, width: 300, height: 220)
+        controller.workspaceManager.updateFloatingGeometry(
+            frame: floatingFrame,
+            for: floatingToken,
+            restoreToFloating: true
+        )
+        controller.layoutRefreshController.requestImmediateRelayout(reason: .workspaceTransition)
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+
+        var warpedPoints: [CGPoint] = []
+        controller.warpMouseCursorPosition = { point in
+            warpedPoints.append(point)
+        }
+
+        controller.mouseEventHandler.dispatchMouseDown(at: floatingFrame.center, modifiers: [])
+        controller.axEventHandler.handleManagedAppActivation(
+            entry: floatingEntry,
+            isWorkspaceActive: true,
+            appFullscreen: false,
+            source: .focusedWindowChanged,
+            confirmRequest: true
+        )
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == floatingToken)
+        #expect(warpedPoints.isEmpty)
+    }
+
+    @Test @MainActor func focusFollowsMouseDoesNotStealFocusDuringRecentFloatingPointerInteraction() async {
+        let controller = makeMouseEventTestController()
+        controller.enableNiriLayout()
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+        controller.syncMonitorsToNiriEngine()
+        controller.setFocusFollowsMouse(true)
+
+        guard let workspaceId = controller.interactionWorkspace()?.id,
+              let engine = controller.niriEngine,
+              let monitor = controller.workspaceManager.monitor(for: workspaceId)
+        else {
+            Issue.record("Missing Niri context for floating pointer interaction regression test")
+            return
+        }
+
+        let tiledToken = controller.workspaceManager.addWindow(
+            makeMouseEventTestWindow(windowId: 936),
+            pid: getpid(),
+            windowId: 936,
+            to: workspaceId
+        )
+        let secondTiledToken = controller.workspaceManager.addWindow(
+            makeMouseEventTestWindow(windowId: 937),
+            pid: getpid(),
+            windowId: 937,
+            to: workspaceId
+        )
+        let floatingToken = controller.workspaceManager.addWindow(
+            makeMouseEventTestWindow(windowId: 938),
+            pid: getpid(),
+            windowId: 938,
+            to: workspaceId,
+            mode: .floating
+        )
+        guard let tiledHandle = controller.workspaceManager.handle(for: tiledToken),
+              let secondTiledHandle = controller.workspaceManager.handle(for: secondTiledToken),
+              let floatingHandle = controller.workspaceManager.handle(for: floatingToken)
+        else {
+            Issue.record("Missing handles for floating pointer interaction regression test")
+            return
+        }
+
+        _ = engine.syncWindows(
+            [tiledHandle, secondTiledHandle],
+            in: workspaceId,
+            selectedNodeId: nil,
+            focusedHandle: tiledHandle
+        )
+        _ = controller.workspaceManager.setManagedFocus(floatingHandle, in: workspaceId, onMonitor: monitor.id)
+        controller.layoutRefreshController.requestImmediateRelayout(reason: .workspaceTransition)
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+
+        guard let secondNode = engine.findNode(for: secondTiledHandle),
+              let secondFrame = secondNode.frame
+        else {
+            Issue.record("Missing tiled target frame for floating pointer interaction regression test")
+            return
+        }
+
+        let floatingFrame = CGRect(
+            x: secondFrame.midX - 120,
+            y: secondFrame.midY - 80,
+            width: 160,
+            height: 120
+        )
+        controller.workspaceManager.updateFloatingGeometry(
+            frame: floatingFrame,
+            for: floatingToken,
+            restoreToFloating: true
+        )
+
+        let tiledPointOutsideFloating = CGPoint(x: floatingFrame.maxX + 40, y: floatingFrame.midY)
+        #expect(secondFrame.contains(tiledPointOutsideFloating))
+        #expect(!floatingFrame.contains(tiledPointOutsideFloating))
+
+        controller.mouseEventHandler.dispatchMouseDown(at: floatingFrame.center, modifiers: [])
+        controller.mouseEventHandler.dispatchMouseDragged(at: tiledPointOutsideFloating)
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == floatingToken)
+        #expect(controller.workspaceManager.activeFocusRequestToken == nil)
+    }
+
+    @Test @MainActor func mouseInitiatedFocusDoesNotMoveMouseToFocusedWindow() async {
+        let controller = makeMouseEventTestController()
+        controller.enableNiriLayout()
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+        controller.syncMonitorsToNiriEngine()
+        controller.setMoveMouseToFocusedWindow(true)
+        controller.setFocusFollowsMouse(false)
+
+        guard let workspaceId = controller.interactionWorkspace()?.id,
+              let engine = controller.niriEngine,
+              let monitor = controller.workspaceManager.monitor(for: workspaceId)
+        else {
+            Issue.record("Missing Niri context for mouse-initiated focus warp regression test")
+            return
+        }
+
+        let firstToken = controller.workspaceManager.addWindow(
+            makeMouseEventTestWindow(windowId: 941),
+            pid: getpid(),
+            windowId: 941,
+            to: workspaceId
+        )
+        let secondToken = controller.workspaceManager.addWindow(
+            makeMouseEventTestWindow(windowId: 942),
+            pid: getpid(),
+            windowId: 942,
+            to: workspaceId
+        )
+        guard let firstHandle = controller.workspaceManager.handle(for: firstToken),
+              let secondHandle = controller.workspaceManager.handle(for: secondToken),
+              let secondEntry = controller.workspaceManager.entry(for: secondToken)
+        else {
+            Issue.record("Missing handles for mouse-initiated focus warp regression test")
+            return
+        }
+
+        let handles = controller.workspaceManager.entries(in: workspaceId).map(\.handle)
+        _ = engine.syncWindows(
+            handles,
+            in: workspaceId,
+            selectedNodeId: nil,
+            focusedHandle: firstHandle
+        )
+        _ = controller.workspaceManager.setManagedFocus(firstHandle, in: workspaceId, onMonitor: monitor.id)
+        controller.layoutRefreshController.requestImmediateRelayout(reason: .workspaceTransition)
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+
+        guard let secondNode = engine.findNode(for: secondHandle),
+              let secondFrame = secondNode.frame
+        else {
+            Issue.record("Missing clicked node frame for mouse-initiated focus warp regression test")
+            return
+        }
+
+        var warpedPoints: [CGPoint] = []
+        controller.warpMouseCursorPosition = { point in
+            warpedPoints.append(point)
+        }
+
+        controller.mouseEventHandler.dispatchMouseDown(
+            at: CGPoint(x: secondFrame.midX, y: secondFrame.midY),
+            modifiers: []
+        )
+        controller.axEventHandler.handleManagedAppActivation(
+            entry: secondEntry,
+            isWorkspaceActive: true,
+            appFullscreen: false,
+            source: .focusedWindowChanged,
+            confirmRequest: true
+        )
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == secondToken)
+        #expect(warpedPoints.isEmpty)
+    }
+
+    @Test @MainActor func focusFollowsMouseReactivatesLastHoveredWindowAfterGestureFocusChange() async {
+        let controller = makeMouseEventTestController()
+        controller.enableNiriLayout()
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+        controller.syncMonitorsToNiriEngine()
+        controller.setFocusFollowsMouse(true)
+
+        guard let workspaceId = controller.interactionWorkspace()?.id,
+              let engine = controller.niriEngine,
+              let monitor = controller.workspaceManager.monitor(for: workspaceId)
+        else {
+            Issue.record("Missing Niri context for repeated hover focus regression test")
+            return
+        }
+
+        let firstToken = controller.workspaceManager.addWindow(
+            makeMouseEventTestWindow(windowId: 951),
+            pid: getpid(),
+            windowId: 951,
+            to: workspaceId
+        )
+        let secondToken = controller.workspaceManager.addWindow(
+            makeMouseEventTestWindow(windowId: 952),
+            pid: getpid(),
+            windowId: 952,
+            to: workspaceId
+        )
+        guard let firstHandle = controller.workspaceManager.handle(for: firstToken),
+              let secondHandle = controller.workspaceManager.handle(for: secondToken)
+        else {
+            Issue.record("Missing handles for repeated hover focus regression test")
+            return
+        }
+
+        let handles = controller.workspaceManager.entries(in: workspaceId).map(\.handle)
+        _ = engine.syncWindows(
+            handles,
+            in: workspaceId,
+            selectedNodeId: nil,
+            focusedHandle: firstHandle
+        )
+        _ = controller.workspaceManager.setManagedFocus(firstHandle, in: workspaceId, onMonitor: monitor.id)
+        controller.layoutRefreshController.requestImmediateRelayout(reason: .workspaceTransition)
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+
+        guard let secondNode = engine.findNode(for: secondHandle),
+              let secondFrame = secondNode.renderedFrame ?? secondNode.frame
+        else {
+            Issue.record("Missing second node frame for repeated hover focus regression test")
+            return
+        }
+
+        let hoverPoint = CGPoint(x: secondFrame.midX, y: secondFrame.midY)
+        controller.mouseEventHandler.dispatchMouseMoved(at: hoverPoint)
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+        #expect(controller.workspaceManager.pendingFocusedHandle == secondHandle)
+
+        _ = controller.workspaceManager.confirmManagedFocus(
+            firstToken,
+            in: workspaceId,
+            onMonitor: monitor.id,
+            appFullscreen: false,
+            activateWorkspaceOnMonitor: false
+        )
+        controller.mouseEventHandler.resetFocusFollowsMouseTimeForTesting()
+
+        controller.mouseEventHandler.dispatchMouseMoved(at: hoverPoint)
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+
+        #expect(controller.workspaceManager.pendingFocusedHandle == secondHandle)
     }
 
     @Test @MainActor func focusFollowsMouseActivatesVisibleNiriWindowWithoutRecenteringViewport() async {

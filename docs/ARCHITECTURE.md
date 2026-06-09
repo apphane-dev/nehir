@@ -403,7 +403,7 @@ When AX readback shows that a real app refused or clamped a requested resize, th
 | `commandHandler` | Routes `HotkeyCommand` cases to appropriate handler methods |
 | `axEventHandler` | Processes window create/destroy events, manages replacement correlation |
 | `mouseEventHandler` | CGEvent tap for mouse events, gestures, focus-follows-mouse |
-| `mouseWarpHandler` | Warps cursor to focused window when configured |
+| `mouseWarpHandler` | Warps cursor to focused window when configured; skipped for pointer/gesture-initiated focus and empty-workspace monitor transitions use center warp |
 | `layoutRefreshController` | Refresh scheduling, DisplayLink animation, frame application |
 | `workspaceNavigationHandler` | Workspace switching, window-to-workspace moves |
 | `windowActionHandler` | Window close, fullscreen toggle, float toggle |
@@ -601,10 +601,11 @@ The `FocusBridgeCoordinator` manages the request/confirmation part of this model
 **Mouse events** (`Sources/Nehir/Core/Controller/MouseEventHandler.swift`)
 
 Uses `CGEventTap` for system-wide mouse event interception:
-- **Focus-follows-mouse**: Debounced (100ms) focus change on mouse hover
-- **Trackpad gestures**: Three-phase state machine (`idle` → `armed` → `committed`) for workspace switching via swipe
+- **Focus-follows-mouse**: Debounced (100ms) focus change on mouse hover. Re-evaluated after scroll/swipe animation settles and after owned Nehir UI windows close, because those paths may not emit a fresh mouse-move event. Tiled hover activation is disabled while a tracked floating window is the active surface above the Niri layout, but a floating window merely visible behind the active tiled window does not block hover focus. Hover activation is also blocked when the pointer is over a visible unmanaged WindowServer window, and briefly suppressed after floating/unmanaged pointer interaction so clicking or dragging those windows does not immediately activate a tiled column behind them.
+- **Trackpad gestures**: Three-phase state machine (`idle` → `armed` → `committed`) for workspace switching via swipe. Gesture-selected focus suppresses cursor warp so the cursor does not jump to the focused column. When `focusFollowsMouse` is enabled, gesture end updates the viewport selection but does not commit managed focus; pointer hover decides final focus after the gesture/animation settles.
 - **Interactive move/resize**: Option+Shift+drag for window repositioning
 - **Event coalescing**: Transient mouse events are batched and drained in coalesced bursts
+- **Cursor warp suppression**: `moveMouseToFocusedWindow` is treated as a keyboard/command-navigation affordance. Pointer-initiated focus (hover, window click, floating click/drag, workspace bar click, tab overlay click) and gesture/scroll-initiated focus suppress warping via `suppressMouseMoveToFocusedWindow(for:)`, so the cursor does not jump under the user's hand. Empty-workspace monitor switches are the exception: with no focused window target, command navigation warps to the target monitor center.
 
 **SkyLight events** (`Sources/Nehir/Core/SkyLight/CGSEventObserver.swift`)
 

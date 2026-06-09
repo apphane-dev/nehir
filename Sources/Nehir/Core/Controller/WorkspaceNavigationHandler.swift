@@ -111,7 +111,7 @@ final class WorkspaceNavigationHandler {
         )
     }
 
-    private func clearManagedFocusAfterEmptyWorkspaceSwitch() {
+    private func clearManagedFocusAfterEmptyWorkspaceSwitch(to monitor: Monitor?) {
         guard let controller else { return }
         let canceledRequest = controller.focusBridge.cancelManagedRequest()
         if let canceledRequest {
@@ -120,6 +120,9 @@ final class WorkspaceNavigationHandler {
         controller.clearKeyboardFocusTarget()
         _ = controller.workspaceManager.enterNonManagedFocus(appFullscreen: false)
         controller.focusBorderController.clear()
+        if controller.moveMouseToFocusedWindowEnabled, let monitor {
+            controller.moveMouseToMonitor(monitor)
+        }
     }
 
     private func commitWorkspaceTransitionFocusHandoff(
@@ -139,7 +142,7 @@ final class WorkspaceNavigationHandler {
             if let focusToken = handoff.focusToken {
                 controller.focusWindow(focusToken)
             } else if handoff.shouldClearManagedFocus {
-                self?.clearManagedFocusAfterEmptyWorkspaceSwitch()
+                self?.clearManagedFocusAfterEmptyWorkspaceSwitch(to: monitor)
             }
             if startScrollAnimation {
                 controller.layoutRefreshController.startScrollAnimation(for: targetWorkspaceId)
@@ -176,20 +179,24 @@ final class WorkspaceNavigationHandler {
     private func switchToMonitor(_ targetMonitorId: Monitor.ID, fromMonitor currentMonitorId: Monitor.ID) {
         guard let controller else { return }
 
-        guard let targetWorkspace = controller.workspaceManager.activeWorkspaceOrFirst(on: targetMonitorId)
+        guard let target = controller.workspaceManager.monitor(byId: targetMonitorId),
+              let targetWorkspace = controller.workspaceManager.activeWorkspaceOrFirst(on: targetMonitorId)
         else {
             return
         }
 
         _ = controller.workspaceManager.setInteractionMonitor(targetMonitorId)
-        let focusToken = controller.resolveAndSetWorkspaceFocusToken(for: targetWorkspace.id)
+        let handoff = resolveWorkspaceTransitionFocusHandoff(for: targetWorkspace.id)
 
         controller.layoutRefreshController.commitWorkspaceTransition(
             affectedWorkspaces: [targetWorkspace.id],
             reason: .workspaceTransition
-        ) { [weak controller] in
-            if let focusToken {
-                controller?.focusWindow(focusToken)
+        ) { [weak self, weak controller] in
+            guard let controller else { return }
+            if let focusToken = handoff.focusToken {
+                controller.focusWindow(focusToken)
+            } else if handoff.shouldClearManagedFocus {
+                self?.clearManagedFocusAfterEmptyWorkspaceSwitch(to: target)
             }
         }
     }

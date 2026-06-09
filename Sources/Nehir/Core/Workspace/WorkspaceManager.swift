@@ -1790,6 +1790,26 @@ final class WorkspaceManager {
         return changed
     }
 
+    @discardableResult
+    func leaveNonManagedFocus(
+        preserveFocusedToken: Bool = true,
+        preservePendingManagedFocus: Bool = false
+    ) -> Bool {
+        let changed = applyFocusReconcileEvent(
+            .nonManagedFocusChanged(
+                active: false,
+                appFullscreen: sessionState.focus.isAppFullscreenActive,
+                preserveFocusedToken: preserveFocusedToken,
+                preservePendingManagedFocus: preservePendingManagedFocus,
+                source: .workspaceManager
+            )
+        )
+        if changed {
+            notifySessionStateChanged()
+        }
+        return changed
+    }
+
     func handleWindowRemoved(_ token: WindowToken, in workspaceId: WorkspaceDescriptor.ID?) {
         let focusChanged = updateFocusSession(notify: false) { focus in
             self.clearRememberedFocus(

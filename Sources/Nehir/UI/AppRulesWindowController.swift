@@ -6,6 +6,7 @@ final class AppRulesWindowController {
     static let shared = AppRulesWindowController()
 
     private var window: NSWindow?
+    private var willCloseObserver: NSObjectProtocol?
     private let ownedWindowRegistry = OwnedWindowRegistry.shared
 
     func show(settings: SettingsStore, controller: WMController) {
@@ -14,6 +15,8 @@ final class AppRulesWindowController {
             NSApp.activate(ignoringOtherApps: true)
             return
         }
+
+        removeWillCloseObserver()
 
         let appRulesView = AppRulesView(settings: settings, controller: controller)
             .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
@@ -31,14 +34,26 @@ final class AppRulesWindowController {
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
 
-        NotificationCenter.default
-            .addObserver(forName: NSWindow.willCloseNotification, object: window, queue: .main) { [weak self] _ in
+        willCloseObserver = NotificationCenter.default
+            .addObserver(forName: NSWindow.willCloseNotification, object: window, queue: .main) { [weak self, weak controller, weak window] _ in
                 MainActor.assumeIsolated {
-                    self?.ownedWindowRegistry.unregister(window)
-                    self?.window = nil
+                    guard let self else { return }
+                    if let window {
+                        self.ownedWindowRegistry.unregister(window)
+                    }
+                    self.removeWillCloseObserver()
+                    self.window = nil
+                    controller?.handleOwnedFocusSuppressingWindowClosed()
                 }
             }
         self.window = window
+    }
+
+    private func removeWillCloseObserver() {
+        if let willCloseObserver {
+            NotificationCenter.default.removeObserver(willCloseObserver)
+            self.willCloseObserver = nil
+        }
     }
 
     var windowForTests: NSWindow? {

@@ -766,6 +766,7 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
         isProgrammaticDismiss = true
         panel?.orderOut(nil)
         isProgrammaticDismiss = false
+        wmController?.handleOwnedFocusSuppressingWindowClosed()
 
         let restoreTarget = reason == .cancel ? restoreFocusTarget : nil
 

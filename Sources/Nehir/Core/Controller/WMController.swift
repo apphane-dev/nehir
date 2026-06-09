@@ -9,17 +9,22 @@ struct WindowFocusOperations {
     let focusSpecificWindow: (pid_t, UInt32, AXUIElement) -> Void
     let raiseWindow: (AXUIElement) -> Void
     let orderWindow: (UInt32) -> Void
+    let visibleWindowInfoProvider: () -> [WindowServerInfo]
 
     init(
         activateApp: @escaping (pid_t) -> Void,
         focusSpecificWindow: @escaping (pid_t, UInt32, AXUIElement) -> Void,
         raiseWindow: @escaping (AXUIElement) -> Void,
-        orderWindow: @escaping (UInt32) -> Void = { _ in }
+        orderWindow: @escaping (UInt32) -> Void = { _ in },
+        visibleWindowInfoProvider: @escaping () -> [WindowServerInfo] = {
+            SkyLight.shared.queryAllVisibleWindows()
+        }
     ) {
         self.activateApp = activateApp
         self.focusSpecificWindow = focusSpecificWindow
         self.raiseWindow = raiseWindow
         self.orderWindow = orderWindow
+        self.visibleWindowInfoProvider = visibleWindowInfoProvider
     }
 
     static let live = WindowFocusOperations(
@@ -83,6 +88,8 @@ final class WMController {
     private(set) var accessibilityPermissionGranted = AccessibilityPermissionMonitor.shared.isGranted
     private(set) var focusFollowsMouseEnabled: Bool = false
     private(set) var moveMouseToFocusedWindowEnabled: Bool = false
+    private var pointerFocusWarpSuppression: (token: WindowToken, timestamp: Date)?
+    private let pointerFocusWarpSuppressionInterval: TimeInterval = 1.0
 
     let settings: SettingsStore
     let workspaceManager: WorkspaceManager
@@ -150,7 +157,8 @@ final class WMController {
     @ObservationIgnored
     private(set) lazy var windowActionHandler = WindowActionHandler(
         controller: self,
-        orderWindow: windowFocusOperations.orderWindow
+        orderWindow: windowFocusOperations.orderWindow,
+        visibleWindowInfoProvider: windowFocusOperations.visibleWindowInfoProvider
     )
     @ObservationIgnored
     private(set) lazy var focusNotificationDispatcher = FocusNotificationDispatcher(controller: self)
@@ -166,6 +174,8 @@ final class WMController {
     var workspaceBarRefreshExecutionHookForTests: (() -> Void)?
     @ObservationIgnored
     var warpMouseCursorPosition: (CGPoint) -> Void = { CGWarpMouseCursorPosition($0) }
+    @ObservationIgnored
+    var unmanagedWindowServerWindowFramesProvider: @MainActor (Set<Int>) -> [CGRect] = WMController.visibleUnmanagedWindowServerFrames
     @ObservationIgnored
     weak var ipcApplicationBridge: IPCApplicationBridge?
     @ObservationIgnored
@@ -508,11 +518,11 @@ final class WMController {
     }
 
     func focusWorkspaceFromBar(named name: String) {
-        windowActionHandler.focusWorkspaceFromBar(named: name)
+        windowActionHandler.focusWorkspaceFromBar(named: name, suppressMouseWarp: true)
     }
 
     func focusWindowFromBar(token: WindowToken) {
-        windowActionHandler.focusWindowFromBar(token: token)
+        windowActionHandler.focusWindowFromBar(token: token, suppressMouseWarp: true)
     }
 
     @discardableResult
@@ -544,7 +554,7 @@ final class WMController {
                 : .notFound
         }
 
-        if windowActionHandler.focusWindowFromBar(token: scratchpadToken) {
+        if windowActionHandler.focusWindowFromBar(token: scratchpadToken, suppressMouseWarp: true) {
             return .executed
         }
 
@@ -558,6 +568,19 @@ final class WMController {
 
     func setMoveMouseToFocusedWindow(_ enabled: Bool) {
         moveMouseToFocusedWindowEnabled = enabled
+    }
+
+    func suppressMouseMoveToFocusedWindow(for token: WindowToken) {
+        pointerFocusWarpSuppression = (token, Date())
+    }
+
+    func shouldSuppressMouseMoveToFocusedWindow(for token: WindowToken) -> Bool {
+        guard let suppression = pointerFocusWarpSuppression else { return false }
+        guard Date().timeIntervalSince(suppression.timestamp) <= pointerFocusWarpSuppressionInterval else {
+            pointerFocusWarpSuppression = nil
+            return false
+        }
+        return suppression.token == token
     }
 
     func shouldUseMouseWarp(for monitors: [Monitor]? = nil) -> Bool {
@@ -2181,6 +2204,43 @@ final class WMController {
         ].joined(separator: " ")
     }
 
+    static func visibleUnmanagedWindowServerFrames(
+        trackedWindowIds: Set<Int> = []
+    ) -> [CGRect] {
+        guard let windows = CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID) as? [[String: Any]] else {
+            return []
+        }
+
+        return windows.compactMap { info -> CGRect? in
+            let windowId = (info[kCGWindowNumber as String] as? NSNumber)?.uint32Value
+            guard let windowId, !trackedWindowIds.contains(Int(windowId)) else { return nil }
+
+            let layer = (info[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0
+            guard layer == 0 else { return nil }
+
+            let isOnscreen = (info[kCGWindowIsOnscreen as String] as? NSNumber)?.boolValue ?? false
+            guard isOnscreen else { return nil }
+
+            guard let bounds = info[kCGWindowBounds as String] as? [String: Any],
+                  let x = (bounds["X"] as? NSNumber)?.doubleValue,
+                  let y = (bounds["Y"] as? NSNumber)?.doubleValue,
+                  let width = (bounds["Width"] as? NSNumber)?.doubleValue,
+                  let height = (bounds["Height"] as? NSNumber)?.doubleValue,
+                  width >= 80,
+                  height >= 80
+            else { return nil }
+
+            return ScreenCoordinateSpace.toAppKit(
+                rect: CGRect(x: x, y: y, width: width, height: height)
+            )
+        }
+    }
+
+    func unmanagedWindowServerWindowCovers(point: CGPoint) -> Bool {
+        let trackedWindowIds = Set(workspaceManager.trackedWindowIdsForDebug())
+        return unmanagedWindowServerWindowFramesProvider(trackedWindowIds).contains { $0.contains(point) }
+    }
+
     private func visibleUnmanagedWindowServerDebugDump() -> String {
         guard let windows = CGWindowListCopyWindowInfo(.optionAll, kCGNullWindowID) as? [[String: Any]] else {
             return "unavailable"
@@ -3155,6 +3215,13 @@ final class WMController {
         warpMouseCursorPosition(ScreenCoordinateSpace.toWindowServer(point: center))
     }
 
+    func moveMouseToMonitor(_ monitor: Monitor) {
+        let center = monitor.visibleFrame.center
+        warpMouseCursorPosition(
+            ScreenCoordinateSpace.toWindowServer(point: center, displayId: monitor.displayId)
+        )
+    }
+
     func runningAppsWithWindows() -> [RunningAppInfo] {
         windowActionHandler.runningAppsWithWindows()
     }
@@ -3175,6 +3242,13 @@ extension WMController {
 
     var hasVisibleOwnedWindow: Bool {
         ownedWindowRegistry.hasVisibleWindow
+    }
+
+    func handleOwnedFocusSuppressingWindowClosed() {
+        guard workspaceManager.isNonManagedFocusActive, !hasVisibleOwnedWindow else { return }
+        guard workspaceManager.leaveNonManagedFocus(preserveFocusedToken: true) else { return }
+        _ = focusBorderController.refresh(forceOrdering: true)
+        mouseEventHandler.refreshFocusFollowsMouseAtCurrentPointer()
     }
 
     func isOwnedWindow(windowNumber: Int) -> Bool {
