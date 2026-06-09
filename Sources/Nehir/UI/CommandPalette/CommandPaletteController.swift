@@ -136,6 +136,10 @@ struct CommandPaletteEnvironment {
     }
 }
 
+private final class CommandPalettePanel: NSPanel {
+    override var canBecomeKey: Bool { true }
+}
+
 @MainActor
 final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelegate {
     static let unavailableMenuStatusText = "Open the palette while another app is frontmost to search its menus."
@@ -919,9 +923,9 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
     }
 
     private func createPanel() {
-        let panel = NSPanel(
+        let panel = CommandPalettePanel(
             contentRect: NSRect(x: 0, y: 0, width: 620, height: 430),
-            styleMask: [.titled, .fullSizeContentView],
+            styleMask: [.borderless, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
@@ -1136,7 +1140,8 @@ private struct CommandPaletteView: View {
             }
         }
         .frame(width: 620, height: 430)
-        .omniGlassEffect(in: RoundedRectangle(cornerRadius: 14))
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
     private var searchPlaceholder: String {
@@ -1202,12 +1207,19 @@ private struct CommandPaletteView: View {
 }
 
 private struct CommandPaletteModePicker: View {
+    @Environment(\.colorScheme) private var colorScheme
+
     let selectedMode: CommandPaletteMode
     let isMenuModeAvailable: Bool
     let onSelect: (CommandPaletteMode) -> Void
 
-    private let trackColor = Color(red: 0.22, green: 0.22, blue: 0.22)
-    private let selectedFillColor = Color(red: 0.49, green: 0.33, blue: 0.20)
+    private var trackColor: Color {
+        colorScheme == .dark ? Color.white.opacity(0.16) : Color.black.opacity(0.08)
+    }
+
+    private var selectedFillColor: Color {
+        colorScheme == .dark ? Color.accentColor.opacity(0.55) : Color.accentColor.opacity(0.18)
+    }
 
     var body: some View {
         HStack(spacing: 4) {
@@ -1216,7 +1228,7 @@ private struct CommandPaletteModePicker: View {
             }
         }
         .padding(4)
-        .background(trackColor.opacity(0.92))
+        .background(trackColor)
         .clipShape(Capsule())
     }
 
@@ -1252,16 +1264,16 @@ private struct CommandPaletteModePicker: View {
 
     private func tabTitleColor(isSelected: Bool, enabled: Bool) -> Color {
         if !enabled {
-            return Color.white.opacity(0.38)
+            return Color.secondary.opacity(0.55)
         }
-        return isSelected ? .white : Color.white.opacity(0.92)
+        return isSelected ? .primary : .primary.opacity(0.82)
     }
 
     private func tabShortcutColor(isSelected: Bool, enabled: Bool) -> Color {
         if !enabled {
-            return Color.white.opacity(0.32)
+            return Color.secondary.opacity(0.45)
         }
-        return isSelected ? Color.white.opacity(0.82) : Color.white.opacity(0.62)
+        return isSelected ? .secondary : .secondary.opacity(0.82)
     }
 }
 
