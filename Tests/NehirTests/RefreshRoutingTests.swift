@@ -664,7 +664,6 @@ private func syncNiriWorkspaceStatesForRefreshTests(
                     workspaceConfigurations: workspaceConfigurations
                 )
                 defer { cleanupRefreshTestController(initialController) }
-                initialController.motionPolicy.animationsEnabled = false
                 initialController.enableNiriLayout()
                 await waitForRefreshWork(on: initialController)
                 initialController.syncMonitorsToNiriEngine()
@@ -740,7 +739,6 @@ private func syncNiriWorkspaceStatesForRefreshTests(
                 workspaceConfigurations: workspaceConfigurations
             )
             defer { cleanupRefreshTestController(relaunchedController) }
-            relaunchedController.motionPolicy.animationsEnabled = false
             relaunchedController.axEventHandler.windowFactsProvider = { axRef, _ in
                 makeRefreshTestWindowFacts(
                     bundleId: bundleId,
@@ -1916,7 +1914,6 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         await withAXFrameProviderIsolationForTests {
             let controller = makeRefreshTestController()
             defer { cleanupRefreshTestController(controller) }
-            controller.motionPolicy.animationsEnabled = false
             let visibleWindows = VisibleWindowsStore([
                 (makeRefreshTestWindow(windowId: 2611), getpid(), 2611),
                 (makeRefreshTestWindow(windowId: 2612), getpid(), 2612)
@@ -1977,7 +1974,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
             #expect(restoredNode.id == originalNode.id)
             #expect(restoredColumnIndex == originalColumnIndex)
             #expect(abs(restoredColumn.cachedWidth - originalColumnWidth) < 0.5)
-            #expect(abs(restoredFrame.origin.x - originalFrame.origin.x) <= 6.0)
+            #expect(abs(restoredFrame.origin.x - originalFrame.origin.x) <= CGFloat(controller.workspaceManager.gaps) + 0.5)
             #expect(abs(restoredFrame.origin.y - originalFrame.origin.y) < 0.5)
             #expect(abs(restoredFrame.size.width - originalFrame.size.width) < 0.5)
             #expect(abs(restoredFrame.size.height - originalFrame.size.height) < 0.5)
@@ -1988,7 +1985,6 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         await withAXFrameProviderIsolationForTests {
             let controller = makeRefreshTestController()
             defer { cleanupRefreshTestController(controller) }
-            controller.motionPolicy.animationsEnabled = false
             let visibleWindows = VisibleWindowsStore([
                 (makeRefreshTestWindow(windowId: 2671), getpid(), 2671),
                 (makeRefreshTestWindow(windowId: 2672), getpid(), 2672)
@@ -2061,7 +2057,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
             #expect(restoredNode.id == originalNode.id)
             #expect(restoredColumnIndex == originalColumnIndex)
             #expect(abs(restoredColumn.cachedWidth - originalColumnWidth) < 0.5)
-            #expect(abs(restoredFrame.origin.x - originalFrame.origin.x) <= 4.0)
+            #expect(abs(restoredFrame.origin.x - originalFrame.origin.x) <= CGFloat(controller.workspaceManager.gaps) + 0.5)
             #expect(abs(restoredFrame.origin.y - originalFrame.origin.y) < 0.5)
             #expect(abs(restoredFrame.size.width - originalFrame.size.width) < 0.5)
             #expect(abs(restoredFrame.size.height - originalFrame.size.height) < 0.5)
@@ -2072,7 +2068,6 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         await withAXFrameProviderIsolationForTests {
             let controller = makeRefreshTestController()
             defer { cleanupRefreshTestController(controller) }
-            controller.motionPolicy.animationsEnabled = false
             let visibleWindows = VisibleWindowsStore([
                 (makeRefreshTestWindow(windowId: 2615), getpid(), 2615),
                 (makeRefreshTestWindow(windowId: 2616), getpid(), 2616)
@@ -2128,7 +2123,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
             #expect(replacementEntry.handle === originalEntry.handle)
             #expect(replacementNode.id == originalNode.id)
             #expect(replacementColumnIndex == originalColumnIndex)
-            #expect(abs(replacementFrame.origin.x - originalFrame.origin.x) <= 6.0)
+            #expect(abs(replacementFrame.origin.x - originalFrame.origin.x) <= CGFloat(controller.workspaceManager.gaps) + 0.5)
             #expect(abs(replacementFrame.origin.y - originalFrame.origin.y) < 0.5)
             #expect(abs(replacementFrame.size.width - originalFrame.size.width) < 0.5)
             #expect(abs(replacementFrame.size.height - originalFrame.size.height) < 0.5)
@@ -2138,7 +2133,6 @@ private func syncNiriWorkspaceStatesForRefreshTests(
     @Test @MainActor func nativeFullscreenSpaceChangeRetainsMultiColumnNiriOrderWithSameWindowId() async {
         let controller = makeRefreshTestController()
         defer { cleanupRefreshTestController(controller) }
-        controller.motionPolicy.animationsEnabled = false
         let visibleWindows = VisibleWindowsStore([
             (makeRefreshTestWindow(windowId: 2641), getpid(), 2641),
             (makeRefreshTestWindow(windowId: 2642), getpid(), 2642),
@@ -2424,7 +2418,6 @@ private func syncNiriWorkspaceStatesForRefreshTests(
     @Test @MainActor func nativeFullscreenDelayedSameTokenDestroyRoundTripPreservesNiriIdentityAndBarState() async {
         let controller = makeRefreshTestController()
         defer { cleanupRefreshTestController(controller) }
-        controller.motionPolicy.animationsEnabled = false
         let visibleWindows = VisibleWindowsStore([
             (makeRefreshTestWindow(windowId: 2731), getpid(), 2731),
             (makeRefreshTestWindow(windowId: 2732), getpid(), 2732),
@@ -2569,7 +2562,6 @@ private func syncNiriWorkspaceStatesForRefreshTests(
     @Test @MainActor func nativeFullscreenExitPreservesInactiveWorkspaceWindowsDuringPartialEnumeration() async {
         let controller = makeRefreshTestController()
         defer { cleanupRefreshTestController(controller) }
-        controller.motionPolicy.animationsEnabled = false
 
         guard let workspaceOne = controller.interactionWorkspace()?.id,
               let workspaceTwo = controller.workspaceManager.workspaceId(for: "2", createIfMissing: true)
@@ -2622,7 +2614,6 @@ private func syncNiriWorkspaceStatesForRefreshTests(
     @Test @MainActor func nativeFullscreenExitPreservesInactiveWorkspaceWindowsWhenLifecycleClearsDuringEnumeration() async {
         let controller = makeRefreshTestController()
         defer { cleanupRefreshTestController(controller) }
-        controller.motionPolicy.animationsEnabled = false
 
         guard let workspaceOne = controller.interactionWorkspace()?.id,
               let workspaceTwo = controller.workspaceManager.workspaceId(for: "2", createIfMissing: true)
@@ -2675,7 +2666,6 @@ private func syncNiriWorkspaceStatesForRefreshTests(
     @Test @MainActor func nativeFullscreenReplacementSpaceChangePreservesMultiColumnNiriOrder() async {
         let controller = makeRefreshTestController()
         defer { cleanupRefreshTestController(controller) }
-        controller.motionPolicy.animationsEnabled = false
         let visibleWindows = VisibleWindowsStore([
             (makeRefreshTestWindow(windowId: 2651), getpid(), 2651),
             (makeRefreshTestWindow(windowId: 2652), getpid(), 2652),

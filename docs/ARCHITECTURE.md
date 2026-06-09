@@ -999,7 +999,7 @@ Nehir uses SkyLight (private macOS framework) for low-latency window operations.
 | `ProportionalSize` | `.proportion(CGFloat)` or `.fixed(CGFloat)` — Niri column width specification. |
 | `WeightedSize` | `.auto(weight:)` or `.fixed(CGFloat)` — Niri window height within a column. |
 | `NodeId` | UUID-based identifier for Niri layout tree nodes. |
-| `SpringConfig` | Animation parameters: `response`, `dampingFraction`. Presets: `.snappy`, `.balanced`, `.gentle`. |
+| `SpringConfig` | Spring parameters: `dampingRatio` controls oscillation damping (`1.0` is critically damped), `stiffness` controls how aggressively the spring accelerates toward its target, `epsilon` is the completion displacement threshold, and `velocityEpsilon` is the completion velocity threshold. Niri presets: `niriHorizontalViewMovement` controls viewport/column scrolling, `niriWindowMovement` controls window/column movement springs, and `niriWindowResize` controls column width resize springs. |
 | `WindowDecision` | Result of rule evaluation: `disposition`, `source`, `workspaceName`, `ruleEffects`. |
 | `WindowRuleFacts` | Input for rule evaluation: app name, AX facts (role, subrole, title), size constraints. |
 | `Scratchpad` | A special slot for a single transient window that can be toggled in/out of view. |

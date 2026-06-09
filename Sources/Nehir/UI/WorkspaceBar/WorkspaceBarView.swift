@@ -91,7 +91,6 @@ final class WorkspaceBarModel {
 @MainActor
 struct WorkspaceBarView: View {
     let model: WorkspaceBarModel
-    @Bindable var motionPolicy: MotionPolicy
     let onFocusWorkspace: (WorkspaceBarItem) -> Void
     let onFocusWindow: (WindowToken) -> Void
     let onActivateScratchpad: () -> Void
@@ -102,7 +101,7 @@ struct WorkspaceBarView: View {
     var body: some View {
         WorkspaceBarContentView(
             snapshot: model.snapshot,
-            animationsEnabled: motionPolicy.animationsEnabled,
+            animationsEnabled: true,
             onFocusWorkspace: onFocusWorkspace,
             onFocusWindow: onFocusWindow,
             onActivateScratchpad: onActivateScratchpad,

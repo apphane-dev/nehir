@@ -9,13 +9,7 @@ struct MotionSnapshot: Equatable, Sendable {
 
 @MainActor @Observable
 final class MotionPolicy {
-    var animationsEnabled: Bool
-
-    init(animationsEnabled: Bool = true) {
-        self.animationsEnabled = animationsEnabled
-    }
-
     func snapshot() -> MotionSnapshot {
-        MotionSnapshot(animationsEnabled: animationsEnabled)
+        .enabled
     }
 }

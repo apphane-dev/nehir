@@ -3,18 +3,6 @@ import Foundation
 import QuartzCore
 @testable import Nehir
 
-extension CommandPaletteController {
-    convenience init(environment: CommandPaletteEnvironment = .init()) {
-        self.init(motionPolicy: MotionPolicy(), environment: environment)
-    }
-}
-
-extension WorkspaceBarManager {
-    convenience init() {
-        self.init(motionPolicy: MotionPolicy())
-    }
-}
-
 extension NiriLayoutEngine {
     func animateColumnsForRemoval(
         columnIndex removedIdx: Int,

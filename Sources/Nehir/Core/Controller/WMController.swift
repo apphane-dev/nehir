@@ -116,7 +116,7 @@ final class WMController {
     @ObservationIgnored
     private(set) lazy var focusBorderController = FocusBorderController(controller: self)
     @ObservationIgnored
-    private lazy var workspaceBarManager: WorkspaceBarManager = .init(motionPolicy: motionPolicy)
+    private lazy var workspaceBarManager: WorkspaceBarManager = .init()
     @ObservationIgnored
     private var workspaceBarRefreshGeneration: UInt64 = 0
     @ObservationIgnored
@@ -124,7 +124,7 @@ final class WMController {
     @ObservationIgnored
     private var hiddenWorkspaceBarMonitorIds: Set<Monitor.ID> = []
     @ObservationIgnored
-    private lazy var commandPaletteController: CommandPaletteController = .init(motionPolicy: motionPolicy)
+    private lazy var commandPaletteController: CommandPaletteController = .init()
 
     var isTransferringWindow: Bool = false
     var hiddenAppPIDs: Set<pid_t> = []
@@ -197,7 +197,7 @@ final class WMController {
         ownedWindowRegistry: OwnedWindowRegistry = .shared
     ) {
         self.settings = settings
-        motionPolicy = MotionPolicy(animationsEnabled: settings.animationsEnabled)
+        motionPolicy = MotionPolicy()
         self.windowFocusOperations = windowFocusOperations
         self.ownedWindowRegistry = ownedWindowRegistry
         workspaceManager = WorkspaceManager(settings: settings)
@@ -241,7 +241,6 @@ final class WMController {
     }
 
     func applyPersistedSettings(_ settings: SettingsStore) {
-        setAnimationsEnabled(settings.animationsEnabled, persist: false)
         applyCurrentAppearanceMode()
 
         updateHotkeyBindings(settings.hotkeyBindings)
@@ -294,20 +293,6 @@ final class WMController {
 
         setEnabled(true)
         refreshStatusBar()
-    }
-
-    func setAnimationsEnabled(_ enabled: Bool, persist: Bool = true) {
-        if persist, settings.animationsEnabled != enabled {
-            settings.animationsEnabled = enabled
-        }
-
-        guard motionPolicy.animationsEnabled != enabled else {
-            statusBarController?.rebuildMenu()
-            return
-        }
-
-        motionPolicy.animationsEnabled = enabled
-        statusBarController?.rebuildMenu()
     }
 
     func applyCurrentAppearanceMode() {

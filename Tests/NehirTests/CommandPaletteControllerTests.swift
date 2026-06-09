@@ -196,8 +196,7 @@ private func makeCommandPaletteAppSnapshot(
     @Test func motionToggleKeepsLivePanelAndSelectionState() throws {
         var environment = CommandPaletteEnvironment()
         environment.activateNehir = {}
-        let motionPolicy = MotionPolicy()
-        let controller = CommandPaletteController(motionPolicy: motionPolicy, environment: environment)
+        let controller = CommandPaletteController(environment: environment)
         let wmController = makeCommandPaletteTestWMController()
 
         guard let workspaceId = wmController.interactionWorkspace()?.id else {
@@ -228,7 +227,6 @@ private func makeCommandPaletteAppSnapshot(
 
         #expect(controller.selectedItemID == expectedSelection)
 
-        motionPolicy.animationsEnabled = false
 
         #expect(controller.isVisible)
         #expect(controller.searchText == "Window")

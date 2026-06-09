@@ -78,7 +78,6 @@ struct SettingsExport: Equatable {
     var statusBarShowWorkspaceName: Bool
     var statusBarShowAppNames: Bool
     var statusBarUseWorkspaceId: Bool
-    var animationsEnabled: Bool
 
     var appearanceMode: String
 
@@ -150,7 +149,6 @@ extension SettingsExport {
             statusBarShowWorkspaceName: false,
             statusBarShowAppNames: false,
             statusBarUseWorkspaceId: false,
-            animationsEnabled: true,
             appearanceMode: AppearanceMode.dark.rawValue,
             capabilityOverrides: []
         )

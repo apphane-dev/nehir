@@ -43,7 +43,6 @@ import Testing
 
     @Test func overviewHotkeyFocusDirectionsMoveOverviewSelection() {
         let controller = makeLayoutPlanTestController()
-        controller.motionPolicy.animationsEnabled = false
         let workspaceId = try! #require(controller.interactionWorkspace()?.id)
         let monitorId = try! #require(controller.workspaceManager.monitors.first?.id)
         let firstToken = addLayoutPlanTestWindow(
@@ -91,7 +90,6 @@ import Testing
 
     @Test func overviewHotkeyHandlerStillBlocksOtherCommands() {
         let controller = makeLayoutPlanTestController()
-        controller.motionPolicy.animationsEnabled = false
         defer {
             if controller.isOverviewOpen() {
                 controller.toggleOverview()

@@ -322,7 +322,6 @@ private func makeUnavailableLayoutPlanTestWindow(windowId: Int) -> AXWindowRef {
         let token = addLayoutPlanTestWindow(on: controller, workspaceId: workspaceId, windowId: 210)
         _ = controller.workspaceManager.setManagedFocus(token, in: workspaceId, onMonitor: monitor.id)
         controller.setBordersEnabled(true)
-        controller.motionPolicy.animationsEnabled = false
 
         let frame = CGRect(x: 160, y: 96, width: 820, height: 540)
         _ = confirmFocusedBorderForLayoutPlanTests(on: controller, token: token, frame: frame)

@@ -61,7 +61,6 @@ final class OverviewController {
     }
 
     private weak var wmController: WMController?
-    private let motionPolicy: MotionPolicy
     private let environment: OverviewEnvironment
     private let ownedWindowRegistry: OwnedWindowRegistry
 
@@ -96,12 +95,10 @@ final class OverviewController {
 
     init(
         wmController: WMController,
-        motionPolicy: MotionPolicy,
         environment: OverviewEnvironment = .init(),
         ownedWindowRegistry: OwnedWindowRegistry = .shared
     ) {
         self.wmController = wmController
-        self.motionPolicy = motionPolicy
         self.environment = environment
         self.ownedWindowRegistry = ownedWindowRegistry
         animator = OverviewAnimator(controller: self)
@@ -133,13 +130,8 @@ final class OverviewController {
         let displayId = monitor?.displayId ?? CGMainDisplayID()
         let refreshRate = detectRefreshRate(for: displayId)
 
-        if motionPolicy.animationsEnabled {
-            state = .opening(progress: 0)
-            animator?.startOpenAnimation(displayId: displayId, refreshRate: refreshRate)
-        } else {
-            state = .open
-            animator?.cancelAnimation()
-        }
+        state = .opening(progress: 0)
+        animator?.startOpenAnimation(displayId: displayId, refreshRate: refreshRate)
 
         updateWindowDisplays()
         showWindows()
@@ -191,7 +183,7 @@ final class OverviewController {
 
         state = .closing(targetWindow: resolvedTargetWindow, progress: 0)
 
-        if animated && motionPolicy.animationsEnabled {
+        if animated {
             animator?.startCloseAnimation(
                 targetWindow: resolvedTargetWindow,
                 displayId: displayId,

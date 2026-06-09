@@ -39,10 +39,10 @@ private extension String {
     @Test func mainSettingsUsesDefaultsForMissingKeys() throws {
         let data = try SettingsTOMLCodec.encode(SettingsExport.defaults())
         let output = try #require(String(data: data, encoding: .utf8))
-        let edited = try output.removingKey("animationsEnabled")
+        let edited = try output.removingKey("ipcEnabled")
 
         let decoded = try SettingsTOMLCodec.decode(Data(edited.utf8))
-        #expect(decoded.animationsEnabled == SettingsExport.defaults().animationsEnabled)
+        #expect(decoded.ipcEnabled == SettingsExport.defaults().ipcEnabled)
     }
 
     @Test func mainSettingsRejectInvalidPresentValues() throws {

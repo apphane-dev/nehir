@@ -821,7 +821,6 @@ private func waitUntilAXEventTest(
 
         controller.hasStartedServices = true
         controller.setBordersEnabled(true)
-        controller.setAnimationsEnabled(false, persist: false)
         controller.enableNiriLayout()
         controller.updateNiriConfig(
             maxVisibleColumns: 1,
