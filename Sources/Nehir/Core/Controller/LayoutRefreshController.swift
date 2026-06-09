@@ -265,7 +265,6 @@ import QuartzCore
     }
 
     func startScrollAnimation(for workspaceId: WorkspaceDescriptor.ID) {
-        guard controller?.motionPolicy.animationsEnabled != false else { return }
         guard let controller else { return }
         let targetDisplayId: CGDirectDisplayID
         if let monitor = controller.workspaceManager.monitor(for: workspaceId) {
@@ -297,7 +296,6 @@ import QuartzCore
     }
 
     func startWindowCloseAnimation(entry: WindowModel.Entry, monitor: Monitor) {
-        guard controller?.motionPolicy.animationsEnabled != false else { return }
         guard controller != nil else { return }
         guard let frame = fastFrame(for: entry.token, axRef: entry.axRef) else { return }
 

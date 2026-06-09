@@ -285,10 +285,6 @@ final class SettingsStore {
         didSet { runtimeState.commandPaletteLastMode = commandPaletteLastMode }
     }
 
-    var animationsEnabled = SettingsStore.defaultExport.animationsEnabled {
-        didSet { scheduleSave() }
-    }
-
     var appearanceMode = AppearanceMode(
         rawValue: SettingsStore.defaultExport.appearanceMode
     ) ?? .dark {
@@ -430,7 +426,6 @@ final class SettingsStore {
             statusBarShowWorkspaceName: statusBarShowWorkspaceName,
             statusBarShowAppNames: statusBarShowAppNames,
             statusBarUseWorkspaceId: statusBarUseWorkspaceId,
-            animationsEnabled: animationsEnabled,
             appearanceMode: appearanceMode.rawValue,
             capabilityOverrides: []
         )
@@ -515,7 +510,6 @@ final class SettingsStore {
         statusBarShowWorkspaceName = export.statusBarShowWorkspaceName
         statusBarShowAppNames = export.statusBarShowAppNames
         statusBarUseWorkspaceId = export.statusBarUseWorkspaceId
-        animationsEnabled = export.animationsEnabled
 
         appearanceMode = AppearanceMode(rawValue: export.appearanceMode) ?? .dark
     }

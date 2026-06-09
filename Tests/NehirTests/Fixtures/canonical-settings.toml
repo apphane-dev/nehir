@@ -27,7 +27,6 @@ right = 0.0
 top = 0.0
 
 [general]
-animationsEnabled = true
 hotkeysEnabled = true
 ipcEnabled = false
 preventSleepEnabled = false

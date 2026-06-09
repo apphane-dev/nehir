@@ -28,7 +28,6 @@ struct CanonicalTOMLConfig: Codable, Equatable {
         var hotkeysEnabled: Bool
         var preventSleepEnabled: Bool
         var ipcEnabled: Bool
-        var animationsEnabled: Bool
     }
 
     struct Focus: Codable, Equatable {
@@ -150,8 +149,7 @@ extension CanonicalTOMLConfig {
         general = General(
             hotkeysEnabled: export.hotkeysEnabled,
             preventSleepEnabled: export.preventSleepEnabled,
-            ipcEnabled: export.ipcEnabled,
-            animationsEnabled: export.animationsEnabled
+            ipcEnabled: export.ipcEnabled
         )
         focus = Focus(
             followsMouse: export.focusFollowsMouse,
@@ -289,7 +287,6 @@ extension CanonicalTOMLConfig {
             statusBarShowWorkspaceName: statusBar.showWorkspaceName,
             statusBarShowAppNames: statusBar.showAppNames,
             statusBarUseWorkspaceId: statusBar.useWorkspaceId,
-            animationsEnabled: general.animationsEnabled,
             appearanceMode: appearance.mode
         )
     }
@@ -321,7 +318,6 @@ extension CanonicalTOMLConfig.General {
         hotkeysEnabled = try container.decodeWithDefault(Bool.self, forKey: .hotkeysEnabled, default: d.hotkeysEnabled)
         preventSleepEnabled = try container.decodeWithDefault(Bool.self, forKey: .preventSleepEnabled, default: d.preventSleepEnabled)
         ipcEnabled = try container.decodeWithDefault(Bool.self, forKey: .ipcEnabled, default: d.ipcEnabled)
-        animationsEnabled = try container.decodeWithDefault(Bool.self, forKey: .animationsEnabled, default: d.animationsEnabled)
     }
 }
 

@@ -170,7 +170,6 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
     @Published private(set) var isMenuLoading = false
 
     private let environment: CommandPaletteEnvironment
-    private let motionPolicy: MotionPolicy
     private let ownedWindowRegistry: OwnedWindowRegistry
     private var panel: NSPanel?
     private var eventMonitor: Any?
@@ -200,11 +199,9 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
     }
 
     init(
-        motionPolicy: MotionPolicy,
         environment: CommandPaletteEnvironment = .init(),
         ownedWindowRegistry: OwnedWindowRegistry = .shared
     ) {
-        self.motionPolicy = motionPolicy
         self.environment = environment
         self.ownedWindowRegistry = ownedWindowRegistry
         super.init()
@@ -949,7 +946,7 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
     }
 
     private func makeRootView() -> CommandPaletteView {
-        CommandPaletteView(controller: self, motionPolicy: motionPolicy)
+        CommandPaletteView(controller: self)
     }
 
     private func positionPanel(_ panel: NSPanel) {
@@ -1037,7 +1034,6 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
 
 private struct CommandPaletteView: View {
     @ObservedObject var controller: CommandPaletteController
-    @Bindable var motionPolicy: MotionPolicy
 
     var body: some View {
         VStack(spacing: 0) {
@@ -1130,11 +1126,7 @@ private struct CommandPaletteView: View {
                     }
                     .onChange(of: controller.selectedItemID) { _, newValue in
                         if let newValue {
-                            if motionPolicy.animationsEnabled {
-                                withAnimation(.easeInOut(duration: 0.1)) {
-                                    proxy.scrollTo(newValue, anchor: .center)
-                                }
-                            } else {
+                            withAnimation(.easeInOut(duration: 0.1)) {
                                 proxy.scrollTo(newValue, anchor: .center)
                             }
                         }

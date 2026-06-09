@@ -446,7 +446,6 @@ private func prepareIPCNiriState(
 
     @Test func focusCommandReturnsIgnoredOverviewWhenOverviewIsOpen() {
         let controller = makeLayoutPlanTestController()
-        controller.motionPolicy.animationsEnabled = false
         defer {
             if controller.isOverviewOpen() {
                 controller.toggleOverview()
@@ -466,7 +465,6 @@ private func prepareIPCNiriState(
 
     @Test func focusMonitorCommandsReturnIgnoredOverviewWhenOverviewIsOpen() {
         let controller = makeLayoutPlanTestController()
-        controller.motionPolicy.animationsEnabled = false
         defer {
             if controller.isOverviewOpen() {
                 controller.toggleOverview()

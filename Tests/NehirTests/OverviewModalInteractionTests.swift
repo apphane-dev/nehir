@@ -94,7 +94,7 @@ private func activatePreparedOverviewSelection(
 @Suite @MainActor struct OverviewInputHandlerTests {
     @Test func plainTypingUpdatesSearchQuery() {
         let wmController = makeLayoutPlanTestController()
-        let overview = OverviewController(wmController: wmController, motionPolicy: wmController.motionPolicy)
+        let overview = OverviewController(wmController: wmController)
         let inputHandler = OverviewInputHandler(controller: overview)
         overview.onAnimationComplete(state: .open)
 
@@ -110,7 +110,7 @@ private func activatePreparedOverviewSelection(
 
     @Test func unsupportedModifiedShortcutIsConsumed() {
         let wmController = makeLayoutPlanTestController()
-        let overview = OverviewController(wmController: wmController, motionPolicy: wmController.motionPolicy)
+        let overview = OverviewController(wmController: wmController)
         let inputHandler = OverviewInputHandler(controller: overview)
         overview.onAnimationComplete(state: .open)
 
@@ -167,7 +167,6 @@ private func activatePreparedOverviewSelection(
         let wmController = makeLayoutPlanTestController()
         let overview = OverviewController(
             wmController: wmController,
-            motionPolicy: wmController.motionPolicy,
             environment: makeOverviewTestEnvironment(recorder: recorder)
         )
         let workspaceId = try! #require(wmController.interactionWorkspace()?.id)
@@ -220,7 +219,6 @@ private func activatePreparedOverviewSelection(
         let wmController = makeLayoutPlanTestController()
         let overview = OverviewController(
             wmController: wmController,
-            motionPolicy: wmController.motionPolicy,
             environment: makeOverviewTestEnvironment(recorder: recorder)
         )
         let workspaceId = try! #require(wmController.interactionWorkspace()?.id)
@@ -258,12 +256,11 @@ private func activatePreparedOverviewSelection(
         #expect(activatedHandle == firstHandle)
     }
 
-    @Test func turningAnimationsOffMidOpenDoesNotForceCompletionAndFutureDismissIsInstant() {
+    @Test func overviewOpenAndAnimatedDismissUseAnimations() {
         let recorder = OverviewSessionRecorder()
         let wmController = makeLayoutPlanTestController()
         let overview = OverviewController(
             wmController: wmController,
-            motionPolicy: wmController.motionPolicy,
             environment: makeOverviewTestEnvironment(recorder: recorder)
         )
         let workspaceId = try! #require(wmController.interactionWorkspace()?.id)
@@ -286,24 +283,14 @@ private func activatePreparedOverviewSelection(
             return
         }
 
-        wmController.setAnimationsEnabled(false, persist: false)
-
-        switch overview.state {
-        case .opening:
-            break
-        default:
-            Issue.record("Toggling animations off should not force the in-flight overview open animation to complete")
-            return
-        }
-
         overview.onAnimationComplete(state: .open)
         overview.dismiss(animated: true)
 
         switch overview.state {
-        case .closed:
+        case .closing:
             break
         default:
-            Issue.record("Overview dismiss should be immediate once animations are disabled")
+            Issue.record("Expected animated overview dismiss to begin closing")
         }
     }
 
@@ -312,7 +299,6 @@ private func activatePreparedOverviewSelection(
         let fixture = makeTwoMonitorLayoutPlanTestController()
         let overview = OverviewController(
             wmController: fixture.controller,
-            motionPolicy: fixture.controller.motionPolicy,
             environment: makeOverviewTestEnvironment(recorder: recorder)
         )
 
@@ -353,7 +339,6 @@ private func activatePreparedOverviewSelection(
         let wmController = makeLayoutPlanTestController()
         let overview = OverviewController(
             wmController: wmController,
-            motionPolicy: wmController.motionPolicy,
             environment: makeOverviewTestEnvironment(recorder: recorder)
         )
 
@@ -372,7 +357,6 @@ private func activatePreparedOverviewSelection(
         let wmController = makeLayoutPlanTestController()
         let overview = OverviewController(
             wmController: wmController,
-            motionPolicy: wmController.motionPolicy,
             environment: makeOverviewTestEnvironment(recorder: recorder)
         )
         let workspaceId = try! #require(wmController.interactionWorkspace()?.id)
@@ -400,7 +384,6 @@ private func activatePreparedOverviewSelection(
         let wmController = makeLayoutPlanTestController()
         let overview = OverviewController(
             wmController: wmController,
-            motionPolicy: wmController.motionPolicy,
             environment: makeOverviewTestEnvironment(recorder: recorder)
         )
 

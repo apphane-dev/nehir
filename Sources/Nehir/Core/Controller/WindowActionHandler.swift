@@ -62,7 +62,7 @@ final class WindowActionHandler {
     @ObservationIgnored
     private lazy var overviewController: OverviewController = {
         guard let controller else { fatalError("WindowActionHandler requires controller") }
-        let oc = OverviewController(wmController: controller, motionPolicy: controller.motionPolicy)
+        let oc = OverviewController(wmController: controller)
         oc.onActivateWindow = { [weak self] handle, workspaceId in
             self?.activateWindowFromOverview(handle: handle, workspaceId: workspaceId)
         }
@@ -425,7 +425,7 @@ final class WindowActionHandler {
                     columns: cols,
                     gap: gap,
                     viewportWidth: workingFrame.width,
-                    motion: .disabled,
+                    motion: .enabled,
                     animate: false,
                     centerMode: settings.centerFocusedColumn,
                     alwaysCenterSingleColumn: settings.alwaysCenterSingleColumn,
