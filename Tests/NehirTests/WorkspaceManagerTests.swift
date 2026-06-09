@@ -2333,3 +2333,38 @@ private func workspaceConfigurations(
         "windowRemoved"
     ])
 }
+
+@Test @MainActor func workspaceManagerInvalidatesWorkspaceProjectionForFocusScratchpadAndInteractionChanges() throws {
+    let defaults = makeWorkspaceManagerTestDefaults()
+    let settings = SettingsStore(defaults: defaults)
+    settings.workspaceConfigurations = workspaceConfigurations([
+        ("1", .main)
+    ])
+
+    let manager = WorkspaceManager(settings: settings)
+    let primary = makeWorkspaceManagerTestMonitor(displayId: 980, name: "Main", x: 0, y: 0)
+    let secondary = makeWorkspaceManagerTestMonitor(displayId: 981, name: "Secondary", x: 1920, y: 0)
+    manager.applyMonitorConfigurationChange([primary, secondary])
+
+    let workspaceId = try #require(manager.workspaceId(for: "1", createIfMissing: true))
+    let token = manager.addWindow(
+        makeWorkspaceManagerTestWindow(windowId: 9801),
+        pid: 9801,
+        windowId: 9801,
+        to: workspaceId
+    )
+
+    var invalidations: [ProjectionInvalidationRequest] = []
+    manager.onProjectionInvalidated = { invalidations.append($0) }
+
+    _ = manager.setManagedFocus(token, in: workspaceId, onMonitor: primary.id)
+    _ = manager.setScratchpadToken(token)
+    _ = manager.setInteractionMonitor(secondary.id)
+
+    #expect(invalidations.map(\.kind) == [.focusProjection, .workspaceProjection, .workspaceProjection])
+    #expect(invalidations.map(\.reason) == [
+        "managedFocusChanged",
+        "scratchpadTokenChanged",
+        "interactionMonitorChanged"
+    ])
+}

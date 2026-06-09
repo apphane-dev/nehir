@@ -405,7 +405,6 @@ final class WMController {
     }
 
     func requestProjectionRefresh(_ invalidation: ProjectionInvalidationRequest) {
-        workspaceBarRefreshDebugState.requestCount += 1
         workspaceBarRefreshDebugState.invalidationCounts[invalidation.kind, default: 0] += 1
 
         switch invalidation.kind {
@@ -421,6 +420,8 @@ final class WMController {
     }
 
     private func requestWorkspaceProjectionRefreshScheduling() {
+        workspaceBarRefreshDebugState.requestCount += 1
+
         guard hasWorkspaceProjectionRefreshConsumers else { return }
         guard pendingWorkspaceBarRefreshGeneration == nil else { return }
 

@@ -225,8 +225,12 @@ final class WorkspaceManager {
     var onSessionStateChanged: (() -> Void)?
     var onProjectionInvalidated: ((ProjectionInvalidationRequest) -> Void)?
 
+    private func invalidateProjection(_ kind: ProjectionInvalidation, reason: String) {
+        onProjectionInvalidated?(.init(kind, reason: reason))
+    }
+
     private func invalidateWorkspaceProjection(reason: String) {
-        onProjectionInvalidated?(.init(.workspaceProjection, reason: reason))
+        invalidateProjection(.workspaceProjection, reason: reason)
     }
 
     init(settings: SettingsStore) {
@@ -1111,6 +1115,7 @@ final class WorkspaceManager {
         ) || changed
         if changed {
             notifySessionStateChanged()
+            invalidateProjection(.focusProjection, reason: "managedFocusChanged")
         }
         return changed
     }
@@ -2029,6 +2034,7 @@ final class WorkspaceManager {
         if notify {
             notifySessionStateChanged()
         }
+        invalidateWorkspaceProjection(reason: "scratchpadTokenChanged")
         return true
     }
 
@@ -3919,6 +3925,7 @@ final class WorkspaceManager {
         if notify {
             notifySessionStateChanged()
         }
+        invalidateWorkspaceProjection(reason: "interactionMonitorChanged")
         return true
     }
 
@@ -3948,6 +3955,9 @@ final class WorkspaceManager {
 
         if changed, notify {
             notifySessionStateChanged()
+        }
+        if changed {
+            invalidateWorkspaceProjection(reason: "interactionMonitorChanged")
         }
     }
 
