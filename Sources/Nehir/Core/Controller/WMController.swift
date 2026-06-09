@@ -64,6 +64,7 @@ final class WMController {
         var scheduledCount: Int = 0
         var executionCount: Int = 0
         var isQueued: Bool = false
+        var invalidationCounts: [ProjectionInvalidation: Int] = [:]
     }
 
     struct StatusBarWorkspaceSummary: Equatable {
@@ -400,9 +401,23 @@ final class WMController {
         return true
     }
 
-    func requestWorkspaceProjectionRefresh() {
+    func requestProjectionRefresh(_ invalidation: ProjectionInvalidationRequest) {
         workspaceBarRefreshDebugState.requestCount += 1
+        workspaceBarRefreshDebugState.invalidationCounts[invalidation.kind, default: 0] += 1
 
+        switch invalidation.kind {
+        case .workspaceProjection:
+            requestWorkspaceProjectionRefreshScheduling()
+        case .focusProjection, .layoutProjection, .displayProjection, .settingsProjection:
+            break
+        }
+    }
+
+    func requestWorkspaceProjectionRefresh(reason: String = "workspaceProjection") {
+        requestProjectionRefresh(.init(.workspaceProjection, reason: reason))
+    }
+
+    private func requestWorkspaceProjectionRefreshScheduling() {
         guard hasWorkspaceProjectionRefreshConsumers else { return }
         guard pendingWorkspaceBarRefreshGeneration == nil else { return }
 

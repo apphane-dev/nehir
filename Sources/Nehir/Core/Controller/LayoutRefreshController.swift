@@ -1795,7 +1795,7 @@ import QuartzCore
 
         if didComplete {
             if !didExecuteRefreshExecutionPlan, let controller {
-                let shouldRequestWorkspaceBarRefresh =
+                let shouldRequestWorkspaceProjectionRefresh =
                     completedRefresh.kind != .visibilityRefresh && completedRefresh.needsVisibilityReconciliation
 
                 if completedRefresh.kind != .visibilityRefresh, completedRefresh.needsVisibilityReconciliation {
@@ -1804,7 +1804,7 @@ import QuartzCore
                 for postLayoutAction in completedRefresh.postLayoutActions {
                     postLayoutAction()
                 }
-                if shouldRequestWorkspaceBarRefresh {
+                if shouldRequestWorkspaceProjectionRefresh {
                     controller.requestWorkspaceProjectionRefresh()
                 }
             }
