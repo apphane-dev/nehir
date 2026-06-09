@@ -1213,7 +1213,11 @@ final class MouseEventHandler {
                     window,
                     in: workspaceId,
                     state: &vstate,
-                    options: .init(ensureVisible: false, startAnimation: false)
+                    options: .init(
+                        ensureVisible: false,
+                        preserveViewportAnchor: true,
+                        startAnimation: false
+                    )
                 )
             }
         }
@@ -1561,6 +1565,7 @@ final class MouseEventHandler {
                 endState.allowsSelectionOffscreen = true
             }
         }
+        var didRequestFocus = false
         if let selectedWindow {
             rememberViewportFocusAnchor(selectedWindow, engine: engine, wsId: wsId)
             if !controller.focusFollowsMouseEnabled,
@@ -1574,6 +1579,7 @@ final class MouseEventHandler {
                 )
                 controller.suppressMouseMoveToFocusedWindow(for: selectedWindow.token)
                 controller.focusWindow(selectedWindow.token)
+                didRequestFocus = true
             }
         }
         let focusSelectionDisposition: String
@@ -1583,8 +1589,10 @@ final class MouseEventHandler {
             focusSelectionDisposition = "suppressed"
         } else if controller.workspaceManager.isNonManagedFocusActive {
             focusSelectionDisposition = "suppressedNonManagedFocus"
-        } else {
+        } else if didRequestFocus {
             focusSelectionDisposition = "requested"
+        } else {
+            focusSelectionDisposition = "skippedNoManagedTarget"
         }
         controller.recordRuntimeViewportTrace(
             workspaceId: wsId,

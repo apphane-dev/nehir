@@ -6,12 +6,12 @@ pkill -x Nehir 2>/dev/null || true
 sleep 0.5
 
 # Xcode 26.4.1's swiftpm-testing-helper can SIGTRAP when the socket-backed
-# IPCServerTests run late in the full Swift Testing process on GitHub's
-# macos-26 image. Keep the coverage, but run that suite in its own helper
-# process so leaked Foundation/Dispatch state from earlier AppKit-heavy tests
-# cannot take down the whole invocation.
-swift test --no-parallel --skip IPCServerTests
+# IPCServerTests run after AppKit-heavy suites on GitHub's macos-26 image and
+# some local runs. Keep the coverage, but run that suite first in its own helper
+# process before the rest of the test matrix can leave Foundation/Dispatch state
+# behind.
 swift test --no-parallel --filter IPCServerTests
+swift test --no-parallel --skip IPCServerTests
 """
 
 [tasks."test:compile"]
