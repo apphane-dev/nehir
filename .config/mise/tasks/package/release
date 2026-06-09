@@ -16,6 +16,7 @@ RELEASE_ZIP_PATH="${RELEASE_ZIP_PATH:-$ROOT_DIR/dist/Nehir-$VERSION.zip}"
 NOTARY_ZIP_PATH="$ROOT_DIR/dist/Nehir-notary.zip"
 NOTARIZE_WAIT_TIMEOUT="${NOTARIZE_WAIT_TIMEOUT:-25m}"
 NOTARIZE_SUBMIT_ONLY="${NOTARIZE_SUBMIT_ONLY:-false}"
+NOTARIZE_SKIP="${NOTARIZE_SKIP:-false}"
 NOTARY_SUBMISSION_ID_PATH="${NOTARY_SUBMISSION_ID_PATH:-$ROOT_DIR/dist/notary-submission-id.txt}"
 
 # Configure these via environment variables when you have an Apple Developer ID.
@@ -29,8 +30,8 @@ if [ "$SIGN_AND_NOTARIZE" = "true" ]; then
     exit 1
   fi
 
-  if [ -z "$NOTARIZE_PROFILE" ]; then
-    echo "NOTARIZE_PROFILE must be set when SIGN_AND_NOTARIZE=true" >&2
+  if [ "$NOTARIZE_SKIP" != "true" ] && [ -z "$NOTARIZE_PROFILE" ]; then
+    echo "NOTARIZE_PROFILE must be set when SIGN_AND_NOTARIZE=true unless NOTARIZE_SKIP=true" >&2
     exit 1
   fi
 fi
@@ -82,36 +83,40 @@ if [ "$SIGN_AND_NOTARIZE" = "true" ]; then
   echo "Verifying signature..."
   codesign --verify --verbose "$APP_DIR"
 
-  echo "Creating temporary ZIP for notarization..."
-  rm -f "$NOTARY_ZIP_PATH"
-  ditto -c -k --keepParent "$APP_DIR" "$NOTARY_ZIP_PATH"
+  if [ "$NOTARIZE_SKIP" = "true" ]; then
+    echo "Skipping Apple notarization because NOTARIZE_SKIP=true."
+  else
+    echo "Creating temporary ZIP for notarization..."
+    rm -f "$NOTARY_ZIP_PATH"
+    ditto -c -k --keepParent "$APP_DIR" "$NOTARY_ZIP_PATH"
 
-  if [ "$NOTARIZE_SUBMIT_ONLY" = "true" ]; then
-    echo "Submitting for notarization without waiting..."
-    SUBMISSION_OUTPUT=$(xcrun notarytool submit "$NOTARY_ZIP_PATH" --keychain-profile "$NOTARIZE_PROFILE" --output-format json)
-    SUBMISSION_ID=$(python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])' <<< "$SUBMISSION_OUTPUT")
-    printf '%s\n' "$SUBMISSION_ID" > "$NOTARY_SUBMISSION_ID_PATH"
-    cat > "$ROOT_DIR/dist/release-metadata.env" <<EOF
+    if [ "$NOTARIZE_SUBMIT_ONLY" = "true" ]; then
+      echo "Submitting for notarization without waiting..."
+      SUBMISSION_OUTPUT=$(xcrun notarytool submit "$NOTARY_ZIP_PATH" --keychain-profile "$NOTARIZE_PROFILE" --output-format json)
+      SUBMISSION_ID=$(python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])' <<< "$SUBMISSION_OUTPUT")
+      printf '%s\n' "$SUBMISSION_ID" > "$NOTARY_SUBMISSION_ID_PATH"
+      cat > "$ROOT_DIR/dist/release-metadata.env" <<EOF
 VERSION=$VERSION
 RELEASE_ZIP_PATH=$RELEASE_ZIP_PATH
 NOTARY_ZIP_PATH=$NOTARY_ZIP_PATH
 SUBMISSION_ID=$SUBMISSION_ID
 EOF
-    echo "Submitted notarization: $SUBMISSION_ID"
-    echo "Notary ZIP and submission metadata are ready in dist/."
-    exit 0
+      echo "Submitted notarization: $SUBMISSION_ID"
+      echo "Notary ZIP and submission metadata are ready in dist/."
+      exit 0
+    fi
+
+    echo "Submitting for notarization (timeout: $NOTARIZE_WAIT_TIMEOUT)..."
+    xcrun notarytool submit "$NOTARY_ZIP_PATH" --keychain-profile "$NOTARIZE_PROFILE" --wait --timeout "$NOTARIZE_WAIT_TIMEOUT"
+
+    echo "Stapling notarization ticket..."
+    xcrun stapler staple "$APP_DIR"
+
+    echo "Verifying notarization..."
+    spctl --assess --verbose=2 "$APP_DIR"
+
+    rm -f "$NOTARY_ZIP_PATH"
   fi
-
-  echo "Submitting for notarization (timeout: $NOTARIZE_WAIT_TIMEOUT)..."
-  xcrun notarytool submit "$NOTARY_ZIP_PATH" --keychain-profile "$NOTARIZE_PROFILE" --wait --timeout "$NOTARIZE_WAIT_TIMEOUT"
-
-  echo "Stapling notarization ticket..."
-  xcrun stapler staple "$APP_DIR"
-
-  echo "Verifying notarization..."
-  spctl --assess --verbose=2 "$APP_DIR"
-
-  rm -f "$NOTARY_ZIP_PATH"
 else
   echo "Created an ad-hoc signed app. Set SIGN_AND_NOTARIZE=true plus SIGNING_IDENTITY and NOTARIZE_PROFILE for Developer ID signing and notarization."
 fi
