@@ -95,6 +95,7 @@ jobs:
         shell: bash
         env:
           SINCE_TAG: ${{ steps.last-rc.outputs.since_tag || '' }}
+          RELEASE_BYPASS_NOTARIZATION: ${{ inputs.bypass_notarization }}
         run: |
           set -euo pipefail
           ARGS=("${{ steps.version.outputs.version }}")

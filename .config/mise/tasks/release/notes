@@ -55,6 +55,7 @@ trap 'rm -f "$FILE_LIST"' EXIT
 
 python3 - "$CHANGESET_DIR" "$NOTES_FILE" "$TAG" "$FILE_LIST" <<'PY'
 from pathlib import Path
+import os
 import re
 import sys
 
@@ -62,6 +63,7 @@ changeset_dir = Path(sys.argv[1])
 notes_file = Path(sys.argv[2])
 tag = sys.argv[3]
 file_list = Path(sys.argv[4])
+bypass_notarization = os.environ.get("RELEASE_BYPASS_NOTARIZATION", "false").lower() == "true"
 
 files = [Path(line.strip()) for line in file_list.read_text().splitlines() if line.strip()]
 if not files:
@@ -221,16 +223,25 @@ lines = []
 append_section(lines, "Breaking changes", breaking_entries)
 append_section(lines, "Changes", change_entries)
 
+is_prerelease = "-" in tag.lstrip("v")
+if is_prerelease:
+    distribution_note = (
+        "This is a prerelease build and is not signed or notarized. "
+        "To open it, right-click the app and choose Open, then confirm in the dialog."
+    )
+elif bypass_notarization:
+    distribution_note = (
+        "Nehir is signed but not notarized in this release while Apple notarization processing is delayed. "
+        "If macOS shows a Gatekeeper warning, right-click the app and choose Open."
+    )
+else:
+    distribution_note = "Nehir is distributed as a signed and notarized app. If macOS still shows a Gatekeeper warning, right-click the app and choose Open."
+
 lines += [
     "",
     "## Notes",
     "",
-    (
-        "This is a prerelease build and is not signed or notarized. "
-        "To open it, right-click the app and choose Open, then confirm in the dialog."
-        if "-" in tag.lstrip("v")
-        else "Nehir is distributed as a signed and notarized app. If macOS still shows a Gatekeeper warning, right-click the app and choose Open."
-    ),
+    distribution_note,
     "",
     "Nehir requires Accessibility permission to manage windows.",
     "",
