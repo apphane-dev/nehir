@@ -2107,6 +2107,11 @@ import QuartzCore
                 continue
             }
             controller.axManager.markWindowInactive(entry.windowId)
+            // Skip moving windows already hidden offscreen by the layout engine.
+            // They're already parked — no need to shuffle them to the other side.
+            if controller.workspaceManager.hiddenState(for: entry.token) != nil {
+                continue
+            }
             hideWindow(
                 entry,
                 monitor: monitor,

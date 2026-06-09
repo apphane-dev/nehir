@@ -385,11 +385,9 @@ extension NiriLayoutEngine {
         in workspaceId: WorkspaceDescriptor.ID,
         oldFrames: [WindowToken: CGRect],
         newFrames: [WindowToken: CGRect],
-        motion: MotionSnapshot,
         threshold: CGFloat = 1.0
-    ) -> Bool {
-        guard let root = root(for: workspaceId) else { return false }
-        var anyAnimationStarted = false
+    ) {
+        guard let root = root(for: workspaceId) else { return }
 
         for window in root.allWindows {
             guard let oldFrame = oldFrames[window.token],
@@ -407,13 +405,10 @@ extension NiriLayoutEngine {
                     clock: animationClock,
                     config: windowMovementAnimationConfig,
                     displayRefreshRate: displayRefreshRate,
-                    animated: motion.animationsEnabled
+                    animated: false
                 )
-                anyAnimationStarted = true
             }
         }
-
-        return anyAnimationStarted
     }
 
     func hasAnyWindowAnimationsRunning(in workspaceId: WorkspaceDescriptor.ID) -> Bool {
