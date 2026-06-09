@@ -798,9 +798,9 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         let controller = makeRefreshTestController()
         defer { cleanupRefreshTestController(controller) }
 
-        controller.requestWorkspaceBarRefresh()
-        controller.requestWorkspaceBarRefresh()
-        controller.requestWorkspaceBarRefresh()
+        controller.requestWorkspaceProjectionRefresh()
+        controller.requestWorkspaceProjectionRefresh()
+        controller.requestWorkspaceProjectionRefresh()
 
         #expect(controller.workspaceBarRefreshDebugState.requestCount == 3)
         #expect(controller.workspaceBarRefreshDebugState.scheduledCount == 1)
@@ -1005,7 +1005,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         let controller = makeRefreshTestController()
         defer { cleanupRefreshTestController(controller) }
 
-        controller.requestWorkspaceBarRefresh()
+        controller.requestWorkspaceProjectionRefresh()
         #expect(controller.workspaceBarRefreshDebugState.isQueued)
 
         controller.cleanupUIOnStop()

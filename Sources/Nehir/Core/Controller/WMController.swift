@@ -400,10 +400,10 @@ final class WMController {
         return true
     }
 
-    func requestWorkspaceBarRefresh() {
+    func requestWorkspaceProjectionRefresh() {
         workspaceBarRefreshDebugState.requestCount += 1
 
-        guard hasWorkspaceBarRefreshConsumers else { return }
+        guard hasWorkspaceProjectionRefreshConsumers else { return }
         guard pendingWorkspaceBarRefreshGeneration == nil else { return }
 
         let generation = workspaceBarRefreshGeneration
@@ -414,7 +414,7 @@ final class WMController {
         Task { @MainActor [weak self] in
             await Task.yield()
             await Task.yield()
-            self?.flushRequestedWorkspaceBarRefresh(expectedGeneration: generation)
+            self?.flushRequestedWorkspaceProjectionRefresh(expectedGeneration: generation)
         }
     }
 
@@ -673,14 +673,14 @@ final class WMController {
         workspaceBarRefreshIsEnabled || statusBarRefreshIsEnabled
     }
 
-    private var hasWorkspaceBarRefreshConsumers: Bool {
+    private var hasWorkspaceProjectionRefreshConsumers: Bool {
         anyBarRefreshIsEnabled
             || ipcApplicationBridge?.hasSubscribers(for: .workspaceBar) == true
             || ipcApplicationBridge?.hasSubscribers(for: .windowsChanged) == true
             || ipcApplicationBridge?.hasSubscribers(for: .layoutChanged) == true
     }
 
-    private func flushRequestedWorkspaceBarRefresh(expectedGeneration: UInt64) {
+    private func flushRequestedWorkspaceProjectionRefresh(expectedGeneration: UInt64) {
         guard pendingWorkspaceBarRefreshGeneration == expectedGeneration,
               workspaceBarRefreshGeneration == expectedGeneration
         else {
@@ -690,7 +690,7 @@ final class WMController {
         pendingWorkspaceBarRefreshGeneration = nil
         workspaceBarRefreshDebugState.isQueued = false
 
-        guard hasWorkspaceBarRefreshConsumers else { return }
+        guard hasWorkspaceProjectionRefreshConsumers else { return }
 
         workspaceBarRefreshDebugState.executionCount += 1
         workspaceBarRefreshExecutionHookForTests?()
@@ -1572,7 +1572,7 @@ final class WMController {
         axManager.unsuppressFrameWrites(frameEntry)
         AXWindowService.unpinAXElement(for: UInt32(token.windowId))
         if workspaceManager.clearScratchpadIfMatches(token) {
-            requestWorkspaceBarRefresh()
+            requestWorkspaceProjectionRefresh()
         }
     }
 
@@ -1610,7 +1610,7 @@ final class WMController {
             side: preferredSide,
             reason: .scratchpad
         )
-        requestWorkspaceBarRefresh()
+        requestWorkspaceProjectionRefresh()
         recoverFocusAfterScratchpadHide(
             in: entry.workspaceId,
             excluding: entry.token,
@@ -2850,7 +2850,7 @@ final class WMController {
         }
 
         if workspaceManager.setScratchpadToken(token) {
-            requestWorkspaceBarRefresh()
+            requestWorkspaceProjectionRefresh()
         }
 
         guard let updatedEntry = workspaceManager.entry(for: token),
