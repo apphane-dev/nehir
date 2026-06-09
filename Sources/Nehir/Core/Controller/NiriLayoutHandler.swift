@@ -756,15 +756,14 @@ enum NiriWindowMoveResult {
 
         if let removalSeed = snapshot.removalSeed, !removalSeed.oldFrames.isEmpty {
             let newFrames = pass.engine.captureWindowFrames(in: pass.wsId)
-            let animationsTriggered = pass.engine.triggerMoveAnimations(
+            pass.engine.triggerMoveAnimations(
                 in: pass.wsId,
                 oldFrames: removalSeed.oldFrames,
-                newFrames: newFrames,
-                motion: motion
+                newFrames: newFrames
             )
             let hasWindowAnimations = pass.engine.hasAnyWindowAnimationsRunning(in: pass.wsId)
             let hasColumnAnimations = pass.engine.hasAnyColumnAnimationsRunning(in: pass.wsId)
-            if animationsTriggered || hasWindowAnimations || hasColumnAnimations {
+            if hasWindowAnimations || hasColumnAnimations {
                 directives.append(.startNiriScroll(workspaceId: pass.wsId))
             }
         }
@@ -1926,11 +1925,10 @@ struct NodeActivationOptions {
             workingArea: workingArea,
             animationTime: animationTime
         ).frames
-        _ = engine.triggerMoveAnimations(
+        engine.triggerMoveAnimations(
             in: wsId,
             oldFrames: oldFrames,
-            newFrames: newFrames,
-            motion: motion
+            newFrames: newFrames
         )
         controller.layoutRefreshController.requestImmediateRelayout(reason: .layoutCommand)
         return hasPendingAnimationWork(state: state)
@@ -1942,11 +1940,10 @@ struct NodeActivationOptions {
     ) -> Bool {
         controller.layoutRefreshController.requestImmediateRelayout(reason: .layoutCommand)
         let newFrames = engine.captureWindowFrames(in: wsId)
-        _ = engine.triggerMoveAnimations(
+        engine.triggerMoveAnimations(
             in: wsId,
             oldFrames: oldFrames,
-            newFrames: newFrames,
-            motion: motion
+            newFrames: newFrames
         )
         return hasPendingAnimationWork(state: state)
     }

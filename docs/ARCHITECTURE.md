@@ -716,14 +716,13 @@ IPCClient ──── Unix Socket ────► IPCConnection (per client)
 ```swift
 struct SpringConfig {
     // Presets:
-    static let snappy   = SpringConfig(response: 0.22, dampingFraction: 0.95)
-    static let balanced = SpringConfig(response: 0.30, dampingFraction: 0.88)
-    static let gentle   = SpringConfig(response: 0.45, dampingFraction: 0.78)
-    static let reducedMotion = SpringConfig(response: 0.18, dampingFraction: 0.98)
+    static let niriHorizontalViewMovement = SpringConfig(dampingRatio: 1.0, stiffness: 800.0, epsilon: 0.0001)
+    static let niriWindowMovement = SpringConfig(dampingRatio: 1.0, stiffness: 800.0, epsilon: 0.0001)
+    static let niriWindowResize = SpringConfig(dampingRatio: 1.0, stiffness: 800.0, epsilon: 0.0001)
 }
 ```
 
-Used for: viewport scrolling (Niri), workspace switch transitions, window movement animations.
+Used for: Niri viewport scrolling, column movement, column resize, tabbed/new-window transitions, and window close animations.
 
 
 **AnimationClock** — monotonic time wrapper around `CACurrentMediaTime()`.
