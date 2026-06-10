@@ -14,6 +14,7 @@ struct SettingsView: View {
     @Bindable var settings: SettingsStore
     @Bindable var controller: WMController
     @Bindable var navigation: SettingsNavigationModel
+    var cliManager: AppCLIManager?
 
     var body: some View {
         NavigationSplitView {
@@ -22,7 +23,8 @@ struct SettingsView: View {
             SettingsDetailView(
                 section: navigation.selectedSection,
                 settings: settings,
-                controller: controller
+                controller: controller,
+                cliManager: cliManager
             )
         }
         .navigationSplitViewStyle(.balanced)
@@ -33,6 +35,10 @@ struct SettingsView: View {
 struct GeneralSettingsTab: View {
     @Bindable var settings: SettingsStore
     @Bindable var controller: WMController
+    var cliManager: AppCLIManager?
+
+    @State private var cliInstallError: String?
+    @State private var cliActionInProgress = false
 
     var body: some View {
         Form {
@@ -55,7 +61,7 @@ struct GeneralSettingsTab: View {
                     .onChange(of: settings.statusBarShowWorkspaceName) { _, _ in
                         controller.requestSettingsProjectionRefresh(reason: "statusBarShowWorkspaceName")
                     }
-                Toggle("Use Workspace Number", isOn: $settings.statusBarUseWorkspaceId)
+                Toggle("Show Number Instead of Name", isOn: $settings.statusBarUseWorkspaceId)
                     .onChange(of: settings.statusBarUseWorkspaceId) { _, _ in
                         controller.requestSettingsProjectionRefresh(reason: "statusBarUseWorkspaceId")
                     }
@@ -68,128 +74,111 @@ struct GeneralSettingsTab: View {
                 SettingsCaption("Shows the active workspace and focused app beside the menu bar icon")
             }
 
-            Section("Layout") {
-                SettingsSliderRow(
-                    label: "Inner Gaps",
-                    value: $settings.gapSize,
-                    range: 0 ... 32,
-                    step: 1,
-                    valueText: "\(Int(settings.gapSize)) px",
-                    valueWidth: 64
-                )
-                .onChange(of: settings.gapSize) { _, newValue in
-                    controller.setGapSize(newValue)
-                }
-
-                Text("Outer Margins")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-
-                SettingsSliderRow(
-                    label: "Left",
-                    value: $settings.outerGapLeft,
-                    range: 0 ... 64,
-                    step: 1,
-                    valueText: "\(Int(settings.outerGapLeft)) px",
-                    valueWidth: 64
-                )
-                .onChange(of: settings.outerGapLeft) { _, _ in
-                    syncOuterGaps()
-                }
-
-                SettingsSliderRow(
-                    label: "Right",
-                    value: $settings.outerGapRight,
-                    range: 0 ... 64,
-                    step: 1,
-                    valueText: "\(Int(settings.outerGapRight)) px",
-                    valueWidth: 64
-                )
-                .onChange(of: settings.outerGapRight) { _, _ in
-                    syncOuterGaps()
-                }
-
-                SettingsSliderRow(
-                    label: "Top",
-                    value: $settings.outerGapTop,
-                    range: 0 ... 64,
-                    step: 1,
-                    valueText: "\(Int(settings.outerGapTop)) px",
-                    valueWidth: 64
-                )
-                .onChange(of: settings.outerGapTop) { _, _ in
-                    syncOuterGaps()
-                }
-
-                SettingsSliderRow(
-                    label: "Bottom",
-                    value: $settings.outerGapBottom,
-                    range: 0 ... 64,
-                    step: 1,
-                    valueText: "\(Int(settings.outerGapBottom)) px",
-                    valueWidth: 64
-                )
-                .onChange(of: settings.outerGapBottom) { _, _ in
-                    syncOuterGaps()
-                }
+            Section("Power") {
+                Toggle("Prevent Display Sleep", isOn: $settings.preventSleepEnabled)
+                    .onChange(of: settings.preventSleepEnabled) { _, newValue in
+                        controller.setPreventSleepEnabled(newValue)
+                    }
+                SettingsCaption("Keeps the display awake while Nehir is running.")
             }
 
-            Section("Scroll Gestures") {
-                Toggle("Enable Scroll Gestures", isOn: $settings.scrollGestureEnabled)
-
-                SettingsSliderRow(
-                    label: "Scroll Sensitivity",
-                    value: $settings.scrollSensitivity,
-                    range: 0.5 ... 20.0,
-                    step: 0.5,
-                    valueText: String(format: "%.1f", settings.scrollSensitivity) + "x"
-                )
-
-                Picker("Trackpad Gesture Fingers", selection: $settings.gestureFingerCount) {
-                    ForEach(GestureFingerCount.allCases, id: \.self) { count in
-                        Text(count.displayName).tag(count)
+            Section("Developer") {
+                Toggle(isOn: $settings.developerModeEnabled) {
+                    HStack(spacing: 8) {
+                        Text("Developer Mode")
+                        DeveloperBadge()
                     }
                 }
-                .disabled(!settings.scrollGestureEnabled)
-
-                Toggle("Invert Direction (Natural)", isOn: $settings.gestureInvertDirection)
-                    .disabled(!settings.scrollGestureEnabled)
-
-                SettingsCaption(settings.gestureInvertDirection ? "Swipe right = scroll right" : "Swipe right = scroll left")
-
-                Toggle("Snap to Column", isOn: $settings.gestureScrollSnap)
-                    .disabled(!settings.scrollGestureEnabled)
-
-                Picker("Mouse Scroll Modifier", selection: $settings.scrollModifierKey) {
-                    ForEach(ScrollModifierKey.allCases, id: \.self) { key in
-                        Text(key.displayName).tag(key)
-                    }
-                }
-                .disabled(!settings.scrollGestureEnabled)
-
-                SettingsCaption("Hold this key + scroll wheel to navigate workspaces")
+                SettingsCaption("Shows debug commands in the palette, hotkey settings, and enables IPC debug endpoints.")
             }
 
-            Section("Mouse Resize") {
-                Picker("Right Mouse Resize Modifier", selection: $settings.mouseResizeModifierKey) {
-                    ForEach(MouseResizeModifierKey.allCases, id: \.self) { key in
-                        Text(key.displayName).tag(key)
-                    }
-                }
-
-                SettingsCaption("Hold this modifier combo + right mouse drag to resize tiled windows")
+            if let cliManager {
+                CLISettingsSection(cliManager: cliManager)
             }
+
         }
         .formStyle(.grouped)
     }
+}
 
-    private func syncOuterGaps() {
-        controller.setOuterGaps(
-            left: settings.outerGapLeft,
-            right: settings.outerGapRight,
-            top: settings.outerGapTop,
-            bottom: settings.outerGapBottom
-        )
+@MainActor
+struct CLISettingsSection: View {
+    let cliManager: AppCLIManager
+
+    @State private var status: AppCLIExposureStatus?
+    @State private var actionError: String?
+
+    var body: some View {
+        Section("Command Line") {
+            switch status {
+            case .homebrewManaged:
+                LabeledContent("nehirctl") {
+                    Text("Managed by Homebrew")
+                        .foregroundStyle(.secondary)
+                }
+            case let .appManaged(linkURL, directoryOnPath):
+                LabeledContent("nehirctl") {
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text(linkURL.path)
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                        if !directoryOnPath {
+                            Text("Directory not in PATH")
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                        }
+                    }
+                }
+                Button("Remove from PATH", role: .destructive) {
+                    removeCLI()
+                }
+            case let .notInstalled(linkURL, directoryOnPath):
+                LabeledContent("nehirctl") {
+                    Text("Not installed")
+                        .foregroundStyle(.secondary)
+                }
+                Button("Install to PATH") {
+                    installCLI(linkURL: linkURL, directoryOnPath: directoryOnPath)
+                }
+            case let .conflict(existingURL):
+                LabeledContent("nehirctl") {
+                    Text("Conflict at \(existingURL.path)")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+            case nil:
+                EmptyView()
+            }
+
+            if let actionError {
+                Text(actionError)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+
+            SettingsCaption("Install the `nehirctl` command line tool to control Nehir from Terminal.")
+        }
+        .onAppear { status = cliManager.exposureStatus() }
+    }
+
+    private func installCLI(linkURL: URL, directoryOnPath: Bool) {
+        actionError = nil
+        do {
+            _ = try cliManager.installCLIToPATH()
+            status = cliManager.exposureStatus()
+        } catch {
+            actionError = error.localizedDescription
+        }
+    }
+
+    private func removeCLI() {
+        actionError = nil
+        do {
+            _ = try cliManager.removeInstalledCLI()
+            status = cliManager.exposureStatus()
+        } catch {
+            actionError = error.localizedDescription
+        }
     }
 }
 
@@ -234,7 +223,7 @@ struct NiriSettingsTab: View {
     }
 }
 
-private struct GlobalNiriSettingsSection: View {
+struct GlobalNiriSettingsSection: View {
     @Bindable var settings: SettingsStore
     @Bindable var controller: WMController
 
@@ -255,7 +244,7 @@ private struct GlobalNiriSettingsSection: View {
         )
         let presets = settings.niriColumnWidthPresets
 
-        Section("Niri Layout") {
+        Section("Column Layout") {
             SettingsSliderRow(
                 label: "Visible Columns",
                 value: Binding(
@@ -271,10 +260,11 @@ private struct GlobalNiriSettingsSection: View {
                 controller.updateNiriConfig(maxVisibleColumns: newValue)
             }
 
-            Toggle("Infinite Loop Navigation", isOn: $settings.niriInfiniteLoop)
+            Toggle("Wrap Navigation at Edges", isOn: $settings.niriInfiniteLoop)
                 .onChange(of: settings.niriInfiniteLoop) { _, newValue in
                     controller.updateNiriConfig(infiniteLoop: newValue)
                 }
+            SettingsCaption("When navigating past the last column, wrap around to the first.")
 
             Picker("Center Focused Column", selection: $settings.niriCenterFocusedColumn) {
                 ForEach(CenterFocusedColumn.allCases, id: \.self) { mode in
@@ -289,8 +279,9 @@ private struct GlobalNiriSettingsSection: View {
                 .onChange(of: settings.niriAlwaysCenterSingleColumn) { _, newValue in
                     controller.updateNiriConfig(alwaysCenterSingleColumn: newValue)
                 }
+            SettingsCaption("When only one column is visible, keep it centered on screen.")
 
-            Picker("Single Window Ratio", selection: $settings.niriSingleWindowAspectRatio) {
+            Picker("Single Window Width", selection: $settings.niriSingleWindowAspectRatio) {
                 ForEach(SingleWindowAspectRatio.allCases, id: \.self) { ratio in
                     Text(ratio.displayName).tag(ratio)
                 }
@@ -298,15 +289,19 @@ private struct GlobalNiriSettingsSection: View {
             .onChange(of: settings.niriSingleWindowAspectRatio) { _, newValue in
                 controller.updateNiriConfig(singleWindowAspectRatio: newValue)
             }
+            SettingsCaption("Column width used when a window has no siblings on the same workspace.")
         }
 
         Section("Default New Column Width") {
-            Picker("Width Mode", selection: useAutoDefaultColumnWidth) {
-                Text("Auto").tag(true)
-                Text("Custom").tag(false)
+            LabeledContent("Width Mode") {
+                Picker("Width Mode", selection: useAutoDefaultColumnWidth) {
+                    Text("Auto").tag(true)
+                    Text("Custom").tag(false)
+                }
+                .labelsHidden()
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 220)
             }
-            .pickerStyle(.segmented)
-            .frame(maxWidth: 220)
 
             if settings.niriDefaultColumnWidth != nil {
                 LabeledContent("Custom Width") {
@@ -383,7 +378,7 @@ private struct GlobalNiriSettingsSection: View {
     }
 }
 
-private struct MonitorNiriSettingsSection: View {
+struct MonitorNiriSettingsSection: View {
     @Bindable var settings: SettingsStore
     @Bindable var controller: WMController
     let monitor: Monitor
@@ -407,7 +402,7 @@ private struct MonitorNiriSettingsSection: View {
     var body: some View {
         let ms = monitorSettings
 
-        Section("Niri Layout") {
+        Section("Column Layout") {
             OverridableSlider(
                 label: "Visible Columns",
                 value: ms.maxVisibleColumns.map { Double($0) },
@@ -420,7 +415,7 @@ private struct MonitorNiriSettingsSection: View {
             )
 
             OverridableToggle(
-                label: "Infinite Loop Navigation",
+                label: "Wrap Navigation at Edges",
                 value: ms.infiniteLoop,
                 globalValue: settings.niriInfiniteLoop,
                 onChange: { newValue in updateSetting { $0.infiniteLoop = newValue } },
@@ -446,7 +441,7 @@ private struct MonitorNiriSettingsSection: View {
             )
 
             OverridablePicker(
-                label: "Single Window Ratio",
+                label: "Single Window Width",
                 value: ms.singleWindowAspectRatio,
                 globalValue: settings.niriSingleWindowAspectRatio,
                 options: SingleWindowAspectRatio.allCases,

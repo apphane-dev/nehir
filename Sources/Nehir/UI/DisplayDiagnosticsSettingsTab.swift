@@ -4,9 +4,34 @@ import SwiftUI
 struct DisplayDiagnosticsSettingsTab: View {
     @State private var diagnostics = DisplayEnvironmentDiagnostics.current()
     @State private var monitors = Monitor.current()
+    @State private var axGranted = AccessibilityPermissionMonitor.shared.isGranted
 
     var body: some View {
         Form {
+            Section("Accessibility") {
+                HStack(alignment: .top, spacing: 10) {
+                    Image(systemName: axGranted ? "checkmark.circle.fill" : "xmark.circle.fill")
+                        .foregroundStyle(axGranted ? .green : .red)
+                        .font(.title3)
+                        .accessibilityHidden(true)
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(axGranted ? "Accessibility access granted" : "Accessibility access not granted")
+                            .font(.headline)
+                        Text("Nehir needs Accessibility access to observe and manage windows.")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                if !axGranted {
+                    Button("Open System Settings") {
+                        NSWorkspace.shared.open(
+                            URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
+                        )
+                    }
+                }
+            }
+
             Section("Status") {
                 HStack(alignment: .top, spacing: 10) {
                     Image(systemName: diagnostics.hasWarnings ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
@@ -68,6 +93,7 @@ struct DisplayDiagnosticsSettingsTab: View {
     private func refresh() {
         monitors = Monitor.current()
         diagnostics = DisplayEnvironmentDiagnostics.evaluate(monitors: monitors)
+        axGranted = AccessibilityPermissionMonitor.shared.isGranted
     }
 }
 

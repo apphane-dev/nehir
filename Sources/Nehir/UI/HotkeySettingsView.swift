@@ -100,8 +100,9 @@ private struct HotkeySettingsSection: Identifiable {
 }
 
 enum HotkeySettingsDisplayModel {
-    static func isVisible(bindingId: String) -> Bool {
-        ActionCatalog.spec(for: bindingId) != nil
+    static func isVisible(bindingId: String, developerModeEnabled: Bool) -> Bool {
+        guard let spec = ActionCatalog.spec(for: bindingId) else { return false }
+        return !spec.requiresDeveloperMode || developerModeEnabled
     }
 
     static func matchesSearch(_ query: String, binding: HotkeyBinding) -> Bool {
@@ -202,42 +203,27 @@ struct HotkeySettingsView: View {
     @State private var confirmsResetToDefaults = false
 
     var body: some View {
-        SettingsPage(
-            subtitle: "Search commands, edit shortcuts, and review registration problems without leaving the settings window."
-        ) {
-            Section("Defaults") {
-                LabeledContent("Shortcut Preset") {
-                    Button("Reset to Defaults", role: .destructive) {
-                        confirmsResetToDefaults = true
-                    }
-                }
+        SettingsPage {
+            Section {
+                HStack(spacing: 8) {
+                    TextField("Search commands or shortcuts", text: $searchText)
+                        .textFieldStyle(.roundedBorder)
+                        .accessibilityLabel("Search hotkeys")
 
-                Text("Shortcuts are stored as physical key combinations. Hyper+… means Ctrl+Option+Shift+Command.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Section("Shortcuts") {
-                LabeledContent("Search") {
-                    HStack(spacing: 8) {
-                        TextField("Command or shortcut", text: $searchText)
-                            .textFieldStyle(.roundedBorder)
-                            .accessibilityLabel("Search hotkeys")
-
-                        if !searchText.isEmpty {
-                            Button {
-                                searchText = ""
-                            } label: {
-                                Label("Clear search", systemImage: "xmark.circle.fill")
-                                    .labelStyle(.iconOnly)
-                            }
-                            .buttonStyle(.borderless)
-                            .help("Clear search")
-                            .accessibilityLabel("Clear hotkey search")
+                    if !searchText.isEmpty {
+                        Button {
+                            searchText = ""
+                        } label: {
+                            Label("Clear search", systemImage: "xmark.circle.fill")
+                                .labelStyle(.iconOnly)
                         }
+                        .buttonStyle(.borderless)
+                        .help("Clear search")
+                        .accessibilityLabel("Clear hotkey search")
                     }
                 }
+
+                SettingsCaption("Shortcuts are stored as physical key combinations. Hyper+… means Ctrl+Option+Shift+Command.")
 
                 if !hasSearchMatches {
                     Text("No matching hotkeys.")
@@ -249,7 +235,7 @@ struct HotkeySettingsView: View {
                 let groups = numberedGroupsForSection(section.id)
                 let actions = actionsForSection(section.id)
                 if !groups.isEmpty || !actions.isEmpty {
-                    Section(section.title) {
+                    Section {
                         ForEach(groups) { group in
                             HotkeyNumberedGroupRow(
                                 group: group,
@@ -274,7 +260,22 @@ struct HotkeySettingsView: View {
                                 onResetBindings: resetBindings
                             )
                         }
+                    } header: {
+                        if section.id == "debugging" {
+                            HStack(spacing: 6) {
+                                Text(section.title)
+                                DeveloperBadge()
+                            }
+                        } else {
+                            Text(section.title)
+                        }
                     }
+                }
+            }
+
+            Section {
+                Button("Reset to Defaults", role: .destructive) {
+                    confirmsResetToDefaults = true
                 }
             }
         }
@@ -328,7 +329,9 @@ struct HotkeySettingsView: View {
     }
 
     private var visibleHotkeyBindings: [HotkeyBinding] {
-        settings.hotkeyBindings.filter { HotkeySettingsDisplayModel.isVisible(bindingId: $0.id) }
+        settings.hotkeyBindings.filter {
+            HotkeySettingsDisplayModel.isVisible(bindingId: $0.id, developerModeEnabled: settings.developerModeEnabled)
+        }
     }
 
     private var visibleNumberedGroups: [HotkeyNumberedGroupRowModel] {
@@ -538,6 +541,8 @@ struct HotkeySettingsView: View {
             return "Move Window to Workspace {N}"
         case "workspace.moveColumnTo":
             return "Move Column to Workspace {N}"
+        case "workspace.focusAnywhere":
+            return "Focus Workspace Anywhere {N}"
         case "focus.column":
             return "Focus Column {N}"
         case "focus.windowInColumn":
@@ -691,16 +696,18 @@ private struct HotkeyBindingRow: View {
                 }
             }
         } label: {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(binding.command.displayName)
-                    .font(.body)
-
-                if let failureReason {
+            if let failureReason {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(binding.command.displayName)
+                        .font(.body)
                     Text(failureMessage(for: failureReason))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+            } else {
+                Text(binding.command.displayName)
+                    .font(.body)
             }
         }
         .accessibilityValue("Shortcut \(HotkeySettingsDisplayModel.humanReadableString(for: binding.binding))")
@@ -752,17 +759,18 @@ private struct HotkeyBindingControl: View {
                 .accessibilityLabel("Change hotkey for \(commandName)")
                 .accessibilityValue(accessibilityText ?? HotkeySettingsDisplayModel.humanReadableString(for: binding))
 
-                if canRemove ?? !binding.isUnassigned {
-                    Button {
-                        onRemove()
-                    } label: {
-                        Label("Clear hotkey for \(commandName)", systemImage: "xmark.circle")
-                            .labelStyle(.iconOnly)
-                    }
-                    .buttonStyle(.borderless)
-                    .help("Clear this hotkey")
-                    .accessibilityLabel("Clear hotkey for \(commandName)")
+                let showRemove = canRemove ?? !binding.isUnassigned
+                Button {
+                    onRemove()
+                } label: {
+                    Label("Clear hotkey for \(commandName)", systemImage: "xmark.circle")
+                        .labelStyle(.iconOnly)
                 }
+                .buttonStyle(.borderless)
+                .help("Clear this hotkey")
+                .accessibilityLabel("Clear hotkey for \(commandName)")
+                .opacity(showRemove ? 1 : 0)
+                .allowsHitTesting(showRemove)
             }
         }
     }

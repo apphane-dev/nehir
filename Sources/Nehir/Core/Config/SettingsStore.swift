@@ -235,6 +235,10 @@ final class SettingsStore {
         }
     }
 
+    var developerModeEnabled = SettingsStore.defaultExport.developerModeEnabled {
+        didSet { scheduleSave() }
+    }
+
     var scrollGestureEnabled = SettingsStore.defaultExport.scrollGestureEnabled {
         didSet { scheduleSave() }
     }
@@ -427,6 +431,7 @@ final class SettingsStore {
             statusBarShowAppNames: statusBarShowAppNames,
             statusBarUseWorkspaceId: statusBarUseWorkspaceId,
             appearanceMode: appearanceMode.rawValue,
+            developerModeEnabled: developerModeEnabled,
             capabilityOverrides: []
         )
     }
@@ -512,6 +517,7 @@ final class SettingsStore {
         statusBarUseWorkspaceId = export.statusBarUseWorkspaceId
 
         appearanceMode = AppearanceMode(rawValue: export.appearanceMode) ?? .dark
+        developerModeEnabled = export.developerModeEnabled
     }
 
     private func handleExternalReload(_ export: SettingsExport) {

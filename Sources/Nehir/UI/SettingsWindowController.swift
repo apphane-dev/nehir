@@ -5,6 +5,8 @@ import SwiftUI
 final class SettingsWindowController {
     static let shared = SettingsWindowController()
 
+    var cliManager: AppCLIManager?
+
     private var window: NSWindow?
     private nonisolated(unsafe) var willCloseObserverToken: NSObjectProtocol?
     private let navigation = SettingsNavigationModel()
@@ -35,7 +37,8 @@ final class SettingsWindowController {
         let settingsView = SettingsView(
             settings: settings,
             controller: controller,
-            navigation: navigation
+            navigation: navigation,
+            cliManager: cliManager
         )
 
         let hosting = NSHostingController(rootView: settingsView)

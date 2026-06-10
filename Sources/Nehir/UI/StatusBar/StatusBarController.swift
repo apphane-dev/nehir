@@ -49,8 +49,6 @@ final class StatusBarController: NSObject {
         button.sendAction(on: [.leftMouseUp, .rightMouseUp])
 
         let menuBuilder = StatusBarMenuBuilder(settings: settings, controller: controller)
-        menuBuilder.ipcMenuEnabled = cliManager != nil
-        menuBuilder.cliManager = cliManager
         self.menuBuilder = menuBuilder
         rebuildMenu()
 

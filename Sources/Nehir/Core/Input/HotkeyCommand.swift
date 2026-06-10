@@ -85,6 +85,13 @@ enum HotkeyCommand: Codable, Equatable, Hashable {
     case toggleWorkspaceBarVisibility
     case toggleOverview
 
+    case toggleFocusFollowsMouse
+    case toggleFocusFollowsWindowToMonitor
+    case toggleMoveMouseToFocused
+    case toggleBordersEnabled
+    case togglePreventSleepEnabled
+    case toggleIPCEnabled
+
     var displayName: String {
         ActionCatalog.title(for: self) ?? String(describing: self)
     }

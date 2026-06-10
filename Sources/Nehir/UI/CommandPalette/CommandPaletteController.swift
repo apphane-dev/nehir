@@ -492,7 +492,9 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
         let bindingsByID = Dictionary(
             uniqueKeysWithValues: wmController.settings.hotkeyBindings.map { ($0.id, $0.binding) }
         )
+        let developerModeEnabled = wmController.settings.developerModeEnabled
         return ActionCatalog.allSpecs()
+            .filter { !$0.requiresDeveloperMode || developerModeEnabled }
             .map { spec in
                 let trigger = bindingsByID[spec.id]
                 let bindingDisplay = trigger.flatMap { $0.isUnassigned ? nil : $0.displayString }

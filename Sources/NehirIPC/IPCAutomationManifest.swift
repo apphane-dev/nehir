@@ -749,7 +749,13 @@ public enum IPCAutomationManifest {
             name: .toggleNativeFullscreen,
             summary: "Toggle native macOS fullscreen."
         ),
-        command(["toggle-overview"], name: .toggleOverview, summary: "Toggle the overview surface.")
+        command(["toggle-overview"], name: .toggleOverview, summary: "Toggle the overview surface."),
+        command(["toggle-focus-follows-mouse"], name: .toggleFocusFollowsMouse, summary: "Toggle focus-follows-mouse behavior."),
+        command(["toggle-focus-follows-window-to-monitor"], name: .toggleFocusFollowsWindowToMonitor, summary: "Toggle following a window when it moves to another monitor."),
+        command(["toggle-move-mouse-to-focused"], name: .toggleMoveMouseToFocused, summary: "Toggle moving the cursor to the focused window."),
+        command(["toggle-borders"], name: .toggleBordersEnabled, summary: "Toggle window border rendering."),
+        command(["toggle-prevent-sleep"], name: .togglePreventSleepEnabled, summary: "Toggle display sleep prevention."),
+        command(["toggle-ipc"], name: .toggleIPCEnabled, summary: "Toggle the IPC server.")
     ]
 
     public static let workspaceActionDescriptors: [IPCWorkspaceActionDescriptor] = [

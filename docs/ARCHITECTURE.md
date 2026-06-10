@@ -918,7 +918,7 @@ Actions can carry multiple persisted bindings, so any extra default shortcuts sh
 
 4. **Update the TOML settings model** in `Sources/Nehir/Core/Config/SettingsExport.swift`, `Sources/Nehir/Core/Config/CanonicalTOMLConfig.swift`, and `Sources/Nehir/Core/Config/SettingsTOMLCodec.swift` for persisted user preferences that belong in editable config. Keep runtime cache state out of editable config.
 
-5. **Check settings-file touchpoints** when the change affects config discoverability or UX. `Sources/Nehir/UI/SettingsFileWorkflow.swift` is the open/reveal workflow layer, and the `Settings File` section in `Sources/Nehir/UI/SettingsView.swift` is the main user-facing entry point; most new settings do not need workflow code changes, but contributor-facing config behavior and copy should remain accurate.
+5. **Check settings-file touchpoints** when the change affects config discoverability or UX. `Sources/Nehir/UI/SettingsFileWorkflow.swift` is the open/reveal workflow layer; config file access for users is via the **Config Files** submenu in the status bar menu. Most new settings do not need workflow code changes, but contributor-facing config behavior and copy should remain accurate.
 
 6. **Add round-trip coverage** in tests: verify the setting survives store load/save and TOML encode/decode so it cannot silently disappear from `~/.config/nehir/settings.toml`.
 

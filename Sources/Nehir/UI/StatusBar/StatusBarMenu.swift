@@ -19,9 +19,6 @@ final class StatusBarMenuBuilder {
     var infoAlertPresenter: (String, String) -> Void
     var confirmationAlertPresenter: (String, String, String, String) -> Bool
     var settingsFileActionPerformer: (SettingsFileAction, SettingsStore) throws -> SettingsFileStatus
-    var ipcMenuEnabled = false
-    var cliManager: AppCLIManager?
-
     private var toggleViews: [String: MenuToggleRowView] = [:]
 
     init(settings: SettingsStore, controller: WMController) {
@@ -67,18 +64,15 @@ final class StatusBarMenuBuilder {
 
         menu.addItem(createDivider())
 
+        if addWarningSection(to: menu) {
+            menu.addItem(createDivider())
+        }
+
         menu.addItem(createSectionLabel("CONTROLS"))
         addControlsSection(to: menu)
 
         menu.addItem(createDivider())
 
-        if ipcMenuEnabled {
-            menu.addItem(createSectionLabel("IPC / CLI"))
-            addIPCSection(to: menu)
-            menu.addItem(createDivider())
-        }
-
-        menu.addItem(createSectionLabel("SETTINGS"))
         addSettingsSection(to: menu)
 
         menu.addItem(createDivider())
@@ -90,12 +84,8 @@ final class StatusBarMenuBuilder {
 
     func updateToggles() {
         toggleViews["focusFollowsMouse"]?.isOn = settings.focusFollowsMouse
-        toggleViews["focusFollowsWindowToMonitor"]?.isOn = settings.focusFollowsWindowToMonitor
-        toggleViews["moveMouseToFocusedWindow"]?.isOn = settings.moveMouseToFocusedWindow
         toggleViews["bordersEnabled"]?.isOn = settings.bordersEnabled
         toggleViews["workspaceBarEnabled"]?.isOn = settings.workspaceBarEnabled
-        toggleViews["preventSleepEnabled"]?.isOn = settings.preventSleepEnabled
-        toggleViews["ipcEnabled"]?.isOn = settings.ipcEnabled
     }
 
     private func createHeaderView() -> NSView {
@@ -117,7 +107,7 @@ final class StatusBarMenuBuilder {
     private func addControlsSection(to menu: NSMenu) {
         let focusToggle = MenuToggleRowView(
             icon: "cursorarrow.motionlines",
-            label: "Focus Follows Mouse",
+            label: "Focus Follows Mouse  ⚗️",
             isOn: settings.focusFollowsMouse,
         ) { [weak self] newValue in
             self?.settings.focusFollowsMouse = newValue
@@ -128,34 +118,9 @@ final class StatusBarMenuBuilder {
         focusItem.view = focusToggle
         menu.addItem(focusItem)
 
-        let followMoveToggle = MenuToggleRowView(
-            icon: "arrow.right.square",
-            label: "Follow Window to Workspace",
-            isOn: settings.focusFollowsWindowToMonitor,
-        ) { [weak self] newValue in
-            self?.settings.focusFollowsWindowToMonitor = newValue
-        }
-        toggleViews["focusFollowsWindowToMonitor"] = followMoveToggle
-        let followMoveItem = NSMenuItem()
-        followMoveItem.view = followMoveToggle
-        menu.addItem(followMoveItem)
-
-        let mouseToFocusedToggle = MenuToggleRowView(
-            icon: "arrow.up.left.and.down.right.magnifyingglass",
-            label: "Mouse to Focused",
-            isOn: settings.moveMouseToFocusedWindow,
-        ) { [weak self] newValue in
-            self?.settings.moveMouseToFocusedWindow = newValue
-            self?.controller?.setMoveMouseToFocusedWindow(newValue)
-        }
-        toggleViews["moveMouseToFocusedWindow"] = mouseToFocusedToggle
-        let mouseItem = NSMenuItem()
-        mouseItem.view = mouseToFocusedToggle
-        menu.addItem(mouseItem)
-
         let bordersToggle = MenuToggleRowView(
             icon: "square.dashed",
-            label: "Window Borders",
+            label: "Window Borders  ⚗️",
             isOn: settings.bordersEnabled,
         ) { [weak self] newValue in
             self?.settings.bordersEnabled = newValue
@@ -178,79 +143,49 @@ final class StatusBarMenuBuilder {
         let workspaceItem = NSMenuItem()
         workspaceItem.view = workspaceBarToggle
         menu.addItem(workspaceItem)
-
-        let keepAwakeToggle = MenuToggleRowView(
-            icon: "moon.zzz",
-            label: "Keep Awake",
-            isOn: settings.preventSleepEnabled,
-        ) { [weak self] newValue in
-            self?.settings.preventSleepEnabled = newValue
-            self?.controller?.setPreventSleepEnabled(newValue)
-        }
-        toggleViews["preventSleepEnabled"] = keepAwakeToggle
-        let keepAwakeItem = NSMenuItem()
-        keepAwakeItem.view = keepAwakeToggle
-        menu.addItem(keepAwakeItem)
     }
 
-    private func addIPCSection(to menu: NSMenu) {
-        let ipcToggle = MenuToggleRowView(
-            icon: "point.3.connected.trianglepath.dotted",
-            label: "Enable IPC",
-            isOn: settings.ipcEnabled,
-        ) { [weak self] newValue in
-            self?.settings.ipcEnabled = newValue
+    @discardableResult
+    private func addWarningSection(to menu: NSMenu) -> Bool {
+        let diagIssues = DisplayEnvironmentDiagnostics.current().issues
+        let axGranted = AccessibilityPermissionMonitor.shared.isGranted
+        guard !diagIssues.isEmpty || !axGranted else { return false }
+
+        menu.addItem(createSectionLabel("⚠️ ISSUES DETECTED"))
+
+        let summary: String
+        if !axGranted && !diagIssues.isEmpty {
+            summary = "Accessibility not granted + \(diagIssues.count) display issue(s)"
+        } else if !axGranted {
+            summary = "Accessibility permission not granted"
+        } else {
+            summary = "\(diagIssues.count) display configuration issue(s)"
         }
-        toggleViews["ipcEnabled"] = ipcToggle
-        let ipcItem = NSMenuItem()
-        ipcItem.view = ipcToggle
-        menu.addItem(ipcItem)
 
-        guard let cliManager else { return }
+        let infoItem = NSMenuItem()
+        infoItem.view = MenuInfoRowView(icon: "exclamationmark.triangle.fill", label: summary)
+        menu.addItem(infoItem)
 
-        let item = NSMenuItem()
-        switch cliManager.exposureStatus() {
-        case .homebrewManaged:
-            item.view = MenuInfoRowView(
-                icon: "checkmark.circle.fill",
-                label: "CLI available via Homebrew"
-            )
-        case .appManaged:
-            item.view = MenuActionRowView(
-                icon: "trash",
-                label: "Remove CLI from PATH…",
-                ) { [weak self] in
-                self?.removeCLIFromPath()
-            }
-        case .notInstalled:
-            item.view = MenuActionRowView(
-                icon: "terminal",
-                label: "Install CLI to PATH…",
-                ) { [weak self] in
-                self?.installCLIIntoPath()
-            }
-        case .conflict:
-            item.view = MenuInfoRowView(
-                icon: "exclamationmark.triangle.fill",
-                label: "CLI path is already occupied"
+        let diagRow = MenuActionRowView(
+            icon: "stethoscope",
+            label: "Open Diagnostics",
+            showChevron: true
+        ) { [weak self] in
+            guard let self, let controller = self.controller else { return }
+            SettingsWindowController.shared.show(
+                settings: self.settings,
+                controller: controller,
+                section: .diagnostics
             )
         }
-        menu.addItem(item)
+        let diagItem = NSMenuItem()
+        diagItem.view = diagRow
+        menu.addItem(diagItem)
+
+        return true
     }
 
     private func addSettingsSection(to menu: NSMenu) {
-        let appRulesRow = MenuActionRowView(
-            icon: "slider.horizontal.3",
-            label: "App Rules",
-            showChevron: true,
-        ) { [weak self] in
-            guard let self, let controller = self.controller else { return }
-            AppRulesWindowController.shared.show(settings: self.settings, controller: controller)
-        }
-        let appRulesItem = NSMenuItem()
-        appRulesItem.view = appRulesRow
-        menu.addItem(appRulesItem)
-
         let settingsRow = MenuActionRowView(
             icon: "gearshape",
             label: "Settings",
@@ -302,76 +237,6 @@ final class StatusBarMenuBuilder {
 
     private func presentInfoAlert(title: String, message: String) {
         infoAlertPresenter(title, message)
-    }
-
-    private func installCLIIntoPath() {
-        guard let cliManager else { return }
-        let status = cliManager.exposureStatus()
-        guard case let .notInstalled(linkURL, directoryOnPath) = status else {
-            controller?.statusBarController?.rebuildMenu()
-            return
-        }
-
-        let directoryURL = linkURL.deletingLastPathComponent()
-        var message =
-            "Nehir will create a symlink at \(linkURL.path) pointing to its bundled nehirctl binary."
-        if !directoryOnPath {
-            message += "\n\n\(directoryURL.path) is not currently in your PATH, so Terminal may not find `nehirctl` until you add that directory."
-        }
-
-        guard confirmationAlertPresenter(
-            "Install CLI to PATH?",
-            message,
-            "Install",
-            "Cancel"
-        ) else {
-            return
-        }
-
-        do {
-            let result = try cliManager.installCLIToPATH()
-            controller?.statusBarController?.rebuildMenu()
-            presentInfoAlert(title: "CLI Installed", message: installResultMessage(result))
-        } catch {
-            presentInfoAlert(title: "CLI Install Failed", message: error.localizedDescription)
-        }
-    }
-
-    private func removeCLIFromPath() {
-        guard let cliManager else { return }
-        guard confirmationAlertPresenter(
-            "Remove CLI from PATH?",
-            "Nehir will remove the symlink it created for `nehirctl`.",
-            "Remove",
-            "Cancel"
-        ) else {
-            return
-        }
-
-        do {
-            let result = try cliManager.removeInstalledCLI()
-            controller?.statusBarController?.rebuildMenu()
-            presentInfoAlert(title: "CLI Link Updated", message: installResultMessage(result))
-        } catch {
-            presentInfoAlert(title: "CLI Removal Failed", message: error.localizedDescription)
-        }
-    }
-
-    private func installResultMessage(_ result: AppCLIInstallResult) -> String {
-        switch result {
-        case let .installed(linkURL, directoryOnPath),
-             let .alreadyInstalled(linkURL, directoryOnPath):
-            let state = directoryOnPath
-                ? "You can now run `nehirctl` from Terminal."
-                : "Add \(linkURL.deletingLastPathComponent().path) to PATH before using `nehirctl` in Terminal."
-            return "\(linkURL.path)\n\n\(state)"
-        case let .removed(linkURL):
-            return "Removed Nehir's CLI symlink at \(linkURL.path)."
-        case let .notInstalled(linkURL):
-            return "No Nehir-managed CLI symlink was found at \(linkURL.path)."
-        case let .homebrewManaged(linkURL):
-            return "Homebrew already manages `nehirctl` at \(linkURL.path)."
-        }
     }
 
     private func addQuitSection(to menu: NSMenu) {

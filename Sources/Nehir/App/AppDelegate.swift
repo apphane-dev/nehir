@@ -59,6 +59,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         controller.applyPersistedSettings(settings)
         let cliManager = AppCLIManager()
         self.cliManager = cliManager
+        SettingsWindowController.shared.cliManager = cliManager
 
         AppDelegate.sharedBootstrap?.settings = settings
         AppDelegate.sharedBootstrap?.controller = controller

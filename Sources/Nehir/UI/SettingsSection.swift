@@ -2,13 +2,15 @@ import SwiftUI
 
 enum SettingsSection: String, CaseIterable, Identifiable {
     case general
-    case diagnostics
-    case niri
+    case behavior
+    case layout
     case monitors
     case workspaces
     case borders
     case bar
+    case appRules
     case hotkeys
+    case diagnostics
 
     var id: String {
         rawValue
@@ -17,50 +19,58 @@ enum SettingsSection: String, CaseIterable, Identifiable {
     var displayName: String {
         switch self {
         case .general: "General"
-        case .diagnostics: "Diagnostics"
-        case .niri: "Niri Layout"
+        case .behavior: "Gestures & Focus"
+        case .layout: "Layout"
         case .monitors: "Monitors"
         case .workspaces: "Workspaces"
         case .borders: "Borders"
         case .bar: "Workspace Bar"
+        case .appRules: "App Rules"
         case .hotkeys: "Hotkeys"
+        case .diagnostics: "Diagnostics"
         }
     }
 
     var icon: String {
         switch self {
         case .general: "gearshape"
-        case .diagnostics: "exclamationmark.triangle"
-        case .niri: "scroll"
+        case .behavior: "slider.horizontal.3"
+        case .layout: "square.split.2x1"
         case .monitors: "display"
         case .workspaces: "rectangle.3.group"
         case .borders: "square.dashed"
         case .bar: "menubar.rectangle"
+        case .appRules: "list.bullet.rectangle"
         case .hotkeys: "keyboard"
+        case .diagnostics: "exclamationmark.triangle"
         }
     }
 }
 
 enum SettingsSectionGroup: String, CaseIterable, Identifiable {
-    case basics = "Basics"
-    case layouts = "Layouts"
-    case workspace = "Workspace"
+    case app = ""
+    case layouts = "Layout"
+    case appearance = "Appearance"
     case input = "Input"
 
     var id: String {
         rawValue
     }
 
+    var displayName: String? {
+        rawValue.isEmpty ? nil : rawValue
+    }
+
     var sections: [SettingsSection] {
         switch self {
-        case .basics:
+        case .app:
             [.general, .diagnostics]
         case .layouts:
-            [.niri, .monitors]
-        case .workspace:
-            [.workspaces, .borders, .bar]
+            [.layout, .monitors, .workspaces, .appRules]
+        case .appearance:
+            [.bar, .borders]
         case .input:
-            [.hotkeys]
+            [.behavior, .hotkeys]
         }
     }
 }

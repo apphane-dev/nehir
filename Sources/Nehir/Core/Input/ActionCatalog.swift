@@ -1,6 +1,11 @@
 import Carbon
 import NehirIPC
 
+enum FeatureStability {
+    case stable
+    case experimental
+}
+
 struct ActionSpec: Equatable {
     let id: String
     let command: HotkeyCommand
@@ -9,6 +14,30 @@ struct ActionSpec: Equatable {
     let category: HotkeyCategory
     let defaultBinding: KeyBinding
     let ipcCommandName: IPCCommandName?
+    let stability: FeatureStability
+    let requiresDeveloperMode: Bool
+
+    init(
+        id: String,
+        command: HotkeyCommand,
+        title: String,
+        keywords: [String] = [],
+        category: HotkeyCategory,
+        defaultBinding: KeyBinding,
+        ipcCommandName: IPCCommandName? = nil,
+        stability: FeatureStability = .stable,
+        requiresDeveloperMode: Bool = false
+    ) {
+        self.id = id
+        self.command = command
+        self.title = title
+        self.keywords = keywords
+        self.category = category
+        self.defaultBinding = defaultBinding
+        self.ipcCommandName = ipcCommandName
+        self.stability = stability
+        self.requiresDeveloperMode = requiresDeveloperMode
+    }
 
     var ipcDescriptor: IPCCommandDescriptor? {
         ipcCommandName.flatMap(IPCAutomationManifest.commandDescriptor(for:))
@@ -686,28 +715,32 @@ enum ActionCatalog {
                 command: .debugDumpRuntimeState,
                 category: .debugging,
                 binding: .unassigned,
-                keywords: ["debug", "runtime", "state", "dump", "clipboard", "trace"]
+                keywords: ["debug", "runtime", "state", "dump", "clipboard", "trace"],
+                requiresDeveloperMode: true
             ),
             action(
                 id: "debug.resetRuntimeState",
                 command: .debugResetRuntimeState,
                 category: .debugging,
                 binding: .unassigned,
-                keywords: ["debug", "runtime", "state", "reset", "clear", "rebuild"]
+                keywords: ["debug", "runtime", "state", "reset", "clear", "rebuild"],
+                requiresDeveloperMode: true
             ),
             action(
                 id: "debug.restartClearingRuntimeState",
                 command: .debugRestartClearingRuntimeState,
                 category: .debugging,
                 binding: .unassigned,
-                keywords: ["debug", "restart", "relaunch", "runtime", "state", "clear", "reset"]
+                keywords: ["debug", "restart", "relaunch", "runtime", "state", "clear", "reset"],
+                requiresDeveloperMode: true
             ),
             action(
                 id: "debug.toggleTraceCapture",
                 command: .debugToggleTraceCapture,
                 category: .debugging,
                 binding: KeyBinding(keyCode: UInt32(kVK_ANSI_T), modifiers: UInt32(controlKey | optionKey | cmdKey)),
-                keywords: ["debug", "trace", "tracing", "capture", "runtime", "events", "toggle", "start", "stop"]
+                keywords: ["debug", "trace", "tracing", "capture", "runtime", "events", "toggle", "start", "stop"],
+                requiresDeveloperMode: true
             ),
             action(
                 id: "toggleWorkspaceBarVisibility",
@@ -725,6 +758,53 @@ enum ActionCatalog {
             )
         ])
 
+        specs.append(contentsOf: [
+            action(
+                id: "toggleFocusFollowsMouse",
+                command: .toggleFocusFollowsMouse,
+                category: .focus,
+                binding: .unassigned,
+                keywords: ["focus follows mouse", "hover focus"],
+                stability: .experimental
+            ),
+            action(
+                id: "toggleFocusFollowsWindowToMonitor",
+                command: .toggleFocusFollowsWindowToMonitor,
+                category: .focus,
+                binding: .unassigned,
+                keywords: ["follow window", "window to monitor"]
+            ),
+            action(
+                id: "toggleMoveMouseToFocused",
+                command: .toggleMoveMouseToFocused,
+                category: .focus,
+                binding: .unassigned,
+                keywords: ["move mouse", "warp cursor", "mouse to focused"]
+            ),
+            action(
+                id: "toggleBordersEnabled",
+                command: .toggleBordersEnabled,
+                category: .layout,
+                binding: .unassigned,
+                keywords: ["borders", "window border"],
+                stability: .experimental
+            ),
+            action(
+                id: "togglePreventSleepEnabled",
+                command: .togglePreventSleepEnabled,
+                category: .layout,
+                binding: .unassigned,
+                keywords: ["keep awake", "prevent sleep", "display sleep"]
+            ),
+            action(
+                id: "toggleIPCEnabled",
+                command: .toggleIPCEnabled,
+                category: .layout,
+                binding: .unassigned,
+                keywords: ["ipc", "cli", "socket"]
+            )
+        ])
+
         return specs
     }
 
@@ -733,7 +813,9 @@ enum ActionCatalog {
         command: HotkeyCommand,
         category: HotkeyCategory,
         binding: KeyBinding,
-        keywords: [String] = []
+        keywords: [String] = [],
+        stability: FeatureStability = .stable,
+        requiresDeveloperMode: Bool = false
     ) -> ActionSpec {
         let title = displayName(for: command)
         return ActionSpec(
@@ -743,7 +825,9 @@ enum ActionCatalog {
             keywords: uniqueTerms(keywords + [title, id]),
             category: category,
             defaultBinding: defaultBinding(for: binding),
-            ipcCommandName: ipcCommandName(for: command)
+            ipcCommandName: ipcCommandName(for: command),
+            stability: stability,
+            requiresDeveloperMode: requiresDeveloperMode
         )
     }
 
@@ -840,6 +924,12 @@ enum ActionCatalog {
         case .debugToggleTraceCapture: "Debug: Toggle Trace Capture"
         case .toggleWorkspaceBarVisibility: "Toggle Workspace Bar"
         case .toggleOverview: "Toggle Overview"
+        case .toggleFocusFollowsMouse: "Toggle Focus Follows Mouse"
+        case .toggleFocusFollowsWindowToMonitor: "Toggle Follow Window to Monitor"
+        case .toggleMoveMouseToFocused: "Toggle Move Mouse to Focused"
+        case .toggleBordersEnabled: "Toggle Window Borders"
+        case .togglePreventSleepEnabled: "Toggle Keep Awake"
+        case .toggleIPCEnabled: "Toggle IPC"
         }
     }
 
@@ -993,6 +1083,18 @@ enum ActionCatalog {
             .debugRestartClearingRuntimeState
         case .debugToggleTraceCapture:
             .debugToggleTraceCapture
+        case .toggleFocusFollowsMouse:
+            .toggleFocusFollowsMouse
+        case .toggleFocusFollowsWindowToMonitor:
+            .toggleFocusFollowsWindowToMonitor
+        case .toggleMoveMouseToFocused:
+            .toggleMoveMouseToFocused
+        case .toggleBordersEnabled:
+            .toggleBordersEnabled
+        case .togglePreventSleepEnabled:
+            .togglePreventSleepEnabled
+        case .toggleIPCEnabled:
+            .toggleIPCEnabled
         }
     }
 

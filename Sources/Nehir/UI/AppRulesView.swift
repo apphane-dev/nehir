@@ -17,51 +17,115 @@ struct AppRulesView: View {
     @State private var pendingDeleteRule: AppRule?
 
     var body: some View {
-        NavigationSplitView {
-            AppRulesSidebar(
-                rules: settings.appRules,
-                selection: $selectedRuleId,
-                onAdd: { presentNewRule() },
-                onDelete: { pendingDeleteRule = $0 }
-            )
-        } detail: {
-            if let ruleId = selectedRuleId,
-               let ruleIndex = settings.appRules.firstIndex(where: { $0.id == ruleId })
-            {
-                AppRuleDetailView(
-                    rule: $settings.appRules[ruleIndex],
-                    workspaceNames: workspaceNames,
-                    controller: controller,
-                    onCreateRuleFromSnapshot: presentNewRule(from:),
-                    onDelete: {
-                        pendingDeleteRule = settings.appRules[ruleIndex]
-                    }
-                )
-                .id(ruleId)
-                .omniBackgroundExtensionEffect()
-            } else {
-                AppRulesEmptyState(
-                    controller: controller,
-                    onAdd: { presentNewRule() },
-                    onCreateRuleFromSnapshot: presentNewRule(from:)
-                )
-                .omniBackgroundExtensionEffect()
-            }
-        }
-        .navigationSplitViewStyle(.balanced)
-        .sheet(item: $addDraft) { draft in
-            AppRuleAddSheet(
-                initialDraft: draft,
-                workspaceNames: workspaceNames,
-                controller: controller,
-                onSave: { newRule in
-                    settings.appRules.append(newRule)
-                    controller.updateAppRules()
-                    selectedRuleId = newRule.id
+        HStack(spacing: 0) {
+            VStack(spacing: 0) {
+                List(settings.appRules, id: \.id, selection: $selectedRuleId) { rule in
+                    AppRuleSidebarRow(rule: rule)
+                        .tag(rule.id)
+                        .contextMenu {
+                            Button(role: .destructive) {
+                                pendingDeleteRule = rule
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                        }
+                }
+                .listStyle(.sidebar)
+                .onTapGesture {
+                    selectedRuleId = nil
                     addDraft = nil
-                },
-                onCancel: { addDraft = nil }
-            )
+                }
+
+                Divider()
+
+                HStack(spacing: 0) {
+                    Button {
+                        addDraft = AppRuleDraft()
+                        selectedRuleId = nil
+                    } label: {
+                        Image(systemName: "plus")
+                            .frame(width: 28, height: 24)
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Add app rule")
+                    .accessibilityLabel("Add app rule")
+
+                    Divider().frame(height: 16)
+
+                    Button {
+                        if let ruleId = selectedRuleId,
+                           let rule = settings.appRules.first(where: { $0.id == ruleId })
+                        {
+                            pendingDeleteRule = rule
+                        }
+                    } label: {
+                        Image(systemName: "minus")
+                            .frame(width: 28, height: 24)
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Remove selected rule")
+                    .accessibilityLabel("Remove selected rule")
+                    .disabled(selectedRuleId == nil)
+
+                    Spacer()
+                }
+                .padding(.horizontal, 4)
+                .padding(.vertical, 2)
+            }
+            .frame(minWidth: 160, maxWidth: 240)
+
+            Divider()
+
+            Group {
+                if let draft = addDraft {
+                    AppRuleAddPane(
+                        initialDraft: draft,
+                        workspaceNames: workspaceNames,
+                        controller: controller,
+                        onSave: { newRule in
+                            settings.appRules.append(newRule)
+                            controller.updateAppRules()
+                            selectedRuleId = newRule.id
+                            addDraft = nil
+                        },
+                        onCancel: { addDraft = nil }
+                    )
+                } else if let ruleId = selectedRuleId,
+                   let ruleIndex = settings.appRules.firstIndex(where: { $0.id == ruleId })
+                {
+                    AppRuleDetailView(
+                        rule: $settings.appRules[ruleIndex],
+                        workspaceNames: workspaceNames,
+                        controller: controller,
+                        onDelete: {
+                            pendingDeleteRule = settings.appRules[ruleIndex]
+                        }
+                    )
+                    .id(ruleId)
+                } else {
+                    AppRulesEmptyState(
+                        controller: controller,
+                        onAdd: {
+                            addDraft = AppRuleDraft()
+                            selectedRuleId = nil
+                        },
+                        onCreateRuleFromSnapshot: presentNewRule(from:)
+                    )
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .omniBackgroundExtensionEffect()
+        }
+        .onKeyPress(.escape) {
+            if addDraft != nil {
+                addDraft = nil
+                return .handled
+            }
+            if selectedRuleId != nil {
+                selectedRuleId = nil
+                return .handled
+            }
+            return .ignored
         }
         .confirmationDialog(
             "Delete app rule?",
@@ -75,7 +139,6 @@ struct AppRulesView: View {
         } message: { rule in
             Text("Delete the rule for \(rule.bundleId)?")
         }
-        .frame(minWidth: 580, minHeight: 400)
     }
 
     private var workspaceNames: [String] {
@@ -101,13 +164,10 @@ struct AppRulesView: View {
         }
     }
 
-    private func presentNewRule(_ draft: AppRuleDraft = AppRuleDraft()) {
-        addDraft = draft
-    }
-
     private func presentNewRule(from snapshot: WindowDecisionDebugSnapshot) {
         guard let draft = AppRuleDraft.guided(from: snapshot) else { return }
         addDraft = draft
+        selectedRuleId = nil
     }
 }
 
@@ -215,7 +275,6 @@ struct AppRuleDetailView: View {
     @Binding var rule: AppRule
     let workspaceNames: [String]
     let controller: WMController
-    let onCreateRuleFromSnapshot: (WindowDecisionDebugSnapshot) -> Void
     let onDelete: () -> Void
 
     @State private var draft: AppRuleDraft
@@ -225,13 +284,11 @@ struct AppRuleDetailView: View {
         rule: Binding<AppRule>,
         workspaceNames: [String],
         controller: WMController,
-        onCreateRuleFromSnapshot: @escaping (WindowDecisionDebugSnapshot) -> Void,
         onDelete: @escaping () -> Void
     ) {
         _rule = rule
         self.workspaceNames = workspaceNames
         self.controller = controller
-        self.onCreateRuleFromSnapshot = onCreateRuleFromSnapshot
         self.onDelete = onDelete
 
         let initialRule = rule.wrappedValue
@@ -308,19 +365,17 @@ struct AppRuleDetailView: View {
             }
 
             Section {
-                DisclosureGroup("Advanced Matchers", isExpanded: $isAdvancedMatchersExpanded) {
+                DisclosureGroup(isExpanded: $isAdvancedMatchersExpanded) {
                     AdvancedMatchersEditor(
                         draft: $draft,
                         regexError: titleRegexError
                     )
+                } label: {
+                    Text("Advanced Matchers")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
+                        .onTapGesture { isAdvancedMatchersExpanded.toggle() }
                 }
-            }
-
-            Section {
-                FocusedWindowInspectorView(
-                    controller: controller,
-                    onCreateRuleFromSnapshot: onCreateRuleFromSnapshot
-                )
             }
 
             Section {
@@ -349,7 +404,7 @@ struct AppRuleDetailView: View {
     }
 }
 
-struct AppRuleAddSheet: View {
+struct AppRuleAddPane: View {
     let workspaceNames: [String]
     let controller: WMController
     let onSave: (AppRule) -> Void
@@ -377,9 +432,7 @@ struct AppRuleAddSheet: View {
     }
 
     var body: some View {
-        VStack(spacing: 16) {
-            Text("Add App Rule")
-                .font(.headline)
+        VStack(spacing: 0) {
 
             Form {
                 Section("Application") {
@@ -391,7 +444,7 @@ struct AppRuleAddSheet: View {
                             .foregroundColor(.red)
                     }
 
-                    DisclosureGroup("Pick from running apps", isExpanded: $isPickerExpanded) {
+                    DisclosureGroup(isExpanded: $isPickerExpanded) {
                         if runningApps.isEmpty {
                             Text("No apps with windows found")
                                 .foregroundColor(.secondary)
@@ -410,6 +463,11 @@ struct AppRuleAddSheet: View {
                             }
                             .frame(maxHeight: 200)
                         }
+                    } label: {
+                        Text("Pick from running apps")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
+                            .onTapGesture { isPickerExpanded.toggle() }
                     }
                     .onAppear {
                         runningApps = controller.runningAppsWithWindows()
@@ -494,31 +552,32 @@ struct AppRuleAddSheet: View {
                 }
 
                 Section {
-                    DisclosureGroup("Advanced Matchers", isExpanded: $isAdvancedMatchersExpanded) {
+                    DisclosureGroup(isExpanded: $isAdvancedMatchersExpanded) {
                         AdvancedMatchersEditor(
                             draft: $draft,
                             regexError: titleRegexError
                         )
+                    } label: {
+                        Text("Advanced Matchers")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
+                            .onTapGesture { isAdvancedMatchersExpanded.toggle() }
                     }
+                }
+
+                Section {
+                    Button("Add Rule") {
+                        onSave(draft.makeRule())
+                    }
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(!isValid)
+
+                    Button("Cancel", role: .cancel, action: onCancel)
+                        .keyboardShortcut(.cancelAction)
                 }
             }
             .formStyle(.grouped)
-
-            HStack {
-                Button("Cancel", action: onCancel)
-                    .keyboardShortcut(.cancelAction)
-
-                Spacer()
-
-                Button("Add") {
-                    onSave(draft.makeRule())
-                }
-                .keyboardShortcut(.defaultAction)
-                .disabled(!isValid)
-            }
         }
-        .padding()
-        .frame(minWidth: 440)
     }
 
     private var bundleIdError: String? {
