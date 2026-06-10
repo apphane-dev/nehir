@@ -31,10 +31,6 @@ struct AppRulesView: View {
                         }
                 }
                 .listStyle(.sidebar)
-                .onTapGesture {
-                    selectedRuleId = nil
-                    addDraft = nil
-                }
 
                 Divider()
 
@@ -372,9 +368,6 @@ struct AppRuleDetailView: View {
                     )
                 } label: {
                     Text("Advanced Matchers")
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .contentShape(Rectangle())
-                        .onTapGesture { isAdvancedMatchersExpanded.toggle() }
                 }
             }
 
@@ -465,9 +458,6 @@ struct AppRuleAddPane: View {
                         }
                     } label: {
                         Text("Pick from running apps")
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .contentShape(Rectangle())
-                            .onTapGesture { isPickerExpanded.toggle() }
                     }
                     .onAppear {
                         runningApps = controller.runningAppsWithWindows()

@@ -771,6 +771,7 @@ private struct HotkeyBindingControl: View {
                 .accessibilityLabel("Clear hotkey for \(commandName)")
                 .opacity(showRemove ? 1 : 0)
                 .allowsHitTesting(showRemove)
+                .accessibilityHidden(!showRemove)
             }
         }
     }

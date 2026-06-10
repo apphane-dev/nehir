@@ -37,9 +37,6 @@ struct GeneralSettingsTab: View {
     @Bindable var controller: WMController
     var cliManager: AppCLIManager?
 
-    @State private var cliInstallError: String?
-    @State private var cliActionInProgress = false
-
     var body: some View {
         Form {
             Section("Appearance") {
@@ -161,7 +158,7 @@ struct CLISettingsSection: View {
         .onAppear { status = cliManager.exposureStatus() }
     }
 
-    private func installCLI(linkURL: URL, directoryOnPath: Bool) {
+    private func installCLI(linkURL _: URL, directoryOnPath _: Bool) {
         actionError = nil
         do {
             _ = try cliManager.installCLIToPATH()

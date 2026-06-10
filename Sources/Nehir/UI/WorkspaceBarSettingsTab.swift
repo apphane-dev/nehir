@@ -318,14 +318,16 @@ private struct MonitorBarSettingsSection: View {
                 onReset: { updateSetting { $0.hideEmptyWorkspaces = nil } }
             )
 
-            OverridableToggle(
-                label: "Show Trace Capture Button",
-                value: ms.showTraceButton,
-                globalValue: settings.workspaceBarShowTraceButton,
-                onChange: { newValue in updateSetting { $0.showTraceButton = newValue } },
-                onReset: { updateSetting { $0.showTraceButton = nil } }
-            )
-            .help("Show a trace capture toggle button in the workspace bar")
+            if settings.developerModeEnabled {
+                OverridableToggle(
+                    label: "Show Trace Capture Button",
+                    value: ms.showTraceButton,
+                    globalValue: settings.workspaceBarShowTraceButton,
+                    onChange: { newValue in updateSetting { $0.showTraceButton = newValue } },
+                    onReset: { updateSetting { $0.showTraceButton = nil } }
+                )
+                .help("Show a trace capture toggle button in the workspace bar")
+            }
         }
 
         Section("Position & Level") {

@@ -44,8 +44,6 @@
 | Feature | Type | Exposure |
 |---------|------|----------|
 | Focus Follows Mouse | Toggle | Menu, Settings, Command |
-| Follow Window to Workspace | Toggle | Settings, Command |
-| Mouse to Focused | Toggle | Settings, Command |
 | Window Borders | Toggle + Config | Menu, Settings, Command |
 
 ### Diagnostics (always visible, proactively surfaced)
