@@ -1045,7 +1045,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         #expect(controller.workspaceBarRefreshDebugState.executionCount == 1)
     }
 
-    @Test @MainActor func focusOnlyChangesRefreshStatusBarWithoutWorkspaceBarQueue() {
+    @Test @MainActor func focusOnlyChangesRefreshStatusBarWithoutWorkspaceBarQueue() async {
         let controller = makeRefreshTestController()
         controller.settings.workspaceBarEnabled = false
         controller.settings.statusBarShowWorkspaceName = true
@@ -1083,13 +1083,15 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         #expect(statusBarController.statusButtonTitleForTests() == " 1 \u{2013} First App")
 
         controller.resetWorkspaceBarRefreshDebugStateForTests()
+        await controller.waitForStatusBarRefreshForTests()
         _ = controller.workspaceManager.setManagedFocus(secondToken, in: workspaceId, onMonitor: monitor.id)
+        await controller.waitForStatusBarRefreshForTests()
 
         #expect(controller.workspaceBarRefreshDebugState.requestCount == 0)
         #expect(statusBarController.statusButtonTitleForTests() == " 1 \u{2013} Second App")
     }
 
-    @Test @MainActor func interactionMonitorChangeOnUnassignedThirdDisplayDoesNotRecurseAfterMonitorExpansion() {
+    @Test @MainActor func interactionMonitorChangeOnUnassignedThirdDisplayDoesNotRecurseAfterMonitorExpansion() async {
         let controller = makeRefreshTestController(
             workspaceConfigurations: [
                 WorkspaceConfiguration(name: "1", monitorAssignment: .main),
@@ -1125,6 +1127,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
 
         #expect(controller.workspaceManager.setInteractionMonitor(third.id))
         #expect(sessionChangeCount == 1)
+        await controller.waitForStatusBarRefreshForTests()
         #expect(statusBarController.statusButtonTitleForTests() == "")
         #expect(statusBarController.statusButtonImagePositionForTests() == .imageOnly)
     }

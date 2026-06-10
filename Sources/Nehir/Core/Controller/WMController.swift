@@ -410,13 +410,21 @@ final class WMController {
         switch invalidation.kind {
         case .workspaceProjection:
             requestWorkspaceProjectionRefreshScheduling()
-        case .focusProjection, .layoutProjection, .displayProjection, .settingsProjection:
+        case .focusProjection:
+            requestFocusProjectionRefreshScheduling()
+        case .settingsProjection:
+            requestSettingsProjectionRefreshScheduling()
+        case .layoutProjection, .displayProjection:
             break
         }
     }
 
     func requestWorkspaceProjectionRefresh(reason: String = "workspaceProjection") {
         requestProjectionRefresh(.init(.workspaceProjection, reason: reason))
+    }
+
+    func requestSettingsProjectionRefresh(reason: String = "settingsProjection") {
+        requestProjectionRefresh(.init(.settingsProjection, reason: reason))
     }
 
     private func requestWorkspaceProjectionRefreshScheduling() {
@@ -435,6 +443,37 @@ final class WMController {
             await Task.yield()
             self?.flushRequestedWorkspaceProjectionRefresh(expectedGeneration: generation)
         }
+    }
+
+    private var pendingStatusBarRefreshGeneration: Int?
+    private var statusBarRefreshGeneration: Int = 0
+
+    private func requestFocusProjectionRefreshScheduling() {
+        requestStatusBarRefreshScheduling(reason: "focusProjection")
+    }
+
+    private func requestSettingsProjectionRefreshScheduling() {
+        requestStatusBarRefreshScheduling(reason: "settingsProjection")
+    }
+
+    private func requestStatusBarRefreshScheduling(reason: String) {
+        guard statusBarRefreshIsEnabled else { return }
+        guard pendingStatusBarRefreshGeneration == nil else { return }
+
+        let generation = statusBarRefreshGeneration
+        pendingStatusBarRefreshGeneration = generation
+
+        Task { @MainActor [weak self] in
+            await Task.yield()
+            await Task.yield()
+            self?.flushRequestedStatusBarRefresh(expectedGeneration: generation)
+        }
+    }
+
+    private func flushRequestedStatusBarRefresh(expectedGeneration: Int) {
+        guard pendingStatusBarRefreshGeneration == expectedGeneration else { return }
+        pendingStatusBarRefreshGeneration = nil
+        refreshStatusBar()
     }
 
     func isManagedWindowDisplayable(_ handle: WindowHandle) -> Bool {
@@ -756,8 +795,19 @@ final class WMController {
         await Task.yield()
     }
 
+    func waitForStatusBarRefreshForTests() async {
+        for _ in 0 ..< 100 {
+            await Task.yield()
+            if pendingStatusBarRefreshGeneration == nil {
+                break
+            }
+        }
+        await Task.yield()
+    }
+
     func resetWorkspaceBarRefreshDebugStateForTests() {
         cancelPendingWorkspaceBarRefresh()
+        pendingStatusBarRefreshGeneration = nil
         workspaceBarRefreshDebugState = .init()
         workspaceBarRefreshExecutionHookForTests = nil
     }
@@ -826,9 +876,6 @@ final class WMController {
 
     private func handleSessionStateChanged() {
         let changeSet = focusNotificationDispatcher.notifyFocusChangesIfNeeded()
-        if statusBarRefreshIsEnabled {
-            refreshStatusBar()
-        }
         if let ipcApplicationBridge {
             Task {
                 if changeSet.focusChanged {
