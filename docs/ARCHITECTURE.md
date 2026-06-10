@@ -431,6 +431,8 @@ When AX readback shows that a real app refused or clamped a requested resize, th
 
 Owns workspace definitions, the window model, session state, monitor tracking, and the reconcile runtime used for debugging and relaunch restore behavior.
 
+**Projection invalidation:** WorkspaceManager emits structured invalidations (`onProjectionInvalidated`, `onSessionStateChanged`) when its state mutates. WMController routes these to the appropriate consumers (workspace bar, status bar, IPC events) through a coalesced scheduling pipeline. See `ProjectionInvalidation.swift` for the invalidation kinds and `WMController.requestProjectionRefresh(_:)` for the routing table.
+
 ```
 WorkspaceManager
 ├── monitors: [Monitor]                     Display geometry
