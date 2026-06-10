@@ -1127,6 +1127,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
 
         #expect(controller.workspaceManager.setInteractionMonitor(third.id))
         #expect(sessionChangeCount == 1)
+        await controller.waitForWorkspaceBarRefreshForTests()
         await controller.waitForStatusBarRefreshForTests()
         #expect(statusBarController.statusButtonTitleForTests() == "")
         #expect(statusBarController.statusButtonImagePositionForTests() == .imageOnly)
