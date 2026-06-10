@@ -2368,3 +2368,38 @@ private func workspaceConfigurations(
         "interactionMonitorChanged"
     ])
 }
+
+@Test @MainActor func workspaceManagerInvalidatesWorkspaceProjectionForActiveWorkspaceAndTopologyChanges() throws {
+    let defaults = makeWorkspaceManagerTestDefaults()
+    let settings = SettingsStore(defaults: defaults)
+    settings.workspaceConfigurations = workspaceConfigurations([
+        ("1", .main),
+        ("2", .main)
+    ])
+
+    let manager = WorkspaceManager(settings: settings)
+    let primary = makeWorkspaceManagerTestMonitor(displayId: 990, name: "Main", x: 0, y: 0)
+    manager.applyMonitorConfigurationChange([primary])
+
+    let workspace1 = try #require(manager.workspaceId(for: "1", createIfMissing: true))
+    let workspace2 = try #require(manager.workspaceId(for: "2", createIfMissing: true))
+    _ = manager.setActiveWorkspace(workspace1, on: primary.id)
+
+    var invalidations: [ProjectionInvalidationRequest] = []
+    manager.onProjectionInvalidated = { invalidations.append($0) }
+
+    _ = manager.setActiveWorkspace(workspace2, on: primary.id)
+    let resizedPrimary = makeWorkspaceManagerTestMonitor(displayId: 990, name: "Main", x: 0, y: 0, width: 2560)
+    manager.applyMonitorConfigurationChange([resizedPrimary])
+
+    #expect(invalidations.map(\.kind) == [
+        .workspaceProjection,
+        .displayProjection,
+        .workspaceProjection
+    ])
+    #expect(invalidations.map(\.reason) == [
+        "activeWorkspaceChanged",
+        "monitorTopologyChanged",
+        "monitorTopologyChanged"
+    ])
+}

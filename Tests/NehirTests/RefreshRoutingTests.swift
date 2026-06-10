@@ -797,6 +797,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
     @Test @MainActor func workspaceBarRefreshRequestsCoalesceOnNextMainTurn() async {
         let controller = makeRefreshTestController()
         defer { cleanupRefreshTestController(controller) }
+        controller.resetWorkspaceBarRefreshDebugStateForTests()
 
         controller.requestWorkspaceProjectionRefresh()
         controller.requestWorkspaceProjectionRefresh()
@@ -904,6 +905,10 @@ private func syncNiriWorkspaceStatesForRefreshTests(
 
         var eventOrder: [String] = []
         var executionCountDuringPostLayout = -1
+        controller.workspaceBarRefreshExecutionHookForTests = {
+            eventOrder.append("workspaceBar")
+        }
+        controller.resetWorkspaceBarRefreshDebugStateForTests()
         controller.workspaceBarRefreshExecutionHookForTests = {
             eventOrder.append("workspaceBar")
         }

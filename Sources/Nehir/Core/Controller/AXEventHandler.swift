@@ -2053,7 +2053,6 @@ final class AXEventHandler: CGSEventDelegate {
         )
         AXWindowService.invalidateCachedTitles(windowIds: [UInt32(oldToken.windowId), windowId])
         subscribeToWindows([windowId])
-        controller.requestWorkspaceProjectionRefresh()
         controller.niriLayoutHandler.updateTabbedColumnOverlays(forceOrdering: true)
         refreshBorderAfterManagedRekey(entry: entry)
 

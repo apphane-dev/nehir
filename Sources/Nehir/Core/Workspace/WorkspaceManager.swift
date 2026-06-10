@@ -702,6 +702,8 @@ final class WorkspaceManager {
         if transition.refreshRestoreIntents {
             refreshRestoreIntentsForAllEntries()
         }
+        invalidateProjection(.displayProjection, reason: "monitorTopologyChanged")
+        invalidateWorkspaceProjection(reason: "monitorTopologyChanged")
     }
 
     private func replaceMonitorsForTopologyTransition(with newMonitors: [Monitor]) {
@@ -3129,7 +3131,11 @@ final class WorkspaceManager {
     func assignWorkspaceToMonitor(_ workspaceId: WorkspaceDescriptor.ID, monitorId: Monitor.ID) {
         guard let monitor = monitor(byId: monitorId) else { return }
         guard isValidAssignment(workspaceId: workspaceId, monitorId: monitor.id) else { return }
+        let previousWorkspace = descriptor(for: workspaceId)
         updateWorkspace(workspaceId) { $0.assignedMonitorPoint = monitor.workspaceAnchorPoint }
+        if previousWorkspace?.assignedMonitorPoint != monitor.workspaceAnchorPoint {
+            invalidateWorkspaceProjection(reason: "workspaceMonitorAssignmentChanged")
+        }
     }
 
     func niriViewportState(for workspaceId: WorkspaceDescriptor.ID) -> ViewportState {
@@ -3832,6 +3838,10 @@ final class WorkspaceManager {
             }
         } else if workspaceVisibilityChanged, notify {
             notifySessionStateChanged()
+        }
+
+        if workspaceVisibilityChanged {
+            invalidateWorkspaceProjection(reason: "activeWorkspaceChanged")
         }
 
         return true
