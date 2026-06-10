@@ -298,7 +298,7 @@ final class WMController {
         setWorkspaceBarEnabled(settings.workspaceBarEnabled)
         setPreventSleepEnabled(settings.preventSleepEnabled)
 
-        // External edits to settings.toml otherwise stop here at refreshStatusBar
+        // External edits to settings.toml otherwise stop here
         // and skip subsystems that read settings only at trigger time. Push the
         // remaining live values explicitly so editor saves take effect without
         // an app relaunch.
@@ -306,7 +306,10 @@ final class WMController {
         _ = syncMouseWarpPolicy()
 
         setEnabled(true)
-        refreshStatusBar()
+
+        // Use the projection pipeline for status bar refresh so external config
+        // reload follows the same path as UI-initiated settings changes.
+        requestSettingsProjectionRefresh(reason: "externalSettingsReload")
     }
 
     func applyCurrentAppearanceMode() {
