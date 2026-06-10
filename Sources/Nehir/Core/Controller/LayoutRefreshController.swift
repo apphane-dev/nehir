@@ -457,8 +457,8 @@ import QuartzCore
             niriHandler.updateTabbedColumnOverlays(forceOrdering: true)
         }
 
-        if plan.effects.requestWorkspaceBarRefresh {
-            controller.requestWorkspaceBarRefresh()
+        if plan.effects.requestWorkspaceProjectionRefresh {
+            controller.requestWorkspaceProjectionRefresh()
         }
 
         if plan.effects.markInitialRefreshComplete {
@@ -965,7 +965,7 @@ import QuartzCore
         }
 
         if refresh.kind != .visibilityRefresh, refresh.needsVisibilityReconciliation {
-            plan.effects.requestWorkspaceBarRefresh = true
+            plan.effects.requestWorkspaceProjectionRefresh = true
             plan.effects.updateTabbedOverlays = true
             plan.effects.refreshFocusedBorderForVisibilityState = true
         }
@@ -973,7 +973,7 @@ import QuartzCore
 
     private func buildVisibilityExecutionPlan() -> RefreshExecutionPlan {
         var effects = RefreshExecutionEffects()
-        effects.requestWorkspaceBarRefresh = true
+        effects.requestWorkspaceProjectionRefresh = true
         effects.updateTabbedOverlays = true
         effects.refreshFocusedBorderForVisibilityState = true
         return RefreshExecutionPlan(effects: effects)
@@ -1007,7 +1007,7 @@ import QuartzCore
 
         var effects = RefreshExecutionEffects()
         effects.visibility = .init(activeWorkspaceIds: activeWorkspaceIds)
-        effects.requestWorkspaceBarRefresh = true
+        effects.requestWorkspaceProjectionRefresh = true
         effects.updateTabbedOverlays = updateTabbedOverlays
         if recoverFocus,
            !controller.workspaceManager.isAppFullscreenActive,
@@ -1076,7 +1076,7 @@ import QuartzCore
 
         var effects = RefreshExecutionEffects()
         effects.visibility = .init(activeWorkspaceIds: activeWorkspaceIds)
-        effects.requestWorkspaceBarRefresh = true
+        effects.requestWorkspaceProjectionRefresh = true
         effects.updateTabbedOverlays = updateTabbedOverlays
         effects.focusValidationWorkspaceIds = focusValidationWorkspaceIds
 
@@ -1400,7 +1400,7 @@ import QuartzCore
 
         var effects = RefreshExecutionEffects()
         effects.visibility = .init(activeWorkspaceIds: activeWorkspaceIds)
-        effects.requestWorkspaceBarRefresh = true
+        effects.requestWorkspaceProjectionRefresh = true
         effects.updateTabbedOverlays = updateTabbedOverlays
         if !controller.workspaceManager.isAppFullscreenActive,
            !controller.workspaceManager.hasPendingNativeFullscreenTransition,
@@ -1795,7 +1795,7 @@ import QuartzCore
 
         if didComplete {
             if !didExecuteRefreshExecutionPlan, let controller {
-                let shouldRequestWorkspaceBarRefresh =
+                let shouldRequestWorkspaceProjectionRefresh =
                     completedRefresh.kind != .visibilityRefresh && completedRefresh.needsVisibilityReconciliation
 
                 if completedRefresh.kind != .visibilityRefresh, completedRefresh.needsVisibilityReconciliation {
@@ -1804,8 +1804,8 @@ import QuartzCore
                 for postLayoutAction in completedRefresh.postLayoutActions {
                     postLayoutAction()
                 }
-                if shouldRequestWorkspaceBarRefresh {
-                    controller.requestWorkspaceBarRefresh()
+                if shouldRequestWorkspaceProjectionRefresh {
+                    controller.requestWorkspaceProjectionRefresh()
                 }
             }
             if let followUpRefresh = completedRefresh.followUpRefresh {
@@ -2676,9 +2676,6 @@ import QuartzCore
         pendingRevealVerificationTasksByWindowId.removeValue(forKey: windowId)?.cancel()
 
         controller.workspaceManager.setHiddenState(nil, for: pendingTransaction.token)
-        if pendingTransaction.hiddenState.isScratchpad {
-            controller.requestWorkspaceBarRefresh()
-        }
         if let confirmedFrame {
             controller.axManager.confirmFrameWrite(for: pendingTransaction.windowId, frame: confirmedFrame)
         }
@@ -2767,9 +2764,6 @@ import QuartzCore
         case .none:
             if hiddenState.workspaceInactive {
                 controller.workspaceManager.setHiddenState(nil, for: entry.token)
-                if hiddenState.isScratchpad {
-                    controller.requestWorkspaceBarRefresh()
-                }
                 controller.axManager.unsuppressFrameWrites(frameEntry)
                 onSuccess?()
                 return true
@@ -2780,18 +2774,12 @@ import QuartzCore
         case let .positionPlan(plan):
             applyPositionPlans([plan])
             controller.workspaceManager.setHiddenState(nil, for: entry.token)
-            if hiddenState.isScratchpad {
-                controller.requestWorkspaceBarRefresh()
-            }
             controller.axManager.unsuppressFrameWrites(frameEntry)
             onSuccess?()
             return true
         case let .asyncFrame(frame):
             if !shouldUsePendingRevealTransaction(for: entry, hiddenState: hiddenState) {
                 controller.workspaceManager.setHiddenState(nil, for: entry.token)
-                if hiddenState.isScratchpad {
-                    controller.requestWorkspaceBarRefresh()
-                }
                 controller.axManager.unsuppressFrameWrites(frameEntry)
                 controller.axManager.forceApplyNextFrame(for: entry.windowId)
                 controller.axManager.applyFramesParallel([(entry.pid, entry.windowId, frame)])

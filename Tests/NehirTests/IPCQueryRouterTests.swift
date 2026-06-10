@@ -369,6 +369,7 @@ private func prepareIPCQueryRouterNiriState(
                 to: workspaceId
             )
             _ = controller.workspaceManager.setManagedFocus(token, in: workspaceId)
+            controller.resetWorkspaceBarRefreshDebugStateForTests()
 
             let router = IPCQueryRouter(controller: controller, sessionToken: ipcQueryRouterSessionToken)
             let result = router.focusedWindowResult()

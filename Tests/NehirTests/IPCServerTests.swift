@@ -1111,6 +1111,8 @@ private func makeTestFocusEvent(id: String, title: String) -> IPCEventEnvelope {
             windowId: 1401,
             to: workspaceId
         )
+        await controller.waitForWorkspaceBarRefreshForTests()
+        controller.resetWorkspaceBarRefreshDebugStateForTests()
 
         let server = IPCServer(
             controller: controller,
@@ -1148,9 +1150,9 @@ private func makeTestFocusEvent(id: String, title: String) -> IPCEventEnvelope {
         let initialEvent = try await #require(iterator.next())
         #expect(initialEvent.channel == .workspaceBar)
 
-        controller.requestWorkspaceBarRefresh()
-        controller.requestWorkspaceBarRefresh()
-        controller.requestWorkspaceBarRefresh()
+        controller.requestWorkspaceProjectionRefresh()
+        controller.requestWorkspaceProjectionRefresh()
+        controller.requestWorkspaceProjectionRefresh()
         await controller.waitForWorkspaceBarRefreshForTests()
 
         let event = try await #require(iterator.next())
@@ -1192,6 +1194,8 @@ private func makeTestFocusEvent(id: String, title: String) -> IPCEventEnvelope {
             windowId: 1501,
             to: workspaceId
         )
+        await controller.waitForWorkspaceBarRefreshForTests()
+        controller.resetWorkspaceBarRefreshDebugStateForTests()
 
         let server = IPCServer(
             controller: controller,
@@ -1224,9 +1228,9 @@ private func makeTestFocusEvent(id: String, title: String) -> IPCEventEnvelope {
         let initialEvent = try await #require(iterator.next())
         #expect(initialEvent.channel == .workspaceBar)
 
-        controller.requestWorkspaceBarRefresh()
-        controller.requestWorkspaceBarRefresh()
-        controller.requestWorkspaceBarRefresh()
+        controller.requestWorkspaceProjectionRefresh()
+        controller.requestWorkspaceProjectionRefresh()
+        controller.requestWorkspaceProjectionRefresh()
         await controller.waitForWorkspaceBarRefreshForTests()
 
         let event = try await #require(iterator.next())

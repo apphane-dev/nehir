@@ -2287,3 +2287,119 @@ private func workspaceConfigurations(
         #expect(manager.scratchpadToken() == nil)
     }
 }
+
+@Test @MainActor func workspaceManagerInvalidatesWorkspaceProjectionForCentralWindowMutators() throws {
+    let defaults = makeWorkspaceManagerTestDefaults()
+    let settings = SettingsStore(defaults: defaults)
+    settings.workspaceConfigurations = workspaceConfigurations([
+        ("1", .main),
+        ("2", .main)
+    ])
+
+    let manager = WorkspaceManager(settings: settings)
+    let monitor = makeWorkspaceManagerTestMonitor(displayId: 970, name: "Main", x: 0, y: 0)
+    manager.applyMonitorConfigurationChange([monitor])
+
+    let workspace1 = try #require(manager.workspaceId(for: "1", createIfMissing: true))
+    let workspace2 = try #require(manager.workspaceId(for: "2", createIfMissing: true))
+
+    var invalidations: [ProjectionInvalidationRequest] = []
+    manager.onProjectionInvalidated = { invalidations.append($0) }
+
+    let token = manager.addWindow(
+        makeWorkspaceManagerTestWindow(windowId: 9701),
+        pid: 9701,
+        windowId: 9701,
+        to: workspace1
+    )
+    manager.setWorkspace(for: token, to: workspace2)
+    manager.setHiddenState(WindowModel.HiddenState(proportionalPosition: .zero, referenceMonitorId: nil, reason: .layoutTransient(.left)), for: token)
+    manager.setLayoutReason(.macosHiddenApp, for: token)
+    let rekeyedToken = WindowToken(pid: 9701, windowId: 9702)
+    _ = manager.rekeyWindow(
+        from: token,
+        to: rekeyedToken,
+        newAXRef: makeWorkspaceManagerTestWindow(windowId: 9702)
+    )
+    _ = manager.removeWindow(pid: 9701, windowId: 9702)
+
+    #expect(invalidations.map(\.kind) == Array(repeating: .workspaceProjection, count: 6))
+    #expect(invalidations.map(\.reason) == [
+        "windowAdded",
+        "workspaceAssignmentChanged",
+        "hiddenStateChanged",
+        "layoutReasonChanged",
+        "windowRekeyed",
+        "windowRemoved"
+    ])
+}
+
+@Test @MainActor func workspaceManagerInvalidatesWorkspaceProjectionForFocusScratchpadAndInteractionChanges() throws {
+    let defaults = makeWorkspaceManagerTestDefaults()
+    let settings = SettingsStore(defaults: defaults)
+    settings.workspaceConfigurations = workspaceConfigurations([
+        ("1", .main)
+    ])
+
+    let manager = WorkspaceManager(settings: settings)
+    let primary = makeWorkspaceManagerTestMonitor(displayId: 980, name: "Main", x: 0, y: 0)
+    let secondary = makeWorkspaceManagerTestMonitor(displayId: 981, name: "Secondary", x: 1920, y: 0)
+    manager.applyMonitorConfigurationChange([primary, secondary])
+
+    let workspaceId = try #require(manager.workspaceId(for: "1", createIfMissing: true))
+    let token = manager.addWindow(
+        makeWorkspaceManagerTestWindow(windowId: 9801),
+        pid: 9801,
+        windowId: 9801,
+        to: workspaceId
+    )
+
+    var invalidations: [ProjectionInvalidationRequest] = []
+    manager.onProjectionInvalidated = { invalidations.append($0) }
+
+    _ = manager.setManagedFocus(token, in: workspaceId, onMonitor: primary.id)
+    _ = manager.setScratchpadToken(token)
+    _ = manager.setInteractionMonitor(secondary.id)
+
+    #expect(invalidations.map(\.kind) == [.focusProjection, .workspaceProjection, .workspaceProjection])
+    #expect(invalidations.map(\.reason) == [
+        "managedFocusChanged",
+        "scratchpadTokenChanged",
+        "interactionMonitorChanged"
+    ])
+}
+
+@Test @MainActor func workspaceManagerInvalidatesWorkspaceProjectionForActiveWorkspaceAndTopologyChanges() throws {
+    let defaults = makeWorkspaceManagerTestDefaults()
+    let settings = SettingsStore(defaults: defaults)
+    settings.workspaceConfigurations = workspaceConfigurations([
+        ("1", .main),
+        ("2", .main)
+    ])
+
+    let manager = WorkspaceManager(settings: settings)
+    let primary = makeWorkspaceManagerTestMonitor(displayId: 990, name: "Main", x: 0, y: 0)
+    manager.applyMonitorConfigurationChange([primary])
+
+    let workspace1 = try #require(manager.workspaceId(for: "1", createIfMissing: true))
+    let workspace2 = try #require(manager.workspaceId(for: "2", createIfMissing: true))
+    _ = manager.setActiveWorkspace(workspace1, on: primary.id)
+
+    var invalidations: [ProjectionInvalidationRequest] = []
+    manager.onProjectionInvalidated = { invalidations.append($0) }
+
+    _ = manager.setActiveWorkspace(workspace2, on: primary.id)
+    let resizedPrimary = makeWorkspaceManagerTestMonitor(displayId: 990, name: "Main", x: 0, y: 0, width: 2560)
+    manager.applyMonitorConfigurationChange([resizedPrimary])
+
+    #expect(invalidations.map(\.kind) == [
+        .workspaceProjection,
+        .displayProjection,
+        .workspaceProjection
+    ])
+    #expect(invalidations.map(\.reason) == [
+        "activeWorkspaceChanged",
+        "monitorTopologyChanged",
+        "monitorTopologyChanged"
+    ])
+}

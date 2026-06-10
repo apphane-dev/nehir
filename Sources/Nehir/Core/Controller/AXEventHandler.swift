@@ -378,7 +378,7 @@ final class AXEventHandler: CGSEventDelegate {
 
         case let .titleChanged(windowId):
             AXWindowService.invalidateCachedTitle(windowId: windowId)
-            controller.requestWorkspaceBarRefresh()
+            controller.requestWorkspaceProjectionRefresh()
             if let token = resolveWindowToken(windowId) ?? resolveTrackedToken(windowId) {
                 updateManagedReplacementTitle(windowId: windowId, token: token)
                 scheduleWindowRuleReevaluationIfNeeded(targets: [.window(token)])
@@ -2053,7 +2053,6 @@ final class AXEventHandler: CGSEventDelegate {
         )
         AXWindowService.invalidateCachedTitles(windowIds: [UInt32(oldToken.windowId), windowId])
         subscribeToWindows([windowId])
-        controller.requestWorkspaceBarRefresh()
         controller.niriLayoutHandler.updateTabbedColumnOverlays(forceOrdering: true)
         refreshBorderAfterManagedRekey(entry: entry)
 

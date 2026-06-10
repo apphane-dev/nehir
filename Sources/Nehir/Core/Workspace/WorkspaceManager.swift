@@ -223,6 +223,15 @@ final class WorkspaceManager {
 
     var onGapsChanged: (() -> Void)?
     var onSessionStateChanged: (() -> Void)?
+    var onProjectionInvalidated: ((ProjectionInvalidationRequest) -> Void)?
+
+    private func invalidateProjection(_ kind: ProjectionInvalidation, reason: String) {
+        onProjectionInvalidated?(.init(kind, reason: reason))
+    }
+
+    private func invalidateWorkspaceProjection(reason: String) {
+        invalidateProjection(.workspaceProjection, reason: reason)
+    }
 
     init(settings: SettingsStore) {
         self.settings = settings
@@ -693,6 +702,8 @@ final class WorkspaceManager {
         if transition.refreshRestoreIntents {
             refreshRestoreIntentsForAllEntries()
         }
+        invalidateProjection(.displayProjection, reason: "monitorTopologyChanged")
+        invalidateWorkspaceProjection(reason: "monitorTopologyChanged")
     }
 
     private func replaceMonitorsForTopologyTransition(with newMonitors: [Monitor]) {
@@ -1106,6 +1117,7 @@ final class WorkspaceManager {
         ) || changed
         if changed {
             notifySessionStateChanged()
+            invalidateProjection(.focusProjection, reason: "managedFocusChanged")
         }
         return changed
     }
@@ -2024,6 +2036,7 @@ final class WorkspaceManager {
         if notify {
             notifySessionStateChanged()
         }
+        invalidateWorkspaceProjection(reason: "scratchpadTokenChanged")
         return true
     }
 
@@ -2441,6 +2454,7 @@ final class WorkspaceManager {
                 source: .workspaceManager
             )
         )
+        invalidateWorkspaceProjection(reason: "windowAdded")
         return token
     }
 
@@ -2497,6 +2511,7 @@ final class WorkspaceManager {
             notifySessionStateChanged()
         }
 
+        invalidateWorkspaceProjection(reason: "windowRekeyed")
         return entry
     }
 
@@ -2857,6 +2872,7 @@ final class WorkspaceManager {
         _ = removeNativeFullscreenRecord(containing: entry.token)
         handleWindowRemoved(entry.token, in: entry.workspaceId)
         _ = windows.removeWindow(key: entry.token)
+        invalidateWorkspaceProjection(reason: "windowRemoved")
         return entry
     }
 
@@ -2880,6 +2896,9 @@ final class WorkspaceManager {
                 source: .workspaceManager
             )
         )
+        if previousWorkspace != workspace {
+            invalidateWorkspaceProjection(reason: "workspaceAssignmentChanged")
+        }
     }
 
     func workspace(for token: WindowToken) -> WorkspaceDescriptor.ID? {
@@ -2891,6 +2910,7 @@ final class WorkspaceManager {
     }
 
     func setHiddenState(_ state: WindowModel.HiddenState?, for token: WindowToken) {
+        let previousState = windows.hiddenState(for: token)
         windows.setHiddenState(state, for: token)
         if let workspaceId = workspace(for: token) {
             recordReconcileEvent(
@@ -2902,6 +2922,9 @@ final class WorkspaceManager {
                     source: .workspaceManager
                 )
             )
+        }
+        if previousState != state {
+            invalidateWorkspaceProjection(reason: "hiddenStateChanged")
         }
     }
 
@@ -2918,6 +2941,7 @@ final class WorkspaceManager {
     }
 
     func setLayoutReason(_ reason: LayoutReason, for token: WindowToken) {
+        let previousReason = windows.layoutReason(for: token)
         windows.setLayoutReason(reason, for: token)
         guard let workspaceId = workspace(for: token) else { return }
         switch reason {
@@ -2942,6 +2966,9 @@ final class WorkspaceManager {
                     source: .workspaceManager
                 )
             )
+        }
+        if previousReason != reason {
+            invalidateWorkspaceProjection(reason: "layoutReasonChanged")
         }
     }
 
@@ -3104,7 +3131,11 @@ final class WorkspaceManager {
     func assignWorkspaceToMonitor(_ workspaceId: WorkspaceDescriptor.ID, monitorId: Monitor.ID) {
         guard let monitor = monitor(byId: monitorId) else { return }
         guard isValidAssignment(workspaceId: workspaceId, monitorId: monitor.id) else { return }
+        let previousWorkspace = descriptor(for: workspaceId)
         updateWorkspace(workspaceId) { $0.assignedMonitorPoint = monitor.workspaceAnchorPoint }
+        if previousWorkspace?.assignedMonitorPoint != monitor.workspaceAnchorPoint {
+            invalidateWorkspaceProjection(reason: "workspaceMonitorAssignmentChanged")
+        }
     }
 
     func niriViewportState(for workspaceId: WorkspaceDescriptor.ID) -> ViewportState {
@@ -3809,6 +3840,10 @@ final class WorkspaceManager {
             notifySessionStateChanged()
         }
 
+        if workspaceVisibilityChanged {
+            invalidateWorkspaceProjection(reason: "activeWorkspaceChanged")
+        }
+
         return true
     }
 
@@ -3900,6 +3935,7 @@ final class WorkspaceManager {
         if notify {
             notifySessionStateChanged()
         }
+        invalidateWorkspaceProjection(reason: "interactionMonitorChanged")
         return true
     }
 
@@ -3929,6 +3965,9 @@ final class WorkspaceManager {
 
         if changed, notify {
             notifySessionStateChanged()
+        }
+        if changed {
+            invalidateWorkspaceProjection(reason: "interactionMonitorChanged")
         }
     }
 
