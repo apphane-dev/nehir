@@ -302,7 +302,7 @@ private struct MonitorBarSettingsSection: View {
             )
 
             OverridableToggle(
-                label: "Deduplicate App Icons",
+                label: "Group Windows by App",
                 value: ms.deduplicateAppIcons,
                 globalValue: settings.workspaceBarDeduplicateAppIcons,
                 onChange: { newValue in updateSetting { $0.deduplicateAppIcons = newValue } },
