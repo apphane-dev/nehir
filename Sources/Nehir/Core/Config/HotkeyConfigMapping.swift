@@ -113,6 +113,13 @@ enum HotkeyConfigMapping {
         ("ui", "menuAnywhere", "openMenuAnywhere"),
         ("ui", "toggleOverview", "toggleOverview"),
         ("ui", "toggleWorkspaceBar", "toggleWorkspaceBarVisibility"),
+        // ui toggles
+        ("ui", "toggleFocusFollowsMouse", "toggleFocusFollowsMouse"),
+        ("ui", "toggleFocusFollowsWindowToMonitor", "toggleFocusFollowsWindowToMonitor"),
+        ("ui", "toggleMoveMouseToFocused", "toggleMoveMouseToFocused"),
+        ("ui", "toggleBordersEnabled", "toggleBordersEnabled"),
+        ("ui", "togglePreventSleepEnabled", "togglePreventSleepEnabled"),
+        ("ui", "toggleIPCEnabled", "toggleIPCEnabled"),
     ]
 
     // MARK: - Lookup caches

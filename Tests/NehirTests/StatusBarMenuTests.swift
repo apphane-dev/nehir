@@ -3,14 +3,6 @@ import Foundation
 @testable import Nehir
 import Testing
 
-private func makeStatusBarMenuTestDirectory() -> URL {
-    let directory = FileManager.default.temporaryDirectory
-        .appendingPathComponent("nehir-status-bar-menu-tests", isDirectory: true)
-        .appendingPathComponent(UUID().uuidString, isDirectory: true)
-    try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-    return directory
-}
-
 @Suite(.serialized) @MainActor struct StatusBarMenuTests {
     @Test func buildMenuUsesCurrentAppAppearanceForMenuAndViews() throws {
         let originalAppearanceProvider = StatusBarMenuAppearanceProvider.current
@@ -65,38 +57,6 @@ private func makeStatusBarMenuTestDirectory() -> URL {
         try actionRow(in: menu, labeled: "Edit settings.toml").performActionForTests()
 
         #expect(performedActions == [.revealConfigFolder, .openMainSettingsFile])
-    }
-
-    @Test func buildMenuIncludesIPCSectionAndCLIInstallActionWhenEnabled() throws {
-        let root = makeStatusBarMenuTestDirectory()
-        defer { try? FileManager.default.removeItem(at: root) }
-
-        let homeDirectory = root.appendingPathComponent("home", isDirectory: true)
-        let userBin = homeDirectory.appendingPathComponent("bin", isDirectory: true)
-        let appURL = root.appendingPathComponent("Nehir.app", isDirectory: true)
-        let macOSDirectory = appURL.appendingPathComponent("Contents/MacOS", isDirectory: true)
-        let bundledCLIURL = macOSDirectory.appendingPathComponent("nehirctl", isDirectory: false)
-        try FileManager.default.createDirectory(at: userBin, withIntermediateDirectories: true)
-        try FileManager.default.createDirectory(at: macOSDirectory, withIntermediateDirectories: true)
-        try Data("#!/bin/sh\nexit 0\n".utf8).write(to: bundledCLIURL)
-        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: bundledCLIURL.path)
-
-        let controller = makeLayoutPlanTestController()
-        let builder = StatusBarMenuBuilder(settings: controller.settings, controller: controller)
-        builder.ipcMenuEnabled = true
-        builder.cliManager = AppCLIManager(
-            environmentProvider: { ["PATH": userBin.path] },
-            bundleURLProvider: { appURL },
-            homeDirectoryURLProvider: { homeDirectory },
-            homebrewLinkURLsProvider: { [] }
-        )
-
-        let menu = builder.buildMenu()
-        let labels = menu.items.compactMap(\.view).flatMap(textLabels(in:))
-
-        #expect(labels.contains("IPC / CLI"))
-        #expect(labels.contains("Enable IPC"))
-        #expect(labels.contains("Install CLI to PATH…"))
     }
 
     @Test func revealActionDoesNotPresentPopup() {

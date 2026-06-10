@@ -118,7 +118,7 @@ import Testing
 
     @Test func allCatalogActionsAreAssignableSearchableConfigurableAndPubliclyInvokable() {
         for spec in ActionCatalog.allSpecs() {
-            #expect(HotkeySettingsDisplayModel.isVisible(bindingId: spec.id), "\(spec.id) should be visible in hotkey assignment UI")
+            #expect(HotkeySettingsDisplayModel.isVisible(bindingId: spec.id, developerModeEnabled: true), "\(spec.id) should be visible in hotkey assignment UI")
             #expect(HotkeyConfigMapping.configKey(forInternalId: spec.id) != nil, "\(spec.id) should have a TOML config key")
             #expect(spec.ipcCommandName != nil, "\(spec.id) should have an IPC/CLI command")
         }

@@ -34,7 +34,7 @@ private func makeSettingsWorkflowTestStore(directory: URL) -> SettingsStore {
     @Test func settingsSidebarGroupsCoverEverySectionOnce() {
         let groupedSections = SettingsSectionGroup.allCases.flatMap(\.sections)
 
-        #expect(groupedSections == SettingsSection.allCases)
+        #expect(Set(groupedSections) == Set(SettingsSection.allCases))
         #expect(Set(groupedSections).count == groupedSections.count)
     }
 

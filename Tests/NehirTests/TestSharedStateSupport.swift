@@ -195,7 +195,6 @@ func fallbackFastFrameForTests(_ window: AXWindowRef) -> CGRect? {
 @MainActor
 func resetSharedControllerStateForTests() {
     SettingsWindowController.shared.windowForTests?.close()
-    AppRulesWindowController.shared.windowForTests?.close()
     OwnedWindowRegistry.shared.resetForTests()
     NativeFullscreenPlaceholderManager.materializesWindowsForTests = false
 
