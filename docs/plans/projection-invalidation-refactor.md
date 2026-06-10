@@ -178,9 +178,33 @@ Validation:
 - Toggle settings through UI and via external settings reload.
 - Both paths should produce the same subsystem updates.
 
-## Phase 5: Review tabbed overlays and focus border
+## Phase 5: Review tabbed overlays and focus bar (assessment complete)
 
 After workspace/status/settings invalidation is stable, review remaining direct calls.
+
+Assessment conclusion: **all remaining direct calls are justified and should be kept.**
+
+Tabbed overlay calls (`updateTabbedColumnOverlays`):
+- 3 direct calls with `forceOrdering: true` in AXEventHandler (rekey, app activation) and
+  LayoutRefreshController (visibility side effects) require immediate ordering updates.
+- All other calls already flow through `RefreshExecutionEffects.updateTabbedOverlays` in
+  layout execution plans.
+
+Focus border calls (`focusBorderController.*`):
+- `updateFrameHint`, `focusChanged`, `clear`, `hide`, `rekeyFocusedTarget`, `suppressManagedTarget`
+  are frame-precise, synchronous operations tied to specific event handling points.
+- Coalescing these would break visual responsiveness and ordering guarantees.
+- Visibility-related border refresh already flows through
+  `RefreshExecutionEffects.refreshFocusedBorderForVisibilityState`.
+
+Remaining `requestWorkspaceProjectionRefresh()` calls in LayoutRefreshController:
+- All fire as execution plan effects after layout/visibility completion.
+- These cover state changes through the reconcile/action-plan pathway that bypasses
+  direct WorkspaceManager mutators (where owner invalidations are wired).
+- Not redundant with owner invalidations.
+
+`.layoutProjection` and `.displayProjection` remain as tracked-but-unrouted cases
+for future use.
 
 Potential outcomes:
 
