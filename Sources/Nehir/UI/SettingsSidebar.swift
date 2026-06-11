@@ -3,13 +3,24 @@ import SwiftUI
 struct SettingsSidebar: View {
     @Binding var selection: SettingsSection
 
+    @State private var diagnosticsIssueCount = 0
+
     var body: some View {
         List(selection: $selection) {
             ForEach(SettingsSectionGroup.allCases) { group in
-                Section(group.rawValue) {
-                    ForEach(group.sections) { section in
-                        Label(section.displayName, systemImage: section.icon)
-                            .tag(section)
+                if let title = group.displayName {
+                    Section(title) {
+                        ForEach(group.sections) { section in
+                            sidebarRow(for: section)
+                                .tag(section)
+                        }
+                    }
+                } else {
+                    Section {
+                        ForEach(group.sections) { section in
+                            sidebarRow(for: section)
+                                .tag(section)
+                        }
                     }
                 }
             }
@@ -17,5 +28,33 @@ struct SettingsSidebar: View {
         .listStyle(.sidebar)
         .navigationTitle("Settings")
         .navigationSplitViewColumnWidth(min: 190, ideal: 220, max: 260)
+        .onAppear { refreshDiagnostics() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            refreshDiagnostics()
+        }
+    }
+
+    @ViewBuilder
+    private func sidebarRow(for section: SettingsSection) -> some View {
+        if section == .diagnostics && diagnosticsIssueCount > 0 {
+            LabeledContent {
+                Text("\(diagnosticsIssueCount)")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(.orange, in: Capsule())
+            } label: {
+                Label(section.displayName, systemImage: section.icon)
+            }
+        } else {
+            Label(section.displayName, systemImage: section.icon)
+        }
+    }
+
+    private func refreshDiagnostics() {
+        let diagIssues = DisplayEnvironmentDiagnostics.current().issues.count
+        let axIssue = AccessibilityPermissionMonitor.shared.isGranted ? 0 : 1
+        diagnosticsIssueCount = diagIssues + axIssue
     }
 }

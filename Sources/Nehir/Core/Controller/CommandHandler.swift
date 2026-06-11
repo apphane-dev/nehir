@@ -190,6 +190,26 @@ final class CommandHandler {
             controller.toggleWorkspaceBarVisibility()
         case .toggleOverview:
             controller.toggleOverview()
+        case .toggleFocusFollowsMouse:
+            let newValue = !controller.settings.focusFollowsMouse
+            controller.settings.focusFollowsMouse = newValue
+            controller.setFocusFollowsMouse(newValue)
+        case .toggleFocusFollowsWindowToMonitor:
+            controller.settings.focusFollowsWindowToMonitor.toggle()
+        case .toggleMoveMouseToFocused:
+            let newValue = !controller.settings.moveMouseToFocusedWindow
+            controller.settings.moveMouseToFocusedWindow = newValue
+            controller.setMoveMouseToFocusedWindow(newValue)
+        case .toggleBordersEnabled:
+            let newValue = !controller.settings.bordersEnabled
+            controller.settings.bordersEnabled = newValue
+            controller.setBordersEnabled(newValue)
+        case .togglePreventSleepEnabled:
+            let newValue = !controller.settings.preventSleepEnabled
+            controller.settings.preventSleepEnabled = newValue
+            controller.setPreventSleepEnabled(newValue)
+        case .toggleIPCEnabled:
+            controller.settings.ipcEnabled.toggle()
         }
 
         return .executed

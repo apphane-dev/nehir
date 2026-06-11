@@ -181,13 +181,29 @@ final class IPCCommandRouter {
         case .openMenuAnywhere:
             return controller.commandHandler.performCommand(.openMenuAnywhere)
         case .debugDumpRuntimeState:
+            guard controller.settings.developerModeEnabled else { return .requiresDeveloperMode }
             return controller.commandHandler.performCommand(.debugDumpRuntimeState)
         case .debugResetRuntimeState:
+            guard controller.settings.developerModeEnabled else { return .requiresDeveloperMode }
             return controller.commandHandler.performCommand(.debugResetRuntimeState)
         case .debugRestartClearingRuntimeState:
+            guard controller.settings.developerModeEnabled else { return .requiresDeveloperMode }
             return controller.commandHandler.performCommand(.debugRestartClearingRuntimeState)
         case .debugToggleTraceCapture(let desiredState):
+            guard controller.settings.developerModeEnabled else { return .requiresDeveloperMode }
             return controller.toggleRuntimeTraceCapture(desiredState: desiredState)
+        case .toggleFocusFollowsMouse:
+            return controller.commandHandler.performCommand(.toggleFocusFollowsMouse)
+        case .toggleFocusFollowsWindowToMonitor:
+            return controller.commandHandler.performCommand(.toggleFocusFollowsWindowToMonitor)
+        case .toggleMoveMouseToFocused:
+            return controller.commandHandler.performCommand(.toggleMoveMouseToFocused)
+        case .toggleBordersEnabled:
+            return controller.commandHandler.performCommand(.toggleBordersEnabled)
+        case .togglePreventSleepEnabled:
+            return controller.commandHandler.performCommand(.togglePreventSleepEnabled)
+        case .toggleIPCEnabled:
+            return controller.commandHandler.performCommand(.toggleIPCEnabled)
         }
     }
 

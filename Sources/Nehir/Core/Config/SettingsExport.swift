@@ -81,6 +81,8 @@ struct SettingsExport: Equatable {
 
     var appearanceMode: String
 
+    var developerModeEnabled: Bool
+
     var capabilityOverrides: [WindowCapabilityProfileTOMLOverride] = []
 }
 
@@ -150,6 +152,7 @@ extension SettingsExport {
             statusBarShowAppNames: false,
             statusBarUseWorkspaceId: false,
             appearanceMode: AppearanceMode.dark.rawValue,
+            developerModeEnabled: false,
             capabilityOverrides: []
         )
     }

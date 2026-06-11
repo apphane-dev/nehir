@@ -419,7 +419,7 @@ final class WorkspaceBarManager {
             showLabels: resolved.showLabels,
             backgroundOpacity: resolved.backgroundOpacity,
             barHeight: geometry.barHeight,
-            showTraceCaptureButton: resolved.showTraceButton,
+            showTraceCaptureButton: resolved.showTraceButton && (controller?.settings.developerModeEnabled ?? false),
             traceCaptureStatus: controller?.runtimeTraceCaptureStatus ?? .init(isActive: false, startedAt: nil),
             hasDisplayDiagnosticsWarning: DisplayEnvironmentDiagnostics.evaluate(monitors: monitorProvider()).hasWarnings,
             accentColor: resolved.accentColor,

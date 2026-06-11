@@ -65,36 +65,29 @@ private struct GlobalBarSettingsSection: View {
                         controller.updateWorkspaceBarSettings()
                     }
 
-                Toggle("Show Trace Capture Button", isOn: $settings.workspaceBarShowTraceButton)
+                if settings.developerModeEnabled {
+                    Toggle(isOn: $settings.workspaceBarShowTraceButton) {
+                        HStack(spacing: 8) {
+                            Text("Show Trace Capture Button")
+                            DeveloperBadge()
+                        }
+                    }
                     .onChange(of: settings.workspaceBarShowTraceButton) { _, _ in
                         controller.updateWorkspaceBarSettings()
                     }
                     .help("Adds a workspace bar button that starts or stops runtime trace capture for debugging reports.")
+                }
 
-                Toggle("Deduplicate App Icons", isOn: $settings.workspaceBarDeduplicateAppIcons)
+                Toggle("Group Windows by App", isOn: $settings.workspaceBarDeduplicateAppIcons)
                     .onChange(of: settings.workspaceBarDeduplicateAppIcons) { _, _ in
                         controller.updateWorkspaceBarSettings()
                     }
-                    .help("Group windows by app with badge count")
 
                 Toggle("Hide Empty Workspaces", isOn: $settings.workspaceBarHideEmptyWorkspaces)
                     .onChange(of: settings.workspaceBarHideEmptyWorkspaces) { _, _ in
                         controller.updateWorkspaceBarSettings()
                     }
 
-                Toggle("Reserve Space for Workspace Bar", isOn: $settings.workspaceBarReserveLayoutSpace)
-                    .onChange(of: settings.workspaceBarReserveLayoutSpace) { _, _ in
-                        controller.updateWorkspaceBarSettings()
-                    }
-                    .help(
-                        "Reserve tiled layout space using the configured workspace bar height."
-                    )
-
-                Toggle("Notch-Aware Positioning", isOn: $settings.workspaceBarNotchAware)
-                    .onChange(of: settings.workspaceBarNotchAware) { _, _ in
-                        controller.updateWorkspaceBarSettings()
-                    }
-                    .help("Shift bar to the right of the notch on MacBook Pro")
             }
         }
 
@@ -117,6 +110,18 @@ private struct GlobalBarSettingsSection: View {
                 .onChange(of: settings.workspaceBarWindowLevel) { _, _ in
                     controller.updateWorkspaceBarSettings()
                 }
+
+                Toggle("Notch-Aware Positioning", isOn: $settings.workspaceBarNotchAware)
+                    .onChange(of: settings.workspaceBarNotchAware) { _, _ in
+                        controller.updateWorkspaceBarSettings()
+                    }
+                SettingsCaption("Offsets the bar to avoid the display notch on MacBook Pro.")
+
+                Toggle("Reserve Space for Workspace Bar", isOn: $settings.workspaceBarReserveLayoutSpace)
+                    .onChange(of: settings.workspaceBarReserveLayoutSpace) { _, _ in
+                        controller.updateWorkspaceBarSettings()
+                    }
+                SettingsCaption("Prevents tiled windows from appearing behind the bar.")
             }
 
             Section("Position Offset") {
@@ -297,7 +302,7 @@ private struct MonitorBarSettingsSection: View {
             )
 
             OverridableToggle(
-                label: "Deduplicate App Icons",
+                label: "Group Windows by App",
                 value: ms.deduplicateAppIcons,
                 globalValue: settings.workspaceBarDeduplicateAppIcons,
                 onChange: { newValue in updateSetting { $0.deduplicateAppIcons = newValue } },
@@ -313,34 +318,16 @@ private struct MonitorBarSettingsSection: View {
                 onReset: { updateSetting { $0.hideEmptyWorkspaces = nil } }
             )
 
-            OverridableToggle(
-                label: "Reserve Space for Workspace Bar",
-                value: ms.reserveLayoutSpace,
-                globalValue: settings.workspaceBarReserveLayoutSpace,
-                onChange: { newValue in updateSetting { $0.reserveLayoutSpace = newValue } },
-                onReset: { updateSetting { $0.reserveLayoutSpace = nil } }
-            )
-            .help(
-                "Reserve tiled layout space using the configured workspace bar height."
-            )
-
-            OverridableToggle(
-                label: "Notch-Aware Positioning",
-                value: ms.notchAware,
-                globalValue: settings.workspaceBarNotchAware,
-                onChange: { newValue in updateSetting { $0.notchAware = newValue } },
-                onReset: { updateSetting { $0.notchAware = nil } }
-            )
-            .help("Shift bar to the right of the notch on MacBook Pro")
-
-            OverridableToggle(
-                label: "Show Trace Capture Button",
-                value: ms.showTraceButton,
-                globalValue: settings.workspaceBarShowTraceButton,
-                onChange: { newValue in updateSetting { $0.showTraceButton = newValue } },
-                onReset: { updateSetting { $0.showTraceButton = nil } }
-            )
-            .help("Show a trace capture toggle button in the workspace bar")
+            if settings.developerModeEnabled {
+                OverridableToggle(
+                    label: "Show Trace Capture Button",
+                    value: ms.showTraceButton,
+                    globalValue: settings.workspaceBarShowTraceButton,
+                    onChange: { newValue in updateSetting { $0.showTraceButton = newValue } },
+                    onReset: { updateSetting { $0.showTraceButton = nil } }
+                )
+                .help("Show a trace capture toggle button in the workspace bar")
+            }
         }
 
         Section("Position & Level") {
@@ -362,6 +349,22 @@ private struct MonitorBarSettingsSection: View {
                 displayName: { $0.displayName },
                 onChange: { newValue in updateSetting { $0.windowLevel = newValue } },
                 onReset: { updateSetting { $0.windowLevel = nil } }
+            )
+
+            OverridableToggle(
+                label: "Notch-Aware Positioning",
+                value: ms.notchAware,
+                globalValue: settings.workspaceBarNotchAware,
+                onChange: { newValue in updateSetting { $0.notchAware = newValue } },
+                onReset: { updateSetting { $0.notchAware = nil } }
+            )
+
+            OverridableToggle(
+                label: "Reserve Space for Workspace Bar",
+                value: ms.reserveLayoutSpace,
+                globalValue: settings.workspaceBarReserveLayoutSpace,
+                onChange: { newValue in updateSetting { $0.reserveLayoutSpace = newValue } },
+                onReset: { updateSetting { $0.reserveLayoutSpace = nil } }
             )
         }
 

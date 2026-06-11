@@ -24,7 +24,6 @@ private func makeOwnedWindowTestController() -> WMController {
 @MainActor
 private func closeOwnedUtilityWindowsForTests() async {
     SettingsWindowController.shared.windowForTests?.close()
-    AppRulesWindowController.shared.windowForTests?.close()
     await Task.yield()
 }
 

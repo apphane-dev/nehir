@@ -26,7 +26,7 @@ import Testing
     @Test func workspaceSettingsCopyMentionsTenPlusInsteadOfNineWorkspaceCap() {
         #expect(WorkspaceConfigurationAddPolicy.addButtonHelp.contains("9") == false)
         #expect(WorkspaceConfigurationAddPolicy.footerText.contains("at most 9") == false)
-        #expect(WorkspaceConfigurationAddPolicy.footerText.contains("10+") == true)
+        #expect(WorkspaceConfigurationAddPolicy.footerText.contains("1–9") == true)
     }
 
     @Test @MainActor func floatingOnlyWorkspaceBlocksDeletion() throws {

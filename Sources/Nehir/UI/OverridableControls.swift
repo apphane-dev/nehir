@@ -100,8 +100,6 @@ struct SettingsNumberStepperRow: View {
                     .frame(width: 64)
                     .multilineTextAlignment(.trailing)
                     .accessibilityLabel(label)
-
-                SettingsValueText(text: valueText, width: 60)
             }
         }
     }
@@ -362,7 +360,6 @@ struct OverridableStepper: View {
                     .multilineTextAlignment(.trailing)
                     .accessibilityLabel(label)
 
-                SettingsValueText(text: displayValue, width: 60)
                 overrideStatus
             }
         }

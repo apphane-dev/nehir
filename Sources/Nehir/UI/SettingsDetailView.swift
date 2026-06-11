@@ -4,6 +4,7 @@ struct SettingsDetailView: View {
     let section: SettingsSection
     @Bindable var settings: SettingsStore
     @Bindable var controller: WMController
+    var cliManager: AppCLIManager?
 
     var body: some View {
         contentView
@@ -20,11 +21,12 @@ struct SettingsDetailView: View {
             GeneralSettingsTab(
                 settings: settings,
                 controller: controller,
+                cliManager: cliManager
             )
-        case .diagnostics:
-            DisplayDiagnosticsSettingsTab()
-        case .niri:
-            NiriSettingsTab(settings: settings, controller: controller)
+        case .behavior:
+            BehaviorSettingsTab(settings: settings, controller: controller)
+        case .layout:
+            LayoutSettingsTab(settings: settings, controller: controller)
         case .monitors:
             MonitorSettingsTab(settings: settings, controller: controller)
         case .workspaces:
@@ -33,8 +35,12 @@ struct SettingsDetailView: View {
             BorderSettingsTab(settings: settings, controller: controller)
         case .bar:
             WorkspaceBarSettingsTab(settings: settings, controller: controller)
+        case .appRules:
+            AppRulesView(settings: settings, controller: controller)
         case .hotkeys:
             HotkeySettingsView(settings: settings, controller: controller)
+        case .diagnostics:
+            DisplayDiagnosticsSettingsTab()
         }
     }
 }

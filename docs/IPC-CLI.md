@@ -28,6 +28,7 @@ This document covers the Nehir automation surface. For the docs hub, see [Docume
   - [Layout & Sizing](#layout--sizing)
   - [Window Management](#window-management)
   - [UI Toggles](#ui-toggles)
+  - [Settings Toggles](#settings-toggles)
   - [Debugging & Tracing](#debugging--tracing)
 - [Queries](#queries)
   - [Query Selectors](#query-selectors)
@@ -142,21 +143,23 @@ Nehir.app/Contents/MacOS/nehirctl
 
 ### Installing to PATH
 
-Use the Nehir status bar menu: **Install CLI to PATH**. Nehir chooses the first writable directory already on `PATH` inside your home directory. If none is available, it falls back to `~/.local/bin`, then `~/bin`.
+Open **Settings → General → Command Line**. Nehir shows the current CLI status and a button to install or remove the symlink. Nehir chooses the first writable directory already on `PATH` inside your home directory. If none is available, it falls back to `~/.local/bin`, then `~/bin`.
 
-The menu also shows current CLI status:
-- **Homebrew-managed** — CLI is already available from a Homebrew path, and Nehir leaves it alone
-- **App-managed** — symlink created by Nehir, removable via menu
+Status values:
+- **Homebrew-managed** — CLI is already available from a Homebrew path; Nehir leaves it alone
+- **App-managed** — symlink created by Nehir; removable from the same settings row
 - **Not installed** — no Nehir-managed CLI link is present yet
 - **Conflict** — another file exists at the target path
 
 ### Enabling IPC
 
-IPC is disabled by default. Enable it via:
-- Status bar menu: **Enable IPC**
-- The setting persists across sessions
+IPC is disabled by default. Enable it by adding `ipc_enabled = true` to `~/.config/nehir/settings.toml` and restarting Nehir. Once the server is running, you can toggle it at runtime via:
 
-Turning **Enable IPC** on starts the server immediately and creates the Unix socket plus the authorization secret file. Turning it off stops the server and removes both files.
+```
+Nehir.app/Contents/MacOS/nehirctl command toggle-ipc
+```
+
+Enabling IPC starts the server immediately and creates the Unix domain socket plus the authorization secret file. Disabling it stops the server and removes both files.
 
 ---
 
@@ -351,9 +354,20 @@ When a managed floating window has keyboard focus, focused-window commands targe
 | `command toggle-workspace-bar` | — | command | Toggle workspace bar visibility |
 | `command toggle-overview` | — | command | Toggle the overview surface |
 
+### Settings Toggles
+
+| Command | Arguments | Surface | Description |
+|---------|-----------|---------|-------------|
+| `command toggle-focus-follows-mouse` | — | command | Toggle Focus Follows Mouse (experimental) |
+| `command toggle-focus-follows-window-to-monitor` | — | command | Toggle Follow Window to Monitor |
+| `command toggle-move-mouse-to-focused` | — | command | Toggle Move Cursor to Focused Window |
+| `command toggle-borders` | — | command | Toggle window borders (experimental) |
+| `command toggle-prevent-sleep` | — | command | Toggle Prevent Display Sleep |
+| `command toggle-ipc` | — | command | Toggle the IPC server on/off |
+
 ### Debugging & Tracing
 
-These commands are exposed consistently through IPC/CLI, the command palette, and hotkey handling. In the command palette and shortcut settings they appear in the **Debugging & Tracing** category.
+These commands are exposed consistently through IPC/CLI, the command palette, and hotkey handling. In the command palette and shortcut settings they appear in the **Debugging & Tracing** category. They require **Developer Mode** to be enabled in Settings → General; when Developer Mode is off they are hidden from the command palette and hotkey list, and IPC returns an error.
 
 | Command | Arguments | Surface | Description |
 |---------|-----------|---------|-------------|

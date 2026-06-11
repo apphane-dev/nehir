@@ -8,5 +8,6 @@ enum ExternalCommandResult: Equatable, Sendable, Error {
     case notFound
     case invalidArguments
     case invalidState
+    case requiresDeveloperMode
     case internalError
 }

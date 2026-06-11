@@ -8,11 +8,18 @@ struct BorderSettingsTab: View {
 
     var body: some View {
         Form {
-            Section("Window Borders") {
-                Toggle("Enable Borders", isOn: $settings.bordersEnabled)
-                    .onChange(of: settings.bordersEnabled) { _, newValue in
-                        controller.setBordersEnabled(newValue)
+            Section("Borders") {
+                Toggle(isOn: $settings.bordersEnabled) {
+                    HStack(spacing: 8) {
+                        Text("Enable Window Borders")
+                        ExperimentalBadge()
                     }
+                }
+                .onChange(of: settings.bordersEnabled) { _, newValue in
+                    controller.setBordersEnabled(newValue)
+                }
+
+                SettingsCaption("Highlights the currently focused window with a colored border.")
 
                 if settings.bordersEnabled {
                     SettingsSliderRow(
@@ -33,12 +40,6 @@ struct BorderSettingsTab: View {
                         .onChange(of: settings.borderColorBlue) { _, _ in debouncedColorSync() }
                         .onChange(of: settings.borderColorAlpha) { _, _ in debouncedColorSync() }
                 }
-            }
-
-            Section("About") {
-                Text("Borders are displayed around the currently focused window.")
-                    .font(.footnote)
-                    .foregroundColor(.secondary)
             }
         }
         .formStyle(.grouped)

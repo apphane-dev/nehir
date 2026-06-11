@@ -281,6 +281,12 @@ public enum IPCCommandName: String, Codable, CaseIterable, Equatable, Sendable {
     case debugResetRuntimeState = "debug-reset-runtime-state"
     case debugRestartClearingRuntimeState = "debug-restart-clearing-runtime-state"
     case debugToggleTraceCapture = "debug-toggle-trace-capture"
+    case toggleFocusFollowsMouse = "toggle-focus-follows-mouse"
+    case toggleFocusFollowsWindowToMonitor = "toggle-focus-follows-window-to-monitor"
+    case toggleMoveMouseToFocused = "toggle-move-mouse-to-focused"
+    case toggleBordersEnabled = "toggle-borders"
+    case togglePreventSleepEnabled = "toggle-prevent-sleep"
+    case toggleIPCEnabled = "toggle-ipc"
 }
 
 public enum IPCSizeChangeKind: String, Codable, Equatable, Sendable {
@@ -409,6 +415,12 @@ public enum IPCCommandRequest: Equatable, Sendable {
     case debugResetRuntimeState
     case debugRestartClearingRuntimeState
     case debugToggleTraceCapture(desiredState: IPCTraceDesiredState?)
+    case toggleFocusFollowsMouse
+    case toggleFocusFollowsWindowToMonitor
+    case toggleMoveMouseToFocused
+    case toggleBordersEnabled
+    case togglePreventSleepEnabled
+    case toggleIPCEnabled
 
     public var name: IPCCommandName {
         switch self {
@@ -560,6 +572,18 @@ public enum IPCCommandRequest: Equatable, Sendable {
             .debugRestartClearingRuntimeState
         case .debugToggleTraceCapture:
             .debugToggleTraceCapture
+        case .toggleFocusFollowsMouse:
+            .toggleFocusFollowsMouse
+        case .toggleFocusFollowsWindowToMonitor:
+            .toggleFocusFollowsWindowToMonitor
+        case .toggleMoveMouseToFocused:
+            .toggleMoveMouseToFocused
+        case .toggleBordersEnabled:
+            .toggleBordersEnabled
+        case .togglePreventSleepEnabled:
+            .togglePreventSleepEnabled
+        case .toggleIPCEnabled:
+            .toggleIPCEnabled
         }
     }
 
@@ -829,6 +853,24 @@ public enum IPCCommandRequest: Equatable, Sendable {
             } else {
                 throw IPCCommandRequestConstructionError.invalidArgumentType
             }
+        case .toggleFocusFollowsMouse:
+            try requireNoArguments()
+            self = .toggleFocusFollowsMouse
+        case .toggleFocusFollowsWindowToMonitor:
+            try requireNoArguments()
+            self = .toggleFocusFollowsWindowToMonitor
+        case .toggleMoveMouseToFocused:
+            try requireNoArguments()
+            self = .toggleMoveMouseToFocused
+        case .toggleBordersEnabled:
+            try requireNoArguments()
+            self = .toggleBordersEnabled
+        case .togglePreventSleepEnabled:
+            try requireNoArguments()
+            self = .togglePreventSleepEnabled
+        case .toggleIPCEnabled:
+            try requireNoArguments()
+            self = .toggleIPCEnabled
         }
     }
 }
@@ -1047,6 +1089,18 @@ extension IPCCommandRequest: Codable {
             } else {
                 self = .debugToggleTraceCapture(desiredState: nil)
             }
+        case .toggleFocusFollowsMouse:
+            self = .toggleFocusFollowsMouse
+        case .toggleFocusFollowsWindowToMonitor:
+            self = .toggleFocusFollowsWindowToMonitor
+        case .toggleMoveMouseToFocused:
+            self = .toggleMoveMouseToFocused
+        case .toggleBordersEnabled:
+            self = .toggleBordersEnabled
+        case .togglePreventSleepEnabled:
+            self = .togglePreventSleepEnabled
+        case .toggleIPCEnabled:
+            self = .toggleIPCEnabled
         }
     }
 
@@ -1208,6 +1262,18 @@ extension IPCCommandRequest: Codable {
             if let desiredState {
                 try container.encode(IPCTraceDesiredStateArguments(desiredState: desiredState), forKey: .arguments)
             }
+        case .toggleFocusFollowsMouse:
+            break
+        case .toggleFocusFollowsWindowToMonitor:
+            break
+        case .toggleMoveMouseToFocused:
+            break
+        case .toggleBordersEnabled:
+            break
+        case .togglePreventSleepEnabled:
+            break
+        case .toggleIPCEnabled:
+            break
         }
     }
 }

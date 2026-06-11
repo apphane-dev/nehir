@@ -42,7 +42,9 @@ struct MonitorSettingsTab: View {
             subtitle: "Configure mouse warp order and per-monitor orientation without changing macOS display arrangement."
         ) {
             Section("Mouse Warp") {
-                LabeledContent("Warp Axis") {
+                SettingsCaption("Moves the cursor to the opposite monitor when it reaches a screen edge.")
+
+                LabeledContent("Axis") {
                     Picker("Warp Axis", selection: Binding(
                         get: { settings.mouseWarpAxis },
                         set: { settings.mouseWarpAxis = $0 }
@@ -66,10 +68,7 @@ struct MonitorSettingsTab: View {
                             .monospacedDigit()
                     }
                 }
-
-                SettingsCaption(
-                    "Horizontal mode uses left and right edges. Vertical mode uses top and bottom edges."
-                )
+                SettingsCaption("How close to the edge (in pixels) before the cursor jumps to the next monitor.")
             }
 
             Section("Warp Order") {
@@ -106,7 +105,7 @@ struct MonitorSettingsTab: View {
                     }
 
                     SettingsCaption(
-                        "This is the \(warpAxis.orderDescription) order Nehir uses when the pointer crosses a monitor edge."
+                        "This is the \(warpAxis.orderDescription) order for pointer crossing. Select a monitor to configure its orientation below."
                     )
                 }
             }
@@ -188,19 +187,13 @@ private struct MonitorOrderRow: View {
                         .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
                         .accessibilityHidden(true)
 
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack(spacing: 8) {
-                            Text(entry.displayLabel.name)
-                                .font(.body)
-                                .lineLimit(2)
-                                .multilineTextAlignment(.leading)
+                    HStack(spacing: 8) {
+                        Text(entry.displayLabel.name)
+                            .font(.body)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
 
-                            MonitorBadgeRow(displayLabel: entry.displayLabel, isMain: entry.isMain)
-                        }
-
-                        Text(isSelected ? "Selected for orientation settings" : "Select to edit orientation")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        MonitorBadgeRow(displayLabel: entry.displayLabel, isMain: entry.isMain)
                     }
 
                     Spacer(minLength: 8)
@@ -299,10 +292,6 @@ private struct SelectedMonitorDetails: View {
         settings.orientationSettings(for: monitor)?.orientation
     }
 
-    private var effectiveOrientation: Monitor.Orientation {
-        settings.effectiveOrientation(for: monitor)
-    }
-
     var body: some View {
         LabeledContent("Monitor") {
             HStack(spacing: 8) {
@@ -315,17 +304,7 @@ private struct SelectedMonitorDetails: View {
             }
         }
 
-        LabeledContent("Auto-detected") {
-            Text(monitor.autoOrientation.displayName)
-                .foregroundStyle(.secondary)
-        }
-
-        LabeledContent("Current") {
-            Text(effectiveOrientation.displayName)
-                .fontWeight(.medium)
-        }
-
-        Picker("Orientation Override", selection: Binding(
+        Picker("Orientation", selection: Binding(
             get: { orientationOverride },
             set: { newValue in
                 updateOrientation(newValue)
@@ -337,14 +316,10 @@ private struct SelectedMonitorDetails: View {
         }
         .pickerStyle(.segmented)
 
-        if orientationOverride != nil {
-            Button("Reset to Auto") {
-                updateOrientation(nil)
-            }
-        }
-
         SettingsCaption(
-            "Vertical monitors scroll windows top-to-bottom instead of left-to-right."
+            orientationOverride == nil
+                ? "Detected as \(monitor.autoOrientation.displayName). Vertical monitors scroll top-to-bottom instead of left-to-right."
+                : "Vertical monitors scroll windows top-to-bottom instead of left-to-right."
         )
     }
 

@@ -325,6 +325,8 @@ actor IPCApplicationBridge {
             return .failure(id: id, kind: kind, code: .invalidArguments)
         case .invalidState:
             return .failure(id: id, kind: kind, code: .invalidState)
+        case .requiresDeveloperMode:
+            return .failure(id: id, kind: kind, code: .unauthorized)
         case .internalError:
             return .failure(id: id, kind: kind, code: .internalError)
         }

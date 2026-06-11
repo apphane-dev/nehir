@@ -5070,7 +5070,7 @@ private func waitUntilAXEventTest(
             didReceive: .destroyed(windowId: 882, spaceId: 0)
         )
 
-        try? await Task.sleep(for: .milliseconds(100))
+        try? await Task.sleep(for: .milliseconds(50))
         #expect(controller.workspaceManager.entry(for: token) != nil)
 
         await waitUntilAXEventTest(iterations: 120) {
