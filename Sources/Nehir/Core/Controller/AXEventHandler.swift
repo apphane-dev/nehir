@@ -287,6 +287,7 @@ final class AXEventHandler: CGSEventDelegate {
     private static let createdWindowRetryLimit = 5
     private static let createPlacementContextTTL: TimeInterval = 15
     private static let activationRetryLimit = 5
+    private static let nativeAppSwitchLeaseRequestConfirmationGrace: TimeInterval = 0.6
     private static let createFocusTraceLimit = 128
     private static let managedReplacementTraceLimit = 128
     private static let createFocusTraceLoggingEnabled =
@@ -1283,15 +1284,6 @@ final class AXEventHandler: CGSEventDelegate {
         )
         guard controller.hasStartedServices else { return }
 
-        if source != .focusedWindowChanged {
-            controller.focusPolicyEngine.beginLease(
-                owner: .nativeAppSwitch,
-                reason: source.rawValue,
-                suppressesFocusFollowsMouse: true,
-                duration: 0.4
-            )
-        }
-
         let activeRequest = controller.focusBridge.activeManagedRequest
 
         if pid == getpid(), (controller.hasFrontmostOwnedWindow || controller.hasVisibleOwnedWindow) {
@@ -1310,6 +1302,22 @@ final class AXEventHandler: CGSEventDelegate {
 
         let axRef = resolveFocusedAXWindowRef(pid: pid)
         let observedToken = axRef.map { WindowToken(pid: pid, windowId: $0.windowId) }
+        let isActivationForManagedRequest = observedToken.map { token in
+            activeRequest?.token == token
+                || controller.focusBridge.recentlyConfirmedManagedRequest(
+                    for: token,
+                    within: Self.nativeAppSwitchLeaseRequestConfirmationGrace
+                )
+        } ?? (activeRequest?.token.pid == pid)
+        if source != .focusedWindowChanged, !isActivationForManagedRequest {
+            controller.focusPolicyEngine.beginLease(
+                owner: .nativeAppSwitch,
+                reason: source.rawValue,
+                suppressesFocusFollowsMouse: true,
+                duration: 0.4
+            )
+        }
+
         let requestDisposition = activationRequestDisposition(
             for: pid,
             token: observedToken,

@@ -44,7 +44,13 @@ final class FocusBridgeCoordinator {
     private var pendingFocusToken: WindowToken?
     private var deferredFocusToken: WindowToken?
     private var isFocusOperationPending = false
+    private struct ConfirmedManagedRequest {
+        var token: WindowToken
+        var confirmedAt: Date
+    }
+
     private var lastFocusTime: Date = .distantPast
+    private var recentlyConfirmedManagedRequestsByPID: [pid_t: ConfirmedManagedRequest] = [:]
 
     func beginManagedRequest(
         token: WindowToken,
@@ -120,6 +126,10 @@ final class FocusBridgeCoordinator {
 
         activeManagedRequest.lastActivationSource = source
         activeManagedRequest.status = .confirmed
+        recentlyConfirmedManagedRequestsByPID[token.pid] = ConfirmedManagedRequest(
+            token: token,
+            confirmedAt: Date()
+        )
         self.activeManagedRequest = nil
         return activeManagedRequest
     }
@@ -156,6 +166,19 @@ final class FocusBridgeCoordinator {
         self.activeManagedRequest = activeManagedRequest
     }
 
+    func recentlyConfirmedManagedRequest(
+        for token: WindowToken,
+        within interval: TimeInterval
+    ) -> Bool {
+        guard let confirmation = recentlyConfirmedManagedRequestsByPID[token.pid],
+              confirmation.token == token,
+              Date().timeIntervalSince(confirmation.confirmedAt) <= interval
+        else {
+            return false
+        }
+        return true
+    }
+
     func discardPendingFocus(_ token: WindowToken) {
         if pendingFocusToken == token {
             pendingFocusToken = nil
@@ -171,6 +194,12 @@ final class FocusBridgeCoordinator {
         }
         if deferredFocusToken == oldToken {
             deferredFocusToken = newToken
+        }
+        if recentlyConfirmedManagedRequestsByPID[oldToken.pid]?.token == oldToken {
+            let confirmation = recentlyConfirmedManagedRequestsByPID.removeValue(forKey: oldToken.pid)
+            recentlyConfirmedManagedRequestsByPID[newToken.pid] = confirmation.map {
+                ConfirmedManagedRequest(token: newToken, confirmedAt: $0.confirmedAt)
+            }
         }
     }
 
@@ -210,5 +239,6 @@ final class FocusBridgeCoordinator {
         deferredFocusToken = nil
         isFocusOperationPending = false
         lastFocusTime = .distantPast
+        recentlyConfirmedManagedRequestsByPID.removeAll(keepingCapacity: true)
     }
 }

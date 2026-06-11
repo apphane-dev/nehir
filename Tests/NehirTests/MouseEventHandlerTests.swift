@@ -1972,6 +1972,141 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
         #expect(engine.interactiveResize == nil)
     }
 
+    @Test @MainActor func queuedFocusFollowsMouseUsesCurrentPointerForStaleMouseMove() async {
+        let controller = makeMouseEventTestController()
+        controller.enableNiriLayout()
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+        controller.syncMonitorsToNiriEngine()
+        controller.setFocusFollowsMouse(true)
+
+        guard let workspaceId = controller.interactionWorkspace()?.id,
+              let engine = controller.niriEngine,
+              let monitor = controller.workspaceManager.monitor(for: workspaceId)
+        else {
+            Issue.record("Missing Niri context for stale queued focus-follow regression test")
+            return
+        }
+
+        let focusedHandle = populateNiriWorkspaceForMouseTests(
+            controller: controller,
+            engine: engine,
+            workspaceId: workspaceId,
+            monitor: monitor,
+            startingWindowId: 970,
+            count: 2
+        )
+        controller.layoutRefreshController.requestImmediateRelayout(reason: .workspaceTransition)
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+
+        guard let focusedNode = engine.findNode(for: focusedHandle),
+              let focusedFrame = focusedNode.renderedFrame ?? focusedNode.frame,
+              let staleHoverNode = engine.columns(in: workspaceId)
+                  .flatMap(\.windowNodes)
+                  .first(where: { $0.token != focusedHandle.token }),
+              let staleHoverFrame = staleHoverNode.renderedFrame ?? staleHoverNode.frame
+        else {
+            Issue.record("Missing node frames for stale queued focus-follow regression test")
+            return
+        }
+
+        controller.mouseEventHandler.mouseLocationProvider = { focusedFrame.center }
+        controller.mouseEventHandler.receiveTapMouseMoved(at: staleHoverFrame.center)
+        controller.mouseEventHandler.flushPendingTapEventsForTests()
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == focusedHandle.token)
+        #expect(controller.workspaceManager.activeFocusRequestToken == nil)
+    }
+
+    @Test @MainActor func focusFollowsMouseReassertsConfirmedWindowWhenPointerReturnsBeforePendingFocusConfirms() async {
+        let controller = makeMouseEventTestController()
+        controller.enableNiriLayout()
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+        controller.syncMonitorsToNiriEngine()
+        controller.setFocusFollowsMouse(true)
+
+        guard let workspaceId = controller.interactionWorkspace()?.id,
+              let engine = controller.niriEngine,
+              let monitor = controller.workspaceManager.monitor(for: workspaceId)
+        else {
+            Issue.record("Missing Niri context for pending focus-follow reassertion regression test")
+            return
+        }
+
+        let focusedHandle = populateNiriWorkspaceForMouseTests(
+            controller: controller,
+            engine: engine,
+            workspaceId: workspaceId,
+            monitor: monitor,
+            startingWindowId: 980,
+            count: 2
+        )
+        controller.layoutRefreshController.requestImmediateRelayout(reason: .workspaceTransition)
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+
+        guard let focusedNode = engine.findNode(for: focusedHandle),
+              let focusedFrame = focusedNode.renderedFrame ?? focusedNode.frame,
+              let otherNode = engine.columns(in: workspaceId)
+                  .flatMap(\.windowNodes)
+                  .first(where: { $0.token != focusedHandle.token }),
+              let otherFrame = otherNode.renderedFrame ?? otherNode.frame
+        else {
+            Issue.record("Missing node frames for pending focus-follow reassertion regression test")
+            return
+        }
+
+        controller.mouseEventHandler.dispatchMouseMoved(at: otherFrame.center)
+        #expect(controller.workspaceManager.activeFocusRequestToken == otherNode.token)
+
+        controller.mouseEventHandler.dispatchMouseMoved(at: focusedFrame.center)
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == focusedHandle.token)
+        #expect(controller.workspaceManager.activeFocusRequestToken == focusedHandle.token)
+    }
+
+    @Test @MainActor func focusFollowsMouseAllowsRapidTargetChangeInsideDebounceWindow() async {
+        let controller = makeMouseEventTestController()
+        controller.enableNiriLayout()
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+        controller.syncMonitorsToNiriEngine()
+        controller.setFocusFollowsMouse(true)
+
+        guard let workspaceId = controller.interactionWorkspace()?.id,
+              let engine = controller.niriEngine,
+              let monitor = controller.workspaceManager.monitor(for: workspaceId)
+        else {
+            Issue.record("Missing Niri context for rapid focus-follow regression test")
+            return
+        }
+
+        let focusedHandle = populateNiriWorkspaceForMouseTests(
+            controller: controller,
+            engine: engine,
+            workspaceId: workspaceId,
+            monitor: monitor,
+            startingWindowId: 990,
+            count: 2
+        )
+        controller.layoutRefreshController.requestImmediateRelayout(reason: .workspaceTransition)
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+
+        guard let otherNode = engine.columns(in: workspaceId)
+            .flatMap(\.windowNodes)
+            .first(where: { $0.token != focusedHandle.token }),
+            let otherFrame = otherNode.renderedFrame ?? otherNode.frame
+        else {
+            Issue.record("Missing node frame for rapid focus-follow regression test")
+            return
+        }
+
+        controller.mouseEventHandler.state.lastFocusFollowsMouseTime = Date()
+        controller.mouseEventHandler.state.lastFocusFollowsMouseToken = focusedHandle.token
+
+        controller.mouseEventHandler.dispatchMouseMoved(at: otherFrame.center)
+
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == focusedHandle.token)
+        #expect(controller.workspaceManager.activeFocusRequestToken == otherNode.token)
+    }
+
     @Test @MainActor func focusFollowsMouseIgnoresCoveredTileBehindManagedFullscreen() async {
         let controller = makeMouseEventTestController()
         controller.enableNiriLayout()

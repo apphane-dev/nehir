@@ -187,6 +187,8 @@ final class WMController {
     private var runtimeViewportTraceRecords: [String] = []
     @ObservationIgnored
     private var runtimeResizeTraceRecords: [String] = []
+    @ObservationIgnored
+    private var runtimeMouseTraceRecords: [String] = []
 
     var runtimeTraceCaptureStatus: RuntimeTraceCaptureStatus {
         RuntimeTraceCaptureStatus(
@@ -2013,6 +2015,14 @@ final class WMController {
         }
     }
 
+    func recordRuntimeMouseTrace(_ message: String) {
+        guard runtimeTraceCaptureSession != nil else { return }
+        runtimeMouseTraceRecords.append(Date().ISO8601Format() + " " + message)
+        if runtimeMouseTraceRecords.count > 400 {
+            runtimeMouseTraceRecords.removeFirst(runtimeMouseTraceRecords.count - 400)
+        }
+    }
+
     func recordRuntimeViewportTrace(
         workspaceId: WorkspaceDescriptor.ID,
         reason: String,
@@ -2395,7 +2405,7 @@ final class WMController {
             "accessibilityGranted=\(accessibilityPermissionGranted) lockScreenActive=\(isLockScreenActive) overviewOpen=\(isOverviewOpen()) startedServices=\(hasStartedServices)",
             "focusFollowsMouse=\(focusFollowsMouseEnabled) moveMouseToFocusedWindow=\(moveMouseToFocusedWindowEnabled) mouseWarpPolicyEnabled=\(isMouseWarpPolicyEnabled)",
             "isTransferringWindow=\(isTransferringWindow) hiddenAppPIDs=\(hiddenAppPIDs.count) workspaceBarHiddenMonitors=\(hiddenWorkspaceBarMonitorIds.count)",
-            "runtimeTraceCaptureActive=\(traceCaptureStatus.isActive) runtimeTraceStartedAt=\(traceCaptureStatus.startedAt?.ISO8601Format() ?? "nil") viewportTraceRecords=\(runtimeViewportTraceRecords.count) resizeTraceRecords=\(runtimeResizeTraceRecords.count)",
+            "runtimeTraceCaptureActive=\(traceCaptureStatus.isActive) runtimeTraceStartedAt=\(traceCaptureStatus.startedAt?.ISO8601Format() ?? "nil") viewportTraceRecords=\(runtimeViewportTraceRecords.count) resizeTraceRecords=\(runtimeResizeTraceRecords.count) mouseTraceRecords=\(runtimeMouseTraceRecords.count)",
             "workspaceBarRefreshDebugState requestCount=\(workspaceBarRefreshDebugState.requestCount) scheduledCount=\(workspaceBarRefreshDebugState.scheduledCount) executionCount=\(workspaceBarRefreshDebugState.executionCount) isQueued=\(workspaceBarRefreshDebugState.isQueued)",
             "-- Focus Targets --",
             focusTargetDebugDump(),
@@ -2446,6 +2456,7 @@ final class WMController {
             runtimeTraceCaptureSession = nil
             runtimeViewportTraceRecords.removeAll(keepingCapacity: true)
             runtimeResizeTraceRecords.removeAll(keepingCapacity: true)
+            runtimeMouseTraceRecords.removeAll(keepingCapacity: true)
             syncNiriResizeTraceSink()
             workspaceBarManager.update()
         }
@@ -2518,6 +2529,7 @@ final class WMController {
 
         runtimeViewportTraceRecords.removeAll(keepingCapacity: true)
         runtimeResizeTraceRecords.removeAll(keepingCapacity: true)
+        runtimeMouseTraceRecords.removeAll(keepingCapacity: true)
         let startedAt = Date()
         let startRuntimeStateDump = runtimeStateDebugDump(
             traceLimit: 0,
@@ -2554,6 +2566,9 @@ final class WMController {
         let resizeTraceDump = runtimeResizeTraceRecords.isEmpty
             ? "resize trace empty"
             : runtimeResizeTraceRecords.joined(separator: "\n")
+        let mouseTraceDump = runtimeMouseTraceRecords.isEmpty
+            ? "mouse trace empty"
+            : runtimeMouseTraceRecords.joined(separator: "\n")
         let body = [
             "Nehir runtime trace capture",
             "startedAt=\(session.startedAt.ISO8601Format())",
@@ -2571,6 +2586,9 @@ final class WMController {
             "",
             "## Niri resize trace",
             resizeTraceDump,
+            "",
+            "## Mouse focus trace",
+            mouseTraceDump,
             "",
             "## Runtime state at end",
             endRuntimeStateDump,
@@ -2593,6 +2611,7 @@ final class WMController {
         runtimeTraceCaptureSession = nil
         runtimeViewportTraceRecords.removeAll(keepingCapacity: true)
         runtimeResizeTraceRecords.removeAll(keepingCapacity: true)
+        runtimeMouseTraceRecords.removeAll(keepingCapacity: true)
         syncNiriResizeTraceSink()
         workspaceBarManager.update()
         return .executed

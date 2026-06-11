@@ -1369,6 +1369,135 @@ private func waitUntilAXEventTest(
         #expect(controller.workspaceManager.isNonManagedFocusActive == false)
     }
 
+    @Test @MainActor func workspaceActivationForPendingManagedRequestDoesNotStartNativeAppSwitchLease() {
+        let controller = makeAXEventTestController()
+        controller.hasStartedServices = true
+        guard let workspaceId = controller.interactionWorkspace()?.id,
+              let monitor = controller.workspaceManager.monitors.first
+        else {
+            Issue.record("Missing managed-request activation lease fixture")
+            return
+        }
+
+        let targetPid: pid_t = 9_751
+        let targetToken = controller.workspaceManager.addWindow(
+            AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: 9751),
+            pid: targetPid,
+            windowId: 9751,
+            to: workspaceId
+        )
+        _ = controller.workspaceManager.setManagedFocus(
+            targetToken,
+            in: workspaceId,
+            onMonitor: monitor.id
+        )
+        controller.axEventHandler.isFullscreenProvider = { _ in false }
+        controller.axEventHandler.focusedWindowRefProvider = { pid in
+            guard pid == targetPid else { return nil }
+            return AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: targetToken.windowId)
+        }
+
+        controller.focusWindow(targetToken)
+        #expect(controller.focusBridge.activeManagedRequest?.token == targetToken)
+
+        controller.axEventHandler.handleAppActivation(
+            pid: targetPid,
+            source: .workspaceDidActivateApplication
+        )
+
+        #expect(controller.focusPolicyEngine.activeLease?.owner != .nativeAppSwitch)
+    }
+
+    @Test @MainActor func workspaceActivationAfterManagedRequestConfirmationDoesNotStartNativeAppSwitchLease() {
+        let controller = makeAXEventTestController()
+        controller.hasStartedServices = true
+        guard let workspaceId = controller.interactionWorkspace()?.id,
+              let monitor = controller.workspaceManager.monitors.first
+        else {
+            Issue.record("Missing confirmed managed-request activation lease fixture")
+            return
+        }
+
+        let targetPid: pid_t = 9_752
+        let targetToken = controller.workspaceManager.addWindow(
+            AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: 9752),
+            pid: targetPid,
+            windowId: 9752,
+            to: workspaceId
+        )
+        _ = controller.workspaceManager.setManagedFocus(
+            targetToken,
+            in: workspaceId,
+            onMonitor: monitor.id
+        )
+        controller.axEventHandler.isFullscreenProvider = { _ in false }
+        controller.axEventHandler.focusedWindowRefProvider = { pid in
+            guard pid == targetPid else { return nil }
+            return AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: targetToken.windowId)
+        }
+
+        controller.focusWindow(targetToken)
+        _ = controller.focusBridge.confirmManagedRequest(
+            token: targetToken,
+            source: .focusedWindowChanged
+        )
+
+        controller.axEventHandler.handleAppActivation(
+            pid: targetPid,
+            source: .workspaceDidActivateApplication
+        )
+
+        #expect(controller.focusPolicyEngine.activeLease?.owner != .nativeAppSwitch)
+    }
+
+    @Test @MainActor func samePidActivationForDifferentWindowAfterManagedConfirmationStartsNativeAppSwitchLease() {
+        let controller = makeAXEventTestController()
+        controller.hasStartedServices = true
+        guard let workspaceId = controller.interactionWorkspace()?.id,
+              let monitor = controller.workspaceManager.monitors.first
+        else {
+            Issue.record("Missing same-pid activation lease fixture")
+            return
+        }
+
+        let targetPid: pid_t = 9_753
+        let confirmedToken = controller.workspaceManager.addWindow(
+            AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: 9753),
+            pid: targetPid,
+            windowId: 9753,
+            to: workspaceId
+        )
+        let otherToken = controller.workspaceManager.addWindow(
+            AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: 9754),
+            pid: targetPid,
+            windowId: 9754,
+            to: workspaceId
+        )
+        _ = controller.workspaceManager.setManagedFocus(
+            confirmedToken,
+            in: workspaceId,
+            onMonitor: monitor.id
+        )
+        controller.axEventHandler.isFullscreenProvider = { _ in false }
+        controller.axEventHandler.focusedWindowRefProvider = { pid in
+            guard pid == targetPid else { return nil }
+            return AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: otherToken.windowId)
+        }
+
+        controller.focusWindow(confirmedToken)
+        _ = controller.focusBridge.confirmManagedRequest(
+            token: confirmedToken,
+            source: .focusedWindowChanged
+        )
+
+        controller.axEventHandler.handleAppActivation(
+            pid: targetPid,
+            source: .workspaceDidActivateApplication
+        )
+
+        #expect(controller.focusPolicyEngine.activeLease?.owner == .nativeAppSwitch)
+    }
+
     @Test @MainActor func cgsFrontAppChangedRevealsManagedWindowOnInteractionWorkspace() async {
         let controller = makeAXEventTestController()
         controller.hasStartedServices = true
@@ -5069,9 +5198,6 @@ private func waitUntilAXEventTest(
             CGSEventObserver.shared,
             didReceive: .destroyed(windowId: 882, spaceId: 0)
         )
-
-        try? await Task.sleep(for: .milliseconds(50))
-        #expect(controller.workspaceManager.entry(for: token) != nil)
 
         await waitUntilAXEventTest(iterations: 120) {
             controller.workspaceManager.entry(for: token) == nil
