@@ -8,6 +8,7 @@ private let niriTouchpadGestureRecognitionThreshold: CGFloat = 16.0
 private let macNormalizedTouchPositionToNiriGestureUnits: CGFloat = 500.0
 private let mouseWheelAxisEpsilon: CGFloat = 0.001
 private let niriWheelScrollTickAmount: CGFloat = 120.0
+private let queuedMouseMoveCurrentPointerTolerance: CGFloat = 2.0
 private let mouseRelevantModifierFlags: CGEventFlags = [
     .maskAlternate,
     .maskShift,
@@ -689,7 +690,7 @@ final class MouseEventHandler {
             case .mouseMoved:
                 if let location = pendingMouseMoved {
                     state.debugCounters.drainedTransientEvents += 1
-                    dispatchMouseMoved(at: location)
+                    replayQueuedMouseMoved(at: location)
                 }
             case let .mouseDragged(button):
                 let location = switch button {
@@ -714,6 +715,53 @@ final class MouseEventHandler {
                 }
             }
         }
+    }
+
+    private func replayQueuedMouseMoved(at location: CGPoint) {
+        guard !isInputSuppressed else {
+            resetHoveredEdgesIfNeeded()
+            return
+        }
+        let currentLocation = currentPointerLocation(forQueuedMouseMoveAt: location)
+        if !pointsApproximatelyEqual(location, currentLocation, tolerance: queuedMouseMoveCurrentPointerTolerance) {
+            traceMouseFocus(
+                "mouseMove.replay staleQueued queued=\(formatPoint(location)) current=\(formatPoint(currentLocation))"
+            )
+        }
+        handleMouseMovedFromTap(at: currentLocation)
+    }
+
+    private func currentPointerLocation(forQueuedMouseMoveAt location: CGPoint) -> CGPoint {
+        let currentLocation = mouseLocationProvider()
+        guard currentLocation.x.isFinite, currentLocation.y.isFinite else { return location }
+
+        guard !pointsApproximatelyEqual(
+            location,
+            currentLocation,
+            tolerance: queuedMouseMoveCurrentPointerTolerance
+        ) else {
+            return location
+        }
+        return currentLocation
+    }
+
+    private func pointsApproximatelyEqual(_ lhs: CGPoint, _ rhs: CGPoint, tolerance: CGFloat) -> Bool {
+        let dx = lhs.x - rhs.x
+        let dy = lhs.y - rhs.y
+        return dx * dx + dy * dy <= tolerance * tolerance
+    }
+
+    private func traceMouseFocus(_ message: @autoclosure () -> String) {
+        guard controller?.isRuntimeTraceCaptureActive == true else { return }
+        controller?.recordRuntimeMouseTrace(message())
+    }
+
+    private func formatPoint(_ point: CGPoint) -> String {
+        String(format: "(%.1f,%.1f)", point.x, point.y)
+    }
+
+    private func formatToken(_ token: WindowToken?) -> String {
+        token.map(String.init(describing:)) ?? "nil"
     }
 
     private func replayQueuedMouseDragged(at location: CGPoint, button: MouseButton) {
@@ -1080,31 +1128,67 @@ final class MouseEventHandler {
 
     private func handleFocusFollowsMouse(at location: CGPoint) {
         guard let controller else { return }
-        guard controller.focusPolicyEngine.evaluate(.focusFollowsMouse).allowsFocusChange else {
+        let policyDecision = controller.focusPolicyEngine.evaluate(.focusFollowsMouse)
+        guard policyDecision.allowsFocusChange else {
+            traceMouseFocus("ffm.skip reason=policy policyReason=\(policyDecision.reason ?? "nil") loc=\(formatPoint(location))")
             return
         }
-        guard !controller.workspaceManager.isNonManagedFocusActive,
-              !controller.workspaceManager.hasPendingNativeFullscreenTransition,
-              !controller.workspaceManager.isAppFullscreenActive
-        else {
+        guard !controller.workspaceManager.isNonManagedFocusActive else {
+            traceMouseFocus("ffm.skip reason=nonManaged loc=\(formatPoint(location))")
+            return
+        }
+        guard !controller.workspaceManager.hasPendingNativeFullscreenTransition else {
+            traceMouseFocus("ffm.skip reason=nativeFullscreenTransition loc=\(formatPoint(location))")
+            return
+        }
+        guard !controller.workspaceManager.isAppFullscreenActive else {
+            traceMouseFocus("ffm.skip reason=appFullscreen loc=\(formatPoint(location))")
             return
         }
 
         let now = Date()
-        guard now.timeIntervalSince(state.lastFocusFollowsMouseTime) >= state.focusFollowsMouseDebounce else {
+        let confirmedToken = controller.workspaceManager.confirmedManagedFocusToken
+        let pendingToken = controller.workspaceManager.activeFocusRequestToken
+
+        guard let target = resolveFocusFollowsMouseTarget(at: location) else {
+            traceMouseFocus(
+                "ffm.skip reason=noTarget loc=\(formatPoint(location)) confirmed=\(formatToken(confirmedToken)) pending=\(formatToken(pendingToken))"
+            )
             return
         }
-
-        guard let target = resolveFocusFollowsMouseTarget(at: location) else { return }
         let token = focusFollowsMouseToken(for: target)
 
-        guard token != controller.workspaceManager.confirmedManagedFocusToken else { return }
-        if token == state.lastFocusFollowsMouseToken,
-           token == controller.workspaceManager.activeFocusRequestToken
-        {
+        if token == confirmedToken {
+            if let pendingToken, pendingToken != token {
+                traceMouseFocus(
+                    "ffm.activate reason=reassertConfirmed loc=\(formatPoint(location)) target=\(token) confirmed=\(formatToken(confirmedToken)) pending=\(pendingToken)"
+                )
+                state.lastFocusFollowsMouseTime = now
+                state.lastFocusFollowsMouseToken = token
+                activateFocusFollowsMouseTarget(target)
+            }
             return
         }
 
+        if token == pendingToken {
+            traceMouseFocus(
+                "ffm.skip reason=duplicatePending loc=\(formatPoint(location)) target=\(token) confirmed=\(formatToken(confirmedToken)) pending=\(formatToken(pendingToken))"
+            )
+            return
+        }
+
+        if token == state.lastFocusFollowsMouseToken,
+           now.timeIntervalSince(state.lastFocusFollowsMouseTime) < state.focusFollowsMouseDebounce
+        {
+            traceMouseFocus(
+                "ffm.skip reason=debounceSameTarget loc=\(formatPoint(location)) target=\(token) confirmed=\(formatToken(confirmedToken)) pending=\(formatToken(pendingToken)) lastToken=\(formatToken(state.lastFocusFollowsMouseToken))"
+            )
+            return
+        }
+
+        traceMouseFocus(
+            "ffm.activate reason=hoverTarget loc=\(formatPoint(location)) target=\(token) confirmed=\(formatToken(confirmedToken)) pending=\(formatToken(pendingToken)) lastToken=\(formatToken(state.lastFocusFollowsMouseToken))"
+        )
         state.lastFocusFollowsMouseTime = now
         state.lastFocusFollowsMouseToken = token
         activateFocusFollowsMouseTarget(target)
