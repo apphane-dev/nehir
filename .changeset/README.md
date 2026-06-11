@@ -45,8 +45,9 @@ entry thanks line so GitHub can populate its native release **Contributors**
 footer.
 
 To release, run the `Release` GitHub Actions workflow manually. It updates
-`Info.plist`, generates `docs/releases/vX.Y.Z.md`, creates the version tag,
-publishes the GitHub release, updates the Homebrew tap, and clears consumed
-pending changesets after all publishing steps succeed (stable only; prereleases
-update the `nehir@rc` cask, show only diffs from the previous RC, and skip
-changeset cleanup).
+`Info.plist`, generates `docs/releases/vX.Y.Z.md`, signs and notarizes the app,
+creates the version tag, publishes the GitHub release, updates the Homebrew tap,
+and clears consumed pending changesets after all publishing steps succeed (stable
+only; prereleases update the `nehir@rc` cask, show only diffs from the previous
+RC, and skip changeset cleanup). The prerelease RC suffix (e.g. `rc.1`) is
+calculated automatically from existing tags.

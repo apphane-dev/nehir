@@ -7,16 +7,12 @@ on:
         description: "Create a GitHub prerelease and publish it to the nehir@rc Homebrew cask"
         type: boolean
         default: false
-      prerelease_suffix:
-        description: "Optional tag/asset suffix, e.g. rc.1 or beta.1"
-        type: string
-        required: false
       resume_notary_run_id:
         description: "Optional previous workflow run ID containing nehir-notary-<version> artifact"
         type: string
         required: false
       bypass_notarization:
-        description: "Stable releases only: build the release ZIP without Apple notarization"
+        description: "Build the release ZIP without Apple notarization"
         type: boolean
         default: false
 
@@ -53,18 +49,9 @@ jobs:
         id: version
         env:
           PRERELEASE: ${{ inputs.prerelease }}
-          PRERELEASE_SUFFIX: ${{ inputs.prerelease_suffix }}
         shell: bash
         run: |
           set -euo pipefail
-          if [ "${{ inputs.prerelease }}" != "true" ] && [ -n "${PRERELEASE_SUFFIX}" ]; then
-            echo "prerelease_suffix requires prerelease=true" >&2
-            exit 1
-          fi
-          if [ "${{ inputs.prerelease }}" = "true" ] && [ "${{ inputs.bypass_notarization }}" = "true" ]; then
-            echo "bypass_notarization is only for stable releases; prereleases already skip notarization" >&2
-            exit 1
-          fi
           if [ "${{ inputs.bypass_notarization }}" = "true" ] && [ -n "${{ inputs.resume_notary_run_id }}" ]; then
             echo "resume_notary_run_id cannot be used when bypass_notarization=true" >&2
             exit 1
@@ -105,7 +92,6 @@ jobs:
           mise run release:apply -- "${ARGS[@]}"
 
       - name: Import Apple Developer ID certificate
-        if: ${{ !inputs.prerelease }}
         env:
           CERT_P12_BASE64: ${{ secrets.APPLE_DEVELOPER_ID_CERT_P12_BASE64 }}
           CERT_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_CERT_PASSWORD }}
@@ -142,7 +128,7 @@ jobs:
           security find-identity -v -p codesigning "$KEYCHAIN_PATH"
 
       - name: Configure Apple notarization credentials
-        if: ${{ !inputs.prerelease && !inputs.bypass_notarization }}
+        if: ${{ !inputs.bypass_notarization }}
         env:
           APPLE_NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
           APPLE_NOTARY_ISSUER_ID: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
@@ -168,7 +154,7 @@ jobs:
             --issuer "$APPLE_NOTARY_ISSUER_ID"
 
       - name: Build signed app and submit notarization
-        if: ${{ !inputs.prerelease && !inputs.bypass_notarization && inputs.resume_notary_run_id == '' }}
+        if: ${{ !inputs.bypass_notarization && inputs.resume_notary_run_id == '' }}
         env:
           RELEASE_ZIP_PATH: ${{ github.workspace }}/${{ steps.version.outputs.zip }}
           SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
@@ -176,22 +162,16 @@ jobs:
           NOTARIZE_SUBMIT_ONLY: true
         run: mise run package:release -- true
 
-      - name: Build signed stable app without notarization
-        if: ${{ !inputs.prerelease && inputs.bypass_notarization }}
+      - name: Build signed app without notarization
+        if: ${{ inputs.bypass_notarization }}
         env:
           RELEASE_ZIP_PATH: ${{ github.workspace }}/${{ steps.version.outputs.zip }}
           SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           NOTARIZE_SKIP: true
         run: mise run package:release -- true
 
-      - name: Build prerelease app without notarization
-        if: ${{ inputs.prerelease }}
-        env:
-          RELEASE_ZIP_PATH: ${{ github.workspace }}/${{ steps.version.outputs.zip }}
-        run: mise run package:release -- false
-
       - name: Upload notarization resume artifact
-        if: ${{ !inputs.prerelease && !inputs.bypass_notarization && inputs.resume_notary_run_id == '' }}
+        if: ${{ !inputs.bypass_notarization && inputs.resume_notary_run_id == '' }}
         uses: actions/upload-artifact@v4
         with:
           name: nehir-notary-${{ steps.version.outputs.version }}
@@ -202,7 +182,7 @@ jobs:
           retention-days: 7
 
       - name: Download notarization resume artifact
-        if: ${{ !inputs.prerelease && !inputs.bypass_notarization && inputs.resume_notary_run_id != '' }}
+        if: ${{ !inputs.bypass_notarization && inputs.resume_notary_run_id != '' }}
         uses: actions/download-artifact@v4
         with:
           name: nehir-notary-${{ steps.version.outputs.version }}
@@ -211,7 +191,7 @@ jobs:
           github-token: ${{ github.token }}
 
       - name: Wait for notarization, staple, and create release ZIP
-        if: ${{ !inputs.prerelease && !inputs.bypass_notarization }}
+        if: ${{ !inputs.bypass_notarization }}
         env:
           RELEASE_ZIP_PATH: ${{ github.workspace }}/${{ steps.version.outputs.zip }}
           NOTARIZE_PROFILE: nehir-notary

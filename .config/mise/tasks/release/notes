@@ -223,13 +223,7 @@ lines = []
 append_section(lines, "Breaking changes", breaking_entries)
 append_section(lines, "Changes", change_entries)
 
-is_prerelease = "-" in tag.lstrip("v")
-if is_prerelease:
-    distribution_note = (
-        "This is a prerelease build and is not signed or notarized. "
-        "To open it, right-click the app and choose Open, then confirm in the dialog."
-    )
-elif bypass_notarization:
+if bypass_notarization:
     distribution_note = (
         "Nehir is signed but not notarized in this release while Apple notarization processing is delayed. "
         "If macOS shows a Gatekeeper warning, right-click the app and choose Open."
