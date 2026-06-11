@@ -66,11 +66,7 @@ final class StatusBarController: NSObject {
     }
 
     private func showMenu() {
-        if menu == nil {
-            rebuildMenu()
-        } else {
-            menuBuilder?.updateToggles()
-        }
+        rebuildMenu()
         guard let button = statusItem?.button, let menu else { return }
         menu.popUp(positioning: nil, at: NSPoint(x: 0, y: button.bounds.height + 5), in: button)
     }
