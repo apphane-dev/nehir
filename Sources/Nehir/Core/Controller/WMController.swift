@@ -90,6 +90,8 @@ final class WMController {
     private(set) var focusFollowsMouseEnabled: Bool = false
     private(set) var moveMouseToFocusedWindowEnabled: Bool = false
     private var pointerFocusWarpSuppression: (token: WindowToken, timestamp: Date)?
+    // Backstop for paths that don't go through focus confirmation (FFM, gesture snap).
+    // 1s covers typical AX async confirmation latency with margin.
     private let pointerFocusWarpSuppressionInterval: TimeInterval = 1.0
 
     let settings: SettingsStore
@@ -638,7 +640,6 @@ final class WMController {
     func shouldSuppressMouseMoveToFocusedWindow(for token: WindowToken) -> Bool {
         guard let suppression = pointerFocusWarpSuppression else { return false }
         guard Date().timeIntervalSince(suppression.timestamp) <= pointerFocusWarpSuppressionInterval else {
-            pointerFocusWarpSuppression = nil
             return false
         }
         return suppression.token == token
@@ -3312,7 +3313,11 @@ extension WMController {
 
     func handleOwnedFocusSuppressingWindowClosed() {
         guard workspaceManager.isNonManagedFocusActive, !hasVisibleOwnedWindow else { return }
+        let preservedToken = workspaceManager.confirmedManagedFocusToken
         guard workspaceManager.leaveNonManagedFocus(preserveFocusedToken: true) else { return }
+        if let preservedToken {
+            suppressMouseMoveToFocusedWindow(for: preservedToken)
+        }
         _ = focusBorderController.refresh(forceOrdering: true)
         mouseEventHandler.refreshFocusFollowsMouseAtCurrentPointer()
     }

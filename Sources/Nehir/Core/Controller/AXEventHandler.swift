@@ -1668,6 +1668,7 @@ final class AXEventHandler: CGSEventDelegate {
         var confirmedRequestId: UInt64?
 
         if shouldConfirmRequest {
+            let wasNonManagedFocusActive = controller.workspaceManager.isNonManagedFocusActive
             _ = controller.workspaceManager.confirmManagedFocus(
                 entry.token,
                 in: wsId,
@@ -1675,6 +1676,9 @@ final class AXEventHandler: CGSEventDelegate {
                 appFullscreen: appFullscreen,
                 activateWorkspaceOnMonitor: shouldActivateWorkspace
             )
+            if wasNonManagedFocusActive {
+                controller.suppressMouseMoveToFocusedWindow(for: entry.token)
+            }
 
             if let activeRequest {
                 confirmedRequestId = activeRequest.requestId
