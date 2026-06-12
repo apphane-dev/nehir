@@ -13,7 +13,7 @@ This document captures the intended design; implementation may differ during tra
 
 A compact notation for describing viewport state in use cases.
 
-```
+```text
 20 30 .30[.20 *40 40] 55
 ```
 
@@ -28,17 +28,17 @@ A compact notation for describing viewport state in use cases.
 
 ### Examples
 
-```
+```text
 [*30 30 .40].20 50
 ```
 Four columns of width 30, 30, 60, 50. Viewport shows col1 (full), col2 (full), col3 ([clipped](glossary.md#clipped-column): 40 visible, 20 outside right). Col4 fully outside right (may be [parked](glossary.md#parked-window)). Col1 is focused.
 
-```
+```text
 20 30 .30[.20 *40 40] 55
 ```
 Six columns. Col1 (20) and col2 (30) fully outside left ([parked](glossary.md#parked-window)). Col3 (50) clipped at left edge: 30 outside left, 20 visible. Col4 (40) focused and fully visible. Col5 (40) fully visible. Col6 (55) fully outside right (parked).
 
-```
+```text
 30 .10[.20 *60 .20].30
 ```
 Four columns: 30, 30, 60, 50. Col1 fully outside left (parked). Col2 clipped left: 10 outside, 20 visible. Col3 (60) focused and fully visible. Col4 clipped right: 20 visible, 30 outside right.
@@ -47,7 +47,7 @@ Four columns: 30, 30, 60, 50. Col1 fully outside left (parked). Col2 clipped lef
 
 Use `|` to annotate the **currently effective** [snap point](glossary.md#snap-point) — the position the viewport is snapped to or targeting:
 
-```
+```text
 [|30 30 40] 50              left-edge snap on col1: | touches [
 [30 40 30|] 50              right-edge snap on col3: | touches ]
 .20[.25 |25.25| 25] 30      center snap on col3: column split at its midpoint
@@ -84,9 +84,28 @@ Rules:
 
 | Setting | Type | Default | Notes |
 |---|---|---|---|
-| Reveal Partial | `.off` / `.snapClosest` / `.snapCenter` | TBD | What happens when focus moves to a [clipped](glossary.md#clipped-column) column from any non-FFM source |
+| Reveal Partial | `.default` / `.off` / `.snapClosest` / `.snapCenter` | `.default` | What happens when focus moves to a [clipped](glossary.md#clipped-column) column from any non-FFM source |
 
 ---
+
+## Proportional Size and Gap Accounting
+
+Percentage column sizes are resolved with Niri-compatible gap accounting in a single rule:
+
+```text
+resolvedColumnWidth = (viewportWidth - gap) * proportion - gap
+```
+
+Consequences:
+
+- A contiguous group whose proportions sum to `1.0` spans approximately `viewportWidth - 2 * gap` after its internal gaps are included.
+- `50% + 50%` is therefore considered a viewport-fitting group without users compensating for gaps.
+- `25% + 35% + 40%` follows the same rule and is also considered a viewport-fitting group.
+- Users should not adjust percentages to account for gaps; gaps are part of the layout model.
+
+Reveal `.default` uses this same rule indirectly: a closest snap is treated as viewport-fitting only when the candidate viewport contains a contiguous group of fully visible columns whose combined span is within `2 * gap` of the viewport width. This rejects oversized combinations such as `65% + 50%` while accepting intended `100%` groups.
+
+Implementation note: route proportional pixel conversion through `ProportionalSize.resolveProportionalSpan(...)`; do not duplicate the formula at call sites.
 
 ## Snap Grid
 
@@ -122,10 +141,11 @@ Hold the **Mouse Modifier** key during a gesture to bypass snapping — the view
 
 ### Reveal Partial
 
-`revealPartial: .off | .snapClosest | .snapCenter`
+`revealPartial: .default | .off | .snapClosest | .snapCenter`
 
 Applies when focus moves to a [clipped](glossary.md#clipped-column) column from any non-FFM source:
 
+- **`.default`** — use `.snapClosest` only when that closest snap aligns both viewport edges to snap points and visible columns sum to 100% of the viewport; otherwise use `.snapCenter`
 - **`.off`** — no scroll; the column is already partially visible and the user can reposition the viewport manually with `scrollViewport` commands
 - **`.snapClosest`** — scroll to the snap point of the target column nearest to the current viewport position (minimal scroll)
 - **`.snapCenter`** — scroll to center the target column
@@ -152,86 +172,86 @@ The [active column](glossary.md#active-column) does not change while it remains 
 
 ### Focus change: target fully visible
 
-```
+```text
 [|*30 30 40] 50
 ```
 Any fully visible column is focused. Viewport is at rest at a snap position.
 
 | Source | Result (focus col2) | Result (focus col3) |
 |---|---|---|
-| Any | `[|30 *30 40] 50` | `[|30 30 *40] 50` |
+| Any | `[\|30 *30 40] 50` | `[\|30 30 *40] 50` |
 
 Target is fully visible — no reveal triggered. Snap point is not re-evaluated; viewport remains at rest.
 
 ### Focus change: target clipped (right side), non-FFM
 
-```
+```text
 [|*30 30 .40].20 50    col3 is 60 wide, 40 visible
 ```
 User focuses col3 with keyboard or click.
 
 `revealPartial = .off`:
-```
+```text
 [|30 30 *.40].20 50
 ```
 No scroll — col3 is already partially visible.
 
 `revealPartial = .snapClosest`:
-```
+```text
 .20[.10 30 *60|] 50
 ```
 Minimal scroll: col3's right-edge aligns with viewport right.
 
 `revealPartial = .snapCenter`:
-```
+```text
 30 .10[.20 *|30.30| .20].30
 ```
 Viewport scrolls to center col3. Left of `.`: 20+30=50 ✓; right of `.`: 30+20=50 ✓.
 
 ### Focus change: target clipped (right side), FFM
 
-```
+```text
 [|*30 30 .40].20 50
 ```
 Cursor moves over col3 (the visible portion). FFM activates col3.
 
-```
+```text
 [|30 30 *.40].20 50
 ```
 Focus transfers to col3, viewport does not scroll.
 
 ### Focus change: target parked
 
-```
+```text
 [|*30 30 .40].20 50    col4 (50) is parked right
 ```
 User navigates to col4 with any source (keyboard, click, external).
 
 Parked target always scrolls to the closest snap — the edge snap nearest to the current viewport position. Col4 is parked right; closest snap is its right-edge snap:
 
-```
+```text
 30 30 .10[.50 *50|]
 ```
 Col3 (60 wide) clipped left: 10 outside, 50 visible. Col4 (50) fully visible at right-edge snap.
 
 ### Viewport scroll command: `scrollViewport(.right)`
 
-```
+```text
 [|*30 30 .40].10 45
 ```
 User presses `scrollViewport(.right)`. Next snap: col2 left-edge. Col1 scrolls fully outside — immediately [parked](glossary.md#parked-window) — focus transfers to col2.
 
-```
+```text
 30 [|*30 50 .20].25
 ```
 Press again. Next snap: col3 center. Col2 slightly [clipped](glossary.md#clipped-column) but not [parked](glossary.md#parked-window) — focus stays on col2.
 
-```
+```text
 30 *.5[.25 |25.25| .25].20
 ```
 Press again. Col2 fully outside — [parked](glossary.md#parked-window) — focus transfers to nearest visible column.
 
-```
+```text
 30 30 [|*50 .20].15
 ```
 

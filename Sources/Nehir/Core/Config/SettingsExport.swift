@@ -26,12 +26,10 @@ struct SettingsExport: Equatable {
 
     var niriMaxVisibleColumns: Int
     var niriInfiniteLoop: Bool
-    var niriCenterFocusedColumn: String
-    var niriAlwaysCenterSingleColumn: Bool
+    var revealPartial: String
     var niriSingleWindowAspectRatio: String
     var niriColumnWidthPresets: [Double]?
     var niriDefaultColumnWidth: Double?
-    var niriScrollReveal: String
 
     var workspaceConfigurations: [WorkspaceConfiguration]
 
@@ -75,7 +73,6 @@ struct SettingsExport: Equatable {
     var mouseResizeModifierKey: String
     var gestureFingerCount: Int
     var gestureInvertDirection: Bool
-    var gestureScrollSnap: Bool
     var statusBarShowWorkspaceName: Bool
     var statusBarShowAppNames: Bool
     var statusBarUseWorkspaceId: Bool
@@ -106,12 +103,10 @@ extension SettingsExport {
             outerGapBottom: 0,
             niriMaxVisibleColumns: 2,
             niriInfiniteLoop: false,
-            niriCenterFocusedColumn: CenterFocusedColumn.never.rawValue,
-            niriAlwaysCenterSingleColumn: false,
+            revealPartial: RevealPartial.default.rawValue,
             niriSingleWindowAspectRatio: SingleWindowAspectRatio.none.rawValue,
             niriColumnWidthPresets: BuiltInSettingsDefaults.niriColumnWidthPresets,
             niriDefaultColumnWidth: 0.5,
-            niriScrollReveal: FocusRevealPolicy.always.rawValue,
             workspaceConfigurations: BuiltInSettingsDefaults.workspaceConfigurations,
             bordersEnabled: true,
             borderWidth: 5.0,
@@ -149,7 +144,6 @@ extension SettingsExport {
             mouseResizeModifierKey: MouseResizeModifierKey.option.rawValue,
             gestureFingerCount: GestureFingerCount.three.rawValue,
             gestureInvertDirection: true,
-            gestureScrollSnap: true,
             statusBarShowWorkspaceName: false,
             statusBarShowAppNames: false,
             statusBarUseWorkspaceId: false,

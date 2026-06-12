@@ -271,16 +271,18 @@ enum ActionCatalog {
 
         specs.append(contentsOf: [
             action(
-                id: "centerColumn",
-                command: .centerColumn,
+                id: "scrollViewport.left",
+                command: .scrollViewportLeft,
                 category: .layout,
-                binding: .unassigned,
+                binding: KeyBinding(keyCode: UInt32(kVK_ANSI_LeftBracket), modifiers: UInt32(optionKey | cmdKey)),
+                keywords: ["viewport left", "snap left"]
             ),
             action(
-                id: "centerVisibleColumns",
-                command: .centerVisibleColumns,
+                id: "scrollViewport.right",
+                command: .scrollViewportRight,
                 category: .layout,
-                binding: .unassigned,
+                binding: KeyBinding(keyCode: UInt32(kVK_ANSI_RightBracket), modifiers: UInt32(optionKey | cmdKey)),
+                keywords: ["viewport right", "snap right"]
             )
         ])
 
@@ -892,8 +894,8 @@ enum ActionCatalog {
         case .focusColumnFirst: "Focus First Column"
         case .focusColumnLast: "Focus Last Column"
         case let .focusColumn(idx): "Focus Column \(idx + 1)"
-        case .centerColumn: "Center Column"
-        case .centerVisibleColumns: "Center Visible Columns"
+        case .scrollViewportLeft: "Scroll Viewport Left"
+        case .scrollViewportRight: "Scroll Viewport Right"
         case .cycleColumnWidthForward: "Cycle Column Width Forward"
         case .cycleColumnWidthBackward: "Cycle Column Width Backward"
         case .cycleWindowWidthForward: "Cycle Window Width Forward"
@@ -963,10 +965,10 @@ enum ActionCatalog {
             .focusColumnFirst
         case .focusColumnLast:
             .focusColumnLast
-        case .centerColumn:
-            .centerColumn
-        case .centerVisibleColumns:
-            .centerVisibleColumns
+        case .scrollViewportLeft:
+            .scrollViewportLeft
+        case .scrollViewportRight:
+            .scrollViewportRight
         case .move:
             .move
         case .moveWindowDown:

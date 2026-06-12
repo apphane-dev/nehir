@@ -1,38 +1,20 @@
 import AppKit
 import Foundation
 
-enum CenterFocusedColumn: String, CaseIterable, Codable, Identifiable {
-    case never
-    case always
-    case onOverflow
+enum RevealPartial: String, CaseIterable, Codable, Identifiable {
+    case `default`
+    case off
+    case snapClosest
+    case snapCenter
 
-    var id: String {
-        rawValue
-    }
-
-    var displayName: String {
-        switch self {
-        case .never: "Never"
-        case .always: "Always"
-        case .onOverflow: "On Overflow"
-        }
-    }
-}
-
-enum FocusRevealPolicy: String, CaseIterable, Codable, Identifiable {
-    case always
-    case keyboardAndCommands = "keyboard-and-commands"
-    case never
-
-    var id: String {
-        rawValue
-    }
+    var id: String { rawValue }
 
     var displayName: String {
         switch self {
-        case .always: "Always"
-        case .keyboardAndCommands: "Keyboard and Commands"
-        case .never: "Never"
+        case .default: "Default"
+        case .off: "Off"
+        case .snapClosest: "Snap Closest"
+        case .snapCenter: "Snap Center"
         }
     }
 }
@@ -140,9 +122,7 @@ final class NiriLayoutEngine {
     var maxVisibleColumns: Int
     var infiniteLoop: Bool
 
-    var centerFocusedColumn: CenterFocusedColumn = .never
-
-    var alwaysCenterSingleColumn: Bool = false
+    var revealPartial: RevealPartial = .default
 
     var singleWindowAspectRatio: SingleWindowAspectRatio = .none
 
@@ -347,8 +327,7 @@ final class NiriLayoutEngine {
     func updateConfiguration(
         maxVisibleColumns: Int? = nil,
         infiniteLoop: Bool? = nil,
-        centerFocusedColumn: CenterFocusedColumn? = nil,
-        alwaysCenterSingleColumn: Bool? = nil,
+        revealPartial: RevealPartial? = nil,
         singleWindowAspectRatio: SingleWindowAspectRatio? = nil,
         presetColumnWidths: [PresetSize]? = nil,
         defaultColumnWidth: CGFloat?? = nil
@@ -359,11 +338,8 @@ final class NiriLayoutEngine {
         if let loop = infiniteLoop {
             self.infiniteLoop = loop
         }
-        if let center = centerFocusedColumn {
-            self.centerFocusedColumn = center
-        }
-        if let centerSingle = alwaysCenterSingleColumn {
-            self.alwaysCenterSingleColumn = centerSingle
+        if let revealPartial {
+            self.revealPartial = revealPartial
         }
         if let aspectRatio = singleWindowAspectRatio {
             self.singleWindowAspectRatio = aspectRatio

@@ -137,7 +137,7 @@ extension NiriLayoutEngine {
     ) -> CGFloat {
         let rawWidth: CGFloat = switch width {
         case let .proportion(proportion):
-            (workingFrame.width - gaps) * proportion - gaps
+            ProportionalSize.resolveProportionalSpan(proportion, availableSpace: workingFrame.width, gaps: gaps)
         case let .fixed(fixed):
             fixed
         }
@@ -292,30 +292,55 @@ extension NiriLayoutEngine {
     ) {
         guard let window = column.windowNodes.first else { return }
 
-        // Expose the target width only for viewport-fit math. Animated width
-        // changes restore the previous cache so the spring can continue from
-        // the old span; immediate width changes keep the new target cached.
+        func revealTargetWidth() {
+            ensureSelectionVisible(
+                node: window,
+                in: workspaceId,
+                motion: motion,
+                state: &state,
+                workingFrame: workingFrame,
+                gaps: gaps
+            )
+            ensureColumnWidthVisible(
+                column,
+                in: workspaceId,
+                motion: motion,
+                state: &state,
+                workingFrame: workingFrame,
+                gaps: gaps
+            )
+        }
+
         if restorePreviousWidthAfterFit {
             column.cachedWidth = targetWidth
             defer { column.cachedWidth = previousWidth }
-            ensureSelectionVisible(
-                node: window,
-                in: workspaceId,
-                motion: motion,
-                state: &state,
-                workingFrame: workingFrame,
-                gaps: gaps
-            )
+            revealTargetWidth()
         } else {
             column.cachedWidth = targetWidth
-            ensureSelectionVisible(
-                node: window,
-                in: workspaceId,
+            revealTargetWidth()
+        }
+    }
+
+    private func ensureColumnWidthVisible(
+        _ column: NiriContainer,
+        in workspaceId: WorkspaceDescriptor.ID,
+        motion: MotionSnapshot,
+        state: inout ViewportState,
+        workingFrame: CGRect,
+        gaps: CGFloat
+    ) {
+        let columns = self.columns(in: workspaceId)
+        guard let columnIndex = columnIndex(of: column, in: workspaceId) else { return }
+        let context = makeViewportSnapContext(columns: columns, state: state, workingFrame: workingFrame, gaps: gaps)
+        let viewStart = context.currentViewStart(in: state)
+        guard case .fullyVisible = context.visibility(of: columnIndex, viewportOffset: viewStart, in: state) else {
+            guard let targetSnap = context.snapPoints(for: columnIndex).closest(to: viewStart) else { return }
+            state.animateToOffset(
+                context.targetOffset(for: targetSnap, in: state),
                 motion: motion,
-                state: &state,
-                workingFrame: workingFrame,
-                gaps: gaps
+                scale: displayScale(in: workspaceId)
             )
+            return
         }
     }
 
@@ -630,7 +655,7 @@ extension NiriLayoutEngine {
             column.hasManualSingleWindowWidthOverride = true
             switch column.width {
             case .proportion(let p):
-                targetPixels = (workingAreaWidth - gaps) * p - gaps
+                targetPixels = ProportionalSize.resolveProportionalSpan(p, availableSpace: workingAreaWidth, gaps: gaps)
             case .fixed(let f):
                 targetPixels = f
             }
@@ -685,18 +710,6 @@ extension NiriLayoutEngine {
     ) {
         guard !column.isFullWidth else { return }
         guard column.windowNodes.allSatisfy({ $0.sizingMode == .normal }) else { return }
-
-        if centerFocusedColumn == .always {
-            toggleFullWidth(
-                column,
-                in: workspaceId,
-                motion: motion,
-                state: &state,
-                workingFrame: workingFrame,
-                gaps: gaps
-            )
-            return
-        }
 
         let columns = self.columns(in: workspaceId)
         guard let activeColumnIndex = columnIndex(of: column, in: workspaceId) else { return }
@@ -791,7 +804,12 @@ extension NiriLayoutEngine {
             source: .availableWidthExpansion
         )
 
-        let targetOffset = leftmostColX - gaps - activeColX
+        let context = makeViewportSnapContext(columns: columns, state: state, workingFrame: workingFrame, gaps: gaps)
+        let targetOffset = context.targetOffset(
+            forViewportStart: leftmostColX - gaps,
+            activeColumnIndex: state.activeColumnIndex.clamped(to: 0 ... max(0, columns.count - 1)),
+            in: state
+        )
         state.animateToOffset(
             targetOffset,
             motion: motion,
@@ -828,7 +846,7 @@ extension NiriLayoutEngine {
     ) -> CGFloat {
         switch preset.kind {
         case let .proportion(proportion):
-            (workingFrame.height - gaps) * proportion - gaps
+            ProportionalSize.resolveProportionalSpan(proportion, availableSpace: workingFrame.height, gaps: gaps)
         case let .fixed(fixed):
             fixed
         }
@@ -856,11 +874,11 @@ extension NiriLayoutEngine {
         case let .setFixed(fixed):
             fixed
         case let .setProportion(proportion):
-            (workingFrame.height - gaps) * (proportion / 100) - gaps
+            ProportionalSize.resolveProportionalSpan(proportion / 100, availableSpace: workingFrame.height, gaps: gaps)
         case let .adjustFixed(delta):
             currentWindowPixels + delta
         case let .adjustProportion(delta):
-            (workingFrame.height - gaps) * (currentProportion + delta / 100) - gaps
+            ProportionalSize.resolveProportionalSpan(currentProportion + delta / 100, availableSpace: workingFrame.height, gaps: gaps)
         }
 
         let minHeightTaken: CGFloat

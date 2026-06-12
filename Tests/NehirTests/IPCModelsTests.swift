@@ -73,7 +73,7 @@ private func assertRoundTrip<T: Codable & Equatable>(_ value: T) throws {
     }
 
     @Test func publicDTOsRoundTripThroughJSON() throws {
-        #expect(NehirIPCProtocol.version == 5)
+        #expect(NehirIPCProtocol.version == 6)
         #expect(IPCErrorCode.protocolMismatch.rawValue == "protocol_mismatch")
 
         try assertRoundTrip(
@@ -355,10 +355,10 @@ private func assertRoundTrip<T: Codable & Equatable>(_ value: T) throws {
             IPCCommandRequest.focusWindowOrWorkspaceUp
         )
         try assertRoundTrip(
-            IPCCommandRequest.centerColumn
+            IPCCommandRequest.scrollViewportLeft
         )
         try assertRoundTrip(
-            IPCCommandRequest.centerVisibleColumns
+            IPCCommandRequest.scrollViewportRight
         )
         try assertRoundTrip(
             IPCCommandRequest.moveColumnToIndex(columnIndex: 3)

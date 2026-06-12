@@ -49,8 +49,6 @@ struct MonitorNiriSettings: MonitorSettingsType {
 
 struct ResolvedNiriSettings: Equatable {
     let maxVisibleColumns: Int
-    let centerFocusedColumn: CenterFocusedColumn
-    let alwaysCenterSingleColumn: Bool
     let singleWindowAspectRatio: SingleWindowAspectRatio
     let infiniteLoop: Bool
 }

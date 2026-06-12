@@ -559,7 +559,6 @@ enum NiriWindowMoveResult {
 
         if !usesSingleWindowAspectRatio,
            !isGestureOrAnimation,
-           !state.allowsSelectionOffscreen,
            snapshot.isActiveWorkspace,
            let selectedId = state.selectedNodeId,
            let selectedNode = pass.engine.findNode(by: selectedId),
@@ -582,7 +581,6 @@ enum NiriWindowMoveResult {
 
         let ranEnsureVisible = !usesSingleWindowAspectRatio
             && !isGestureOrAnimation
-            && !state.allowsSelectionOffscreen
             && snapshot.isActiveWorkspace
             && state.selectedNodeId != nil
             && pass.engine.findNode(by: state.selectedNodeId!) != nil
@@ -635,7 +633,6 @@ enum NiriWindowMoveResult {
                     resetViewportForSingleWindowAspectRatio(state: &state)
                 } else {
                     let cols = pass.engine.columns(in: pass.wsId)
-                    let settings = pass.engine.effectiveSettings(in: pass.wsId)
                     state.transitionToColumn(
                         0,
                         columns: cols,
@@ -643,8 +640,6 @@ enum NiriWindowMoveResult {
                         viewportWidth: pass.insetFrame.width,
                         motion: motion,
                         animate: false,
-                        centerMode: settings.centerFocusedColumn,
-                        alwaysCenterSingleColumn: settings.alwaysCenterSingleColumn,
                         scale: pass.engine.displayScale(in: pass.wsId),
                         workingArea: pass.insetFrame,
                         viewFrame: pass.monitor.frame
@@ -1066,7 +1061,7 @@ enum NiriWindowMoveResult {
                 in: workspaceId,
                 motion: controller.motionPolicy.snapshot(),
                 state: &state,
-                workingFrame: monitor.visibleFrame,
+                workingFrame: controller.insetWorkingFrame(for: monitor),
                 gaps: gap
             )
         }
@@ -1098,23 +1093,32 @@ enum NiriWindowMoveResult {
         guard let currentId = state.selectedNodeId,
               let currentNode = engine.findNode(by: currentId)
         else {
+            let fallbackNode: NiriNode?
             if let lastFocused = controller.workspaceManager.rememberedTiledFocusToken(in: wsId),
                let lastNode = engine.findNode(for: lastFocused)
             {
-                activateNode(
-                    lastNode, in: wsId, state: &state,
-                    options: .init(
-                        activateWindow: false,
-                        ensureVisible: false,
-                        layoutRefresh: false,
-                        startAnimation: false
-                    )
-                )
+                fallbackNode = lastNode
             } else if let firstToken = controller.workspaceManager.tiledEntries(in: wsId).first?.token,
                       let firstNode = engine.findNode(for: firstToken)
             {
+                fallbackNode = firstNode
+            } else {
+                fallbackNode = nil
+            }
+
+            if let fallbackNode {
+                if let monitor = controller.workspaceManager.monitor(for: wsId) {
+                    engine.ensureSelectionVisible(
+                        node: fallbackNode,
+                        in: wsId,
+                        motion: controller.motionPolicy.snapshot(),
+                        state: &state,
+                        workingFrame: controller.insetWorkingFrame(for: monitor),
+                        gaps: CGFloat(controller.workspaceManager.gaps)
+                    )
+                }
                 activateNode(
-                    firstNode, in: wsId, state: &state,
+                    fallbackNode, in: wsId, state: &state,
                     options: .init(
                         activateWindow: false,
                         ensureVisible: false,
@@ -1130,6 +1134,8 @@ enum NiriWindowMoveResult {
                     rememberedFocusToken: nil
                 )
             )
+            controller.layoutRefreshController.requestImmediateRelayout(reason: .layoutCommand)
+            startScrollAnimationIfNeeded(for: wsId, state: state, engine: engine)
             return
         }
 
@@ -1296,35 +1302,33 @@ enum NiriWindowMoveResult {
         }
     }
 
-    func centerColumn() {
+    func scrollViewport(direction: Direction) {
         guard let controller else { return }
         withNiriWorkspaceContext { engine, wsId, motion, state, _, workingFrame, gaps in
-            guard engine.centerColumn(
+            let previousSelectedNodeId = state.selectedNodeId
+            let previousViewOffsetTarget = state.viewOffsetPixels.target()
+            let selectedWindow = engine.scrollViewport(
+                direction: direction,
                 in: wsId,
                 motion: motion,
                 state: &state,
                 workingFrame: workingFrame,
                 gaps: gaps
-            ) else { return }
+            )
+            let viewOffsetChanged = abs(state.viewOffsetPixels.target() - previousViewOffsetTarget) > 0.5
+            guard state.viewOffsetPixels.isAnimating || viewOffsetChanged || state.selectedNodeId != previousSelectedNodeId else { return }
 
-            controller.layoutRefreshController.requestImmediateRelayout(reason: .layoutCommand)
+            let focusToken = state.selectedNodeId != previousSelectedNodeId ? selectedWindow?.token : nil
+            controller.layoutRefreshController.requestImmediateRelayout(reason: .layoutCommand) { [weak controller] in
+                if let focusToken {
+                    controller?.focusWindow(focusToken)
+                }
+            }
             startScrollAnimationIfNeeded(for: wsId, state: state, engine: engine)
-        }
-    }
 
-    func centerVisibleColumns() {
-        guard let controller else { return }
-        withNiriWorkspaceContext { engine, wsId, motion, state, _, workingFrame, gaps in
-            guard engine.centerVisibleColumns(
-                in: wsId,
-                motion: motion,
-                state: &state,
-                workingFrame: workingFrame,
-                gaps: gaps
-            ) else { return }
-
-            controller.layoutRefreshController.requestImmediateRelayout(reason: .layoutCommand)
-            startScrollAnimationIfNeeded(for: wsId, state: state, engine: engine)
+            if let focusToken, state.selectedNodeId != previousSelectedNodeId {
+                controller.suppressMouseMoveToFocusedWindow(for: focusToken)
+            }
         }
     }
 
@@ -1408,14 +1412,10 @@ enum NiriWindowMoveResult {
 
     // MARK: - Layout Engine Configuration
 
-    func enableNiriLayout(
-        centerFocusedColumn: CenterFocusedColumn = .never,
-        alwaysCenterSingleColumn: Bool = false
-    ) {
+    func enableNiriLayout(revealPartial: RevealPartial = .default) {
         guard let controller else { return }
         let engine = NiriLayoutEngine()
-        engine.centerFocusedColumn = centerFocusedColumn
-        engine.alwaysCenterSingleColumn = alwaysCenterSingleColumn
+        engine.revealPartial = revealPartial
         engine.renderStyle.tabIndicatorWidth = TabbedColumnOverlayManager.tabIndicatorWidth
         engine.animationClock = controller.animationClock
         controller.niriEngine = engine
@@ -1459,8 +1459,7 @@ enum NiriWindowMoveResult {
     func updateNiriConfig(
         maxVisibleColumns: Int? = nil,
         infiniteLoop: Bool? = nil,
-        centerFocusedColumn: CenterFocusedColumn? = nil,
-        alwaysCenterSingleColumn: Bool? = nil,
+        revealPartial: RevealPartial? = nil,
         singleWindowAspectRatio: SingleWindowAspectRatio? = nil,
         columnWidthPresets: [Double]? = nil,
         defaultColumnWidth: Double?? = nil
@@ -1469,8 +1468,7 @@ enum NiriWindowMoveResult {
         controller.niriEngine?.updateConfiguration(
             maxVisibleColumns: maxVisibleColumns,
             infiniteLoop: infiniteLoop,
-            centerFocusedColumn: centerFocusedColumn,
-            alwaysCenterSingleColumn: alwaysCenterSingleColumn,
+            revealPartial: revealPartial,
             singleWindowAspectRatio: singleWindowAspectRatio,
             presetColumnWidths: columnWidthPresets?.map { .proportion($0) },
             defaultColumnWidth: defaultColumnWidth.map { $0.map { CGFloat($0) } }
@@ -1489,9 +1487,7 @@ enum NiriWindowMoveResult {
     ) {
         guard let controller, let engine = controller.niriEngine else { return }
 
-        let allowsSelectionOffscreen = options.preserveViewportAnchor && !options.ensureVisible
         state.selectedNodeId = node.id
-        state.allowsSelectionOffscreen = allowsSelectionOffscreen
         if !options.ensureVisible, !options.preserveViewportAnchor {
             rebaseViewportAnchor(to: node, in: workspaceId, state: &state)
         }
@@ -1520,12 +1516,6 @@ enum NiriWindowMoveResult {
             in: workspaceId,
             onMonitor: controller.workspaceManager.monitorId(for: workspaceId)
         )
-        if allowsSelectionOffscreen {
-            controller.workspaceManager.withNiriViewportState(for: workspaceId) {
-                $0.allowsSelectionOffscreen = true
-            }
-        }
-
         if let windowNode = node as? NiriWindow {
             if options.updateTimestamp {
                 engine.updateFocusTimestamp(for: windowNode.id)

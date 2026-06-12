@@ -91,25 +91,15 @@ final class SettingsStore {
         didSet { scheduleSave() }
     }
 
-    var niriCenterFocusedColumn = CenterFocusedColumn(
-        rawValue: SettingsStore.defaultExport.niriCenterFocusedColumn
-    ) ?? .never {
-        didSet { scheduleSave() }
-    }
-
-    var niriAlwaysCenterSingleColumn = SettingsStore.defaultExport.niriAlwaysCenterSingleColumn {
+    var revealPartial = RevealPartial(
+        rawValue: SettingsStore.defaultExport.revealPartial
+    ) ?? .default {
         didSet { scheduleSave() }
     }
 
     var niriSingleWindowAspectRatio = SingleWindowAspectRatio(
         rawValue: SettingsStore.defaultExport.niriSingleWindowAspectRatio
     ) ?? .none {
-        didSet { scheduleSave() }
-    }
-
-    var niriScrollReveal = FocusRevealPolicy(
-        rawValue: SettingsStore.defaultExport.niriScrollReveal
-    ) ?? .always {
         didSet { scheduleSave() }
     }
 
@@ -275,10 +265,6 @@ final class SettingsStore {
         didSet { scheduleSave() }
     }
 
-    var gestureScrollSnap = SettingsStore.defaultExport.gestureScrollSnap {
-        didSet { scheduleSave() }
-    }
-
     var statusBarShowWorkspaceName = SettingsStore.defaultExport.statusBarShowWorkspaceName {
         didSet { scheduleSave() }
     }
@@ -390,12 +376,10 @@ final class SettingsStore {
             outerGapBottom: outerGapBottom,
             niriMaxVisibleColumns: niriMaxVisibleColumns,
             niriInfiniteLoop: niriInfiniteLoop,
-            niriCenterFocusedColumn: niriCenterFocusedColumn.rawValue,
-            niriAlwaysCenterSingleColumn: niriAlwaysCenterSingleColumn,
+            revealPartial: revealPartial.rawValue,
             niriSingleWindowAspectRatio: niriSingleWindowAspectRatio.rawValue,
             niriColumnWidthPresets: niriColumnWidthPresets,
             niriDefaultColumnWidth: niriDefaultColumnWidth,
-            niriScrollReveal: niriScrollReveal.rawValue,
             workspaceConfigurations: workspaceConfigurations,
             bordersEnabled: bordersEnabled,
             borderWidth: borderWidth,
@@ -433,7 +417,6 @@ final class SettingsStore {
             mouseResizeModifierKey: mouseResizeModifierKey.rawValue,
             gestureFingerCount: gestureFingerCount.rawValue,
             gestureInvertDirection: gestureInvertDirection,
-            gestureScrollSnap: gestureScrollSnap,
             statusBarShowWorkspaceName: statusBarShowWorkspaceName,
             statusBarShowAppNames: statusBarShowAppNames,
             statusBarUseWorkspaceId: statusBarUseWorkspaceId,
@@ -463,14 +446,12 @@ final class SettingsStore {
 
         niriMaxVisibleColumns = export.niriMaxVisibleColumns
         niriInfiniteLoop = export.niriInfiniteLoop
-        niriCenterFocusedColumn = CenterFocusedColumn(rawValue: export.niriCenterFocusedColumn) ?? .never
-        niriAlwaysCenterSingleColumn = export.niriAlwaysCenterSingleColumn
+        revealPartial = RevealPartial(rawValue: export.revealPartial) ?? .default
         niriSingleWindowAspectRatio = SingleWindowAspectRatio(rawValue: export.niriSingleWindowAspectRatio) ?? .none
         niriColumnWidthPresets = SettingsStore.validatedPresets(
             export.niriColumnWidthPresets ?? baseline.niriColumnWidthPresets ?? SettingsStore.defaultColumnWidthPresets
         )
         niriDefaultColumnWidth = SettingsStore.validatedDefaultColumnWidth(export.niriDefaultColumnWidth)
-        niriScrollReveal = FocusRevealPolicy(rawValue: export.niriScrollReveal) ?? .always
 
         workspaceConfigurations = SettingsStore.normalizedWorkspaceConfigurations(
             export.workspaceConfigurations,
@@ -519,7 +500,6 @@ final class SettingsStore {
         mouseResizeModifierKey = MouseResizeModifierKey(rawValue: export.mouseResizeModifierKey) ?? .option
         gestureFingerCount = GestureFingerCount(rawValue: export.gestureFingerCount) ?? .three
         gestureInvertDirection = export.gestureInvertDirection
-        gestureScrollSnap = export.gestureScrollSnap
         statusBarShowWorkspaceName = export.statusBarShowWorkspaceName
         statusBarShowAppNames = export.statusBarShowAppNames
         statusBarUseWorkspaceId = export.statusBarUseWorkspaceId
@@ -783,8 +763,6 @@ final class SettingsStore {
     private func resolvedNiriSettings(override: MonitorNiriSettings?) -> ResolvedNiriSettings {
         return ResolvedNiriSettings(
             maxVisibleColumns: override?.maxVisibleColumns ?? niriMaxVisibleColumns,
-            centerFocusedColumn: niriCenterFocusedColumn,
-            alwaysCenterSingleColumn: niriAlwaysCenterSingleColumn,
             singleWindowAspectRatio: override?.singleWindowAspectRatio ?? niriSingleWindowAspectRatio,
             infiniteLoop: niriInfiniteLoop
         )

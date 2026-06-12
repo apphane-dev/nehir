@@ -410,28 +410,20 @@ final class WindowActionHandler {
         if let niriWindow = engine.findNode(for: token) {
             targetState.selectedNodeId = niriWindow.id
 
-            if let column = engine.findColumn(containing: niriWindow, in: workspaceId),
-               let colIdx = engine.columnIndex(of: column, in: workspaceId),
+            if engine.findColumn(containing: niriWindow, in: workspaceId) != nil,
                let monitor = controller.workspaceManager.monitor(for: workspaceId)
             {
                 engine.activateWindow(niriWindow.id)
 
-                let cols = engine.columns(in: workspaceId)
                 let gap = CGFloat(controller.workspaceManager.gaps)
-                let settings = engine.effectiveSettings(in: workspaceId)
                 let workingFrame = controller.insetWorkingFrame(for: monitor)
-                targetState.transitionToColumn(
-                    colIdx,
-                    columns: cols,
-                    gap: gap,
-                    viewportWidth: workingFrame.width,
+                engine.ensureSelectionVisible(
+                    node: niriWindow,
+                    in: workspaceId,
                     motion: .enabled,
-                    animate: false,
-                    centerMode: settings.centerFocusedColumn,
-                    alwaysCenterSingleColumn: settings.alwaysCenterSingleColumn,
-                    scale: engine.displayScale(in: workspaceId),
-                    workingArea: workingFrame,
-                    viewFrame: monitor.frame
+                    state: &targetState,
+                    workingFrame: workingFrame,
+                    gaps: gap
                 )
                 targetState.selectionProgress = 0
             }

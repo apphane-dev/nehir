@@ -48,6 +48,17 @@ Key benefits:
 
 ## Progress Tracking
 
+
+➕ Tests intentionally deferred per user request until after manual validation. `swift build` passes.
+➕ Removed the obsolete `gestureScrollSnap` setting and made the Mouse Modifier bypass snap for trackpad scroll gestures. `swift build` passes.
+➕ Follow-up audit: clamped snap/center targets to valid viewport bounds, switched tab selection and external window focus onto the reveal path with inset working area, and fixed first/last-column edge snaps that could create empty layout boundary space. `swift build` passes.
+➕ Fixed gesture snap viewport width to use the inset working area, matching hotkey snap iteration. Removed code comments that referenced removed/past config state. `swift build` passes.
+➕ Introduced `ViewportSnapContext` and routed gesture release, scrollViewport, reveal, and column transition snap calculations through it to keep viewport width, bounds, and offset conversion consistent. `swift build` passes.
+➕ Consolidated remaining viewport helpers through `ViewportSnapContext` / engine context construction for center commands, raw pixel scrolling, sizing expansion, keyboard/AX reveal, and shared parking margin. `swift build` passes.
+➕ Removed explicit center-column and center-visible-columns commands from hotkeys, IPC, handlers, and engine; centering now only happens through snap-grid center points and revealPartial.snapCenter. `swift build` passes.
+➕ Removed persistent `allowsSelectionOffscreen`; preserve-anchor is now operation-scoped via activation options and transient gesture/animation state. Updated active docs. `swift build` passes.
+➕ Added `RevealPartial.default` behavior and updated Mouse Modifier UI copy to mention trackpad snap bypass. `swift build` passes.
+
 - Mark completed items with `[x]` immediately when done
 - Add newly discovered tasks with ➕ prefix
 - Document issues/blockers with ⚠️ prefix
@@ -130,9 +141,9 @@ Set in `activateFocusFollowsMouseTarget` before `activateNode`; read and cleared
 **Files:**
 - Create or modify: `Sources/Nehir/Core/Layout/Niri/ViewportState+Geometry.swift`
 
-- [ ] add `SnapPoint` struct with `offset`, `columnIndex`, `Kind` (leftEdge/rightEdge/center)
-- [ ] implement `computeSnapGrid(columns:gap:viewportWidth:)` producing sorted, deduplicated snap points per the rules above
-- [ ] add `closest(to offset:)` and `next(after offset: direction:)` helpers on `[SnapPoint]`
+- [x] add `SnapPoint` struct with `offset`, `columnIndex`, `Kind` (leftEdge/rightEdge/center)
+- [x] implement `computeSnapGrid(columns:gap:viewportWidth:)` producing sorted, deduplicated snap points per the rules above
+- [x] add `closest(to offset:)` and `next(after offset: direction:)` helpers on `[SnapPoint]`
 - [ ] write unit tests for `computeSnapGrid` covering: left/right edge snaps, center snap present when width > 30%, center snap absent when width == 30%, deduplication, strip with mixed-width columns
 - [ ] run tests — must pass before Task 2
 
@@ -141,10 +152,10 @@ Set in `activateFocusFollowsMouseTarget` before `activateNode`; read and cleared
 **Files:**
 - Modify: `Sources/Nehir/Core/Layout/Niri/ViewportState+Gestures.swift`
 
-- [ ] replace `findSnapPointsAndTarget` body with a call to `computeSnapGrid`, then pick the snap point nearest to `projectedViewPos`
-- [ ] derive `activeColumnIndex` from the winning `SnapPoint.columnIndex`
-- [ ] keep `endGesturePreservingCurrentOffset` path unchanged (modifier-bypass)
-- [ ] verify `correctedGestureTargetOffset` / spring animation still wired correctly
+- [x] replace `findSnapPointsAndTarget` body with a call to `computeSnapGrid`, then pick the snap point nearest to `projectedViewPos`
+- [x] derive `activeColumnIndex` from the winning `SnapPoint.columnIndex`
+- [x] keep `endGesturePreservingCurrentOffset` path unchanged (modifier-bypass)
+- [x] verify `correctedGestureTargetOffset` / spring animation still wired correctly
 - [ ] write or update tests for gesture-snap-to-nearest covering: snap to left-edge, snap to right-edge, snap to center, no snap (preserving offset)
 - [ ] run tests — must pass before Task 3
 
@@ -156,10 +167,10 @@ Set in `activateFocusFollowsMouseTarget` before `activateNode`; read and cleared
 - Modify: `Sources/Nehir/Core/Input/ActionCatalog.swift`
 - Modify: `Sources/Nehir/Core/Controller/CommandHandler.swift`
 
-- [ ] add `.scrollViewportLeft` and `.scrollViewportRight` cases to `HotkeyCommand`
-- [ ] add corresponding IPC command names
-- [ ] register default bindings `Cmd+Option+[` and `Cmd+Option+]` in `ActionCatalog`
-- [ ] add handler in `CommandHandler` calling `niriLayoutHandler.scrollViewport(direction:)`
+- [x] add `.scrollViewportLeft` and `.scrollViewportRight` cases to `HotkeyCommand`
+- [x] add corresponding IPC command names
+- [x] register default bindings `Cmd+Option+[` and `Cmd+Option+]` in `ActionCatalog`
+- [x] add handler in `CommandHandler` calling `niriLayoutHandler.scrollViewport(direction:)`
 - [ ] run tests — must pass before Task 4
 
 ### Task 4: `scrollViewport` — layout engine implementation
@@ -167,7 +178,7 @@ Set in `activateFocusFollowsMouseTarget` before `activateNode`; read and cleared
 **Files:**
 - Modify: `Sources/Nehir/Core/Layout/Niri/NiriLayoutEngine+ViewportCommands.swift`
 
-- [ ] implement `scrollViewport(direction:)`:
+- [x] implement `scrollViewport(direction:)`:
   1. call `computeSnapGrid` for the active workspace
   2. find snap nearest to current `viewOffsetPixels.current()`
   3. step to next snap in requested direction (clamp at strip edges if none)
@@ -183,10 +194,10 @@ Set in `activateFocusFollowsMouseTarget` before `activateNode`; read and cleared
 - Modify: `Sources/Nehir/Core/Layout/Niri/ViewportState+Geometry.swift`
 - Modify: `Sources/Nehir/Core/Layout/Niri/NiriLayoutEngine.swift`
 
-- [ ] add `ColumnVisibility` enum (`.fullyVisible`, `.clipped(AxisHideEdge)`, `.parked(AxisHideEdge)`)
-- [ ] implement `columnVisibility(for index:columns:gap:viewportOffset:viewportWidth:)`
-- [ ] add `RevealPartial` enum (`.off`, `.snapClosest`, `.snapCenter`) to `NiriLayoutEngine.swift`
-- [ ] add `revealPartial: RevealPartial` property to `NiriLayoutEngine`
+- [x] add `ColumnVisibility` enum (`.fullyVisible`, `.clipped(AxisHideEdge)`, `.parked(AxisHideEdge)`)
+- [x] implement `columnVisibility(for index:columns:gap:viewportOffset:viewportWidth:)`
+- [x] add `RevealPartial` enum (`.off`, `.snapClosest`, `.snapCenter`) to `NiriLayoutEngine.swift`
+- [x] add `revealPartial: RevealPartial` property to `NiriLayoutEngine`
 - [ ] write unit tests for `columnVisibility` covering: fully visible, clipped left, clipped right, parked left, parked right
 - [ ] run tests — must pass before Task 6
 
@@ -196,8 +207,8 @@ Set in `activateFocusFollowsMouseTarget` before `activateNode`; read and cleared
 - Modify: `Sources/Nehir/Core/Layout/Niri/ViewportState.swift`
 - Modify: `Sources/Nehir/Core/Controller/MouseEventHandler.swift`
 
-- [ ] add `pendingFFMFocusToken: WindowToken? = nil` to `ViewportState`
-- [ ] in `activateFocusFollowsMouseTarget`, set `state.pendingFFMFocusToken = target.token` immediately before calling `activateNode`
+- [x] add `pendingFFMFocusToken: WindowToken? = nil` to `ViewportState`
+- [x] in `activateFocusFollowsMouseTarget`, set `state.pendingFFMFocusToken = target.token` immediately before calling `activateNode`
 - [ ] run tests — must pass before Task 7
 
 ### Task 7: Visibility-based reveal — AX confirm path
@@ -206,9 +217,9 @@ Set in `activateFocusFollowsMouseTarget` before `activateNode`; read and cleared
 - Modify: `Sources/Nehir/Core/Controller/AXEventHandler.swift`
 - Modify: `Sources/Nehir/Core/Layout/Niri/NiriLayoutEngine+ViewportCommands.swift`
 
-- [ ] add `scrollToReveal(columnIndex:snapGrid:isFFM:state:)` to `NiriLayoutEngine+ViewportCommands.swift` implementing the reveal decision table above
-- [ ] in `AXEventHandler.focusConfirmed`, read and clear `pendingFFMFocusToken` to determine `isFFM`
-- [ ] replace the `FocusRevealPolicy` block with a call to `scrollToReveal`; keep existing guards (gesture in progress, `allowsSelectionOffscreen`)
+- [x] add `scrollToReveal(columnIndex:snapGrid:isFFM:state:)` to `NiriLayoutEngine+ViewportCommands.swift` implementing the reveal decision table above
+- [x] in `AXEventHandler.focusConfirmed`, read and clear `pendingFFMFocusToken` to determine `isFFM`
+- [x] replace the `FocusRevealPolicy` block with a call to `scrollToReveal`; keep transient gesture/animation guards
 - [ ] write tests for `scrollToReveal` covering all rows of the decision table
 - [ ] run tests — must pass before Task 8
 
@@ -218,8 +229,8 @@ Set in `activateFocusFollowsMouseTarget` before `activateNode`; read and cleared
 - Modify: `Sources/Nehir/Core/Layout/Niri/NiriNavigation.swift`
 - Modify: `Sources/Nehir/Core/Layout/Niri/ViewportState+ColumnTransitions.swift`
 
-- [ ] replace the `state.ensureContainerVisible` call in `ensureSelectionVisible` with `scrollToReveal(columnIndex:..., isFFM: false, state:)`
-- [ ] `CenterFocusedColumn` dispatch in `computeVisibleOffset` is no longer called from this path — confirm no other callers; delete or leave for Task 9
+- [x] replace the `state.ensureContainerVisible` call in `ensureSelectionVisible` with `scrollToReveal(columnIndex:..., isFFM: false, state:)`
+- [x] `CenterFocusedColumn` dispatch in `computeVisibleOffset` is no longer called from this path — confirm no other callers; delete or leave for Task 9
 - [ ] run tests — must pass before Task 9
 
 ### Task 9: Settings cleanup
@@ -234,17 +245,17 @@ Set in `activateFocusFollowsMouseTarget` before `activateNode`; read and cleared
 - Modify: `Sources/Nehir/Core/Controller/WMController.swift`
 - Modify: `Sources/Nehir/Core/Layout/Niri/ViewportState+Geometry.swift`
 
-- [ ] remove `CenterFocusedColumn` enum + `centerFocusedColumn` property from `NiriLayoutEngine`
-- [ ] remove `alwaysCenterSingleColumn` property from `NiriLayoutEngine`
-- [ ] remove `FocusRevealPolicy` enum from `NiriLayoutEngine.swift`
-- [ ] remove `niriScrollReveal`, `niriCenterFocusedColumn`, `niriAlwaysCenterSingleColumn` from `SettingsStore`
-- [ ] remove corresponding fields from `SettingsExport` and `CanonicalTOMLConfig` (silently ignored on read for migration compat — add a comment)
-- [ ] remove `centerFocusedColumn` and `alwaysCenterSingleColumn` from `ResolvedNiriSettings`
-- [ ] add `SettingsStore.revealPartial: RevealPartial = .snapClosest`
-- [ ] add `updateNiriConfig(revealPartial:)` path through `WMController` → `NiriLayoutHandler` → `engine.revealPartial`
-- [ ] delete `computeVisibleOffset` (now dead code) from `ViewportState+Geometry.swift`
-- [ ] update `BehaviorSettingsTab`: remove three obsolete pickers; add `revealPartial` picker; rename "Right Mouse Resize Modifier" → "Mouse Modifier"
-- [ ] fix all resulting compiler errors
+- [x] remove `CenterFocusedColumn` enum + `centerFocusedColumn` property from `NiriLayoutEngine`
+- [x] remove `alwaysCenterSingleColumn` property from `NiriLayoutEngine`
+- [x] remove `FocusRevealPolicy` enum from `NiriLayoutEngine.swift`
+- [x] remove `niriScrollReveal`, `niriCenterFocusedColumn`, `niriAlwaysCenterSingleColumn` from `SettingsStore`
+- [x] remove corresponding fields from `SettingsExport` and `CanonicalTOMLConfig` (silently ignored on read for migration compat — add a comment)
+- [x] remove `centerFocusedColumn` and `alwaysCenterSingleColumn` from `ResolvedNiriSettings`
+- [x] add `SettingsStore.revealPartial: RevealPartial = .snapClosest`
+- [x] add `updateNiriConfig(revealPartial:)` path through `WMController` → `NiriLayoutHandler` → `engine.revealPartial`
+- [x] delete `computeVisibleOffset` (now dead code) from `ViewportState+Geometry.swift`
+- [x] update `BehaviorSettingsTab`: remove three obsolete pickers; add `revealPartial` picker; rename "Right Mouse Resize Modifier" → "Mouse Modifier"
+- [x] fix all resulting compiler errors
 - [ ] run tests — must pass before Task 10
 
 ### Task 10: Verify acceptance criteria

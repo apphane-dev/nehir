@@ -53,17 +53,20 @@ final class MouseEventHandler {
         let location: CGPoint
         let phaseRawValue: NSEvent.Phase.RawValue
         let timestamp: TimeInterval
+        let modifiers: CGEventFlags
         let touches: [GestureTouchSample]
 
         init(
             location: CGPoint,
             phaseRawValue: NSEvent.Phase.RawValue,
             timestamp: TimeInterval = CACurrentMediaTime(),
+            modifiers: CGEventFlags = [],
             touches: [GestureTouchSample]
         ) {
             self.location = location
             self.phaseRawValue = phaseRawValue
             self.timestamp = timestamp
+            self.modifiers = modifiers
             self.touches = touches
         }
     }
@@ -72,6 +75,7 @@ final class MouseEventHandler {
         struct LockedGestureContext {
             let workspaceId: WorkspaceDescriptor.ID
             let monitorId: Monitor.ID
+            let bypassSnap: Bool
         }
 
         enum GesturePhase {
@@ -395,6 +399,7 @@ final class MouseEventHandler {
                 location: location,
                 phaseRawValue: event.phase.rawValue,
                 timestamp: event.timestamp,
+                modifiers: Self.cgEventFlags(from: event.modifierFlags),
                 touches: event.allTouches().map { touch in
                     GestureTouchSample(
                         phase: touch.phase,
@@ -1297,6 +1302,8 @@ final class MouseEventHandler {
         case let .niri(workspaceId, window):
             controller.suppressMouseMoveToFocusedWindow(for: window.token)
             controller.workspaceManager.withNiriViewportState(for: workspaceId) { vstate in
+                vstate.pendingFFMFocusToken = window.token
+                vstate.pendingFFMFocusTimestamp = Date()
                 controller.niriLayoutHandler.activateNode(
                     window,
                     in: workspaceId,
@@ -1304,6 +1311,7 @@ final class MouseEventHandler {
                     options: .init(
                         ensureVisible: false,
                         preserveViewportAnchor: true,
+                        layoutRefresh: false,
                         startAnimation: false
                     )
                 )
@@ -1408,7 +1416,11 @@ final class MouseEventHandler {
             }
             state.lockedGestureContext = .init(
                 workspaceId: currentContext.wsId,
-                monitorId: currentContext.monitor.id
+                monitorId: currentContext.monitor.id,
+                bypassSnap: Self.modifierFlagsMatch(
+                    snapshot.modifiers,
+                    required: controller.settings.mouseResizeModifierKey.cgEventFlag
+                )
             )
             state.gestureStartX = avgX
             state.gestureStartY = avgY
@@ -1429,10 +1441,23 @@ final class MouseEventHandler {
 
         case .armed,
              .committed:
-            guard let lockedContext = state.lockedGestureContext else {
+            guard var lockedContext = state.lockedGestureContext else {
                 assertionFailure("Active gesture missing locked context")
                 abortActiveGestureIfNeeded()
                 return
+            }
+            if !lockedContext.bypassSnap,
+               Self.modifierFlagsMatch(
+                   snapshot.modifiers,
+                   required: controller.settings.mouseResizeModifierKey.cgEventFlag
+               )
+            {
+                lockedContext = .init(
+                    workspaceId: lockedContext.workspaceId,
+                    monitorId: lockedContext.monitorId,
+                    bypassSnap: true
+                )
+                state.lockedGestureContext = lockedContext
             }
             let wsId = lockedContext.workspaceId
             guard let monitor = controller.workspaceManager.monitor(byId: lockedContext.monitorId) else {
@@ -1636,9 +1661,7 @@ final class MouseEventHandler {
                 viewportWidth: insetFrame.width,
                 motion: controller.motionPolicy.snapshot(),
                 isTrackpad: true,
-                snapToColumn: controller.settings.gestureScrollSnap,
-                centerMode: engine.centerFocusedColumn,
-                alwaysCenterSingleColumn: engine.alwaysCenterSingleColumn,
+                snapToColumn: !lockedContext.bypassSnap,
                 workingArea: insetFrame,
                 viewFrame: monitor.frame,
                 scale: scale,
@@ -1646,11 +1669,8 @@ final class MouseEventHandler {
             )
             endedGestureIsAnimating = endState.viewOffsetPixels.isAnimating
             endedActiveColumnIndex = endState.activeColumnIndex
-            if controller.settings.gestureScrollSnap {
+            if !lockedContext.bypassSnap {
                 selectedWindow = syncViewportSelectionToActiveColumn(columns: columns, state: &endState)
-                endState.allowsSelectionOffscreen = false
-            } else {
-                endState.allowsSelectionOffscreen = true
             }
         }
         var didRequestFocus = false
@@ -1687,7 +1707,7 @@ final class MouseEventHandler {
             reason: "touch_scroll_gesture_end",
             details: [
                 "input=trackpadTouches",
-                "snap=\(controller.settings.gestureScrollSnap)",
+                "snap=\(!lockedContext.bypassSnap)",
                 "focusSelection=\(focusSelectionDisposition)",
                 "focusFollowsMouse=\(controller.focusFollowsMouseEnabled)",
                 "previousActiveColumnIndex=\(previousActiveColumnIndex.map(String.init) ?? "nil")",
@@ -1695,7 +1715,7 @@ final class MouseEventHandler {
             ]
         )
         if endedGestureIsAnimating {
-            // Only suppress for the previously confirmed token when gestureScrollSnap didn't already
+            // Only suppress for the previously confirmed token when snapping didn't already
             // set suppression for the newly selected window — overwriting that entry would cause a
             // token mismatch and let the cursor warp through.
             if !didRequestFocus, let token = controller.workspaceManager.confirmedManagedFocusToken {
@@ -1736,7 +1756,6 @@ final class MouseEventHandler {
             vstate.settleAtCurrentOffset()
             vstate.selectionProgress = 0.0
             vstate.viewOffsetToRestore = nil
-            vstate.allowsSelectionOffscreen = false
             vstate.activatePrevColumnOnRemoval = nil
             didCancel = true
         }
@@ -1927,6 +1946,15 @@ final class MouseEventHandler {
         modifiers.intersection(mouseRelevantModifierFlags) == required
     }
 
+    nonisolated static func cgEventFlags(from modifiers: NSEvent.ModifierFlags) -> CGEventFlags {
+        var flags: CGEventFlags = []
+        if modifiers.contains(.option) { flags.insert(.maskAlternate) }
+        if modifiers.contains(.control) { flags.insert(.maskControl) }
+        if modifiers.contains(.command) { flags.insert(.maskCommand) }
+        if modifiers.contains(.shift) { flags.insert(.maskShift) }
+        return flags
+    }
+
     nonisolated static func resolvedMouseWheelColumnDeltaValue(
         deltaX: CGFloat,
         deltaY: CGFloat,
@@ -2021,6 +2049,7 @@ final class MouseEventHandler {
             location: ScreenCoordinateSpace.toAppKit(point: cgEvent.location),
             phaseRawValue: nsEvent.phase.rawValue,
             timestamp: nsEvent.timestamp,
+            modifiers: cgEvent.flags,
             touches: nsEvent.allTouches().map { touch in
                 GestureTouchSample(
                     phase: touch.phase,

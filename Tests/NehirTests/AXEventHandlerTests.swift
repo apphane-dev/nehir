@@ -822,11 +822,7 @@ private func waitUntilAXEventTest(
         controller.hasStartedServices = true
         controller.setBordersEnabled(true)
         controller.enableNiriLayout()
-        controller.updateNiriConfig(
-            maxVisibleColumns: 1,
-            centerFocusedColumn: .never,
-            alwaysCenterSingleColumn: false
-        )
+        controller.updateNiriConfig(maxVisibleColumns: 1)
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
         controller.syncMonitorsToNiriEngine()
         controller.niriEngine?.presetColumnWidths = [.proportion(1.0), .proportion(1.0)]
@@ -977,11 +973,7 @@ private func waitUntilAXEventTest(
         }
 
         controller.enableNiriLayout()
-        controller.updateNiriConfig(
-            maxVisibleColumns: 1,
-            centerFocusedColumn: .never,
-            alwaysCenterSingleColumn: false
-        )
+        controller.updateNiriConfig(maxVisibleColumns: 1)
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
         controller.syncMonitorsToNiriEngine()
 
@@ -1074,11 +1066,7 @@ private func waitUntilAXEventTest(
         controller.hasStartedServices = true
         controller.setBordersEnabled(true)
         controller.enableNiriLayout()
-        controller.updateNiriConfig(
-            maxVisibleColumns: 1,
-            centerFocusedColumn: .never,
-            alwaysCenterSingleColumn: false
-        )
+        controller.updateNiriConfig(maxVisibleColumns: 1)
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
         controller.syncMonitorsToNiriEngine()
         controller.niriEngine?.presetColumnWidths = [.proportion(1.0), .proportion(1.0)]
@@ -1866,11 +1854,7 @@ private func waitUntilAXEventTest(
         controller.hasStartedServices = true
         controller.setBordersEnabled(true)
         controller.enableNiriLayout()
-        controller.updateNiriConfig(
-            maxVisibleColumns: 1,
-            centerFocusedColumn: .never,
-            alwaysCenterSingleColumn: false
-        )
+        controller.updateNiriConfig(maxVisibleColumns: 1)
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
         controller.syncMonitorsToNiriEngine()
 
@@ -1942,11 +1926,7 @@ private func waitUntilAXEventTest(
         controller.hasStartedServices = true
         controller.setBordersEnabled(true)
         controller.enableNiriLayout()
-        controller.updateNiriConfig(
-            maxVisibleColumns: 1,
-            centerFocusedColumn: .never,
-            alwaysCenterSingleColumn: false
-        )
+        controller.updateNiriConfig(maxVisibleColumns: 1)
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
         controller.syncMonitorsToNiriEngine()
 
@@ -3108,10 +3088,7 @@ private func waitUntilAXEventTest(
             return
         }
 
-        controller.enableNiriLayout(
-            centerFocusedColumn: .never,
-            alwaysCenterSingleColumn: false
-        )
+        controller.enableNiriLayout()
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
         controller.syncMonitorsToNiriEngine()
 
@@ -5473,8 +5450,11 @@ private func waitUntilAXEventTest(
             CGSEventObserver.shared,
             didReceive: .destroyed(windowId: 865, spaceId: 0)
         )
-        try? await Task.sleep(for: .milliseconds(60))
 
+        // The enqueue is synchronous — the entry must survive immediately.
+        // Do NOT sleep here: under CI scheduling pressure a cooperative
+        // Task.sleep can outlive the 150 ms managed-replacement grace
+        // window, causing the flush to remove the entry first.
         #expect(controller.workspaceManager.entry(for: oldToken) != nil)
         #expect(engine.findNode(for: oldToken)?.id == oldNode.id)
 

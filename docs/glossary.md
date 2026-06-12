@@ -10,17 +10,9 @@ Shared terminology used across Nehir's internal documentation and specs.
 
 ## active column
 
-The column tracked by `ViewportState.activeColumnIndex`. Updated on focus change, gesture snap, and viewport scroll commands. May differ from the column containing the OS-focused window when `allowsSelectionOffscreen` is true.
+The column tracked by `ViewportState.activeColumnIndex`. Updated on focus change, gesture snap, and viewport scroll commands.
 
-See also: [focused window](#focused-window), [allows-selection-offscreen](#allows-selection-offscreen-mode).
-
----
-
-## allows-selection-offscreen mode
-
-A transient `ViewportState` flag (`allowsSelectionOffscreen: Bool`) that permits the [active column](#active-column) to be outside the viewport. Set during a free-scroll gesture; cleared when the gesture ends and the viewport settles. By the time the user presses a [viewport scroll command](#viewport-scroll-command), any prior free-gesture will have already settled and the flag will be false.
-
-While this flag is true, AX focus events are treated as Nehir-initiated (i.e., `nehirInitiated = true` in `AXEventHandler`) so that external focus changes don't fight the user's intentional viewport position.
+See also: [focused window](#focused-window).
 
 ---
 
@@ -34,7 +26,7 @@ In the [layout notation](viewport-navigation-spec.md#layout-notation), clipped c
 
 ## focused window
 
-The macOS window currently receiving keyboard input, as reported by the Accessibility API. Nehir tracks this via `AXEventHandler`. The focused window is not always inside the viewport — see [allows-selection-offscreen mode](#allows-selection-offscreen-mode).
+The macOS window currently receiving keyboard input, as reported by the Accessibility API. Nehir tracks this via `AXEventHandler`.
 
 See also: [active column](#active-column).
 
@@ -63,7 +55,7 @@ Scrolling the viewport to bring a newly focused column into view. Whether a reve
 - **Fully visible** — no reveal (any source)
 - **[Parked](glossary.md#parked-window)** — always reveals to the closest snap (any source)
 - **[Clipped](glossary.md#clipped-column) + FFM** — no reveal; cursor is already in the visible portion
-- **[Clipped](glossary.md#clipped-column) + other source** — controlled by the `revealPartial` setting (`.off`, `.snapClosest`, `.snapCenter`)
+- **[Clipped](glossary.md#clipped-column) + other source** — after visibility/source gates allow reveal, the `revealPartial` setting (`.default`, `.off`, `.snapClosest`, `.snapCenter`) chooses how the column is revealed
 
 See [Reveal on Focus](viewport-navigation-spec.md#reveal-on-focus).
 

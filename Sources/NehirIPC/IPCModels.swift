@@ -1,7 +1,7 @@
 import Foundation
 
 public enum NehirIPCProtocol {
-    public static let version = 5
+    public static let version = 6
 }
 
 public struct IPCNoPayload: Codable, Equatable, Sendable {
@@ -221,8 +221,8 @@ public enum IPCCommandName: String, Codable, CaseIterable, Equatable, Sendable {
     case focusColumn = "focus-column"
     case focusColumnFirst = "focus-column-first"
     case focusColumnLast = "focus-column-last"
-    case centerColumn = "center-column"
-    case centerVisibleColumns = "center-visible-columns"
+    case scrollViewportLeft = "scroll-viewport-left"
+    case scrollViewportRight = "scroll-viewport-right"
     case move
     case moveWindowDown = "move-window-down"
     case moveWindowUp = "move-window-up"
@@ -355,8 +355,8 @@ public enum IPCCommandRequest: Equatable, Sendable {
     case focusColumn(columnIndex: Int)
     case focusColumnFirst
     case focusColumnLast
-    case centerColumn
-    case centerVisibleColumns
+    case scrollViewportLeft
+    case scrollViewportRight
     case move(direction: IPCDirection)
     case moveWindowDown
     case moveWindowUp
@@ -452,10 +452,10 @@ public enum IPCCommandRequest: Equatable, Sendable {
             .focusColumnFirst
         case .focusColumnLast:
             .focusColumnLast
-        case .centerColumn:
-            .centerColumn
-        case .centerVisibleColumns:
-            .centerVisibleColumns
+        case .scrollViewportLeft:
+            .scrollViewportLeft
+        case .scrollViewportRight:
+            .scrollViewportRight
         case .move:
             .move
         case .moveWindowDown:
@@ -676,12 +676,12 @@ public enum IPCCommandRequest: Equatable, Sendable {
         case .focusColumnLast:
             try requireNoArguments()
             self = .focusColumnLast
-        case .centerColumn:
+        case .scrollViewportLeft:
             try requireNoArguments()
-            self = .centerColumn
-        case .centerVisibleColumns:
+            self = .scrollViewportLeft
+        case .scrollViewportRight:
             try requireNoArguments()
-            self = .centerVisibleColumns
+            self = .scrollViewportRight
         case .move:
             self = .move(direction: try requireDirection())
         case .moveWindowDown:
@@ -952,10 +952,10 @@ extension IPCCommandRequest: Codable {
             self = .focusColumnFirst
         case .focusColumnLast:
             self = .focusColumnLast
-        case .centerColumn:
-            self = .centerColumn
-        case .centerVisibleColumns:
-            self = .centerVisibleColumns
+        case .scrollViewportLeft:
+            self = .scrollViewportLeft
+        case .scrollViewportRight:
+            self = .scrollViewportRight
         case .move:
             let arguments = try container.decode(IPCDirectionArguments.self, forKey: .arguments)
             self = .move(direction: arguments.direction)
@@ -1137,9 +1137,9 @@ extension IPCCommandRequest: Codable {
             break
         case .focusColumnLast:
             break
-        case .centerColumn:
+        case .scrollViewportLeft:
             break
-        case .centerVisibleColumns:
+        case .scrollViewportRight:
             break
         case let .move(direction):
             try container.encode(IPCDirectionArguments(direction: direction), forKey: .arguments)

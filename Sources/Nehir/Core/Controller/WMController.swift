@@ -273,16 +273,12 @@ final class WMController {
         )
 
         if niriEngine == nil {
-            enableNiriLayout(
-                centerFocusedColumn: settings.niriCenterFocusedColumn,
-                alwaysCenterSingleColumn: settings.niriAlwaysCenterSingleColumn
-            )
+            enableNiriLayout(revealPartial: settings.revealPartial)
         }
         updateNiriConfig(
             maxVisibleColumns: settings.niriMaxVisibleColumns,
             infiniteLoop: settings.niriInfiniteLoop,
-            centerFocusedColumn: settings.niriCenterFocusedColumn,
-            alwaysCenterSingleColumn: settings.niriAlwaysCenterSingleColumn,
+            revealPartial: settings.revealPartial,
             singleWindowAspectRatio: settings.niriSingleWindowAspectRatio,
             columnWidthPresets: settings.niriColumnWidthPresets,
             defaultColumnWidth: settings.niriDefaultColumnWidth
@@ -831,14 +827,8 @@ final class WMController {
         workspaceBarManager.screenProvider = { _ in nil }
     }
 
-    func enableNiriLayout(
-        centerFocusedColumn: CenterFocusedColumn = .never,
-        alwaysCenterSingleColumn: Bool = false
-    ) {
-        niriLayoutHandler.enableNiriLayout(
-            centerFocusedColumn: centerFocusedColumn,
-            alwaysCenterSingleColumn: alwaysCenterSingleColumn
-        )
+    func enableNiriLayout(revealPartial: RevealPartial = .default) {
+        niriLayoutHandler.enableNiriLayout(revealPartial: revealPartial)
     }
 
     func syncMonitorsToNiriEngine() {
@@ -848,8 +838,7 @@ final class WMController {
     func updateNiriConfig(
         maxVisibleColumns: Int? = nil,
         infiniteLoop: Bool? = nil,
-        centerFocusedColumn: CenterFocusedColumn? = nil,
-        alwaysCenterSingleColumn: Bool? = nil,
+        revealPartial: RevealPartial? = nil,
         singleWindowAspectRatio: SingleWindowAspectRatio? = nil,
         columnWidthPresets: [Double]? = nil,
         defaultColumnWidth: Double?? = nil
@@ -857,8 +846,7 @@ final class WMController {
         niriLayoutHandler.updateNiriConfig(
             maxVisibleColumns: maxVisibleColumns,
             infiniteLoop: infiniteLoop,
-            centerFocusedColumn: centerFocusedColumn,
-            alwaysCenterSingleColumn: alwaysCenterSingleColumn,
+            revealPartial: revealPartial,
             singleWindowAspectRatio: singleWindowAspectRatio,
             columnWidthPresets: columnWidthPresets,
             defaultColumnWidth: defaultColumnWidth
@@ -2248,7 +2236,6 @@ final class WMController {
                 "animating=\(state.viewOffsetPixels.isAnimating)",
                 "selectedNode=\(selectedNode)",
                 "preferredFocus=\(preferredFocus)",
-                "allowsSelectionOffscreen=\(state.allowsSelectionOffscreen)",
                 "restore=\(restoreText)",
                 "activatePrev=\(activatePrevText)"
             ]
@@ -2478,15 +2465,11 @@ final class WMController {
         isTransferringWindow = false
 
         if niriEngine != nil {
-            enableNiriLayout(
-                centerFocusedColumn: settings.niriCenterFocusedColumn,
-                alwaysCenterSingleColumn: settings.niriAlwaysCenterSingleColumn
-            )
+            enableNiriLayout(revealPartial: settings.revealPartial)
             updateNiriConfig(
                 maxVisibleColumns: settings.niriMaxVisibleColumns,
                 infiniteLoop: settings.niriInfiniteLoop,
-                centerFocusedColumn: settings.niriCenterFocusedColumn,
-                alwaysCenterSingleColumn: settings.niriAlwaysCenterSingleColumn,
+                revealPartial: settings.revealPartial,
                 singleWindowAspectRatio: settings.niriSingleWindowAspectRatio,
                 columnWidthPresets: settings.niriColumnWidthPresets,
                 defaultColumnWidth: settings.niriDefaultColumnWidth

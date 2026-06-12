@@ -103,7 +103,6 @@ extension ViewportState {
         viewOffsetPixels = .static(0.0)
         selectionProgress = 0.0
         selectedNodeId = nil
-        allowsSelectionOffscreen = false
     }
 
     mutating func offsetViewport(by delta: CGFloat) {

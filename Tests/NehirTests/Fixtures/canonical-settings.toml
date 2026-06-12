@@ -39,7 +39,6 @@ mouseResizeModifierKey = "option"
 scrollEnabled = true
 scrollModifierKey = "optionShift"
 scrollSensitivity = 5.0
-scrollSnap = true
 
 [mouseWarp]
 axis = "horizontal"
@@ -47,13 +46,11 @@ margin = 1
 monitorOrder = []
 
 [niri]
-alwaysCenterSingleColumn = false
-centerFocusedColumn = "never"
 columnWidthPresets = [0.3333333333333333, 0.5, 0.6666666666666666]
 defaultColumnWidth = 0.5
 infiniteLoop = false
 maxVisibleColumns = 2
-scrollReveal = "always"
+revealPartial = "default"
 singleWindowAspectRatio = "none"
 
 [statusBar]
