@@ -2931,6 +2931,15 @@ final class WorkspaceManager {
         windows.hiddenState(for: token)
     }
 
+    func clearGeometryHiddenStates() {
+        for entry in windows.allEntries() {
+            guard let hiddenState = windows.hiddenState(for: entry.token),
+                  !hiddenState.isScratchpad
+            else { continue }
+            setHiddenState(nil, for: entry.token)
+        }
+    }
+
     func layoutReason(for token: WindowToken) -> LayoutReason {
         windows.layoutReason(for: token)
     }

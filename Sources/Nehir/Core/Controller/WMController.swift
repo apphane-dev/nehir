@@ -3288,24 +3288,33 @@ final class WMController {
         }
 
         let center = frame.center
-        let current = NSEvent.mouseLocation
         let pressedButtons = NSEvent.pressedMouseButtons
         let centerOnScreen = NSScreen.screens.contains(where: { $0.frame.contains(center) })
-        recordRuntimeMouseTrace(
-            "moveMouseToFocused.request source=\(reason) token=\(token) frame=\(formatTraceRect(frame)) frameSource=\(frameSource) current=\(formatTracePoint(current)) dest=\(formatTracePoint(center)) pressedButtons=\(pressedButtons) centerOnScreen=\(centerOnScreen)"
-        )
+        if isRuntimeTraceCaptureActive {
+            let current = NSEvent.mouseLocation
+            recordRuntimeMouseTrace(
+                "moveMouseToFocused.request source=\(reason) token=\(token) frame=\(formatTraceRect(frame)) frameSource=\(frameSource) current=\(formatTracePoint(current)) dest=\(formatTracePoint(center)) pressedButtons=\(pressedButtons) centerOnScreen=\(centerOnScreen)"
+            )
+        }
 
         guard centerOnScreen else {
-            recordRuntimeMouseTrace("moveMouseToFocused.skip reason=centerOffscreen source=\(reason) token=\(token) dest=\(formatTracePoint(center))")
+            if isRuntimeTraceCaptureActive {
+                recordRuntimeMouseTrace("moveMouseToFocused.skip reason=centerOffscreen source=\(reason) token=\(token) dest=\(formatTracePoint(center))")
+            }
             return
         }
         guard pressedButtons == 0 else {
-            recordRuntimeMouseTrace("moveMouseToFocused.skip reason=mouseButtonPressed source=\(reason) token=\(token) pressedButtons=\(pressedButtons) dest=\(formatTracePoint(center))")
+            if isRuntimeTraceCaptureActive {
+                recordRuntimeMouseTrace("moveMouseToFocused.skip reason=mouseButtonPressed source=\(reason) token=\(token) pressedButtons=\(pressedButtons) dest=\(formatTracePoint(center))")
+            }
             return
         }
 
-        warpMouseCursorPosition(ScreenCoordinateSpace.toWindowServer(point: center))
-        recordRuntimeMouseTrace("moveMouseToFocused.perform source=\(reason) token=\(token) dest=\(formatTracePoint(center)) windowServerDest=\(formatTracePoint(ScreenCoordinateSpace.toWindowServer(point: center))) pressedButtons=\(pressedButtons)")
+        let windowServerCenter = ScreenCoordinateSpace.toWindowServer(point: center)
+        warpMouseCursorPosition(windowServerCenter)
+        if isRuntimeTraceCaptureActive {
+            recordRuntimeMouseTrace("moveMouseToFocused.perform source=\(reason) token=\(token) dest=\(formatTracePoint(center)) windowServerDest=\(formatTracePoint(windowServerCenter)) pressedButtons=\(pressedButtons)")
+        }
     }
 
     func moveMouseToMonitor(_ monitor: Monitor) {

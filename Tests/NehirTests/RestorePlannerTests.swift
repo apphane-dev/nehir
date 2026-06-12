@@ -48,6 +48,80 @@ private func makeRestorePlannerCatalogEntry(
 }
 
 struct RestorePlannerTests {
+    @Test func monitorConfigurationMigrationDoesNotOverwriteFocusedWorkspaceAssignment() {
+        let planner = RestorePlanner()
+        let survivingMonitor = makeLayoutPlanTestMonitor(
+            displayId: 710,
+            name: "Built-in",
+            x: 0,
+            y: 0,
+            width: 1728,
+            height: 1117
+        )
+        let removedMonitor = makeLayoutPlanTestMonitor(
+            displayId: 711,
+            name: "External",
+            x: 1728,
+            y: 0,
+            width: 1920,
+            height: 1080
+        )
+        let focusedWorkspaceId = WorkspaceDescriptor.ID()
+        let migratedWorkspaceId = WorkspaceDescriptor.ID()
+        let focusedToken = WindowToken(pid: 710, windowId: 1)
+        let snapshot = ReconcileSnapshot(
+            topologyProfile: TopologyProfile(monitors: [survivingMonitor, removedMonitor]),
+            focusSession: FocusSessionSnapshot(
+                focusedToken: focusedToken,
+                pendingManagedFocus: .empty,
+                focusLease: nil,
+                isNonManagedFocusActive: false,
+                isAppFullscreenActive: false,
+                interactionMonitorId: survivingMonitor.id,
+                previousInteractionMonitorId: nil
+            ),
+            windows: [
+                ReconcileWindowSnapshot(
+                    token: focusedToken,
+                    workspaceId: focusedWorkspaceId,
+                    mode: .tiling,
+                    lifecyclePhase: .tiled,
+                    observedState: .initial(workspaceId: focusedWorkspaceId, monitorId: survivingMonitor.id),
+                    desiredState: .initial(
+                        workspaceId: focusedWorkspaceId,
+                        monitorId: survivingMonitor.id,
+                        disposition: .tiling
+                    ),
+                    restoreIntent: nil,
+                    replacementCorrelation: nil
+                )
+            ]
+        )
+
+        let plan = planner.planMonitorConfigurationChange(
+            .init(
+                snapshot: snapshot,
+                previousMonitors: [survivingMonitor, removedMonitor],
+                newMonitors: [survivingMonitor],
+                visibleWorkspaceMap: [
+                    survivingMonitor.id: focusedWorkspaceId,
+                    removedMonitor.id: migratedWorkspaceId
+                ],
+                disconnectedVisibleWorkspaceCache: [:],
+                interactionMonitorId: survivingMonitor.id,
+                previousInteractionMonitorId: nil,
+                workspaceExists: { $0 == focusedWorkspaceId || $0 == migratedWorkspaceId },
+                homeMonitorId: { workspaceId, _ in
+                    workspaceId == focusedWorkspaceId ? survivingMonitor.id : nil
+                },
+                effectiveMonitorId: { _, _ in survivingMonitor.id }
+            )
+        )
+
+        #expect(plan.visibleAssignments[survivingMonitor.id] == focusedWorkspaceId)
+        #expect(plan.disconnectedVisibleWorkspaceCache.values.contains(migratedWorkspaceId))
+    }
+
     @Test func hardIdentityHydrationWinsWhenSemanticKeyIsDuplicated() throws {
         let planner = RestorePlanner()
         let monitor = makeLayoutPlanTestMonitor(displayId: 700, name: "Main")

@@ -168,6 +168,14 @@ final class ServiceLifecycleManager {
             .flatMap { controller.workspaceManager.workspace(for: $0) }
         controller.workspaceManager.garbageCollectUnusedWorkspaces(focusedWorkspaceId: focusedWsId)
 
+        // Invalidate cached geometry assumptions so the upcoming full rescan
+        // re-applies positions for every window. macOS physically repositions
+        // windows during display reconfiguration, but cached AX frames and logical
+        // offscreen hidden-state can make the layout diff skip writes for windows
+        // it considers "already in place".
+        controller.axManager.invalidateCachedFrameState()
+        controller.workspaceManager.clearGeometryHiddenStates()
+
         controller.layoutRefreshController.requestFullRescan(reason: .monitorConfigurationChanged)
     }
 

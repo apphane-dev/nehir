@@ -210,8 +210,16 @@ struct RestorePlanner {
             winnerByFallbackMonitorId[fallbackMonitorId] = migration.workspaceId
         }
 
+        let focusedWorkspaceId = input.snapshot.focusedToken.flatMap { token in
+            input.snapshot.windows.first(where: { $0.token == token })?.workspaceId
+        }
         for monitor in Monitor.sortedByPosition(input.newMonitors) {
             guard let workspaceId = winnerByFallbackMonitorId[monitor.id] else { continue }
+            if let existingWorkspaceId = plan.visibleAssignments[monitor.id],
+               existingWorkspaceId == focusedWorkspaceId
+            {
+                continue
+            }
             plan.visibleAssignments[monitor.id] = workspaceId
         }
 
