@@ -80,10 +80,7 @@ enum MonitorOverrideFileStore {
             lines.append("")
             lines.append("[niri]")
             if let v = niri.maxVisibleColumns { lines.append("maxVisibleColumns = \(v)") }
-            if let v = niri.centerFocusedColumn { lines.append("centerFocusedColumn = \(quoted(v.rawValue))") }
-            if let v = niri.alwaysCenterSingleColumn { lines.append("alwaysCenterSingleColumn = \(v)") }
             if let v = niri.singleWindowAspectRatio { lines.append("singleWindowAspectRatio = \(quoted(v.rawValue))") }
-            if let v = niri.infiniteLoop { lines.append("infiniteLoop = \(v)") }
         }
 
         if let bar = document.bar {
@@ -138,10 +135,7 @@ enum MonitorOverrideFileStore {
                 monitorName: name,
                 monitorDisplayId: displayId,
                 maxVisibleColumns: niri["maxVisibleColumns"].flatMap { Int($0.trimmingCharacters(in: .whitespaces)) },
-                centerFocusedColumn: niri["centerFocusedColumn"].flatMap(extractString).flatMap(CenterFocusedColumn.init(rawValue:)),
-                alwaysCenterSingleColumn: niri["alwaysCenterSingleColumn"].flatMap(extractBool),
-                singleWindowAspectRatio: niri["singleWindowAspectRatio"].flatMap(extractString).flatMap(SingleWindowAspectRatio.init(rawValue:)),
-                infiniteLoop: niri["infiniteLoop"].flatMap(extractBool)
+                singleWindowAspectRatio: niri["singleWindowAspectRatio"].flatMap(extractString).flatMap(SingleWindowAspectRatio.init(rawValue:))
             )
         }
 

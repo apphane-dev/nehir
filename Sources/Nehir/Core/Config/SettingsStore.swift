@@ -107,6 +107,12 @@ final class SettingsStore {
         didSet { scheduleSave() }
     }
 
+    var niriScrollReveal = FocusRevealPolicy(
+        rawValue: SettingsStore.defaultExport.niriScrollReveal
+    ) ?? .always {
+        didSet { scheduleSave() }
+    }
+
     var workspaceConfigurations = SettingsStore.defaultExport.workspaceConfigurations {
         didSet { scheduleSave() }
     }
@@ -389,6 +395,7 @@ final class SettingsStore {
             niriSingleWindowAspectRatio: niriSingleWindowAspectRatio.rawValue,
             niriColumnWidthPresets: niriColumnWidthPresets,
             niriDefaultColumnWidth: niriDefaultColumnWidth,
+            niriScrollReveal: niriScrollReveal.rawValue,
             workspaceConfigurations: workspaceConfigurations,
             bordersEnabled: bordersEnabled,
             borderWidth: borderWidth,
@@ -463,6 +470,7 @@ final class SettingsStore {
             export.niriColumnWidthPresets ?? baseline.niriColumnWidthPresets ?? SettingsStore.defaultColumnWidthPresets
         )
         niriDefaultColumnWidth = SettingsStore.validatedDefaultColumnWidth(export.niriDefaultColumnWidth)
+        niriScrollReveal = FocusRevealPolicy(rawValue: export.niriScrollReveal) ?? .always
 
         workspaceConfigurations = SettingsStore.normalizedWorkspaceConfigurations(
             export.workspaceConfigurations,
@@ -775,10 +783,10 @@ final class SettingsStore {
     private func resolvedNiriSettings(override: MonitorNiriSettings?) -> ResolvedNiriSettings {
         return ResolvedNiriSettings(
             maxVisibleColumns: override?.maxVisibleColumns ?? niriMaxVisibleColumns,
-            centerFocusedColumn: override?.centerFocusedColumn ?? niriCenterFocusedColumn,
-            alwaysCenterSingleColumn: override?.alwaysCenterSingleColumn ?? niriAlwaysCenterSingleColumn,
+            centerFocusedColumn: niriCenterFocusedColumn,
+            alwaysCenterSingleColumn: niriAlwaysCenterSingleColumn,
             singleWindowAspectRatio: override?.singleWindowAspectRatio ?? niriSingleWindowAspectRatio,
-            infiniteLoop: override?.infiniteLoop ?? niriInfiniteLoop
+            infiniteLoop: niriInfiniteLoop
         )
     }
 

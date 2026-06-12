@@ -257,27 +257,6 @@ struct GlobalNiriSettingsSection: View {
                 controller.updateNiriConfig(maxVisibleColumns: newValue)
             }
 
-            Toggle("Wrap Navigation at Edges", isOn: $settings.niriInfiniteLoop)
-                .onChange(of: settings.niriInfiniteLoop) { _, newValue in
-                    controller.updateNiriConfig(infiniteLoop: newValue)
-                }
-            SettingsCaption("When navigating past the last column, wrap around to the first.")
-
-            Picker("Center Focused Column", selection: $settings.niriCenterFocusedColumn) {
-                ForEach(CenterFocusedColumn.allCases, id: \.self) { mode in
-                    Text(mode.displayName).tag(mode)
-                }
-            }
-            .onChange(of: settings.niriCenterFocusedColumn) { _, newValue in
-                controller.updateNiriConfig(centerFocusedColumn: newValue)
-            }
-
-            Toggle("Always Center Single Column", isOn: $settings.niriAlwaysCenterSingleColumn)
-                .onChange(of: settings.niriAlwaysCenterSingleColumn) { _, newValue in
-                    controller.updateNiriConfig(alwaysCenterSingleColumn: newValue)
-                }
-            SettingsCaption("When only one column is visible, keep it centered on screen.")
-
             Picker("Single Window Width", selection: $settings.niriSingleWindowAspectRatio) {
                 ForEach(SingleWindowAspectRatio.allCases, id: \.self) { ratio in
                     Text(ratio.displayName).tag(ratio)
@@ -409,32 +388,6 @@ struct MonitorNiriSettingsSection: View {
                 formatter: { "\(Int($0))" },
                 onChange: { newValue in updateSetting { $0.maxVisibleColumns = Int(newValue) } },
                 onReset: { updateSetting { $0.maxVisibleColumns = nil } }
-            )
-
-            OverridableToggle(
-                label: "Wrap Navigation at Edges",
-                value: ms.infiniteLoop,
-                globalValue: settings.niriInfiniteLoop,
-                onChange: { newValue in updateSetting { $0.infiniteLoop = newValue } },
-                onReset: { updateSetting { $0.infiniteLoop = nil } }
-            )
-
-            OverridablePicker(
-                label: "Center Focused Column",
-                value: ms.centerFocusedColumn,
-                globalValue: settings.niriCenterFocusedColumn,
-                options: CenterFocusedColumn.allCases,
-                displayName: { $0.displayName },
-                onChange: { newValue in updateSetting { $0.centerFocusedColumn = newValue } },
-                onReset: { updateSetting { $0.centerFocusedColumn = nil } }
-            )
-
-            OverridableToggle(
-                label: "Always Center Single Column",
-                value: ms.alwaysCenterSingleColumn,
-                globalValue: settings.niriAlwaysCenterSingleColumn,
-                onChange: { newValue in updateSetting { $0.alwaysCenterSingleColumn = newValue } },
-                onReset: { updateSetting { $0.alwaysCenterSingleColumn = nil } }
             )
 
             OverridablePicker(

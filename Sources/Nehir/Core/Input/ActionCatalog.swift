@@ -925,7 +925,7 @@ enum ActionCatalog {
         case .toggleWorkspaceBarVisibility: "Toggle Workspace Bar"
         case .toggleOverview: "Toggle Overview"
         case .toggleFocusFollowsMouse: "Toggle Focus Follows Mouse"
-        case .toggleFocusFollowsWindowToMonitor: "Toggle Follow Window to Monitor"
+        case .toggleFocusFollowsWindowToMonitor: "Toggle Follow Window to Workspace"
         case .toggleMoveMouseToFocused: "Toggle Move Mouse to Focused"
         case .toggleBordersEnabled: "Toggle Window Borders"
         case .togglePreventSleepEnabled: "Toggle Keep Awake"

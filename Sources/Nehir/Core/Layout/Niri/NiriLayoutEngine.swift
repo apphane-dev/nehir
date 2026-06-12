@@ -19,6 +19,24 @@ enum CenterFocusedColumn: String, CaseIterable, Codable, Identifiable {
     }
 }
 
+enum FocusRevealPolicy: String, CaseIterable, Codable, Identifiable {
+    case always
+    case keyboardAndCommands = "keyboard-and-commands"
+    case never
+
+    var id: String {
+        rawValue
+    }
+
+    var displayName: String {
+        switch self {
+        case .always: "Always"
+        case .keyboardAndCommands: "Keyboard and Commands"
+        case .never: "Never"
+        }
+    }
+}
+
 enum SingleWindowAspectRatio: String, CaseIterable, Codable, Identifiable {
     case none
     case ratio16x9 = "16:9"

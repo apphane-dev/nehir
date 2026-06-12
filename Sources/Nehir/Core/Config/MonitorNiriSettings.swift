@@ -7,34 +7,24 @@ struct MonitorNiriSettings: MonitorSettingsType {
     var monitorDisplayId: CGDirectDisplayID?
 
     var maxVisibleColumns: Int?
-    var centerFocusedColumn: CenterFocusedColumn?
-    var alwaysCenterSingleColumn: Bool?
     var singleWindowAspectRatio: SingleWindowAspectRatio?
-    var infiniteLoop: Bool?
 
     init(
         id: UUID = UUID(),
         monitorName: String,
         monitorDisplayId: CGDirectDisplayID? = nil,
         maxVisibleColumns: Int? = nil,
-        centerFocusedColumn: CenterFocusedColumn? = nil,
-        alwaysCenterSingleColumn: Bool? = nil,
-        singleWindowAspectRatio: SingleWindowAspectRatio? = nil,
-        infiniteLoop: Bool? = nil
+        singleWindowAspectRatio: SingleWindowAspectRatio? = nil
     ) {
         self.id = id
         self.monitorName = monitorName
         self.monitorDisplayId = monitorDisplayId
         self.maxVisibleColumns = maxVisibleColumns
-        self.centerFocusedColumn = centerFocusedColumn
-        self.alwaysCenterSingleColumn = alwaysCenterSingleColumn
         self.singleWindowAspectRatio = singleWindowAspectRatio
-        self.infiniteLoop = infiniteLoop
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, monitorName, monitorDisplayId, maxVisibleColumns
-        case centerFocusedColumn, alwaysCenterSingleColumn, singleWindowAspectRatio, infiniteLoop
+        case id, monitorName, monitorDisplayId, maxVisibleColumns, singleWindowAspectRatio
     }
 
     init(from decoder: Decoder) throws {
@@ -43,12 +33,8 @@ struct MonitorNiriSettings: MonitorSettingsType {
         monitorName = try container.decode(String.self, forKey: .monitorName)
         monitorDisplayId = try container.decodeIfPresent(CGDirectDisplayID.self, forKey: .monitorDisplayId)
         maxVisibleColumns = try container.decodeIfPresent(Int.self, forKey: .maxVisibleColumns)
-        centerFocusedColumn = try container.decodeIfPresent(String.self, forKey: .centerFocusedColumn)
-            .flatMap { CenterFocusedColumn(rawValue: $0) }
-        alwaysCenterSingleColumn = try container.decodeIfPresent(Bool.self, forKey: .alwaysCenterSingleColumn)
         singleWindowAspectRatio = try container.decodeIfPresent(String.self, forKey: .singleWindowAspectRatio)
             .flatMap { SingleWindowAspectRatio(rawValue: $0) }
-        infiniteLoop = try container.decodeIfPresent(Bool.self, forKey: .infiniteLoop)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -57,10 +43,7 @@ struct MonitorNiriSettings: MonitorSettingsType {
         try container.encode(monitorName, forKey: .monitorName)
         try container.encodeIfPresent(monitorDisplayId, forKey: .monitorDisplayId)
         try container.encodeIfPresent(maxVisibleColumns, forKey: .maxVisibleColumns)
-        try container.encodeIfPresent(centerFocusedColumn?.rawValue, forKey: .centerFocusedColumn)
-        try container.encodeIfPresent(alwaysCenterSingleColumn, forKey: .alwaysCenterSingleColumn)
         try container.encodeIfPresent(singleWindowAspectRatio?.rawValue, forKey: .singleWindowAspectRatio)
-        try container.encodeIfPresent(infiniteLoop, forKey: .infiniteLoop)
     }
 }
 

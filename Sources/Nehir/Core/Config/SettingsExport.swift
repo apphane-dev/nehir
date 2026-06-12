@@ -31,6 +31,7 @@ struct SettingsExport: Equatable {
     var niriSingleWindowAspectRatio: String
     var niriColumnWidthPresets: [Double]?
     var niriDefaultColumnWidth: Double?
+    var niriScrollReveal: String
 
     var workspaceConfigurations: [WorkspaceConfiguration]
 
@@ -110,6 +111,7 @@ extension SettingsExport {
             niriSingleWindowAspectRatio: SingleWindowAspectRatio.none.rawValue,
             niriColumnWidthPresets: BuiltInSettingsDefaults.niriColumnWidthPresets,
             niriDefaultColumnWidth: 0.5,
+            niriScrollReveal: FocusRevealPolicy.always.rawValue,
             workspaceConfigurations: BuiltInSettingsDefaults.workspaceConfigurations,
             bordersEnabled: true,
             borderWidth: 5.0,

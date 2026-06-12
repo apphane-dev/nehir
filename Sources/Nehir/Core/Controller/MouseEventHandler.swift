@@ -828,6 +828,10 @@ final class MouseEventHandler {
             return false
         }
 
+        if button == .left, let tiledWindow = engine.hitTestTiled(point: location, in: wsId) {
+            controller.suppressMouseMoveToFocusedWindow(for: tiledWindow.token)
+        }
+
         if button == .left, modifiers.contains(.maskAlternate) {
             if let tiledWindow = engine.hitTestTiled(point: location, in: wsId),
                let monitor = controller.workspaceManager.monitor(for: wsId)
@@ -1691,6 +1695,12 @@ final class MouseEventHandler {
             ]
         )
         if endedGestureIsAnimating {
+            // Only suppress for the previously confirmed token when gestureScrollSnap didn't already
+            // set suppression for the newly selected window — overwriting that entry would cause a
+            // token mismatch and let the cursor warp through.
+            if !didRequestFocus, let token = controller.workspaceManager.confirmedManagedFocusToken {
+                controller.suppressMouseMoveToFocusedWindow(for: token)
+            }
             controller.layoutRefreshController.startScrollAnimation(for: wsId)
         } else {
             controller.layoutRefreshController.requestImmediateRelayout(reason: .interactiveGesture)

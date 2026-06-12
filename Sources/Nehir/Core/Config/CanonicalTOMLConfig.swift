@@ -64,6 +64,7 @@ struct CanonicalTOMLConfig: Codable, Equatable {
         var singleWindowAspectRatio: String
         var columnWidthPresets: [Double]?
         var defaultColumnWidth: Double?
+        var scrollReveal: String
     }
 
     struct Borders: Codable, Equatable {
@@ -179,7 +180,8 @@ extension CanonicalTOMLConfig {
             alwaysCenterSingleColumn: export.niriAlwaysCenterSingleColumn,
             singleWindowAspectRatio: export.niriSingleWindowAspectRatio,
             columnWidthPresets: export.niriColumnWidthPresets,
-            defaultColumnWidth: export.niriDefaultColumnWidth
+            defaultColumnWidth: export.niriDefaultColumnWidth,
+            scrollReveal: export.niriScrollReveal
         )
         borders = Borders(
             enabled: export.bordersEnabled,
@@ -248,6 +250,7 @@ extension CanonicalTOMLConfig {
             niriSingleWindowAspectRatio: niri.singleWindowAspectRatio,
             niriColumnWidthPresets: niri.columnWidthPresets,
             niriDefaultColumnWidth: niri.defaultColumnWidth,
+            niriScrollReveal: niri.scrollReveal,
             workspaceConfigurations: BuiltInSettingsDefaults.workspaceConfigurations,
             bordersEnabled: borders.enabled,
             borderWidth: borders.width,
@@ -376,6 +379,7 @@ extension CanonicalTOMLConfig.Niri {
         singleWindowAspectRatio = try container.decodeWithDefault(String.self, forKey: .singleWindowAspectRatio, default: d.singleWindowAspectRatio)
         columnWidthPresets = try container.decodeIfPresent([Double].self, forKey: .columnWidthPresets)
         defaultColumnWidth = try container.decodeIfPresent(Double.self, forKey: .defaultColumnWidth)
+        scrollReveal = try container.decodeWithDefault(String.self, forKey: .scrollReveal, default: d.scrollReveal)
     }
 }
 

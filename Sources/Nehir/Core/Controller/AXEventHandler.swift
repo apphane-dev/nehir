@@ -1729,9 +1729,13 @@ final class AXEventHandler: CGSEventDelegate {
             let preferredFrame = node.renderedFrame ?? node.frame
             preferredMouseFrame = preferredFrame
             var state = controller.workspaceManager.niriViewportState(for: wsId)
+            let nehirInitiated = activeRequest?.token == entry.token || state.allowsSelectionOffscreen
+            let scrollReveal = controller.settings.niriScrollReveal
             let preserveActiveViewport = state.viewOffsetPixels.isGesture
                 || state.viewOffsetPixels.isAnimating
-                || (state.allowsSelectionOffscreen && activeRequest?.token == entry.token)
+                || state.allowsSelectionOffscreen
+                || (!nehirInitiated && scrollReveal == .keyboardAndCommands)
+                || scrollReveal == .never
             controller.niriLayoutHandler.activateNode(
                 node, in: wsId, state: &state,
                 options: preserveActiveViewport

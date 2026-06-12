@@ -18,14 +18,49 @@ struct BehaviorSettingsTab: View {
                 }
                 SettingsCaption("Moves keyboard focus to whichever window is under the cursor.")
 
-                Toggle("Follow Window to Monitor", isOn: $settings.focusFollowsWindowToMonitor)
-                SettingsCaption("When a window moves to another monitor, keyboard focus follows it there.")
-
-                Toggle("Move Cursor to Focused Window", isOn: $settings.moveMouseToFocusedWindow)
+                Toggle(isOn: $settings.moveMouseToFocusedWindow) {
+                    HStack(spacing: 8) {
+                        Text("Move Cursor to Focused Window")
+                        ExperimentalBadge()
+                    }
+                }
                     .onChange(of: settings.moveMouseToFocusedWindow) { _, newValue in
                         controller.setMoveMouseToFocusedWindow(newValue)
                     }
                 SettingsCaption("Warps the cursor to the center of a window when it receives keyboard focus.")
+            }
+
+            Section("Navigation") {
+                Picker("Center Focused Column", selection: $settings.niriCenterFocusedColumn) {
+                    ForEach(CenterFocusedColumn.allCases, id: \.self) { mode in
+                        Text(mode.displayName).tag(mode)
+                    }
+                }
+                .onChange(of: settings.niriCenterFocusedColumn) { _, newValue in
+                    controller.updateNiriConfig(centerFocusedColumn: newValue)
+                }
+
+                Toggle("Always Center Single Column", isOn: $settings.niriAlwaysCenterSingleColumn)
+                    .onChange(of: settings.niriAlwaysCenterSingleColumn) { _, newValue in
+                        controller.updateNiriConfig(alwaysCenterSingleColumn: newValue)
+                    }
+                SettingsCaption("When only one column is visible, keep it centered on screen.")
+
+                Toggle("Wrap Navigation at Edges", isOn: $settings.niriInfiniteLoop)
+                    .onChange(of: settings.niriInfiniteLoop) { _, newValue in
+                        controller.updateNiriConfig(infiniteLoop: newValue)
+                    }
+                SettingsCaption("When navigating past the last column, wrap around to the first.")
+
+                Toggle("Follow Window to Workspace", isOn: $settings.focusFollowsWindowToMonitor)
+                SettingsCaption("When moving a window to another workspace, switches your active workspace to follow it.")
+
+                Picker("Scroll Reveal", selection: $settings.niriScrollReveal) {
+                    ForEach(FocusRevealPolicy.allCases, id: \.self) { policy in
+                        Text(policy.displayName).tag(policy)
+                    }
+                }
+                SettingsCaption("When the viewport scrolls to reveal a newly focused window.")
             }
 
             Section("Scroll Gestures") {
