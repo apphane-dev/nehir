@@ -130,7 +130,7 @@ Hold the **Mouse Modifier** key during a gesture to bypass snapping — the view
 
 ## Reveal on Focus
 
-"Reveal" means the viewport scrolls to bring a newly focused column into view. The decision is based on the column's **visibility state before focus changes**, not on what triggered the focus.
+"Reveal" means the viewport scrolls to bring a newly focused column into view. The decision is based on the column's **visibility state before focus changes** and the focus source. FFM never reveals or scrolls the viewport.
 
 | Target visibility | Source | Behavior |
 |---|---|---|
@@ -145,7 +145,7 @@ Hold the **Mouse Modifier** key during a gesture to bypass snapping — the view
 
 Applies when focus moves to a [clipped](glossary.md#clipped-column) column from any non-FFM source:
 
-- **`.default`** — use `.snapClosest` only when that closest snap aligns both viewport edges to snap points and visible columns sum to 100% of the viewport; otherwise use `.snapCenter`
+- **`.default`** — use the closest target-column snap only when that candidate viewport contains a contiguous group of fully visible columns whose proportional span fits the viewport under Nehir's gap accounting; otherwise use `.snapCenter`. This treats groups such as `50% + 50%` and `25% + 35% + 40%` as fitting without requiring users to compensate for gaps, while rejecting oversized groups such as `65% + 50%`.
 - **`.off`** — no scroll; the column is already partially visible and the user can reposition the viewport manually with `scrollViewport` commands
 - **`.snapClosest`** — scroll to the snap point of the target column nearest to the current viewport position (minimal scroll)
 - **`.snapCenter`** — scroll to center the target column
@@ -259,5 +259,4 @@ Press again. Col2 fully outside — [parked](glossary.md#parked-window) — focu
 
 ## Open Questions
 
-- **`revealPartial` default**: `.snapClosest` feels less disruptive; `.snapCenter` feels more predictable. Needs user testing.
 - **Center snap threshold (30%)**: exact value TBD. Determines whether a column gets a center snap point.

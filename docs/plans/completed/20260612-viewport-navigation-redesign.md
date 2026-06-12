@@ -9,7 +9,7 @@ Adds two new `scrollViewport(.left/.right)` commands that step through snap poin
 
 Key benefits:
 - Centering emerges naturally from the snap grid — no dedicated toggle needed
-- Reveal behaviour is predictable: determined by what the user can see, not what triggered focus
+- Reveal behaviour is predictable: determined by visibility plus source-specific gates; FFM never scrolls
 - Keyboard users can opt out of auto-reveal for clipped columns (`revealPartial = .off`)
 
 ## Context (from discovery)
@@ -90,7 +90,7 @@ struct SnapPoint {
 }
 
 // NiriLayoutEngine.swift
-enum RevealPartial: String, CaseIterable, Codable { case off, snapClosest, snapCenter }
+enum RevealPartial: String, CaseIterable, Codable { case `default`, off, snapClosest, snapCenter }
 
 // ViewportState+Geometry.swift (or NiriLayout.swift)
 enum ColumnVisibility {
@@ -103,10 +103,11 @@ enum ColumnVisibility {
 ### Snap grid rules
 
 `computeSnapGrid(columns:gap:viewportWidth:) -> [SnapPoint]`:
-- Left-edge snap: `offset = columnX`
-- Right-edge snap: `offset = columnX + columnWidth - viewportWidth`
-- Center snap: only when `columnWidth > 0.30 * viewportWidth`; `offset = columnX + columnWidth/2 - viewportWidth/2`
-- Sort by offset, deduplicate within pixel tolerance
+- Left-edge snap: bounded viewport start near `columnX - gap`
+- Right-edge snap: bounded viewport start near `columnX + columnWidth + gap - viewportWidth`
+- Center snap: only when `columnWidth > 0.30 * viewportWidth`; bounded viewport start near `columnX + columnWidth/2 - viewportWidth/2`
+- Sort by offset, deduplicate within pixel tolerance using the shared snap-point helper
+- Reveal decisions that target a specific column use geometric target-column candidates, not the deduplicated global grid, so shared edge positions are not lost
 
 ### Column visibility classification
 
@@ -122,15 +123,14 @@ enum ColumnVisibility {
 | `fullyVisible` | any | no-op |
 | `parked` | any | animate to closest snap |
 | `clipped` | FFM | no-op |
+| `clipped` | non-FFM + `.default` | closest target-column snap only when the resulting viewport is a proportional fit; center otherwise |
 | `clipped` | non-FFM + `.off` | no-op |
-| `clipped` | non-FFM + `.snapClosest` | animate to closest snap |
+| `clipped` | non-FFM + `.snapClosest` | animate to closest target-column snap |
 | `clipped` | non-FFM + `.snapCenter` | animate to center snap |
 
 ### FFM source tracking
 
-Add `pendingFFMFocusToken: WindowToken? = nil` to `ViewportState`.
-Set in `activateFocusFollowsMouseTarget` before `activateNode`; read and cleared in
-`AXEventHandler.focusConfirmed`.
+`ViewportState` tracks `pendingFFMFocusToken` with a timestamp and promotes a fresh match to `recentFFMFocusToken` for duplicate AX confirmations. Stale or mismatched pending FFM markers are cleared in `AXEventHandler.focusConfirmed`. FFM reveal/relayout is skipped entirely.
 
 ---
 
@@ -196,7 +196,7 @@ Set in `activateFocusFollowsMouseTarget` before `activateNode`; read and cleared
 
 - [x] add `ColumnVisibility` enum (`.fullyVisible`, `.clipped(AxisHideEdge)`, `.parked(AxisHideEdge)`)
 - [x] implement `columnVisibility(for index:columns:gap:viewportOffset:viewportWidth:)`
-- [x] add `RevealPartial` enum (`.off`, `.snapClosest`, `.snapCenter`) to `NiriLayoutEngine.swift`
+- [x] add `RevealPartial` enum (`.default`, `.off`, `.snapClosest`, `.snapCenter`) to `NiriLayoutEngine.swift`
 - [x] add `revealPartial: RevealPartial` property to `NiriLayoutEngine`
 - [ ] write unit tests for `columnVisibility` covering: fully visible, clipped left, clipped right, parked left, parked right
 - [ ] run tests — must pass before Task 6
@@ -249,9 +249,9 @@ Set in `activateFocusFollowsMouseTarget` before `activateNode`; read and cleared
 - [x] remove `alwaysCenterSingleColumn` property from `NiriLayoutEngine`
 - [x] remove `FocusRevealPolicy` enum from `NiriLayoutEngine.swift`
 - [x] remove `niriScrollReveal`, `niriCenterFocusedColumn`, `niriAlwaysCenterSingleColumn` from `SettingsStore`
-- [x] remove corresponding fields from `SettingsExport` and `CanonicalTOMLConfig` (silently ignored on read for migration compat — add a comment)
+- [x] remove corresponding fields from `SettingsExport` and `CanonicalTOMLConfig` with no backward-compatibility mapping
 - [x] remove `centerFocusedColumn` and `alwaysCenterSingleColumn` from `ResolvedNiriSettings`
-- [x] add `SettingsStore.revealPartial: RevealPartial = .snapClosest`
+- [x] add `SettingsStore.revealPartial: RevealPartial = .default`
 - [x] add `updateNiriConfig(revealPartial:)` path through `WMController` → `NiriLayoutHandler` → `engine.revealPartial`
 - [x] delete `computeVisibleOffset` (now dead code) from `ViewportState+Geometry.swift`
 - [x] update `BehaviorSettingsTab`: remove three obsolete pickers; add `revealPartial` picker; rename "Right Mouse Resize Modifier" → "Mouse Modifier"
@@ -266,6 +266,8 @@ Set in `activateFocusFollowsMouseTarget` before `activateNode`; read and cleared
 - [ ] reveal — parked: keyboard-navigate to fully offscreen column → viewport scrolls to closest edge snap
 - [ ] reveal — clipped + FFM: move cursor to visible portion of clipped column → focus changes, viewport stays
 - [ ] reveal — clipped + keyboard + `revealPartial=.off` → no scroll
+- [ ] reveal — clipped + keyboard + `revealPartial=.default` → closest snap only for proportional fit; center otherwise
+- [ ] reveal — clipped + keyboard + `revealPartial=.snapClosest` → viewport snaps to nearest target-column candidate
 - [ ] reveal — clipped + keyboard + `revealPartial=.snapCenter` → viewport centers on target column
 - [ ] Settings UI: only `Reveal Partial` picker appears in Navigation section (no CenterFocusedColumn, AlwaysCenterSingleColumn, or ScrollReveal)
 - [ ] run full test suite
@@ -278,5 +280,5 @@ Set in `activateFocusFollowsMouseTarget` before `activateNode`; read and cleared
 
 **Manual verification:**
 - Test all Use Cases from `docs/viewport-navigation-spec.md` with real windows on a physical display
-- Verify TOML config round-trip: old config with `center-focused-column` / `scroll-reveal` loads without crash and ignores the removed keys
+- Verify TOML config round-trip persists current `revealPartial` and no removed navigation settings are exported
 - Verify `revealPartial` persists correctly across app restarts

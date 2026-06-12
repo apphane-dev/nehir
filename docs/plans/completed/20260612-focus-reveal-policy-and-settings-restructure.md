@@ -1,8 +1,10 @@
 # Focus Reveal Policy and Settings Restructure
 
-## Overview
+> **Superseded:** This plan documents an intermediate design that was removed before the final viewport navigation redesign shipped. The current implementation uses snap-grid based viewport navigation and the `RevealPartial` setting (`.default`, `.off`, `.snapClosest`, `.snapCenter`). There is no `FocusRevealPolicy`, `scroll-reveal`, or persistent `allowsSelectionOffscreen` behavior in the current code. See `docs/viewport-navigation-spec.md` and `docs/plans/20260612-viewport-navigation-redesign.md` for current behavior.
 
-Three related changes shipped together as a breaking change:
+## Historical Overview
+
+This superseded intermediate proposal grouped three related changes that were later replaced by the snap-grid redesign:
 
 1. **Bug fix**: FFM (focus-follows-mouse) incorrectly scrolls the viewport into view on native AX focus confirmation. FFM activates with `ensureVisible: false, preserveViewportAnchor: true`, which sets `allowsSelectionOffscreen = true` — but the AX confirmation path requires `activeRequest?.token == entry.token` too, which is always nil for FFM since it never creates a managed request.
 
