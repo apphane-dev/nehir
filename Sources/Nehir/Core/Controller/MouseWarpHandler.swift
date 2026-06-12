@@ -155,18 +155,31 @@ final class MouseWarpHandler: NSObject {
 
     private func handleMouseWarpMoved(at location: CGPoint) {
         guard let controller else { return }
-        guard !state.isWarping else { return }
-        guard controller.isEnabled else { return }
+        guard !state.isWarping else {
+            traceMouseWarp("warp.skip reason=cooldown loc=\(formatPoint(location)) last=\(formatMonitorId(state.lastMonitorId))")
+            return
+        }
+        guard controller.isEnabled else {
+            traceMouseWarp("warp.skip reason=controllerDisabled loc=\(formatPoint(location))")
+            return
+        }
 
         let monitors = controller.workspaceManager.monitors
-        guard monitors.count > 1 else { return }
+        guard monitors.count > 1 else {
+            traceMouseWarp("warp.skip reason=singleMonitor loc=\(formatPoint(location)) count=\(monitors.count)")
+            return
+        }
         let axis = controller.settings.mouseWarpAxis
         let effectiveOrder = controller.settings.effectiveMouseWarpMonitorOrder(for: monitors, axis: axis)
-        guard effectiveOrder.count >= 2 else { return }
+        guard effectiveOrder.count >= 2 else {
+            traceMouseWarp("warp.skip reason=noEffectiveOrder axis=\(axis.rawValue) loc=\(formatPoint(location)) monitors=\(formatMonitors(monitors)) configured=\(controller.settings.mouseWarpMonitorOrder)")
+            return
+        }
 
         let margin = CGFloat(controller.settings.mouseWarpMargin)
 
         guard let currentMonitor = monitors.first(where: { $0.frame.contains(location) }) else {
+            let lastMonitor = state.lastMonitorId.flatMap { controller.workspaceManager.monitor(byId: $0) }
             let attemptedWarp = switch axis {
             case .horizontal:
                 mouseWarpAttemptHorizontalWarpFromLastMonitor(
@@ -183,6 +196,7 @@ final class MouseWarpHandler: NSObject {
                     margin: margin
                 )
             }
+            traceMouseWarp("warp.outside loc=\(formatPoint(location)) axis=\(axis.rawValue) last=\(formatMonitor(lastMonitor)) order=\(effectiveOrder) attempted=\(attemptedWarp)")
             if attemptedWarp {
                 return
             }
@@ -223,6 +237,7 @@ final class MouseWarpHandler: NSObject {
                     } else {
                         false
                     }
+                    traceMouseWarp("warp.monitorChanged loc=\(formatPoint(location)) axis=\(axis.rawValue) from=\(formatMonitor(lastMonitor)) to=\(formatMonitor(currentMonitor)) crossed=\(mouseWarpLocationCrossedAxis(location, from: lastMonitor, axis: axis)) attempted=\(attemptedWarp)")
                     if attemptedWarp {
                         return
                     }
@@ -242,11 +257,14 @@ final class MouseWarpHandler: NSObject {
             in: effectiveOrder,
             monitors: monitors,
             axis: axis
-        ) else { return }
+        ) else {
+            traceMouseWarp("warp.skip reason=currentNotInOrder loc=\(formatPoint(location)) axis=\(axis.rawValue) current=\(formatMonitor(currentMonitor)) order=\(effectiveOrder)")
+            return
+        }
 
         switch axis {
         case .horizontal:
-            _ = mouseWarpAttemptHorizontalWarp(
+            let attemptedWarp = mouseWarpAttemptHorizontalWarp(
                 from: currentMonitor,
                 sourceIndex: currentIndex,
                 location: location,
@@ -254,8 +272,11 @@ final class MouseWarpHandler: NSObject {
                 monitors: monitors,
                 margin: margin
             )
+            if attemptedWarp {
+                traceMouseWarp("warp.edgeAttempt loc=\(formatPoint(location)) axis=horizontal current=\(formatMonitor(currentMonitor)) index=\(currentIndex) order=\(effectiveOrder) attempted=true")
+            }
         case .vertical:
-            _ = mouseWarpAttemptVerticalWarp(
+            let attemptedWarp = mouseWarpAttemptVerticalWarp(
                 from: currentMonitor,
                 sourceIndex: currentIndex,
                 location: location,
@@ -263,6 +284,9 @@ final class MouseWarpHandler: NSObject {
                 monitors: monitors,
                 margin: margin
             )
+            if attemptedWarp {
+                traceMouseWarp("warp.edgeAttempt loc=\(formatPoint(location)) axis=vertical current=\(formatMonitor(currentMonitor)) index=\(currentIndex) order=\(effectiveOrder) attempted=true")
+            }
         }
     }
 
@@ -458,6 +482,8 @@ final class MouseWarpHandler: NSObject {
             margin: margin
         )
 
+        traceMouseWarp("warp.perform target=\(formatMonitor(targetMonitor)) edge=\(edge) axis=\(axis.rawValue) ratio=\(String(format: "%.3f", transferRatio)) dest=\(formatPoint(destination)) margin=\(margin)")
+
         state.isWarping = true
         state.lastMonitorId = targetMonitor.id
         let warpPoint = ScreenCoordinateSpace.toWindowServer(point: destination)
@@ -601,6 +627,32 @@ final class MouseWarpHandler: NSObject {
         if let cooldownTimer = state.cooldownTimer {
             RunLoop.main.add(cooldownTimer, forMode: .common)
         }
+    }
+
+    private func traceMouseWarp(_ message: @autoclosure () -> String) {
+        guard controller?.isRuntimeTraceCaptureActive == true else { return }
+        controller?.recordRuntimeMouseTrace(message())
+    }
+
+    private func formatPoint(_ point: CGPoint) -> String {
+        String(format: "(%.1f,%.1f)", point.x, point.y)
+    }
+
+    private func formatMonitorId(_ id: Monitor.ID?) -> String {
+        id.map(String.init(describing:)) ?? "nil"
+    }
+
+    private func formatMonitor(_ monitor: Monitor?) -> String {
+        guard let monitor else { return "nil" }
+        return "\(monitor.name)#\(monitor.displayId) frame=\(formatRect(monitor.frame))"
+    }
+
+    private func formatMonitors(_ monitors: [Monitor]) -> String {
+        monitors.map { formatMonitor($0) }.joined(separator: ";")
+    }
+
+    private func formatRect(_ rect: CGRect) -> String {
+        String(format: "(%.0f,%.0f %.0fx%.0f)", rect.minX, rect.minY, rect.width, rect.height)
     }
 
     private enum Edge {

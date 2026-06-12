@@ -75,6 +75,11 @@ final class StatusBarMenuBuilder {
 
         addSettingsSection(to: menu)
 
+        if settings.developerModeEnabled {
+            menu.addItem(createDivider())
+            addDeveloperSection(to: menu)
+        }
+
         menu.addItem(createDivider())
 
         addQuitSection(to: menu)
@@ -237,6 +242,47 @@ final class StatusBarMenuBuilder {
 
     private func presentInfoAlert(title: String, message: String) {
         infoAlertPresenter(title, message)
+    }
+
+    private func addDeveloperSection(to menu: NSMenu) {
+        menu.addItem(createSectionLabel("🔧 DEVELOPER"))
+
+        let resetRow = MenuActionRowView(
+            icon: "arrow.counterclockwise",
+            label: "Reset Runtime State"
+        ) { [weak self] in
+            guard let self, let controller = self.controller else { return }
+            let confirmed = self.confirmationAlertPresenter(
+                "Reset Runtime State",
+                "This will clear all runtime state and rebootstrap from a rescan. Continue?",
+                "Reset",
+                "Cancel"
+            )
+            guard confirmed else { return }
+            _ = controller.commandHandler.performCommand(.debugResetRuntimeState)
+        }
+        let resetItem = NSMenuItem()
+        resetItem.view = resetRow
+        menu.addItem(resetItem)
+
+        let restartRow = MenuActionRowView(
+            icon: "arrow.triangle.2.circlepath",
+            label: "Restart Clearing State",
+            isDestructive: true
+        ) { [weak self] in
+            guard let self, let controller = self.controller else { return }
+            let confirmed = self.confirmationAlertPresenter(
+                "Restart Clearing Runtime State",
+                "This will clear runtime state and relaunch the app. Continue?",
+                "Restart",
+                "Cancel"
+            )
+            guard confirmed else { return }
+            _ = controller.commandHandler.performCommand(.debugRestartClearingRuntimeState)
+        }
+        let restartItem = NSMenuItem()
+        restartItem.view = restartRow
+        menu.addItem(restartItem)
     }
 
     private func addQuitSection(to menu: NSMenu) {
