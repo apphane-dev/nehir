@@ -36,7 +36,6 @@ extension NiriLayoutEngine {
         )
 
         let cols = columns(in: workspaceId)
-        let settings = effectiveSettings(in: workspaceId)
         state.transitionToColumn(
             colIdx,
             columns: cols,
@@ -44,8 +43,6 @@ extension NiriLayoutEngine {
             viewportWidth: workingFrame.width,
             motion: motion,
             animate: false,
-            centerMode: settings.centerFocusedColumn,
-            alwaysCenterSingleColumn: settings.alwaysCenterSingleColumn,
             scale: displayScale(in: workspaceId),
             workingArea: workingFrame,
             viewFrame: monitorForWorkspace(workspaceId)?.frame

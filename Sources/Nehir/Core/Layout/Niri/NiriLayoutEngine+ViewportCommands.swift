@@ -2,128 +2,159 @@ import AppKit
 
 extension NiriLayoutEngine {
     @discardableResult
-    func centerColumn(
+    func scrollViewport(
+        direction: Direction,
         in workspaceId: WorkspaceDescriptor.ID,
         motion: MotionSnapshot,
         state: inout ViewportState,
         workingFrame: CGRect,
         gaps: CGFloat
-    ) -> Bool {
+    ) -> NiriWindow? {
+        guard direction == .left || direction == .right else { return nil }
         let columns = columns(in: workspaceId)
-        guard !columns.isEmpty else { return false }
-
-        let activeIndex = state.activeColumnIndex.clamped(to: 0 ... (columns.count - 1))
-        state.activeColumnIndex = activeIndex
-
-        cancelInteractiveResize(for: columns[activeIndex], in: workspaceId)
+        guard !columns.isEmpty else { return nil }
 
         let scale = displayScale(in: workspaceId)
-        let viewFrame = monitorForWorkspace(workspaceId)?.frame
-        let targetOffset = state.computeCenteredOffset(
-            columnIndex: activeIndex,
-            columns: columns,
-            gap: gaps,
-            viewportWidth: workingFrame.width,
-            workingArea: workingFrame,
-            viewFrame: viewFrame,
-            scale: scale
-        )
-        state.animateToOffset(
-            targetOffset,
-            motion: motion,
-            scale: scale
-        )
-        return true
+        let context = makeViewportSnapContext(columns: columns, state: state, workingFrame: workingFrame, gaps: gaps)
+        guard !context.snapPoints.isEmpty else { return nil }
+
+        let currentViewStart = context.currentViewStart(in: state)
+        let targetSnap = context.next(after: currentViewStart, direction: direction)
+            ?? (direction == .left ? context.snapPoints.first : context.snapPoints.last)
+        guard let targetSnap else { return nil }
+
+        let oldActiveIndex = state.activeColumnIndex.clamped(to: 0 ... columns.count - 1)
+        var newActiveIndex = oldActiveIndex
+        if case .parked = context.visibility(of: oldActiveIndex, viewportOffset: targetSnap.offset, in: state) {
+            newActiveIndex = nearestVisibleColumnIndex(
+                to: oldActiveIndex,
+                viewportOffset: targetSnap.offset,
+                context: context,
+                state: state
+            ) ?? targetSnap.columnIndex
+        }
+
+        if newActiveIndex != oldActiveIndex {
+            let oldX = state.columnX(at: oldActiveIndex, columns: columns, gap: gaps)
+            let newX = state.columnX(at: newActiveIndex, columns: columns, gap: gaps)
+            state.viewOffsetPixels.offset(delta: Double(oldX - newX))
+            state.activeColumnIndex = newActiveIndex
+            state.viewOffsetToRestore = nil
+        }
+
+        state.animateToOffset(context.targetOffset(for: targetSnap, in: state), motion: motion, scale: scale)
+        return syncViewportSelectionToActiveColumn(columns: columns, state: &state)
     }
 
     @discardableResult
-    func centerVisibleColumns(
-        in workspaceId: WorkspaceDescriptor.ID,
-        motion: MotionSnapshot,
+    func scrollToReveal(
+        columnIndex: Int,
+        isFFM: Bool,
         state: inout ViewportState,
-        workingFrame: CGRect,
-        gaps: CGFloat
+        context: ViewportSnapContext,
+        motion: MotionSnapshot,
+        scale: CGFloat = 2.0,
+        animationConfig: SpringConfig? = nil
     ) -> Bool {
-        let columns = columns(in: workspaceId)
-        guard !columns.isEmpty else { return false }
+        guard !isFFM else { return false }
+        guard context.columns.indices.contains(columnIndex), !context.snapPoints.isEmpty else { return false }
 
-        let settings = effectiveSettings(in: workspaceId)
-        if settings.centerFocusedColumn == .always
-            || (settings.alwaysCenterSingleColumn && columns.count <= 1)
-        {
-            return false
+        let viewStart = context.currentViewStart(in: state)
+        let visibility = context.visibility(of: columnIndex, viewportOffset: viewStart, in: state)
+
+        func targetColumnSnapCandidates() -> [SnapPoint] {
+            context.snapCandidates(for: columnIndex, in: state)
         }
 
-        let activeIndex = state.activeColumnIndex.clamped(to: 0 ... (columns.count - 1))
-        state.activeColumnIndex = activeIndex
-
-        let scale = displayScale(in: workspaceId)
-        let viewFrame = monitorForWorkspace(workspaceId)?.frame
-        let areas = state.normalizedFittingAreas(
-            viewportSpan: workingFrame.width,
-            workingArea: workingFrame,
-            viewFrame: viewFrame,
-            scale: scale
-        )
-        let viewStart = state.targetViewPosPixels(columns: columns, gap: gaps)
-        let workingStart = areas.origin(of: areas.working)
-        let viewportWidth = areas.span(of: areas.working)
-
-        var widthTaken: CGFloat = 0
-        var leftmostColumnX: CGFloat?
-        var activeColumnX: CGFloat?
-
-        for (idx, column) in columns.enumerated() {
-            let columnX = state.columnX(at: idx, columns: columns, gap: gaps)
-            if columnX < viewStart + workingStart + gaps {
-                continue
+        func defaultSnap() -> SnapPoint? {
+            let targetSnaps = targetColumnSnapCandidates()
+            let closest = targetSnaps.closest(to: viewStart)
+            if let closest, context.fillsViewport(at: closest.offset, in: state) {
+                return closest
             }
-
-            if leftmostColumnX == nil {
-                leftmostColumnX = columnX
-            }
-
-            let width = column.cachedWidth
-            if viewStart + workingStart + viewportWidth < columnX + width + gaps {
-                break
-            }
-
-            if idx == activeIndex {
-                activeColumnX = columnX
-            }
-
-            widthTaken += width + gaps
+            return targetSnaps.first { $0.kind == .center }
+                ?? closest
         }
 
-        guard let leftmostColumnX, let activeColumnX else { return false }
+        let targetSnap: SnapPoint?
+        switch visibility {
+        case .fullyVisible:
+            if revealPartial != .default || context.fillsViewport(at: viewStart, in: state) {
+                return false
+            }
+            targetSnap = defaultSnap()
+        case .parked:
+            targetSnap = revealPartial == .default
+                ? defaultSnap()
+                : targetColumnSnapCandidates().closest(to: viewStart)
+        case .clipped:
+            switch revealPartial {
+            case .default:
+                targetSnap = defaultSnap()
+            case .off:
+                return false
+            case .snapClosest:
+                targetSnap = targetColumnSnapCandidates().closest(to: viewStart)
+            case .snapCenter:
+                let targetSnaps = targetColumnSnapCandidates()
+                targetSnap = targetSnaps.first { $0.kind == .center }
+                    ?? targetSnaps.closest(to: viewStart)
+            }
+        }
 
-        cancelInteractiveResize(for: columns[activeIndex], in: workspaceId)
+        guard let targetSnap else { return false }
+        let targetOffset = context.targetOffset(for: targetSnap, in: state)
+        let pixel = 1.0 / max(scale, 1.0)
+        guard abs(targetOffset - state.viewOffsetPixels.target()) > pixel else { return false }
 
-        let freeSpace = viewportWidth - widthTaken + gaps
-        let newViewStart = leftmostColumnX - freeSpace / 2 - workingStart
-        let targetOffset = newViewStart - activeColumnX
-
-        state.animateToOffset(
-            targetOffset,
-            motion: motion,
-            scale: scale
-        )
-
-        state.ensureContainerVisible(
-            containerIndex: activeIndex,
-            containers: columns,
-            gap: gaps,
-            viewportSpan: viewportWidth,
-            motion: motion,
-            sizeKeyPath: \.cachedWidth,
-            centerMode: settings.centerFocusedColumn,
-            alwaysCenterSingleColumn: settings.alwaysCenterSingleColumn,
-            scale: scale,
-            workingArea: workingFrame,
-            viewFrame: viewFrame
-        )
-
+        state.animateToOffset(targetOffset, motion: motion, config: animationConfig, scale: scale)
         return true
+    }
+
+    func syncViewportSelectionToActiveColumn(columns: [NiriContainer], state: inout ViewportState) -> NiriWindow? {
+        guard columns.indices.contains(state.activeColumnIndex) else { return nil }
+        let activeColumn = columns[state.activeColumnIndex]
+        let windows = activeColumn.windowNodes
+        guard !windows.isEmpty else { return nil }
+        let activeTileIndex = activeColumn.activeTileIdx.clamped(to: 0 ... (windows.count - 1))
+        let selectedWindow = windows[activeTileIndex]
+        state.selectedNodeId = selectedWindow.id
+        return selectedWindow
+    }
+
+    private func nearestVisibleColumnIndex(
+        to index: Int,
+        viewportOffset: CGFloat,
+        context: ViewportSnapContext,
+        state: ViewportState
+    ) -> Int? {
+        context.columns.indices
+            .filter { candidate in
+                if case .parked = context.visibility(of: candidate, viewportOffset: viewportOffset, in: state) {
+                    return false
+                }
+                return true
+            }
+            .min { lhs, rhs in
+                let lDistance = abs(lhs - index)
+                let rDistance = abs(rhs - index)
+                if lDistance != rDistance { return lDistance < rDistance }
+                return lhs < rhs
+            }
+    }
+
+    func makeViewportSnapContext(
+        columns: [NiriContainer],
+        state: ViewportState,
+        workingFrame: CGRect,
+        gaps: CGFloat,
+        viewportWidth: CGFloat? = nil
+    ) -> ViewportSnapContext {
+        state.snapContext(
+            columns: columns,
+            gap: gaps,
+            viewportWidth: viewportWidth ?? workingFrame.width
+        )
     }
 
     private func cancelInteractiveResize(

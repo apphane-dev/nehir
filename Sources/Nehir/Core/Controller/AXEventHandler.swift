@@ -1729,21 +1729,129 @@ final class AXEventHandler: CGSEventDelegate {
             let preferredFrame = node.renderedFrame ?? node.frame
             preferredMouseFrame = preferredFrame
             var state = controller.workspaceManager.niriViewportState(for: wsId)
+            let now = Date()
+            let pendingFFMToken = state.pendingFFMFocusToken
+            let pendingFFMDate = state.pendingFFMFocusTimestamp
+            let pendingFFMIsFresh = pendingFFMDate.map { now.timeIntervalSince($0) <= 1.0 } ?? false
+            let recentFFMToken = state.recentFFMFocusToken
+            let recentFFMDate = state.recentFFMFocusTimestamp
+            let recentFFMIsFresh = recentFFMDate.map { now.timeIntervalSince($0) <= 1.0 } ?? false
+            let isFFM = pendingFFMToken == entry.token && pendingFFMIsFresh
+                || (recentFFMToken == entry.token && recentFFMIsFresh)
+            if pendingFFMToken == entry.token, pendingFFMIsFresh {
+                state.pendingFFMFocusToken = nil
+                state.pendingFFMFocusTimestamp = nil
+                state.recentFFMFocusToken = entry.token
+                state.recentFFMFocusTimestamp = now
+            } else {
+                state.pendingFFMFocusToken = nil
+                state.pendingFFMFocusTimestamp = nil
+                if !isFFM {
+                    state.recentFFMFocusToken = nil
+                    state.recentFFMFocusTimestamp = nil
+                }
+            }
             let preserveActiveViewport = state.viewOffsetPixels.isGesture
                 || state.viewOffsetPixels.isAnimating
-                || (state.allowsSelectionOffscreen && activeRequest?.token == entry.token)
+            controller.recordRuntimeViewportTrace(
+                workspaceId: wsId,
+                reason: "ax_focus_confirm_before_activate",
+                details: [
+                    "token=\(entry.token)",
+                    "pendingFFM=\(pendingFFMToken.map(String.init(describing:)) ?? "nil")",
+                    "pendingFFMFresh=\(pendingFFMIsFresh)",
+                    "recentFFM=\(recentFFMToken.map(String.init(describing:)) ?? "nil")",
+                    "recentFFMFresh=\(recentFFMIsFresh)",
+                    "isFFM=\(isFFM)",
+                    "preserveActiveViewport=\(preserveActiveViewport)",
+                    "isGesture=\(state.viewOffsetPixels.isGesture)",
+                    "wasAnimating=\(state.viewOffsetPixels.isAnimating)"
+                ]
+            )
             controller.niriLayoutHandler.activateNode(
                 node, in: wsId, state: &state,
-                options: preserveActiveViewport
-                    ? .init(
-                        ensureVisible: false,
-                        preserveViewportAnchor: true,
-                        layoutRefresh: false,
-                        axFocus: false,
-                        startAnimation: false
-                    )
-                    : .init(layoutRefresh: isWorkspaceActive, axFocus: false)
+                options: .init(
+                    ensureVisible: false,
+                    preserveViewportAnchor: true,
+                    layoutRefresh: false,
+                    axFocus: false,
+                    startAnimation: false
+                )
             )
+            controller.recordRuntimeViewportTrace(
+                workspaceId: wsId,
+                reason: "ax_focus_confirm_after_activate",
+                details: [
+                    "token=\(entry.token)",
+                    "isFFM=\(isFFM)",
+                    "preserveActiveViewport=\(preserveActiveViewport)"
+                ]
+            )
+            if !isFFM,
+               !preserveActiveViewport,
+               let column = engine.column(of: node),
+               let columnIndex = engine.columnIndex(of: column, in: wsId),
+               let monitor = controller.workspaceManager.monitor(for: wsId)
+            {
+                let gap = CGFloat(controller.workspaceManager.gaps)
+                let workingFrame = controller.insetWorkingFrame(for: monitor)
+                let columns = engine.columns(in: wsId)
+                let context = engine.makeViewportSnapContext(
+                    columns: columns,
+                    state: state,
+                    workingFrame: workingFrame,
+                    gaps: gap
+                )
+                let viewStart = context.currentViewStart(in: state)
+                let visibility = context.visibility(of: columnIndex, viewportOffset: viewStart, in: state)
+                let columnSnaps = context.snapCandidates(for: columnIndex, in: state)
+                let closestSnap = columnSnaps.closest(to: viewStart)
+                let centerSnap = columnSnaps.first { $0.kind == .center }
+                controller.recordRuntimeViewportTrace(
+                    workspaceId: wsId,
+                    reason: "ax_focus_confirm_reveal_candidate",
+                    details: [
+                        "token=\(entry.token)",
+                        "columnIndex=\(columnIndex)",
+                        "revealPartial=\(engine.revealPartial.rawValue)",
+                        "visibility=\(visibility)",
+                        String(format: "viewStart=%.1f", viewStart),
+                        "closest=\(closestSnap.map { String(format: "%.1f:%@", $0.offset, String(describing: $0.kind)) } ?? "nil")",
+                        "closestFills=\(closestSnap.map { context.fillsViewport(at: $0.offset, in: state) }.map(String.init) ?? "nil")",
+                        "center=\(centerSnap.map { String(format: "%.1f:%@", $0.offset, String(describing: $0.kind)) } ?? "nil")",
+                        "centerFills=\(centerSnap.map { context.fillsViewport(at: $0.offset, in: state) }.map(String.init) ?? "nil")",
+                        "snapCount=\(columnSnaps.count)"
+                    ]
+                )
+                let didReveal = engine.scrollToReveal(
+                    columnIndex: columnIndex,
+                    isFFM: isFFM,
+                    state: &state,
+                    context: context,
+                    motion: controller.motionPolicy.snapshot(),
+                    scale: engine.displayScale(in: wsId)
+                )
+                controller.recordRuntimeViewportTrace(
+                    workspaceId: wsId,
+                    reason: "ax_focus_confirm_reveal_result",
+                    details: [
+                        "token=\(entry.token)",
+                        "columnIndex=\(columnIndex)",
+                        "isFFM=\(isFFM)",
+                        "didReveal=\(didReveal)"
+                    ]
+                )
+            } else {
+                controller.recordRuntimeViewportTrace(
+                    workspaceId: wsId,
+                    reason: "ax_focus_confirm_reveal_skipped",
+                    details: [
+                        "token=\(entry.token)",
+                        "isFFM=\(isFFM)",
+                        "preserveActiveViewport=\(preserveActiveViewport)"
+                    ]
+                )
+            }
             _ = controller.workspaceManager.applySessionPatch(
                 .init(
                     workspaceId: wsId,
@@ -1751,6 +1859,28 @@ final class AXEventHandler: CGSEventDelegate {
                     rememberedFocusToken: nil
                 )
             )
+            if isWorkspaceActive, !isFFM {
+                controller.recordRuntimeViewportTrace(
+                    workspaceId: wsId,
+                    reason: "ax_focus_confirm_request_relayout",
+                    details: ["token=\(entry.token)", "isFFM=\(isFFM)"]
+                )
+                controller.layoutRefreshController.requestImmediateRelayout(reason: .layoutCommand)
+                if state.viewOffsetPixels.isAnimating {
+                    controller.layoutRefreshController.startScrollAnimation(for: wsId)
+                }
+            } else {
+                controller.recordRuntimeViewportTrace(
+                    workspaceId: wsId,
+                    reason: "ax_focus_confirm_skip_relayout",
+                    details: [
+                        "token=\(entry.token)",
+                        "isWorkspaceActive=\(isWorkspaceActive)",
+                        "isFFM=\(isFFM)",
+                        "isAnimating=\(state.viewOffsetPixels.isAnimating)"
+                    ]
+                )
+            }
 
             _ = controller.focusBorderController.focusChanged(
                 to: target,

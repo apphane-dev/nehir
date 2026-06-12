@@ -362,7 +362,7 @@ private func prepareIPCNiriState(
         #expect(controller.interactionWorkspace()?.id == targetWorkspaceId)
     }
 
-    @Test func centerColumnCommandRecentersNiriViewport() throws {
+    @Test func scrollViewportRightCommandAdvancesViewport() throws {
         let controller = makeLayoutPlanTestController()
         let router = makeIPCCommandRouter(for: controller)
         let workspaceId = try #require(controller.workspaceManager.workspaceId(for: "1", createIfMissing: false))
@@ -375,27 +375,24 @@ private func prepareIPCNiriState(
             ],
             focusedWindowId: 2122
         )
-        let focusedHandle = try #require(handles[2122])
         let engine = try #require(controller.niriEngine)
-        let focusedNode = try #require(engine.findNode(for: focusedHandle))
-        let focusedColumn = try #require(engine.column(of: focusedNode))
-        let focusedColumnIndex = try #require(engine.columnIndex(of: focusedColumn, in: workspaceId))
         for column in engine.columns(in: workspaceId) {
             column.width = .fixed(400)
             column.cachedWidth = 400
         }
+        // Start with viewport aligned so column 0 is at left edge
         var state = controller.workspaceManager.niriViewportState(for: workspaceId)
-        state.selectedNodeId = focusedNode.id
-        state.activeColumnIndex = focusedColumnIndex
+        state.selectedNodeId = engine.findNode(for: try #require(handles[2121]))?.id
+        state.activeColumnIndex = 0
         state.viewOffsetPixels = .static(0)
         controller.workspaceManager.updateNiriViewportState(state, for: workspaceId)
 
-        let result = router.handle(.centerColumn)
+        let result = router.handle(.scrollViewportRight)
 
         let updated = controller.workspaceManager.niriViewportState(for: workspaceId)
         #expect(result == .executed)
-        #expect(updated.activeColumnIndex == focusedColumnIndex)
-        #expect(abs(updated.viewOffsetPixels.target() + 760) < 0.001)
+        #expect(updated.activeColumnIndex == 1)
+        #expect(updated.selectedNodeId == engine.findNode(for: try #require(handles[2122]))?.id)
     }
 
     @Test func moveToWorkspaceOnMonitorRejectsWorkspaceOnWrongAdjacentMonitor() throws {

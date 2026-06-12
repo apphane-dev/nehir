@@ -38,6 +38,18 @@ enum ProportionalSize: Codable, Equatable, Sendable {
     }
 
     static let `default` = ProportionalSize.proportion(1.0)
+
+    static func resolveProportionalSpan(
+        _ proportion: CGFloat,
+        availableSpace: CGFloat,
+        gaps: CGFloat
+    ) -> CGFloat {
+        // Niri-compatible gap accounting: percentages divide the space after one gap,
+        // then each proportional column contributes one gap of slack. A contiguous
+        // group whose proportions sum to 1.0 spans availableSpace - 2 * gaps after
+        // internal gaps are added, independent of the number of columns in the group.
+        (availableSpace - gaps) * proportion - gaps
+    }
 }
 
 enum WeightedSize: Codable, Equatable, Sendable {
@@ -519,7 +531,7 @@ class NiriContainer: NiriNode {
         let effectiveSpec = isFull ? ProportionalSize.proportion(1.0) : spec
         switch effectiveSpec {
         case let .proportion(p):
-            result = (availableSpace - gaps) * p - gaps
+            result = ProportionalSize.resolveProportionalSpan(p, availableSpace: availableSpace, gaps: gaps)
         case let .fixed(f):
             result = f
         }

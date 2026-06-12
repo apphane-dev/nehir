@@ -59,8 +59,7 @@ struct CanonicalTOMLConfig: Codable, Equatable {
     struct Niri: Codable, Equatable {
         var maxVisibleColumns: Int
         var infiniteLoop: Bool
-        var centerFocusedColumn: String
-        var alwaysCenterSingleColumn: Bool
+        var revealPartial: String
         var singleWindowAspectRatio: String
         var columnWidthPresets: [Double]?
         var defaultColumnWidth: Double?
@@ -131,7 +130,6 @@ struct CanonicalTOMLConfig: Codable, Equatable {
         var mouseResizeModifierKey: String
         var fingerCount: Int
         var invertDirection: Bool
-        var scrollSnap: Bool
     }
 
     struct StatusBar: Codable, Equatable {
@@ -175,8 +173,7 @@ extension CanonicalTOMLConfig {
         niri = Niri(
             maxVisibleColumns: export.niriMaxVisibleColumns,
             infiniteLoop: export.niriInfiniteLoop,
-            centerFocusedColumn: export.niriCenterFocusedColumn,
-            alwaysCenterSingleColumn: export.niriAlwaysCenterSingleColumn,
+            revealPartial: export.revealPartial,
             singleWindowAspectRatio: export.niriSingleWindowAspectRatio,
             columnWidthPresets: export.niriColumnWidthPresets,
             defaultColumnWidth: export.niriDefaultColumnWidth
@@ -216,8 +213,7 @@ extension CanonicalTOMLConfig {
             scrollModifierKey: export.scrollModifierKey,
             mouseResizeModifierKey: export.mouseResizeModifierKey,
             fingerCount: export.gestureFingerCount,
-            invertDirection: export.gestureInvertDirection,
-            scrollSnap: export.gestureScrollSnap
+            invertDirection: export.gestureInvertDirection
         )
         statusBar = StatusBar(
             showWorkspaceName: export.statusBarShowWorkspaceName,
@@ -243,8 +239,7 @@ extension CanonicalTOMLConfig {
             outerGapBottom: gaps.outer.bottom,
             niriMaxVisibleColumns: niri.maxVisibleColumns,
             niriInfiniteLoop: niri.infiniteLoop,
-            niriCenterFocusedColumn: niri.centerFocusedColumn,
-            niriAlwaysCenterSingleColumn: niri.alwaysCenterSingleColumn,
+            revealPartial: niri.revealPartial,
             niriSingleWindowAspectRatio: niri.singleWindowAspectRatio,
             niriColumnWidthPresets: niri.columnWidthPresets,
             niriDefaultColumnWidth: niri.defaultColumnWidth,
@@ -285,7 +280,6 @@ extension CanonicalTOMLConfig {
             mouseResizeModifierKey: gestures.mouseResizeModifierKey,
             gestureFingerCount: gestures.fingerCount,
             gestureInvertDirection: gestures.invertDirection,
-            gestureScrollSnap: gestures.scrollSnap,
             statusBarShowWorkspaceName: statusBar.showWorkspaceName,
             statusBarShowAppNames: statusBar.showAppNames,
             statusBarUseWorkspaceId: statusBar.useWorkspaceId,
@@ -371,8 +365,7 @@ extension CanonicalTOMLConfig.Niri {
         let d = CanonicalTOMLConfig.defaults().niri
         maxVisibleColumns = try container.decodeWithDefault(Int.self, forKey: .maxVisibleColumns, default: d.maxVisibleColumns)
         infiniteLoop = try container.decodeWithDefault(Bool.self, forKey: .infiniteLoop, default: d.infiniteLoop)
-        centerFocusedColumn = try container.decodeWithDefault(String.self, forKey: .centerFocusedColumn, default: d.centerFocusedColumn)
-        alwaysCenterSingleColumn = try container.decodeWithDefault(Bool.self, forKey: .alwaysCenterSingleColumn, default: d.alwaysCenterSingleColumn)
+        revealPartial = try container.decodeWithDefault(String.self, forKey: .revealPartial, default: d.revealPartial)
         singleWindowAspectRatio = try container.decodeWithDefault(String.self, forKey: .singleWindowAspectRatio, default: d.singleWindowAspectRatio)
         columnWidthPresets = try container.decodeIfPresent([Double].self, forKey: .columnWidthPresets)
         defaultColumnWidth = try container.decodeIfPresent(Double.self, forKey: .defaultColumnWidth)
@@ -434,7 +427,6 @@ extension CanonicalTOMLConfig.Gestures {
         mouseResizeModifierKey = try container.decodeWithDefault(String.self, forKey: .mouseResizeModifierKey, default: d.mouseResizeModifierKey)
         fingerCount = try container.decodeWithDefault(Int.self, forKey: .fingerCount, default: d.fingerCount)
         invertDirection = try container.decodeWithDefault(Bool.self, forKey: .invertDirection, default: d.invertDirection)
-        scrollSnap = try container.decodeWithDefault(Bool.self, forKey: .scrollSnap, default: d.scrollSnap)
     }
 }
 

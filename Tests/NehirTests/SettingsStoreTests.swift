@@ -313,7 +313,8 @@ struct SettingsExportTests {
         #expect(defaults.outerGapRight == 0)
         #expect(defaults.outerGapTop == 0)
         #expect(defaults.outerGapBottom == 0)
-        #expect(defaults.niriAlwaysCenterSingleColumn == false)
+        // niriAlwaysCenterSingleColumn removed in refactor; revealPartial replaces scroll-reveal
+        #expect(defaults.revealPartial == RevealPartial.default.rawValue)
         #expect(defaults.niriSingleWindowAspectRatio == SingleWindowAspectRatio.none.rawValue)
         #expect(defaults.niriDefaultColumnWidth == 0.5)
         #expect(defaults.workspaceConfigurations == BuiltInSettingsDefaults.workspaceConfigurations)

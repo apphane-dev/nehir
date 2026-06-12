@@ -319,14 +319,9 @@ extension NiriLayoutEngine {
         let totalColumnsWidth = cols.reduce(0) { $0 + $1.cachedWidth } + CGFloat(max(0, cols.count - 1)) * gaps
 
         let targetViewOffset = state.viewOffsetPixels.target()
-        let alwaysCenterSingleColumn = effectiveAlwaysCenterSingleColumn(in: workspaceId)
 
-        let centeringOffset: CGFloat = if totalColumnsWidth < workingFrame.width {
-            if alwaysCenterSingleColumn || cols.count == 1 {
-                (workingFrame.width - totalColumnsWidth) / 2
-            } else {
-                0
-            }
+        let centeringOffset: CGFloat = if totalColumnsWidth < workingFrame.width, cols.count == 1 {
+            (workingFrame.width - totalColumnsWidth) / 2
         } else {
             0
         }

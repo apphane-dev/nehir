@@ -1,8 +1,13 @@
 import Foundation
 
 enum ReconcileDebugDump {
+    private static var versionHeader: String {
+        "nehir v\(BuildVersion.display)"
+    }
+
     static func snapshot(_ snapshot: ReconcileSnapshot) -> String {
         var lines: [String] = [
+            versionHeader,
             "topology displays=\(snapshot.topologyProfile.displays.count)",
             "focused=\(snapshot.focusedToken.map(String.init(describing:)) ?? "nil")",
             "pending-focus=\(snapshot.focusSession.pendingManagedFocus.token.map(String.init(describing:)) ?? "nil")",
@@ -28,7 +33,8 @@ enum ReconcileDebugDump {
             return "trace empty"
         }
 
-        return truncated.map { record in
+        var output = [versionHeader]
+        output += truncated.map { record in
             var parts = [
                 "#\(record.sequence)",
                 record.timestamp.ISO8601Format(),
@@ -47,7 +53,7 @@ enum ReconcileDebugDump {
             }
             return parts.joined(separator: " ")
         }
-        .joined(separator: "\n")
+        return output.joined(separator: "\n")
     }
 
     private static func describe(_ state: ObservedWindowState) -> String {

@@ -123,10 +123,10 @@ final class CommandHandler {
             focusColumnLastInNiri()
         case let .focusColumn(index):
             focusColumnInNiri(index: index)
-        case .centerColumn:
-            controller.niriLayoutHandler.centerColumn()
-        case .centerVisibleColumns:
-            controller.niriLayoutHandler.centerVisibleColumns()
+        case .scrollViewportLeft:
+            controller.niriLayoutHandler.scrollViewport(direction: .left)
+        case .scrollViewportRight:
+            controller.niriLayoutHandler.scrollViewport(direction: .right)
         case .cycleColumnWidthForward:
             controller.niriLayoutHandler.cycleSize(forward: true)
         case .cycleColumnWidthBackward:

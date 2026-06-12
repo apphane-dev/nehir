@@ -1619,10 +1619,9 @@ final class WorkspaceManager {
         var changed = false
 
         let viewportState = niriViewportState(for: workspaceId)
-        if viewportState.selectedNodeId != nodeId || viewportState.allowsSelectionOffscreen {
+        if viewportState.selectedNodeId != nodeId {
             withNiriViewportState(for: workspaceId) {
                 $0.selectedNodeId = nodeId
-                $0.allowsSelectionOffscreen = false
             }
             changed = true
         }
@@ -3165,7 +3164,6 @@ final class WorkspaceManager {
     func setSelection(_ nodeId: NodeId?, for workspaceId: WorkspaceDescriptor.ID) {
         withNiriViewportState(for: workspaceId) {
             $0.selectedNodeId = nodeId
-            $0.allowsSelectionOffscreen = false
         }
     }
 

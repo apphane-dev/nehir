@@ -478,14 +478,14 @@ public enum IPCAutomationManifest {
             summary: "Focus the last Niri column."
         ),
         command(
-            ["center-column"],
-            name: .centerColumn,
-            summary: "Center the focused Niri column without changing focus."
+            ["scroll-viewport", "left"],
+            name: .scrollViewportLeft,
+            summary: "Scroll the Niri viewport left to the previous snap point."
         ),
         command(
-            ["center-visible-columns"],
-            name: .centerVisibleColumns,
-            summary: "Center the fully visible Niri columns around the active column."
+            ["scroll-viewport", "right"],
+            name: .scrollViewportRight,
+            summary: "Scroll the Niri viewport right to the next snap point."
         ),
         command(
             ["move"],

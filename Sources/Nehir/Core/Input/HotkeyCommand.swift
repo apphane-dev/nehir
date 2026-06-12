@@ -44,8 +44,8 @@ enum HotkeyCommand: Codable, Equatable, Hashable {
     case focusColumnFirst
     case focusColumnLast
     case focusColumn(Int)
-    case centerColumn
-    case centerVisibleColumns
+    case scrollViewportLeft
+    case scrollViewportRight
     case cycleColumnWidthForward
     case cycleColumnWidthBackward
     case cycleWindowWidthForward

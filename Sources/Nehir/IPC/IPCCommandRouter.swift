@@ -47,10 +47,10 @@ final class IPCCommandRouter {
             return controller.commandHandler.performCommand(.focusColumnFirst)
         case .focusColumnLast:
             return controller.commandHandler.performCommand(.focusColumnLast)
-        case .centerColumn:
-            return controller.commandHandler.performCommand(.centerColumn)
-        case .centerVisibleColumns:
-            return controller.commandHandler.performCommand(.centerVisibleColumns)
+        case .scrollViewportLeft:
+            return controller.commandHandler.performCommand(.scrollViewportLeft)
+        case .scrollViewportRight:
+            return controller.commandHandler.performCommand(.scrollViewportRight)
         case let .move(ipcDirection):
             return controller.commandHandler.performCommand(.move(direction(for: ipcDirection)))
         case .moveWindowDown:

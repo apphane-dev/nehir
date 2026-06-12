@@ -185,8 +185,6 @@ extension NiriLayoutEngine {
             return
         }
 
-        let prevIdx = fromContainerIndex ?? state.activeColumnIndex
-
         let sizeKeyPath: KeyPath<NiriContainer, CGFloat>
         let viewportSpan: CGFloat
         switch orientation {
@@ -199,7 +197,6 @@ extension NiriLayoutEngine {
         }
 
         let scale = displayScale(in: workspaceId)
-        let viewFrame = monitorForWorkspace(workspaceId)?.frame
         let oldActivePos = previousActiveContainerPosition
             ?? state.containerPosition(
                 at: state.activeColumnIndex,
@@ -220,24 +217,23 @@ extension NiriLayoutEngine {
         state.activatePrevColumnOnRemoval = nil
         state.viewOffsetToRestore = nil
 
-        let settings = effectiveSettings(in: workspaceId)
-        state.ensureContainerVisible(
-            containerIndex: targetIdx,
-            containers: containers,
-            gap: gaps,
-            viewportSpan: viewportSpan,
-            motion: motion,
-            sizeKeyPath: sizeKeyPath,
-            animate: true,
-            centerMode: settings.centerFocusedColumn,
-            alwaysCenterSingleColumn: settings.alwaysCenterSingleColumn,
-            animationConfig: animationConfig,
-            fromContainerIndex: prevIdx,
-            scale: scale,
-            workingArea: workingFrame,
-            viewFrame: viewFrame,
-            orientation: orientation
-        )
+        if orientation == .horizontal {
+            scrollToReveal(
+                columnIndex: targetIdx,
+                isFFM: false,
+                state: &state,
+                context: makeViewportSnapContext(
+                    columns: containers,
+                    state: state,
+                    workingFrame: workingFrame,
+                    gaps: gaps,
+                    viewportWidth: viewportSpan
+                ),
+                motion: motion,
+                scale: scale,
+                animationConfig: animationConfig
+            )
+        }
 
         state.selectionProgress = 0.0
     }

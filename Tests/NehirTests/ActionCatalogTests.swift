@@ -85,13 +85,13 @@ import Testing
     }
 
     @Test func niriViewportActionsUsePublicCommandDescriptors() throws {
-        let center = try #require(ActionCatalog.spec(for: "centerColumn"))
-        let visible = try #require(ActionCatalog.spec(for: "centerVisibleColumns"))
+        let left = try #require(ActionCatalog.spec(for: "scrollViewport.left"))
+        let right = try #require(ActionCatalog.spec(for: "scrollViewport.right"))
 
-        #expect(center.ipcCommandName == .centerColumn)
-        #expect(center.ipcDescriptor?.path == "command center-column")
-        #expect(visible.ipcCommandName == .centerVisibleColumns)
-        #expect(visible.ipcDescriptor?.path == "command center-visible-columns")
+        #expect(left.ipcCommandName == .scrollViewportLeft)
+        #expect(left.ipcDescriptor?.path == "command scroll-viewport left")
+        #expect(right.ipcCommandName == .scrollViewportRight)
+        #expect(right.ipcDescriptor?.path == "command scroll-viewport right")
     }
 
     @Test func niriWindowMoveActionsUsePublicCommandDescriptors() throws {

@@ -18,14 +18,37 @@ struct BehaviorSettingsTab: View {
                 }
                 SettingsCaption("Moves keyboard focus to whichever window is under the cursor.")
 
-                Toggle("Follow Window to Monitor", isOn: $settings.focusFollowsWindowToMonitor)
-                SettingsCaption("When a window moves to another monitor, keyboard focus follows it there.")
-
-                Toggle("Move Cursor to Focused Window", isOn: $settings.moveMouseToFocusedWindow)
+                Toggle(isOn: $settings.moveMouseToFocusedWindow) {
+                    HStack(spacing: 8) {
+                        Text("Move Cursor to Focused Window")
+                        ExperimentalBadge()
+                    }
+                }
                     .onChange(of: settings.moveMouseToFocusedWindow) { _, newValue in
                         controller.setMoveMouseToFocusedWindow(newValue)
                     }
                 SettingsCaption("Warps the cursor to the center of a window when it receives keyboard focus.")
+            }
+
+            Section("Navigation") {
+                Toggle("Wrap Navigation at Edges", isOn: $settings.niriInfiniteLoop)
+                    .onChange(of: settings.niriInfiniteLoop) { _, newValue in
+                        controller.updateNiriConfig(infiniteLoop: newValue)
+                    }
+                SettingsCaption("When navigating past the last column, wrap around to the first.")
+
+                Toggle("Follow Window to Workspace", isOn: $settings.focusFollowsWindowToMonitor)
+                SettingsCaption("When moving a window to another workspace, switches your active workspace to follow it.")
+
+                Picker("Reveal Partial", selection: $settings.revealPartial) {
+                    ForEach(RevealPartial.allCases, id: \.self) { policy in
+                        Text(policy.displayName).tag(policy)
+                    }
+                }
+                .onChange(of: settings.revealPartial) { _, newValue in
+                    controller.updateNiriConfig(revealPartial: newValue)
+                }
+                SettingsCaption("Default uses closest snap only when that snap aligns both viewport edges and visible columns fill the viewport; otherwise it centers.")
             }
 
             Section("Scroll Gestures") {
@@ -52,9 +75,6 @@ struct BehaviorSettingsTab: View {
 
                 SettingsCaption(settings.gestureInvertDirection ? "Swipe right = scroll right" : "Swipe right = scroll left")
 
-                Toggle("Snap to Column", isOn: $settings.gestureScrollSnap)
-                    .disabled(!settings.scrollGestureEnabled)
-
                 Picker("Mouse Scroll Modifier", selection: $settings.scrollModifierKey) {
                     ForEach(ScrollModifierKey.allCases, id: \.self) { key in
                         Text(key.displayName).tag(key)
@@ -66,13 +86,13 @@ struct BehaviorSettingsTab: View {
             }
 
             Section("Mouse Resize") {
-                Picker("Right Mouse Resize Modifier", selection: $settings.mouseResizeModifierKey) {
+                Picker("Mouse Modifier", selection: $settings.mouseResizeModifierKey) {
                     ForEach(MouseResizeModifierKey.allCases, id: \.self) { key in
                         Text(key.displayName).tag(key)
                     }
                 }
 
-                SettingsCaption("Hold this modifier combo + right mouse drag to resize tiled windows")
+                SettingsCaption("Hold this modifier combo to resize with right mouse drag, or during a trackpad scroll gesture to bypass snap.")
             }
         }
         .formStyle(.grouped)

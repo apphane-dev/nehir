@@ -157,9 +157,12 @@ struct ViewportState {
 
     var viewOffsetToRestore: CGFloat?
 
-    var allowsSelectionOffscreen: Bool = false
-
     var activatePrevColumnOnRemoval: CGFloat?
+
+    var pendingFFMFocusToken: WindowToken?
+    var pendingFFMFocusTimestamp: Date?
+    var recentFFMFocusToken: WindowToken?
+    var recentFFMFocusTimestamp: Date?
 
     let springConfig: SpringConfig = .niriHorizontalViewMovement
 

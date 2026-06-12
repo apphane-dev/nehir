@@ -145,18 +145,18 @@ private func sampleRuleOptionValue(for flag: String) -> String {
     }
 
     @Test func parsesNiriViewportCommands() throws {
-        let center = try CLIParser.parse(arguments: ["nehirctl", "command", "center-column"])
-        let visible = try CLIParser.parse(arguments: ["nehirctl", "command", "center-visible-columns"])
+        let left = try CLIParser.parse(arguments: ["nehirctl", "command", "scroll-viewport", "left"])
+        let right = try CLIParser.parse(arguments: ["nehirctl", "command", "scroll-viewport", "right"])
 
-        guard case let .command(centerCommand) = center.request.payload,
-              case let .command(visibleCommand) = visible.request.payload
+        guard case let .command(leftCommand) = left.request.payload,
+              case let .command(rightCommand) = right.request.payload
         else {
             Issue.record("Expected command payloads")
             return
         }
 
-        #expect(centerCommand == .centerColumn)
-        #expect(visibleCommand == .centerVisibleColumns)
+        #expect(leftCommand == .scrollViewportLeft)
+        #expect(rightCommand == .scrollViewportRight)
     }
 
     @Test func parsesNiriColumnMoveCommands() throws {
