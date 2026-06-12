@@ -31,6 +31,13 @@ final class CommandHandler {
     }
 
     @discardableResult
+    func performRestartClearingRuntimeState(enableTracing: Bool = false) -> ExternalCommandResult {
+        guard let controller else { return .notFound }
+        controller.restartAppClearingRuntimeState(enableTracing: enableTracing)
+        return .executed
+    }
+
+    @discardableResult
     func performCommand(_ command: HotkeyCommand) -> ExternalCommandResult {
         guard let controller else { return .notFound }
         guard controller.isEnabled else { return .ignoredDisabled }
