@@ -2479,11 +2479,11 @@ final class WMController {
         layoutRefreshController.requestFullRescan(reason: .startup)
     }
 
-    func restartAppClearingRuntimeState() {
+    func restartAppClearingRuntimeState(enableTracing: Bool = false) {
         resetRuntimeState()
         workspaceManager.prepareForRestartClearingRuntimeState()
 
-        guard relaunchCurrentApplication() else {
+        guard relaunchCurrentApplication(extraArguments: enableTracing ? [Self.traceLaunchArgument] : []) else {
             Self.runtimeDebugLogger.error("Failed to schedule relaunch after runtime reset")
             return
         }
@@ -2623,17 +2623,18 @@ final class WMController {
         return baseDirectory.appendingPathComponent(filename, isDirectory: false)
     }
 
-    private func relaunchCurrentApplication() -> Bool {
+    private func relaunchCurrentApplication(extraArguments: [String] = []) -> Bool {
         let executablePath = (Bundle.main.executableURL?.path).flatMap { $0.isEmpty ? nil : $0 }
             ?? ProcessInfo.processInfo.arguments.first
         guard let executablePath else { return false }
 
-        let executableArguments = ProcessInfo.processInfo.arguments.dropFirst()
-            .map(Self.shellQuote)
-            .joined(separator: " ")
-        let command = executableArguments.isEmpty
+        var allArguments = ProcessInfo.processInfo.arguments.dropFirst()
+            .filter { $0 != Self.traceLaunchArgument }
+        allArguments.append(contentsOf: extraArguments)
+        let quotedArguments = allArguments.map(Self.shellQuote).joined(separator: " ")
+        let command = quotedArguments.isEmpty
             ? "sleep 0.5; \(Self.shellQuote(executablePath)) >/dev/null 2>&1 &"
-            : "sleep 0.5; \(Self.shellQuote(executablePath)) \(executableArguments) >/dev/null 2>&1 &"
+            : "sleep 0.5; \(Self.shellQuote(executablePath)) \(quotedArguments) >/dev/null 2>&1 &"
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/sh")
@@ -2647,6 +2648,8 @@ final class WMController {
             return false
         }
     }
+
+    static let traceLaunchArgument = "--nehir-trace"
 
     private static func shellQuote(_ value: String) -> String {
         "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"

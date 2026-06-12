@@ -18,7 +18,7 @@ final class StatusBarMenuBuilder {
     private weak var controller: WMController?
     var infoAlertPresenter: (String, String) -> Void
     var confirmationAlertPresenter: (String, String, String, String) -> Bool
-    var settingsFileActionPerformer: (SettingsFileAction, SettingsStore) throws -> SettingsFileStatus
+    var restartConfirmationPresenter: (String, String, String, String) -> (confirmed: Bool, enableTracing: Bool)
     private var toggleViews: [String: MenuToggleRowView] = [:]
 
     init(settings: SettingsStore, controller: WMController) {
@@ -33,21 +33,11 @@ final class StatusBarMenuBuilder {
             NSApplication.shared.activate(ignoringOtherApps: true)
             _ = alert.runModal()
         }
-        confirmationAlertPresenter = { title, message, confirmTitle, cancelTitle in
-            let alert = NSAlert()
-            alert.alertStyle = .warning
-            alert.messageText = title
-            alert.informativeText = message
-            alert.addButton(withTitle: confirmTitle)
-            alert.addButton(withTitle: cancelTitle)
-            NSApplication.shared.activate(ignoringOtherApps: true)
-            return alert.runModal() == .alertFirstButtonReturn
+        confirmationAlertPresenter = { title, message, confirmTitle, _ in
+            DestructiveConfirmationAlert.confirm(title: title, message: message, confirmTitle: confirmTitle)
         }
-        settingsFileActionPerformer = { action, settings in
-            try SettingsFileWorkflow.perform(
-                action,
-                settings: settings
-            )
+        restartConfirmationPresenter = { title, message, confirmTitle, _ in
+            DestructiveConfirmationAlert.confirmRestart(title: title, message: message, confirmTitle: confirmTitle)
         }
     }
 
@@ -205,39 +195,6 @@ final class StatusBarMenuBuilder {
         let settingsItem = NSMenuItem()
         settingsItem.view = settingsRow
         menu.addItem(settingsItem)
-
-        menu.addItem(createSectionLabel("CONFIG FILES"))
-
-        let revealSettingsFileRow = MenuActionRowView(
-            icon: "folder",
-            label: "Reveal Config Folder",
-        ) { [weak self] in
-            self?.performSettingsFileAction(.revealConfigFolder)
-        }
-        let revealSettingsFileItem = NSMenuItem()
-        revealSettingsFileItem.view = revealSettingsFileRow
-        menu.addItem(revealSettingsFileItem)
-
-        let openSettingsFileRow = MenuActionRowView(
-            icon: "pencil",
-            label: "Edit settings.toml",
-        ) { [weak self] in
-            self?.performSettingsFileAction(.openMainSettingsFile)
-        }
-        let openSettingsFileItem = NSMenuItem()
-        openSettingsFileItem.view = openSettingsFileRow
-        menu.addItem(openSettingsFileItem)
-    }
-
-    func performSettingsFileAction(_ action: SettingsFileAction) {
-        do {
-            _ = try settingsFileActionPerformer(
-                action,
-                settings
-            )
-        } catch {
-            NSLog("Nehir settings file action failed: \(error.localizedDescription)")
-        }
     }
 
     private func presentInfoAlert(title: String, message: String) {
@@ -271,14 +228,14 @@ final class StatusBarMenuBuilder {
             isDestructive: true
         ) { [weak self] in
             guard let self, let controller = self.controller else { return }
-            let confirmed = self.confirmationAlertPresenter(
+            let result = self.restartConfirmationPresenter(
                 "Restart Clearing Runtime State",
                 "This will clear runtime state and relaunch the app. Continue?",
                 "Restart",
                 "Cancel"
             )
-            guard confirmed else { return }
-            _ = controller.commandHandler.performCommand(.debugRestartClearingRuntimeState)
+            guard result.confirmed else { return }
+            _ = controller.commandHandler.performRestartClearingRuntimeState(enableTracing: result.enableTracing)
         }
         let restartItem = NSMenuItem()
         restartItem.view = restartRow

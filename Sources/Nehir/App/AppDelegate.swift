@@ -39,11 +39,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func bootstrapApplication() {
         switch AppBootstrapPlanner.decision() {
         case .boot:
-            finishBootstrap()
+            finishBootstrap(
+                enableTracing: ProcessInfo.processInfo.arguments.contains(WMController.traceLaunchArgument)
+            )
         }
     }
 
-    func finishBootstrap() {
+    func finishBootstrap(enableTracing: Bool = false) {
         let storagePaths = NehirStoragePaths.live
 
         let runtimeState = RuntimeStateStore(directory: storagePaths.stateDirectory)
@@ -56,6 +58,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let controller = WMController(
             settings: settings
         )
+        if enableTracing {
+            _ = controller.toggleRuntimeTraceCapture(desiredState: .active)
+        }
         controller.applyPersistedSettings(settings)
         let cliManager = AppCLIManager()
         self.cliManager = cliManager

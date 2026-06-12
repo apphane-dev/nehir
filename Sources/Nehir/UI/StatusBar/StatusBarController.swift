@@ -68,7 +68,11 @@ final class StatusBarController: NSObject {
     private func showMenu() {
         rebuildMenu()
         guard let button = statusItem?.button, let menu else { return }
-        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: button.bounds.height + 5), in: button)
+        // Anchor the menu at the button edge. Offsetting it below the status item
+        // makes AppKit think the menu is partially outside the usable menu area on
+        // some displays, so it initially draws the menu's scroll affordance until
+        // the mouse moves over the menu.
+        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: button.bounds.height), in: button)
     }
 
     private func handleRightClick() {

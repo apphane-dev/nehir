@@ -26,75 +26,24 @@ import Testing
         #expect(try #require(darkMenu.items.dropFirst(3).first?.view).appearance?.name == .darkAqua)
     }
 
-    @Test func buildMenuIncludesSettingsFileActions() {
+    @Test func resetActionRequiresConfirmation() throws {
         let controller = makeLayoutPlanTestController()
+        controller.settings.developerModeEnabled = true
         let builder = StatusBarMenuBuilder(settings: controller.settings, controller: controller)
+        var confirmationRequested = false
+        builder.confirmationAlertPresenter = { _, _, _, _ in
+            confirmationRequested = true
+            return false
+        }
 
         let menu = builder.buildMenu()
         let labels = menu.items.compactMap(\.view).flatMap(textLabels(in:))
+        #expect(labels.contains("Reset Runtime State"))
+        #expect(labels.contains("Restart Clearing State"))
 
-        #expect(labels.contains("CONFIG FILES"))
-        #expect(labels.contains("Reveal Config Folder"))
-        #expect(labels.contains("Edit settings.toml"))
-        #expect(labels.allSatisfy { !$0.localizedCaseInsensitiveContains("export") })
-        #expect(labels.allSatisfy { !$0.localizedCaseInsensitiveContains("import") })
-    }
-
-    @Test func settingsFileMenuRowsDelegateExpectedActions() throws {
-        let controller = makeLayoutPlanTestController()
-        let settings = controller.settings
-        let builder = StatusBarMenuBuilder(settings: settings, controller: controller)
-        var performedActions: [SettingsFileAction] = []
-        builder.settingsFileActionPerformer = { action, receivedSettings in
-            #expect(receivedSettings.settingsFileURL == settings.settingsFileURL)
-            performedActions.append(action)
-            return action == .revealConfigFolder ? .revealedConfigFolder : .openedSettingsFile
-        }
-
-        let menu = builder.buildMenu()
-
-        try actionRow(in: menu, labeled: "Reveal Config Folder").performActionForTests()
-        try actionRow(in: menu, labeled: "Edit settings.toml").performActionForTests()
-
-        #expect(performedActions == [.revealConfigFolder, .openMainSettingsFile])
-    }
-
-    @Test func revealActionDoesNotPresentPopup() {
-        let controller = makeLayoutPlanTestController()
-        let settings = controller.settings
-        let builder = StatusBarMenuBuilder(settings: settings, controller: controller)
-        var didPresentAlert = false
-        var performedAction: SettingsFileAction?
-        builder.infoAlertPresenter = { _, _ in
-            didPresentAlert = true
-        }
-        builder.settingsFileActionPerformer = { action, receivedSettings in
-            performedAction = action
-            #expect(receivedSettings.settingsFileURL == settings.settingsFileURL)
-            return .revealedConfigFolder
-        }
-
-        builder.performSettingsFileAction(.revealConfigFolder)
-
-        #expect(performedAction == .revealConfigFolder)
-        #expect(didPresentAlert == false)
-        #expect(settings.settingsFileURL.lastPathComponent == "settings.toml")
-    }
-
-    @Test func openActionFailureDoesNotPresentPopup() {
-        let controller = makeLayoutPlanTestController()
-        let builder = StatusBarMenuBuilder(settings: controller.settings, controller: controller)
-        var didPresentAlert = false
-        builder.infoAlertPresenter = { _, _ in
-            didPresentAlert = true
-        }
-        builder.settingsFileActionPerformer = { _, _ in
-            throw CocoaError(.fileNoSuchFile)
-        }
-
-        builder.performSettingsFileAction(.openMainSettingsFile)
-
-        #expect(didPresentAlert == false)
+        // Declining confirmation should prevent execution
+        try actionRow(in: menu, labeled: "Reset Runtime State").performActionForTests()
+        #expect(confirmationRequested == true)
     }
 
     @Test func statusBarTitleUsesInteractionMonitorWorkspaceAndFocusedApp() {

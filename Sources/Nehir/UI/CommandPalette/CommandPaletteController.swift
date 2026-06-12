@@ -866,6 +866,25 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
                 environment.performMenuAction(element)
             }
         case let .executeCommand(wmController, command):
+            switch command {
+            case .debugResetRuntimeState:
+                guard DestructiveConfirmationAlert.confirm(
+                    title: "Reset Runtime State",
+                    message: "This will clear all runtime state and rebootstrap from a rescan. Continue?",
+                    confirmTitle: "Reset"
+                ) else { return }
+            case .debugRestartClearingRuntimeState:
+                let result = DestructiveConfirmationAlert.confirmRestart(
+                    title: "Restart Clearing Runtime State",
+                    message: "This will clear runtime state and relaunch the app. Continue?",
+                    confirmTitle: "Restart"
+                )
+                guard result.confirmed else { return }
+                wmController.commandHandler.performRestartClearingRuntimeState(enableTracing: result.enableTracing)
+                return
+            default:
+                break
+            }
             wmController.commandHandler.handleCommand(command)
         }
     }
