@@ -1904,7 +1904,7 @@ final class AXEventHandler: CGSEventDelegate {
            !controller.workspaceManager.isNonManagedFocusActive,
            !controller.shouldSuppressMouseMoveToFocusedWindow(for: entry.token)
         {
-            controller.moveMouseToWindow(entry.token, preferredFrame: preferredMouseFrame)
+            controller.moveMouseToWindow(entry.token, preferredFrame: preferredMouseFrame, reason: "axFocusConfirmed")
         }
     }
 

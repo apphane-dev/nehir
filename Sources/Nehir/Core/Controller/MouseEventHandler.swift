@@ -817,6 +817,7 @@ final class MouseEventHandler {
         button: MouseButton
     ) -> Bool {
         guard let controller else { return false }
+        traceMouseFocus("mouseDown loc=\(formatPoint(location)) button=\(button) pressedButtons=\(pressedMouseButtonsProvider()) modifiers=\(modifiers.rawValue) moving=\(state.isMoving) resizing=\(state.isResizing)")
         guard controller.isEnabled else { return false }
         if controller.isOverviewOpen() { return false }
 
@@ -944,8 +945,13 @@ final class MouseEventHandler {
         if button == .left {
             markRecentFloatingPointerInteractionIfNeeded(at: location)
         }
+        let pressedButtons = pressedMouseButtonsProvider()
+        traceMouseFocus("mouseDrag loc=\(formatPoint(location)) button=\(button) pressedButtons=\(pressedButtons) requirePressedCheck=\(requirePressedButtonCheck) moving=\(state.isMoving) resizing=\(state.isResizing) activeButton=\(String(describing: state.activeInteractionButton))")
         if requirePressedButtonCheck {
-            guard pressedMouseButtonsProvider() & button.pressedMask != 0 else { return }
+            guard pressedButtons & button.pressedMask != 0 else {
+                traceMouseFocus("mouseDrag.skip reason=buttonNotPressed loc=\(formatPoint(location)) button=\(button) pressedButtons=\(pressedButtons)")
+                return
+            }
         }
 
         if state.isMoving {
@@ -956,6 +962,7 @@ final class MouseEventHandler {
                 return
             }
 
+            traceMouseFocus("mouseDrag.interactiveMoveUpdate loc=\(formatPoint(location)) workspace=\(wsId.uuidString)")
             let hoverTarget = engine.interactiveMoveUpdate(currentLocation: location, in: wsId)
             state.dragGhostController?.updatePosition(cursorLocation: location)
 
@@ -1021,6 +1028,7 @@ final class MouseEventHandler {
         if button == .left {
             markRecentFloatingPointerInteractionIfNeeded(at: location)
         }
+        traceMouseFocus("mouseUp loc=\(formatPoint(location)) button=\(button) pressedButtons=\(pressedMouseButtonsProvider()) moving=\(state.isMoving) resizing=\(state.isResizing) activeButton=\(String(describing: state.activeInteractionButton))")
 
         if state.isMoving {
             guard shouldAcceptInteractionButton(button) else { return }

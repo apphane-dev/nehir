@@ -185,7 +185,7 @@ enum NiriWindowMoveResult {
            let token = controller.workspaceManager.confirmedManagedFocusToken,
            !controller.shouldSuppressMouseMoveToFocusedWindow(for: token)
         {
-            controller.moveMouseToWindow(token, preferredFrame: controller.preferredKeyboardFocusFrame(for: token))
+            controller.moveMouseToWindow(token, preferredFrame: controller.preferredKeyboardFocusFrame(for: token), reason: "niriAnimationSettled")
         }
     }
 
