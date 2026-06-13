@@ -3272,26 +3272,70 @@ final class WMController {
         focusWindow(nextFocusToken)
     }
 
-    func moveMouseToWindow(_ handle: WindowHandle, preferredFrame: CGRect? = nil) {
-        moveMouseToWindow(handle.id, preferredFrame: preferredFrame)
+    func moveMouseToWindow(_ handle: WindowHandle, preferredFrame: CGRect? = nil, reason: String = "unspecified") {
+        moveMouseToWindow(handle.id, preferredFrame: preferredFrame, reason: reason)
     }
 
-    func moveMouseToWindow(_ token: WindowToken, preferredFrame: CGRect? = nil) {
-        guard let entry = workspaceManager.entry(for: token) else { return }
-        guard let frame = preferredFrame ?? AXWindowService.framePreferFast(entry.axRef) else { return }
+    func moveMouseToWindow(_ token: WindowToken, preferredFrame: CGRect? = nil, reason: String = "unspecified") {
+        guard let entry = workspaceManager.entry(for: token) else {
+            recordRuntimeMouseTrace("moveMouseToFocused.skip reason=noEntry source=\(reason) token=\(token)")
+            return
+        }
+        let frameSource = preferredFrame == nil ? "ax" : "preferred"
+        guard let frame = preferredFrame ?? AXWindowService.framePreferFast(entry.axRef) else {
+            recordRuntimeMouseTrace("moveMouseToFocused.skip reason=noFrame source=\(reason) token=\(token) frameSource=\(frameSource)")
+            return
+        }
 
         let center = frame.center
+        let pressedButtons = NSEvent.pressedMouseButtons
+        let centerOnScreen = NSScreen.screens.contains(where: { $0.frame.contains(center) })
+        if isRuntimeTraceCaptureActive {
+            let current = NSEvent.mouseLocation
+            recordRuntimeMouseTrace(
+                "moveMouseToFocused.request source=\(reason) token=\(token) frame=\(formatTraceRect(frame)) frameSource=\(frameSource) current=\(formatTracePoint(current)) dest=\(formatTracePoint(center)) pressedButtons=\(pressedButtons) centerOnScreen=\(centerOnScreen)"
+            )
+        }
 
-        guard NSScreen.screens.contains(where: { $0.frame.contains(center) }) else { return }
+        guard centerOnScreen else {
+            if isRuntimeTraceCaptureActive {
+                recordRuntimeMouseTrace("moveMouseToFocused.skip reason=centerOffscreen source=\(reason) token=\(token) dest=\(formatTracePoint(center))")
+            }
+            return
+        }
+        guard pressedButtons == 0 else {
+            if isRuntimeTraceCaptureActive {
+                recordRuntimeMouseTrace("moveMouseToFocused.skip reason=mouseButtonPressed source=\(reason) token=\(token) pressedButtons=\(pressedButtons) dest=\(formatTracePoint(center))")
+            }
+            return
+        }
 
-        warpMouseCursorPosition(ScreenCoordinateSpace.toWindowServer(point: center))
+        let windowServerCenter = ScreenCoordinateSpace.toWindowServer(point: center)
+        warpMouseCursorPosition(windowServerCenter)
+        if isRuntimeTraceCaptureActive {
+            recordRuntimeMouseTrace("moveMouseToFocused.perform source=\(reason) token=\(token) dest=\(formatTracePoint(center)) windowServerDest=\(formatTracePoint(windowServerCenter)) pressedButtons=\(pressedButtons)")
+        }
     }
 
     func moveMouseToMonitor(_ monitor: Monitor) {
         let center = monitor.visibleFrame.center
+        let pressedButtons = NSEvent.pressedMouseButtons
+        guard pressedButtons == 0 else {
+            recordRuntimeMouseTrace("moveMouseToMonitor.skip reason=mouseButtonPressed monitor=\(monitor.displayId) dest=\(formatTracePoint(center)) pressedButtons=\(pressedButtons)")
+            return
+        }
+        recordRuntimeMouseTrace("moveMouseToMonitor.perform monitor=\(monitor.displayId) frame=\(formatTraceRect(monitor.visibleFrame)) dest=\(formatTracePoint(center)) pressedButtons=\(pressedButtons)")
         warpMouseCursorPosition(
             ScreenCoordinateSpace.toWindowServer(point: center, displayId: monitor.displayId)
         )
+    }
+
+    private func formatTracePoint(_ point: CGPoint) -> String {
+        String(format: "(%.1f,%.1f)", point.x, point.y)
+    }
+
+    private func formatTraceRect(_ rect: CGRect) -> String {
+        String(format: "(%.1f,%.1f %.1fx%.1f)", rect.minX, rect.minY, rect.width, rect.height)
     }
 
     func runningAppsWithWindows() -> [RunningAppInfo] {

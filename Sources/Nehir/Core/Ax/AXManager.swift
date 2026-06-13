@@ -233,6 +233,55 @@ final class AXManager {
         inactiveWorkspaceWindowIds.removeAll()
     }
 
+    /// Clears cached frame deduplication state so that every managed window will
+    /// receive a fresh frame write on the next layout pass.
+    ///
+    /// macOS repositions windows during display reconfiguration (adding/removing
+    /// monitors, resolution changes, KVM switches). The frame-dedup cache
+    /// (`lastAppliedFrames`) still contains the pre-reconfiguration positions, so
+    /// the layout engine incorrectly assumes those windows are already in place and
+    /// skips the frame write. Clearing the cache forces a fresh write for every
+    /// window, correcting positions that macOS may have moved.
+    func invalidateCachedFrameState() {
+        let cancelledObserverResults = pendingFrameObserversByRequestId.map { requestId, pendingObserver in
+            (
+                pendingObserver,
+                AXFrameApplyResult(
+                    requestId: requestId,
+                    pid: pendingObserver.pid,
+                    windowId: pendingObserver.windowId,
+                    targetFrame: pendingObserver.targetFrame,
+                    currentFrameHint: pendingFrameWrites[pendingObserver.windowId]
+                        ?? pendingObserver.currentFrameHint
+                        ?? lastAppliedFrames[pendingObserver.windowId],
+                    writeResult: .skipped(
+                        targetFrame: pendingObserver.targetFrame,
+                        currentFrameHint: pendingFrameWrites[pendingObserver.windowId]
+                            ?? pendingObserver.currentFrameHint
+                            ?? lastAppliedFrames[pendingObserver.windowId],
+                        failureReason: .cancelled,
+                        observedFrame: pendingFrameWrites[pendingObserver.windowId]
+                            ?? pendingObserver.currentFrameHint
+                            ?? lastAppliedFrames[pendingObserver.windowId]
+                    )
+                )
+            )
+        }
+
+        lastAppliedFrames.removeAll(keepingCapacity: true)
+        pendingFrameWrites.removeAll(keepingCapacity: true)
+        recentFrameWriteFailures.removeAll(keepingCapacity: true)
+        retryBudgetByWindowId.removeAll(keepingCapacity: true)
+        pendingFrameObserversByRequestId.removeAll(keepingCapacity: true)
+        observerRequestIdByWindowId.removeAll(keepingCapacity: true)
+
+        for (pendingObserver, result) in cancelledObserverResults {
+            for observer in pendingObserver.observers {
+                observer(result)
+            }
+        }
+    }
+
     func resetRuntimeState() {
         framesByPidBuffer.removeAll()
         lastAppliedFrames.removeAll()

@@ -3334,8 +3334,8 @@ final class LayoutDiffExecutor {
             }
         }
 
+        var visibleJobs: [(pid: pid_t, windowId: Int)] = []
         if !restoreEntries.isEmpty || !shownEntries.isEmpty {
-            var visibleJobs: [(pid: pid_t, windowId: Int)] = []
             visibleJobs.reserveCapacity(restoreEntries.count + shownEntries.count)
             var seenTokens: Set<WindowToken> = []
 
@@ -3359,7 +3359,6 @@ final class LayoutDiffExecutor {
                         SkyLight.shared.orderWindow(skyLightWindowId, relativeTo: 0, order: .above)
                     }
                 }
-                controller.axManager.unsuppressFrameWrites(visibleJobs)
             }
         }
 
@@ -3403,6 +3402,21 @@ final class LayoutDiffExecutor {
             for update in frameUpdates {
                 LayoutTrace.log("  frameWrite id=\(update.windowId) -> \(LayoutTrace.rect(update.frame))")
             }
+        }
+
+        let visibleFrameJobs = (frameUpdates + resizeMinimumProbeFrameUpdates + revealFrameUpdates)
+            .map { (pid: $0.pid, windowId: $0.windowId) }
+        var activeFrameJobs: [(pid: pid_t, windowId: Int)] = []
+        activeFrameJobs.reserveCapacity(visibleJobs.count + visibleFrameJobs.count)
+        var seenActiveWindowIds: Set<Int> = []
+        for job in visibleJobs + visibleFrameJobs where seenActiveWindowIds.insert(job.windowId).inserted {
+            activeFrameJobs.append(job)
+        }
+        if !activeFrameJobs.isEmpty {
+            for job in activeFrameJobs {
+                controller.axManager.markWindowActive(job.windowId)
+            }
+            controller.axManager.unsuppressFrameWrites(activeFrameJobs)
         }
 
         if !frameUpdates.isEmpty {

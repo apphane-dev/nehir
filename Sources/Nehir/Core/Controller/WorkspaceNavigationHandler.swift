@@ -132,6 +132,9 @@ final class WorkspaceNavigationHandler {
     ) {
         guard let controller else { return }
         let handoff = resolveWorkspaceTransitionFocusHandoff(for: targetWorkspaceId)
+        let focusedTokenNeedsRevealRelayout = handoff.focusToken.flatMap {
+            controller.workspaceManager.hiddenState(for: $0)
+        }?.workspaceInactive == true
         if let monitor {
             controller.layoutRefreshController.stopScrollAnimation(for: monitor.displayId)
         }
@@ -141,6 +144,13 @@ final class WorkspaceNavigationHandler {
             guard let controller else { return }
             if let focusToken = handoff.focusToken {
                 controller.focusWindow(focusToken)
+                if focusedTokenNeedsRevealRelayout {
+                    controller.axManager.forceApplyNextFrame(for: focusToken.windowId)
+                    controller.layoutRefreshController.requestImmediateRelayout(
+                        reason: .workspaceTransition,
+                        affectedWorkspaceIds: [targetWorkspaceId]
+                    )
+                }
             } else if handoff.shouldClearManagedFocus {
                 self?.clearManagedFocusAfterEmptyWorkspaceSwitch(to: monitor)
             }
