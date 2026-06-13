@@ -39,8 +39,6 @@ struct SettingsDetailView: View {
             AppRulesView(settings: settings, controller: controller)
         case .hotkeys:
             HotkeySettingsView(settings: settings, controller: controller)
-        case .configFiles:
-            ConfigFilesSettingsTab(settings: settings)
         case .diagnostics:
             DisplayDiagnosticsSettingsTab()
         }
