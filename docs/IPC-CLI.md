@@ -351,6 +351,7 @@ When a managed floating window has keyboard focus, focused-window commands targe
 |---------|-----------|---------|-------------|
 | `command open-command-palette` | — | command | Toggle the command palette |
 | `command open-menu-anywhere` | — | command | Open the menu surface |
+| `command open-settings` | — | command | Open the Nehir settings window |
 | `command toggle-workspace-bar` | — | command | Toggle workspace bar visibility |
 | `command toggle-overview` | — | command | Toggle the overview surface |
 

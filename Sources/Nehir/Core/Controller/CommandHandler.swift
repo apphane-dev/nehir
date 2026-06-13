@@ -185,6 +185,8 @@ final class CommandHandler {
             return controller.toggleScratchpadWindow()
         case .openMenuAnywhere:
             controller.openMenuAnywhere()
+        case .openSettings:
+            SettingsWindowController.shared.show(settings: controller.settings, controller: controller)
         case .debugDumpRuntimeState:
             controller.dumpRuntimeState()
         case .debugResetRuntimeState:

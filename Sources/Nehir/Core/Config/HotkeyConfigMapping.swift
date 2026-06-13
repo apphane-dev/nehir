@@ -111,6 +111,7 @@ enum HotkeyConfigMapping {
         // ui
         ("ui", "commandPalette", "openCommandPalette"),
         ("ui", "menuAnywhere", "openMenuAnywhere"),
+        ("ui", "settings", "openSettings"),
         ("ui", "toggleOverview", "toggleOverview"),
         ("ui", "toggleWorkspaceBar", "toggleWorkspaceBarVisibility"),
         // ui toggles

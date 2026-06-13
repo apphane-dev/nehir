@@ -180,6 +180,8 @@ final class IPCCommandRouter {
             return toggleScratchpad()
         case .openMenuAnywhere:
             return controller.commandHandler.performCommand(.openMenuAnywhere)
+        case .openSettings:
+            return controller.commandHandler.performCommand(.openSettings)
         case .debugDumpRuntimeState:
             guard controller.settings.developerModeEnabled else { return .requiresDeveloperMode }
             return controller.commandHandler.performCommand(.debugDumpRuntimeState)

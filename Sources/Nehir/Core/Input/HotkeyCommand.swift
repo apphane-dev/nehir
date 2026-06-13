@@ -76,6 +76,7 @@ enum HotkeyCommand: Codable, Equatable, Hashable {
     case toggleScratchpadWindow
 
     case openMenuAnywhere
+    case openSettings
 
     case debugDumpRuntimeState
     case debugResetRuntimeState
