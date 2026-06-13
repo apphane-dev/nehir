@@ -1,0 +1,340 @@
+{
+  "$schema": "https://www.raycast.com/schemas/extension.json",
+  "name": "nehir",
+  "title": "Nehir",
+  "description": "Control Nehir window manager through its nehirctl IPC CLI from Raycast.",
+  "icon": "extension-icon.png",
+  "author": "guria",
+  "platforms": [
+    "macOS"
+  ],
+  "license": "MIT",
+  "commands": [
+    {
+      "name": "nehir",
+      "title": "Control Nehir",
+      "description": "Open searchable Nehir IPC commands and queries",
+      "mode": "view"
+    },
+    {
+      "name": "focus-left",
+      "title": "Nehir: Focus Left",
+      "description": "Focus the window to the left",
+      "mode": "no-view"
+    },
+    {
+      "name": "focus-right",
+      "title": "Nehir: Focus Right",
+      "description": "Focus the window to the right",
+      "mode": "no-view"
+    },
+    {
+      "name": "focus-up",
+      "title": "Nehir: Focus Up",
+      "description": "Focus the window above",
+      "mode": "no-view"
+    },
+    {
+      "name": "focus-down",
+      "title": "Nehir: Focus Down",
+      "description": "Focus the window below",
+      "mode": "no-view"
+    },
+    {
+      "name": "move-left",
+      "title": "Nehir: Move Left",
+      "description": "Move the focused window left",
+      "mode": "no-view"
+    },
+    {
+      "name": "move-right",
+      "title": "Nehir: Move Right",
+      "description": "Move the focused window right",
+      "mode": "no-view"
+    },
+    {
+      "name": "move-up",
+      "title": "Nehir: Move Up",
+      "description": "Move the focused window up",
+      "mode": "no-view"
+    },
+    {
+      "name": "move-down",
+      "title": "Nehir: Move Down",
+      "description": "Move the focused window down",
+      "mode": "no-view"
+    },
+    {
+      "name": "workspace-next",
+      "title": "Nehir: Next Workspace",
+      "description": "Switch to the next workspace",
+      "mode": "no-view"
+    },
+    {
+      "name": "workspace-prev",
+      "title": "Nehir: Previous Workspace",
+      "description": "Switch to the previous workspace",
+      "mode": "no-view"
+    },
+    {
+      "name": "toggle-fullscreen",
+      "title": "Nehir: Toggle Fullscreen",
+      "description": "Toggle Nehir-managed fullscreen",
+      "mode": "no-view"
+    },
+    {
+      "name": "toggle-floating",
+      "title": "Nehir: Toggle Floating",
+      "description": "Toggle focused window floating",
+      "mode": "no-view"
+    },
+    {
+      "name": "scratchpad-toggle",
+      "title": "Nehir: Toggle Scratchpad",
+      "description": "Show or hide the scratchpad window",
+      "mode": "no-view"
+    },
+    {
+      "name": "toggle-overview",
+      "title": "Nehir: Toggle Overview",
+      "description": "Open or close overview",
+      "mode": "no-view"
+    },
+    {
+      "name": "open-nehir-settings",
+      "title": "Nehir: Open Settings",
+      "description": "Open Nehir settings",
+      "mode": "no-view"
+    },
+    {
+      "name": "ping-ipc",
+      "title": "Nehir: Ping IPC",
+      "description": "Verify Nehir IPC reachability",
+      "mode": "no-view"
+    },
+    {
+      "name": "focus-previous",
+      "title": "Nehir: Focus Previous",
+      "description": "Run nehirctl command focus previous",
+      "mode": "no-view"
+    },
+    {
+      "name": "focus-down-or-left",
+      "title": "Nehir: Focus Down or Left",
+      "description": "Run nehirctl command focus down-or-left",
+      "mode": "no-view"
+    },
+    {
+      "name": "focus-up-or-right",
+      "title": "Nehir: Focus Up or Right",
+      "description": "Run nehirctl command focus up-or-right",
+      "mode": "no-view"
+    },
+    {
+      "name": "focus-window-top",
+      "title": "Nehir: Focus Window Top",
+      "description": "Run nehirctl command focus-window top",
+      "mode": "no-view"
+    },
+    {
+      "name": "focus-window-bottom",
+      "title": "Nehir: Focus Window Bottom",
+      "description": "Run nehirctl command focus-window bottom",
+      "mode": "no-view"
+    },
+    {
+      "name": "move-window-up",
+      "title": "Nehir: Move Window Up",
+      "description": "Run nehirctl command move-window-up",
+      "mode": "no-view"
+    },
+    {
+      "name": "move-window-down",
+      "title": "Nehir: Move Window Down",
+      "description": "Run nehirctl command move-window-down",
+      "mode": "no-view"
+    },
+    {
+      "name": "consume-window-left",
+      "title": "Nehir: Consume or Expel Window Left",
+      "description": "Run nehirctl command consume-or-expel-window-left",
+      "mode": "no-view"
+    },
+    {
+      "name": "consume-window-right",
+      "title": "Nehir: Consume or Expel Window Right",
+      "description": "Run nehirctl command consume-or-expel-window-right",
+      "mode": "no-view"
+    },
+    {
+      "name": "workspace-back-and-forth",
+      "title": "Nehir: Back and Forth Workspace",
+      "description": "Run nehirctl command switch-workspace back-and-forth",
+      "mode": "no-view"
+    },
+    {
+      "name": "move-to-workspace-up",
+      "title": "Nehir: Move to Workspace Up",
+      "description": "Run nehirctl command move-to-workspace up",
+      "mode": "no-view"
+    },
+    {
+      "name": "move-to-workspace-down",
+      "title": "Nehir: Move to Workspace Down",
+      "description": "Run nehirctl command move-to-workspace down",
+      "mode": "no-view"
+    },
+    {
+      "name": "focus-monitor-prev",
+      "title": "Nehir: Focus Previous Monitor",
+      "description": "Run nehirctl command focus-monitor prev",
+      "mode": "no-view"
+    },
+    {
+      "name": "focus-monitor-next",
+      "title": "Nehir: Focus Next Monitor",
+      "description": "Run nehirctl command focus-monitor next",
+      "mode": "no-view"
+    },
+    {
+      "name": "focus-monitor-last",
+      "title": "Nehir: Focus Last Monitor",
+      "description": "Run nehirctl command focus-monitor last",
+      "mode": "no-view"
+    },
+    {
+      "name": "move-column-left",
+      "title": "Nehir: Move Column Left",
+      "description": "Run nehirctl command move-column left",
+      "mode": "no-view"
+    },
+    {
+      "name": "move-column-right",
+      "title": "Nehir: Move Column Right",
+      "description": "Run nehirctl command move-column right",
+      "mode": "no-view"
+    },
+    {
+      "name": "move-column-to-first",
+      "title": "Nehir: Move Column to First",
+      "description": "Run nehirctl command move-column-to-first",
+      "mode": "no-view"
+    },
+    {
+      "name": "move-column-to-last",
+      "title": "Nehir: Move Column to Last",
+      "description": "Run nehirctl command move-column-to-last",
+      "mode": "no-view"
+    },
+    {
+      "name": "toggle-column-tabbed",
+      "title": "Nehir: Toggle Column Tabbed",
+      "description": "Run nehirctl command toggle-column-tabbed",
+      "mode": "no-view"
+    },
+    {
+      "name": "toggle-column-full-width",
+      "title": "Nehir: Toggle Column Full Width",
+      "description": "Run nehirctl command toggle-column-full-width",
+      "mode": "no-view"
+    },
+    {
+      "name": "cycle-column-width-forward",
+      "title": "Nehir: Cycle Column Width Forward",
+      "description": "Run nehirctl command cycle-column-width forward",
+      "mode": "no-view"
+    },
+    {
+      "name": "cycle-column-width-backward",
+      "title": "Nehir: Cycle Column Width Backward",
+      "description": "Run nehirctl command cycle-column-width backward",
+      "mode": "no-view"
+    },
+    {
+      "name": "cycle-window-width-forward",
+      "title": "Nehir: Cycle Window Width Forward",
+      "description": "Run nehirctl command cycle-window-width forward",
+      "mode": "no-view"
+    },
+    {
+      "name": "cycle-window-width-backward",
+      "title": "Nehir: Cycle Window Width Backward",
+      "description": "Run nehirctl command cycle-window-width backward",
+      "mode": "no-view"
+    },
+    {
+      "name": "balance-sizes",
+      "title": "Nehir: Balance Sizes",
+      "description": "Run nehirctl command balance-sizes",
+      "mode": "no-view"
+    },
+    {
+      "name": "raise-floating",
+      "title": "Nehir: Raise Floating Windows",
+      "description": "Run nehirctl command raise-all-floating-windows",
+      "mode": "no-view"
+    },
+    {
+      "name": "rescue-offscreen",
+      "title": "Nehir: Rescue Offscreen Windows",
+      "description": "Run nehirctl command rescue-offscreen-windows",
+      "mode": "no-view"
+    },
+    {
+      "name": "scratchpad-assign",
+      "title": "Nehir: Assign Scratchpad",
+      "description": "Run nehirctl command scratchpad assign",
+      "mode": "no-view"
+    },
+    {
+      "name": "toggle-workspace-bar",
+      "title": "Nehir: Toggle Workspace Bar",
+      "description": "Run nehirctl command toggle-workspace-bar",
+      "mode": "no-view"
+    },
+    {
+      "name": "toggle-native-fullscreen",
+      "title": "Nehir: Toggle Native Fullscreen",
+      "description": "Run nehirctl command toggle-native-fullscreen",
+      "mode": "no-view"
+    },
+    {
+      "name": "toggle-focus-follows-mouse",
+      "title": "Nehir: Toggle Focus Follows Mouse",
+      "description": "Run nehirctl command toggle-focus-follows-mouse",
+      "mode": "no-view"
+    },
+    {
+      "name": "toggle-borders",
+      "title": "Nehir: Toggle Borders",
+      "description": "Run nehirctl command toggle-borders",
+      "mode": "no-view"
+    },
+    {
+      "name": "toggle-prevent-sleep",
+      "title": "Nehir: Toggle Prevent Sleep",
+      "description": "Run nehirctl command toggle-prevent-sleep",
+      "mode": "no-view"
+    }
+  ],
+  "dependencies": {
+    "@raycast/api": "^1.104.19",
+    "@raycast/utils": "^1.17.0"
+  },
+  "devDependencies": {
+    "@raycast/eslint-config": "^2.0.4",
+    "@types/node": "22.19.17",
+    "@types/react": "19.0.10",
+    "eslint": "^9.22.0",
+    "prettier": "^3.5.3",
+    "typescript": "^5.8.2"
+  },
+  "scripts": {
+    "build": "ray build",
+    "dev": "ray develop",
+    "fix-lint": "ray lint --fix",
+    "lint": "ray lint",
+    "prepublishOnly": "echo \"\\n\\nIt seems like you are trying to publish the Raycast extension to npm.\\n\\nIf you did intend to publish it to npm, remove the \\`prepublishOnly\\` script and rerun \\`npm publish\\` again.\\nIf you wanted to publish it to the Raycast Store instead, use \\`npm run publish\\` instead.\\n\\n\" && exit 1",
+    "publish": "npx @raycast/api@latest publish"
+  }
+}
