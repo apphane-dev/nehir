@@ -682,7 +682,7 @@ import QuartzCore
             assert(affectedWorkspaceIds.isEmpty, "Visibility refreshes ignore affected workspace IDs")
             enqueueRefresh(.init(kind: .visibilityRefresh, reason: reason, postLayout: postLayout))
         case .windowRemoval:
-            assertionFailure("Use requestWindowRemoval for window-removal refreshes so payloads are supplied")
+            preconditionFailure("Use requestWindowRemoval for window-removal refreshes so payloads are supplied")
         }
     }
 
