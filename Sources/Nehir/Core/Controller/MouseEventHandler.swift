@@ -1900,6 +1900,17 @@ final class MouseEventHandler {
 
         MainActor.assumeIsolated {
             guard let handler = MouseEventHandler._instance else { return }
+            // Mouse warp shares this tap so it keeps receiving events while Nehir
+            // is inactive; a dedicated passive tap starved in that state (#32).
+            // `_instance` is non-nil only while the warp policy is enabled.
+            switch type {
+            case .mouseMoved,
+                 .leftMouseDragged,
+                 .rightMouseDragged:
+                MouseWarpHandler._instance?.receiveTapMouseWarpMoved(at: screenLocation)
+            default:
+                break
+            }
             switch type {
             case .mouseMoved:
                 handler.receiveTapMouseMoved(at: screenLocation)
