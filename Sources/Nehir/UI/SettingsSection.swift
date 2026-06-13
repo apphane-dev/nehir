@@ -10,7 +10,6 @@ enum SettingsSection: String, CaseIterable, Identifiable {
     case bar
     case appRules
     case hotkeys
-    case configFiles
     case diagnostics
 
     var id: String {
@@ -28,7 +27,6 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .bar: "Workspace Bar"
         case .appRules: "App Rules"
         case .hotkeys: "Hotkeys"
-        case .configFiles: "Config Files"
         case .diagnostics: "Diagnostics"
         }
     }
@@ -44,7 +42,6 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .bar: "menubar.rectangle"
         case .appRules: "list.bullet.rectangle"
         case .hotkeys: "keyboard"
-        case .configFiles: "folder"
         case .diagnostics: "exclamationmark.triangle"
         }
     }
@@ -67,7 +64,7 @@ enum SettingsSectionGroup: String, CaseIterable, Identifiable {
     var sections: [SettingsSection] {
         switch self {
         case .app:
-            [.general, .configFiles, .diagnostics]
+            [.general, .diagnostics]
         case .layouts:
             [.layout, .monitors, .workspaces, .appRules]
         case .appearance:
