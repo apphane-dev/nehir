@@ -51,6 +51,37 @@ final class WindowModel {
         case scratchpad
     }
 
+    enum WindowVisibility: Equatable {
+        case visible
+        case hiddenOffscreen(side: HideSide)
+        case hiddenWorkspaceInactive
+        case hiddenScratchpad
+
+        init(hiddenReason: HiddenReason) {
+            switch hiddenReason {
+            case .workspaceInactive:
+                self = .hiddenWorkspaceInactive
+            case let .layoutTransient(side):
+                self = .hiddenOffscreen(side: side)
+            case .scratchpad:
+                self = .hiddenScratchpad
+            }
+        }
+
+        var hiddenReason: HiddenReason? {
+            switch self {
+            case .visible:
+                nil
+            case let .hiddenOffscreen(side):
+                .layoutTransient(side)
+            case .hiddenWorkspaceInactive:
+                .workspaceInactive
+            case .hiddenScratchpad:
+                .scratchpad
+            }
+        }
+    }
+
     struct HiddenState: Equatable {
         let proportionalPosition: CGPoint
         let referenceMonitorId: Monitor.ID?
@@ -150,7 +181,7 @@ final class WindowModel {
         var ruleEffects: ManagedWindowRuleEffects = .none
         var hiddenProportionalPosition: CGPoint?
         var hiddenReferenceMonitorId: Monitor.ID?
-        var hiddenReason: HiddenReason?
+        var visibility: WindowVisibility = .visible
 
         var layoutReason: LayoutReason = .standard
         var parentKind: ParentKind = .tilingContainer
@@ -633,18 +664,31 @@ final class WindowModel {
         if let state {
             entry.hiddenProportionalPosition = state.proportionalPosition
             entry.hiddenReferenceMonitorId = state.referenceMonitorId
-            entry.hiddenReason = state.reason
+            entry.visibility = WindowVisibility(hiddenReason: state.reason)
         } else {
             entry.hiddenProportionalPosition = nil
             entry.hiddenReferenceMonitorId = nil
-            entry.hiddenReason = nil
+            entry.visibility = .visible
+        }
+    }
+
+    func visibility(for token: WindowToken) -> WindowVisibility? {
+        entries[token]?.visibility
+    }
+
+    func setVisibility(_ visibility: WindowVisibility, for token: WindowToken) {
+        guard let entry = entries[token] else { return }
+        entry.visibility = visibility
+        if case .visible = visibility {
+            entry.hiddenProportionalPosition = nil
+            entry.hiddenReferenceMonitorId = nil
         }
     }
 
     func hiddenState(for token: WindowToken) -> HiddenState? {
         guard let entry = entries[token],
               let proportionalPosition = entry.hiddenProportionalPosition,
-              let hiddenReason = entry.hiddenReason
+              let hiddenReason = entry.visibility.hiddenReason
         else { return nil }
         return HiddenState(
             proportionalPosition: proportionalPosition,
@@ -654,7 +698,8 @@ final class WindowModel {
     }
 
     func isHiddenInCorner(_ token: WindowToken) -> Bool {
-        entries[token]?.hiddenProportionalPosition != nil
+        guard let entry = entries[token] else { return false }
+        return entry.visibility != .visible
     }
 
     func layoutReason(for token: WindowToken) -> LayoutReason {

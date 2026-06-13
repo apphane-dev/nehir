@@ -1252,7 +1252,7 @@ final class MouseEventHandler {
 
         let layoutFrame = controller.workspaceManager.monitor(for: workspaceId)?.visibleFrame
         return controller.workspaceManager.floatingEntries(in: workspaceId).contains { entry in
-            guard entry.observedState.isVisible, entry.hiddenReason == nil else { return false }
+            guard entry.observedState.isVisible, entry.visibility == .visible else { return false }
             let frame = floatingFrame(for: entry)
             guard let frame else { return true }
             return layoutFrame.map { frame.intersects($0) } ?? true
@@ -1265,7 +1265,7 @@ final class MouseEventHandler {
     ) -> WindowModel.Entry? {
         guard let controller else { return nil }
         return controller.workspaceManager.floatingEntries(in: workspaceId).first { entry in
-            guard entry.observedState.isVisible, entry.hiddenReason == nil else { return false }
+            guard entry.observedState.isVisible, entry.visibility == .visible else { return false }
             return floatingFrame(for: entry)?.contains(location) ?? false
         }
     }

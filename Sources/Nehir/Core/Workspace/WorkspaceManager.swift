@@ -328,7 +328,7 @@ final class WorkspaceManager {
         let cachedConstraintsCount = entries.filter { $0.cachedConstraints != nil }.count
         let inferredResizeMinimumCount = entries.filter { $0.inferredResizeMinimumSize != nil }.count
         let manualOverrideCount = entries.filter { $0.manualLayoutOverride != nil }.count
-        let hiddenCount = entries.filter { $0.hiddenReason != nil }.count
+        let hiddenCount = entries.filter { $0.visibility != .visible }.count
         let nonStandardLayoutReasonCount = entries.filter { $0.layoutReason != .standard }.count
 
         func tokenString(_ token: WindowToken?) -> String {
@@ -368,7 +368,7 @@ final class WorkspaceManager {
                 "workspace=\(entry.workspaceId.uuidString)",
                 "mode=\(entry.mode)",
                 "phase=\(entry.lifecyclePhase.rawValue)",
-                "hidden=\(runtimeDebugHiddenReason(entry.hiddenReason))",
+                "hidden=\(runtimeDebugHiddenReason(entry.visibility.hiddenReason))",
                 "layout=\(String(describing: entry.layoutReason))",
                 "observedFrame=\(runtimeDebugFrame(entry.observedState.frame))",
                 "liveAXFrame=\(runtimeDebugFrame(try? AXWindowService.frame(entry.axRef)))",
@@ -1957,15 +1957,15 @@ final class WorkspaceManager {
             return false
         }
 
-        guard entry.hiddenProportionalPosition != nil else {
+        switch entry.visibility {
+        case .visible:
             return true
-        }
-
-        if case .workspaceInactive = entry.hiddenReason {
+        case .hiddenWorkspaceInactive:
             return true
+        case .hiddenOffscreen,
+             .hiddenScratchpad:
+            return false
         }
-
-        return false
     }
 
     private func setRememberedFocus(
