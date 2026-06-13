@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #MISE description="Package Nehir.app from a release build"
-#USAGE arg "sign_and_notarize=false" help="Set true to Developer ID sign and notarize"
+#USAGE arg "<sign_and_notarize>" help="Set true to Developer ID sign and notarize" default="false"
 set -euo pipefail
 
 CONFIG="${CONFIGURATION:-release}"
