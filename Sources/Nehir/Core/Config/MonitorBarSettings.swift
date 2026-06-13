@@ -127,4 +127,23 @@ struct ResolvedBarSettings {
     let yOffset: Double
     let accentColor: SettingsColor?
     let textColor: SettingsColor?
+
+    static let defaults = ResolvedBarSettings(
+        enabled: true,
+        showLabels: true,
+        showFloatingWindows: false,
+        showTraceButton: false,
+        deduplicateAppIcons: false,
+        hideEmptyWorkspaces: false,
+        reserveLayoutSpace: false,
+        notchAware: true,
+        position: .overlappingMenuBar,
+        windowLevel: .popup,
+        height: 24.0,
+        backgroundOpacity: 0.1,
+        xOffset: 0.0,
+        yOffset: 0.0,
+        accentColor: nil,
+        textColor: nil
+    )
 }

@@ -2396,6 +2396,8 @@ final class WMController {
             "workspaceBarRefreshDebugState requestCount=\(workspaceBarRefreshDebugState.requestCount) scheduledCount=\(workspaceBarRefreshDebugState.scheduledCount) executionCount=\(workspaceBarRefreshDebugState.executionCount) isQueued=\(workspaceBarRefreshDebugState.isQueued)",
             "-- Focus Targets --",
             focusTargetDebugDump(),
+            "-- Monitor Topology --",
+            workspaceManager.monitorTopologyDebugDump(),
             "-- WorkspaceManager --",
             workspaceManager.runtimeStateDebugSummary(),
             "-- AXManager --",
@@ -2423,6 +2425,18 @@ final class WMController {
             String(describing: mouseWarpSnapshot),
             "-- CGSEventObserver --",
             String(describing: cgsSnapshot),
+            "-- Workspace Bar Frame Trace --",
+            workspaceBarManager.runtimeFrameTraceDebugDump(),
+            "-- Workspace Bar --",
+            workspaceBarManager.runtimeStateDebugDump(
+                monitors: workspaceManager.monitors,
+                resolvedProvider: { [weak self] monitor in
+                    self?.settings.resolvedBarSettings(for: monitor) ?? ResolvedBarSettings.defaults
+                },
+                visibilityProvider: { [weak self] monitor, resolved in
+                    self?.isWorkspaceBarVisible(on: monitor, resolved: resolved) ?? false
+                }
+            ),
             "-- Reconcile Snapshot --",
             workspaceManager.reconcileSnapshotDump(),
             "-- Reconcile Trace --",
