@@ -311,6 +311,14 @@ final class WorkspaceManager {
         reconcileTrace.reset()
     }
 
+    func monitorTopologyDebugDump() -> String {
+        guard !monitors.isEmpty else { return "no-monitors" }
+        return monitors.map { monitor in
+            let mainFlag = monitor.isMain ? " isMain=true" : ""
+            return "ID(displayId: \(monitor.displayId))\(mainFlag) hasNotch=\(monitor.hasNotch) frame=\(monitor.frame.debugDescription) visibleFrame=\(monitor.visibleFrame.debugDescription) name=\(monitor.name)"
+        }.joined(separator: "\n")
+    }
+
     func runtimeStateDebugSummary() -> String {
         let entries = windows.allEntries()
         let tiledCount = entries.filter { $0.mode == .tiling }.count

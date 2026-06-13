@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import os
 
 enum WorkspaceBarWindowLevel: String, CaseIterable, Identifiable {
     case normal
@@ -51,6 +52,7 @@ enum WorkspaceBarPosition: String, CaseIterable, Identifiable {
 
 @MainActor
 final class WorkspaceBarManager {
+    private static let debugLogger = Logger(subsystem: "com.nehir", category: "workspace-bar")
     final class MonitorBarInstance {
         let monitorId: Monitor.ID
         let panel: WorkspaceBarPanel
@@ -99,6 +101,7 @@ final class WorkspaceBarManager {
     private var screenObserver: Any?
     private var sleepWakeObserver: Any?
     private var pendingReconfigureTask: Task<Void, Never>?
+    private var recentFrameTraceRecords: [String] = []
     private weak var controller: WMController?
     private weak var settings: SettingsStore?
     private let surfaceCoordinator = SurfaceCoordinator.shared
@@ -242,6 +245,7 @@ final class WorkspaceBarManager {
         let panel = panelFactory()
         let screen = screenProvider(monitor.displayId)
         panel.targetScreen = screen
+        panel.targetFrame = monitor.frame
         panel.contentView = hostingView
         applyCurrentAppearance(
             to: panel,
@@ -297,6 +301,7 @@ final class WorkspaceBarManager {
 
         instance.monitor = monitor
         instance.panel.targetScreen = screen
+        instance.panel.targetFrame = monitor.frame
         instance.screenDisplayId = nextScreenDisplayId
 
         let resolved = settings.resolvedBarSettings(for: monitor)
@@ -321,6 +326,7 @@ final class WorkspaceBarManager {
         guard let settings else { return }
 
         instance.monitor = monitor
+        instance.panel.targetFrame = monitor.frame
 
         let resolved = settings.resolvedBarSettings(for: monitor)
         let snapshot = makeSnapshot(for: monitor, resolved: resolved)
@@ -391,7 +397,15 @@ final class WorkspaceBarManager {
 
         guard instance.lastAppliedFrame != frame else { return }
 
+        let previousFrame = instance.panel.frame
         frameApplier(instance.panel, frame)
+        let appliedFrame = instance.panel.frame
+        let traceRecord = "\(Date().ISO8601Format()) display=\(monitor.displayId) requested=\(frame.debugDescription) previous=\(previousFrame.debugDescription) actual=\(appliedFrame.debugDescription) effectivePosition=\(geometry.effectivePosition.rawValue) hasNotch=\(monitor.hasNotch) targetFrame=\(instance.panel.targetFrame?.debugDescription ?? "nil") targetScreen=\(instance.panel.targetScreen?.displayId.map(String.init) ?? "nil") panelScreen=\(instance.panel.screen?.displayId.map(String.init) ?? "nil")"
+        Self.debugLogger.debug("WorkspaceBar.frame \(traceRecord)")
+        recentFrameTraceRecords.append(traceRecord)
+        if recentFrameTraceRecords.count > 80 {
+            recentFrameTraceRecords.removeFirst(recentFrameTraceRecords.count - 80)
+        }
         instance.lastAppliedFrame = frame
     }
 
@@ -574,6 +588,62 @@ final class WorkspaceBarManager {
 
     private func applySettingsToPanel(_ panel: NSPanel, resolved: ResolvedBarSettings) {
         panel.level = resolved.windowLevel.nsWindowLevel
+    }
+
+    func runtimeFrameTraceDebugDump() -> String {
+        recentFrameTraceRecords.isEmpty ? "workspace-bar frame trace empty" : recentFrameTraceRecords.joined(separator: "\n")
+    }
+
+    func runtimeStateDebugDump(
+        monitors: [Monitor],
+        resolvedProvider: (Monitor) -> ResolvedBarSettings,
+        visibilityProvider: (Monitor, ResolvedBarSettings) -> Bool
+    ) -> String {
+        let activeInstances = barsByMonitor
+        guard !monitors.isEmpty else { return "no-monitors" }
+
+        var lines: [String] = []
+        for monitor in monitors {
+            let resolved = resolvedProvider(monitor)
+            let visible = visibilityProvider(monitor, resolved)
+            let instance = activeInstances[monitor.id]
+            let geometry = WorkspaceBarGeometry.resolve(
+                monitor: monitor,
+                resolved: resolved,
+                isVisible: visible
+            )
+
+            var parts: [String] = [
+                "ID(displayId: \(monitor.displayId))",
+                "hasNotch=\(monitor.hasNotch)",
+                "visible=\(visible)",
+                "enabled=\(resolved.enabled)",
+                "notchAware=\(resolved.notchAware)",
+                "configuredPosition=\(resolved.position.rawValue)",
+                "effectivePosition=\(geometry.effectivePosition.rawValue)",
+                "barHeight=\(geometry.barHeight)",
+                "menuBarHeight=\(geometry.menuBarHeight)",
+                "reservedTopInset=\(geometry.reservedTopInset)",
+                "monitorFrame=\(monitor.frame.debugDescription)",
+                "monitorVisibleFrame=\(monitor.visibleFrame.debugDescription)",
+                "panelTargetFrame=\(instance?.panel.targetFrame?.debugDescription ?? "nil")"
+            ]
+            if let barFrame = instance?.lastAppliedFrame {
+                parts.append("lastAppliedFrame=\(barFrame.debugDescription)")
+            } else {
+                parts.append("lastAppliedFrame=nil")
+            }
+            if let panelFrame = instance?.panel.frame {
+                parts.append("actualPanelFrame=\(panelFrame.debugDescription)")
+            } else {
+                parts.append("actualPanelFrame=nil")
+            }
+            parts.append("targetScreen=\(instance?.panel.targetScreen?.displayId.map(String.init) ?? "nil")")
+            parts.append("panelScreen=\(instance?.panel.screen?.displayId.map(String.init) ?? "nil")")
+            parts.append("screenDisplayId=\(instance?.screenDisplayId.map(String.init) ?? "nil")")
+            lines.append(parts.joined(separator: " "))
+        }
+        return lines.joined(separator: "\n")
     }
 }
 

@@ -505,3 +505,34 @@ private func makeRecordingPanelFactory(
         #expect(manager.hostingViewEffectiveAppearanceForTests(on: monitor.id) == .darkAqua)
     }
 }
+
+@Suite struct WorkspaceBarPanelTests {
+    @Test @MainActor func constrainFrameRectClampsToTargetFrameWhenScreenIsNil() {
+        let panel = WorkspaceBarPanel(
+            contentRect: .zero,
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        panel.targetFrame = NSRect(x: 1000, y: 0, width: 1920, height: 1080)
+
+        let inside = NSRect(x: 1200, y: 100, width: 400, height: 40)
+        #expect(panel.constrainFrameRect(inside, to: nil) == inside)
+
+        let outside = NSRect(x: 100, y: -200, width: 400, height: 40)
+        let constrained = panel.constrainFrameRect(outside, to: nil)
+        #expect(constrained == NSRect(x: 1000, y: 0, width: 400, height: 40))
+    }
+
+    @Test @MainActor func constrainFrameRectReturnsInputWhenNoTargetFrameAndNoScreen() {
+        let panel = WorkspaceBarPanel(
+            contentRect: .zero,
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+
+        let frame = NSRect(x: -500, y: -500, width: 400, height: 40)
+        #expect(panel.constrainFrameRect(frame, to: nil) == frame)
+    }
+}
