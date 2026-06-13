@@ -146,7 +146,7 @@ final class WorkspaceNavigationHandler {
                 controller.focusWindow(focusToken)
                 if focusedTokenNeedsRevealRelayout {
                     controller.axManager.forceApplyNextFrame(for: focusToken.windowId)
-                    controller.layoutRefreshController.requestImmediateRelayout(
+                    controller.layoutRefreshController.requestRefresh(
                         reason: .workspaceTransition,
                         affectedWorkspaceIds: [targetWorkspaceId]
                     )

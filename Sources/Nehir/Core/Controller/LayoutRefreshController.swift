@@ -653,21 +653,52 @@ import QuartzCore
         debugCounters
     }
 
+    func requestRefresh(
+        reason: RefreshReason,
+        affectedWorkspaceIds: Set<WorkspaceDescriptor.ID> = [],
+        postLayout: PostLayoutAction? = nil
+    ) {
+        switch reason.route {
+        case .fullRescan:
+            assert(affectedWorkspaceIds.isEmpty, "Full rescan refreshes ignore affected workspace IDs")
+            scheduleFullRescan(reason: reason, postLayout: postLayout)
+        case .relayout:
+            scheduleRefreshSession(
+                reason.scheduling,
+                reason: reason,
+                affectedWorkspaceIds: affectedWorkspaceIds,
+                postLayout: postLayout
+            )
+        case .immediateRelayout:
+            enqueueRefresh(
+                .init(
+                    kind: .immediateRelayout,
+                    reason: reason,
+                    affectedWorkspaceIds: affectedWorkspaceIds,
+                    postLayout: postLayout
+                )
+            )
+        case .visibilityRefresh:
+            assert(affectedWorkspaceIds.isEmpty, "Visibility refreshes ignore affected workspace IDs")
+            enqueueRefresh(.init(kind: .visibilityRefresh, reason: reason, postLayout: postLayout))
+        case .windowRemoval:
+            preconditionFailure("Use requestWindowRemoval for window-removal refreshes so payloads are supplied")
+        }
+    }
+
+    // Compatibility helpers for route-specific callers; prefer requestRefresh(reason:)
+    // so RefreshReason.route remains the single source of routing truth.
     func requestFullRescan(reason: RefreshReason) {
-        assert(reason.requestRoute == .fullRescan, "Invalid full-rescan reason: \(reason)")
-        scheduleFullRescan(reason: reason)
+        assert(reason.route == .fullRescan, "Invalid full-rescan reason: \(reason)")
+        requestRefresh(reason: reason)
     }
 
     func requestRelayout(
         reason: RefreshReason,
         affectedWorkspaceIds: Set<WorkspaceDescriptor.ID> = []
     ) {
-        assert(reason.requestRoute == .relayout, "Invalid relayout reason: \(reason)")
-        scheduleRefreshSession(
-            reason.relayoutSchedulingPolicy,
-            reason: reason,
-            affectedWorkspaceIds: affectedWorkspaceIds
-        )
+        assert(reason.route == .relayout, "Invalid relayout reason: \(reason)")
+        requestRefresh(reason: reason, affectedWorkspaceIds: affectedWorkspaceIds)
     }
 
     func requestImmediateRelayout(
@@ -675,14 +706,11 @@ import QuartzCore
         affectedWorkspaceIds: Set<WorkspaceDescriptor.ID> = [],
         postLayout: PostLayoutAction? = nil
     ) {
-        assert(reason.requestRoute == .immediateRelayout, "Invalid immediate-relayout reason: \(reason)")
-        enqueueRefresh(
-            .init(
-                kind: .immediateRelayout,
-                reason: reason,
-                affectedWorkspaceIds: affectedWorkspaceIds,
-                postLayout: postLayout
-            )
+        assert(reason.route == .immediateRelayout, "Invalid immediate-relayout reason: \(reason)")
+        requestRefresh(
+            reason: reason,
+            affectedWorkspaceIds: affectedWorkspaceIds,
+            postLayout: postLayout
         )
     }
 
@@ -690,8 +718,8 @@ import QuartzCore
         reason: RefreshReason,
         postLayout: PostLayoutAction? = nil
     ) {
-        assert(reason.requestRoute == .visibilityRefresh, "Invalid visibility-refresh reason: \(reason)")
-        enqueueRefresh(.init(kind: .visibilityRefresh, reason: reason, postLayout: postLayout))
+        assert(reason.route == .visibilityRefresh, "Invalid visibility-refresh reason: \(reason)")
+        requestRefresh(reason: reason, postLayout: postLayout)
     }
 
     func requestWindowRemoval(
@@ -701,7 +729,7 @@ import QuartzCore
         shouldRecoverFocus: Bool,
         postLayout: PostLayoutAction? = nil
     ) {
-        assert(RefreshReason.windowDestroyed.requestRoute == .windowRemoval, "Invalid window-removal reason")
+        assert(RefreshReason.windowDestroyed.route == .windowRemoval, "Invalid window-removal reason")
         enqueueRefresh(
             .init(
                 kind: .windowRemoval,
@@ -722,21 +750,26 @@ import QuartzCore
         reason: RefreshReason = .workspaceTransition,
         postLayout: PostLayoutAction? = nil
     ) {
-        requestImmediateRelayout(
+        assert(reason.route == .immediateRelayout, "Invalid workspace-transition reason: \(reason)")
+        requestRefresh(
             reason: reason,
             affectedWorkspaceIds: affectedWorkspaces,
             postLayout: postLayout
         )
     }
 
-    private func scheduleFullRescan(reason: RefreshReason) {
-        enqueueRefresh(.init(kind: .fullRescan, reason: reason))
+    private func scheduleFullRescan(
+        reason: RefreshReason,
+        postLayout: PostLayoutAction? = nil
+    ) {
+        enqueueRefresh(.init(kind: .fullRescan, reason: reason, postLayout: postLayout))
     }
 
     private func scheduleRefreshSession(
         _ policy: RelayoutSchedulingPolicy,
         reason: RefreshReason,
-        affectedWorkspaceIds: Set<WorkspaceDescriptor.ID> = []
+        affectedWorkspaceIds: Set<WorkspaceDescriptor.ID> = [],
+        postLayout: PostLayoutAction? = nil
     ) {
         if policy.shouldDropWhileBusy {
             if layoutState.isIncrementalRefreshInProgress || layoutState.isImmediateLayoutInProgress {
@@ -748,7 +781,12 @@ import QuartzCore
             }
         }
         enqueueRefresh(
-            .init(kind: .relayout, reason: reason, affectedWorkspaceIds: affectedWorkspaceIds)
+            .init(
+                kind: .relayout,
+                reason: reason,
+                affectedWorkspaceIds: affectedWorkspaceIds,
+                postLayout: postLayout
+            )
         )
     }
 
@@ -1763,7 +1801,7 @@ import QuartzCore
             case .fullRescan:
                 return try await executeFullRefresh(refresh: refresh)
             case .relayout:
-                let policy = refresh.reason.relayoutSchedulingPolicy
+                let policy = refresh.reason.scheduling
                 if policy.debounceInterval > 0 {
                     try await Task.sleep(nanoseconds: policy.debounceInterval)
                 }
@@ -2984,7 +3022,7 @@ import QuartzCore
             {
                 controller.axManager.forceApplyNextFrame(for: tiledEntry.windowId)
             }
-            requestImmediateRelayout(reason: .layoutCommand, affectedWorkspaceIds: [entry.workspaceId])
+            requestRefresh(reason: .layoutCommand, affectedWorkspaceIds: [entry.workspaceId])
         }
     }
 

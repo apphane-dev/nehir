@@ -1018,7 +1018,7 @@ final class MouseEventHandler {
                 controller.workspaceManager.withNiriViewportState(for: wsId, mutate)
             }
         ) {
-            controller.layoutRefreshController.requestImmediateRelayout(reason: .interactiveGesture)
+            controller.layoutRefreshController.requestRefresh(reason: .interactiveGesture)
         }
     }
 
@@ -1050,7 +1050,7 @@ final class MouseEventHandler {
                     )
                 }
                 if didEnd {
-                    controller.layoutRefreshController.requestImmediateRelayout(reason: .interactiveGesture)
+                    controller.layoutRefreshController.requestRefresh(reason: .interactiveGesture)
                 }
             }
 
@@ -1083,7 +1083,7 @@ final class MouseEventHandler {
                 )
             }
             if hadInteractiveResize {
-                controller.layoutRefreshController.requestImmediateRelayout(reason: .interactiveGesture)
+                controller.layoutRefreshController.requestRefresh(reason: .interactiveGesture)
             }
         }
 
@@ -1571,7 +1571,7 @@ final class MouseEventHandler {
                     "phase=committed"
                 ]
             )
-            controller.layoutRefreshController.requestImmediateRelayout(reason: .interactiveGesture)
+            controller.layoutRefreshController.requestRefresh(reason: .interactiveGesture)
         }
     }
 
@@ -1632,7 +1632,7 @@ final class MouseEventHandler {
 
         if didApply {
             controller.recordRuntimeViewportTrace(workspaceId: wsId, reason: "wheel_tick")
-            controller.layoutRefreshController.requestImmediateRelayout(reason: .interactiveGesture)
+            controller.layoutRefreshController.requestRefresh(reason: .interactiveGesture)
             if shouldStartAnimation {
                 controller.layoutRefreshController.startScrollAnimation(for: wsId)
             }
@@ -1731,7 +1731,7 @@ final class MouseEventHandler {
             }
             controller.layoutRefreshController.startScrollAnimation(for: wsId)
         } else {
-            controller.layoutRefreshController.requestImmediateRelayout(reason: .interactiveGesture)
+            controller.layoutRefreshController.requestRefresh(reason: .interactiveGesture)
             if controller.focusFollowsMouseEnabled {
                 refreshFocusFollowsMouseAtCurrentPointer()
             }
@@ -1769,7 +1769,7 @@ final class MouseEventHandler {
         }
         if didCancel {
             controller.recordRuntimeViewportTrace(workspaceId: wsId, reason: "gesture_cancel")
-            controller.layoutRefreshController.requestImmediateRelayout(reason: .interactiveGesture)
+            controller.layoutRefreshController.requestRefresh(reason: .interactiveGesture)
         }
     }
 

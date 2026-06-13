@@ -371,7 +371,7 @@ final class WMController {
         pruneHiddenWorkspaceBarMonitorIds()
         cancelPendingWorkspaceBarRefresh()
         workspaceBarManager.setup(controller: self, settings: settings)
-        layoutRefreshController.requestRelayout(reason: .monitorSettingsChanged)
+        layoutRefreshController.requestRefresh(reason: .monitorSettingsChanged)
     }
 
     func cleanupUIOnStop() {
@@ -403,7 +403,7 @@ final class WMController {
 
         cancelPendingWorkspaceBarRefresh()
         workspaceBarManager.setup(controller: self, settings: settings)
-        layoutRefreshController.requestRelayout(reason: .monitorSettingsChanged)
+        layoutRefreshController.requestRefresh(reason: .monitorSettingsChanged)
         return true
     }
 
@@ -526,7 +526,7 @@ final class WMController {
         pruneHiddenWorkspaceBarMonitorIds()
         cancelPendingWorkspaceBarRefresh()
         workspaceBarManager.updateSettings()
-        layoutRefreshController.requestRelayout(reason: .monitorSettingsChanged)
+        layoutRefreshController.requestRefresh(reason: .monitorSettingsChanged)
     }
 
     func updateWorkspaceBarAppearance() {
@@ -539,13 +539,13 @@ final class WMController {
             let orientation = settings.effectiveOrientation(for: monitor)
             niriEngine?.monitors[monitor.id]?.updateOrientation(orientation)
         }
-        layoutRefreshController.requestRelayout(reason: .monitorSettingsChanged)
+        layoutRefreshController.requestRefresh(reason: .monitorSettingsChanged)
     }
 
     func updateMonitorNiriSettings() {
         guard niriEngine != nil else { return }
         niriLayoutHandler.refreshResolvedMonitorSettings()
-        layoutRefreshController.requestRelayout(reason: .monitorSettingsChanged)
+        layoutRefreshController.requestRefresh(reason: .monitorSettingsChanged)
     }
 
     func workspaceBarItems(
@@ -705,7 +705,7 @@ final class WMController {
     func updateWorkspaceConfig() {
         workspaceManager.applySettings()
         syncMonitorsToNiriEngine()
-        layoutRefreshController.requestFullRescan(reason: .workspaceConfigChanged)
+        layoutRefreshController.requestRefresh(reason: .workspaceConfigChanged)
     }
 
     func rebuildAppRulesCache() {
@@ -714,7 +714,7 @@ final class WMController {
 
     func updateAppRules() {
         rebuildAppRulesCache()
-        layoutRefreshController.requestFullRescan(reason: .appRulesChanged)
+        layoutRefreshController.requestRefresh(reason: .appRulesChanged)
     }
 
     var hotkeyRegistrationFailures: [HotkeyCommand: HotkeyRegistrationFailureReason] {
@@ -2490,7 +2490,7 @@ final class WMController {
             )
         }
 
-        layoutRefreshController.requestFullRescan(reason: .startup)
+        layoutRefreshController.requestRefresh(reason: .startup)
     }
 
     func restartAppClearingRuntimeState(enableTracing: Bool = false) {
@@ -2871,7 +2871,7 @@ final class WMController {
         }
 
         if relayoutNeeded {
-            layoutRefreshController.requestRelayout(
+            layoutRefreshController.requestRefresh(
                 reason: .windowRuleReevaluation,
                 affectedWorkspaceIds: affectedWorkspaceIds
             )
@@ -2947,7 +2947,7 @@ final class WMController {
         hideScratchpadWindow(updatedEntry, monitor: hideMonitor)
 
         if transitionedFromTiling {
-            layoutRefreshController.requestImmediateRelayout(reason: .layoutCommand)
+            layoutRefreshController.requestRefresh(reason: .layoutCommand)
         }
 
         return .executed
@@ -2970,7 +2970,7 @@ final class WMController {
             cleanupScratchpadWindowResourcesIfNeeded(for: token)
             nativeFullscreenPlaceholderManager.remove(token)
             _ = workspaceManager.removeWindow(pid: token.pid, windowId: token.windowId)
-            layoutRefreshController.requestRelayout(
+            layoutRefreshController.requestRefresh(
                 reason: .windowRuleReevaluation,
                 affectedWorkspaceIds: [entry.workspaceId]
             )
@@ -2983,7 +2983,7 @@ final class WMController {
             preferredMonitor: monitorForInteraction(),
             applyFloatingFrame: true
         )
-        layoutRefreshController.requestRelayout(
+        layoutRefreshController.requestRefresh(
             reason: .windowRuleReevaluation,
             affectedWorkspaceIds: [entry.workspaceId]
         )
@@ -3426,7 +3426,7 @@ extension WMController {
         focusBridge.discardPendingFocus(token)
         focusBorderController.hide()
         if changed {
-            layoutRefreshController.requestImmediateRelayout(
+            layoutRefreshController.requestRefresh(
                 reason: .appActivationTransition,
                 affectedWorkspaceIds: [entry.workspaceId]
             )

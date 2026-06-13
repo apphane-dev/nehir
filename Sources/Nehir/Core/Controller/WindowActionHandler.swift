@@ -506,7 +506,7 @@ final class WindowActionHandler {
                 rememberedFocusToken: rememberedFocusToken ?? token
             )
         )
-        controller.layoutRefreshController.requestImmediateRelayout(reason: .layoutCommand) { [weak controller] in
+        controller.layoutRefreshController.requestRefresh(reason: .layoutCommand) { [weak controller] in
             controller?.focusWindow(token)
         }
         if startNiriScrollAnimation {

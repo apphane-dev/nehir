@@ -625,7 +625,7 @@ final class CommandHandler {
                 gaps: gaps,
                 orientation: orientation
             ) {
-                controller.layoutRefreshController.requestImmediateRelayout(reason: .layoutCommand)
+                controller.layoutRefreshController.requestRefresh(reason: .layoutCommand)
                 if engine.hasAnyWindowAnimationsRunning(in: wsId) {
                     controller.layoutRefreshController.startScrollAnimation(for: wsId)
                 }
