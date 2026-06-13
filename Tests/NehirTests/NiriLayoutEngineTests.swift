@@ -3448,6 +3448,45 @@ private func makeCenteredCrossMonitorFixture(
         #expect(upperMonitor.workspaceRoots[lowerWorkspaceId] == nil)
     }
 
+    @Test func syncWorkspaceAssignmentsRepopulatesMonitorIndexOnNoOpAttach() {
+        // Reproduces the no-op-attach index gap: after the owning monitor is removed,
+        // cleanupRemovedMonitor clears the index entry while a surviving duplicate root
+        // keeps workspaceRoots correct. A subsequent sync whose target already holds that
+        // root must still repopulate the ownership cache so monitorContaining resolves.
+        let engine = NiriLayoutEngine()
+        let monitors = makeVerticalStackedTestMonitors()
+        let workspaceId = UUID()
+
+        engine.ensureMonitor(for: monitors.lower.id, monitor: monitors.lower)
+        engine.moveWorkspace(workspaceId, to: monitors.upper.id, monitor: monitors.upper)
+
+        guard let root = engine.root(for: workspaceId),
+              let lowerMonitor = engine.monitor(for: monitors.lower.id)
+        else {
+            Issue.record("Expected existing root and lower monitor before no-op index test")
+            return
+        }
+
+        // Stale duplicate root survives on the remaining monitor, mirroring a transient
+        // cross-monitor copy that pruneStaleWorkspaceRootCopies did not yet reconcile.
+        lowerMonitor.workspaceRoots[workspaceId] = root
+
+        // Disconnect the indexed owner: this removes the monitor and clears the index
+        // entry while the duplicate root on the lower monitor persists.
+        engine.cleanupRemovedMonitor(monitors.upper.id)
+        #expect(engine.workspaceMonitorIndex[workspaceId] == nil)
+        #expect(lowerMonitor.workspaceRoots[workspaceId] === root)
+
+        // Reassign to the monitor that already holds the root (no-op attach).
+        engine.syncWorkspaceAssignments(
+            [(workspaceId: workspaceId, monitor: monitors.lower)]
+        )
+
+        #expect(lowerMonitor.workspaceRoots[workspaceId] === root)
+        #expect(engine.monitorContaining(workspace: workspaceId) == monitors.lower.id)
+        #expect(engine.monitorForWorkspace(workspaceId)?.id == monitors.lower.id)
+    }
+
     @Test func moveWorkspaceDoesNotPruneUnrelatedWorkspaceRoots() {
         let engine = NiriLayoutEngine()
         let monitors = makeHorizontalNeighboringTestMonitors()
