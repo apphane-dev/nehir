@@ -325,31 +325,6 @@ private func expectWarpAndPost(_ recorder: WarpEffectRecorder, _ expectedPoint: 
         expectWarpAndPost(fixture.recorder, expectedPoint)
     }
 
-    @Test @MainActor func offMainThreadWarpTapCallbackFailsOpenWithoutQueueingState() {
-        let fixture = makeMouseWarpTestFixture()
-        defer { fixture.handler.cleanup() }
-
-        guard let event = CGEvent(
-            mouseEventSource: nil,
-            mouseType: .mouseMoved,
-            mouseCursorPosition: CGPoint(x: 80, y: 90),
-            mouseButton: .left
-        ) else {
-            Issue.record("Failed to create CGEvent")
-            return
-        }
-
-        let processed = fixture.handler.handleTapCallbackForTests(
-            event: event,
-            isMainThread: false
-        )
-
-        #expect(processed == false)
-        #expect(fixture.handler.mouseWarpDebugSnapshot() == .init())
-        #expect(fixture.handler.state.pendingWarpEvents.hasPendingEvents == false)
-        #expect(fixture.recorder.postedPoints.isEmpty)
-    }
-
     @Test @MainActor func policyUsesTransientDefaultOrderBeforeWarpingFreshMultiMonitorSetup() {
         let fixture = makeMouseWarpTestFixture()
         defer { fixture.handler.cleanup() }

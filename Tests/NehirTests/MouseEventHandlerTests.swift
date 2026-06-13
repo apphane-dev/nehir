@@ -1143,6 +1143,51 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
         #expect(handler.state.currentHoveredEdges == [])
     }
 
+    @Test @MainActor func tapForwardsMoveAndDragLocationsToActiveWarpHandler() {
+        let controller = makeMouseEventTestController()
+        let handler = controller.mouseEventHandler
+        let warp = controller.mouseWarpHandler
+        warp.setup()
+        defer { warp.cleanup() }
+        warp.resetDebugStateForTests()
+
+        for mouseType in [CGEventType.mouseMoved, .leftMouseDragged, .rightMouseDragged] {
+            guard let event = CGEvent(
+                mouseEventSource: nil,
+                mouseType: mouseType,
+                mouseCursorPosition: CGPoint(x: 50, y: 50),
+                mouseButton: .left
+            ) else {
+                Issue.record("Failed to create CGEvent")
+                return
+            }
+            _ = handler.handleTapCallbackForTests(type: mouseType, event: event, isMainThread: true)
+        }
+
+        #expect(warp.mouseWarpDebugSnapshot().queuedTransientEvents == 3)
+    }
+
+    @Test @MainActor func tapDoesNotForwardToWarpHandlerWhenPolicyInactive() {
+        let controller = makeMouseEventTestController()
+        let handler = controller.mouseEventHandler
+        let warp = controller.mouseWarpHandler
+        warp.cleanup()
+        warp.resetDebugStateForTests()
+
+        guard let event = CGEvent(
+            mouseEventSource: nil,
+            mouseType: .mouseMoved,
+            mouseCursorPosition: CGPoint(x: 50, y: 50),
+            mouseButton: .left
+        ) else {
+            Issue.record("Failed to create CGEvent")
+            return
+        }
+        _ = handler.handleTapCallbackForTests(type: .mouseMoved, event: event, isMainThread: true)
+
+        #expect(warp.mouseWarpDebugSnapshot().queuedTransientEvents == 0)
+    }
+
     @Test @MainActor func offMainThreadGestureTapCallbackFailsOpenWithoutMutatingGestureState() {
         let controller = makeMouseEventTestController()
         let handler = controller.mouseEventHandler
