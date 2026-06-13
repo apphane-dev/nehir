@@ -25,7 +25,8 @@ final class MouseWarpHandler: NSObject {
             var drainRuns = 0
         }
 
-        var isActive = false
+        var eventTap: CFMachPort?
+        var runLoopSource: CFRunLoopSource?
         var cooldownTimer: Timer?
         var isWarping = false
         var lastMonitorId: Monitor.ID?
@@ -55,21 +56,63 @@ final class MouseWarpHandler: NSObject {
         super.init()
     }
 
-    // Mouse locations arrive from MouseEventHandler's session event tap via
-    // receiveTapMouseWarpMoved. A dedicated .listenOnly tap is not an option:
-    // macOS stops delivering to passive session taps while the app is inactive,
-    // which broke warping whenever Nehir was not the active app. See issue #32.
     func setup() {
-        guard !state.isActive else { return }
+        guard state.eventTap == nil else { return }
+
+        if let source = CGEventSource(stateID: .combinedSessionState) {
+            source.localEventsSuppressionInterval = 0.0
+        }
+
         MouseWarpHandler._instance = self
-        state.isActive = true
+
+        let eventMask: CGEventMask =
+            (1 << CGEventType.mouseMoved.rawValue) |
+            (1 << CGEventType.leftMouseDragged.rawValue) |
+            (1 << CGEventType.rightMouseDragged.rawValue)
+
+        let callback: CGEventTapCallBack = { _, type, event, _ in
+            if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+                if let tap = MouseWarpHandler._instance?.state.eventTap {
+                    CGEvent.tapEnable(tap: tap, enable: true)
+                }
+                return Unmanaged.passUnretained(event)
+            }
+
+            _ = MouseWarpHandler.processTapCallback(event: event)
+
+            return Unmanaged.passUnretained(event)
+        }
+
+        state.eventTap = CGEvent.tapCreate(
+            tap: .cgSessionEventTap,
+            place: .headInsertEventTap,
+            options: .listenOnly,
+            eventsOfInterest: eventMask,
+            callback: callback,
+            userInfo: nil
+        )
+
+        if let tap = state.eventTap {
+            state.runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
+            if let source = state.runLoopSource {
+                CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
+            }
+            CGEvent.tapEnable(tap: tap, enable: true)
+        }
     }
 
     func cleanup() {
+        if let source = state.runLoopSource {
+            CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
+            state.runLoopSource = nil
+        }
+        if let tap = state.eventTap {
+            CGEvent.tapEnable(tap: tap, enable: false)
+            state.eventTap = nil
+        }
         state.cooldownTimer?.invalidate()
         state.cooldownTimer = nil
         MouseWarpHandler._instance = nil
-        state.isActive = false
         state.isWarping = false
         state.lastMonitorId = nil
         state.pendingWarpEvents.clear()
@@ -89,10 +132,25 @@ final class MouseWarpHandler: NSObject {
         state.pendingWarpEvents.clear()
     }
 
-    // Entry point fed by MouseEventHandler's session event tap. `location` is
-    // already in AppKit screen coordinates.
+    func handleTapCallbackForTests(event: CGEvent, isMainThread: Bool) -> Bool {
+        Self.processTapCallback(event: event, isMainThread: isMainThread)
+    }
+
     func receiveTapMouseWarpMoved(at location: CGPoint) {
         enqueuePendingWarpMove(at: location)
+    }
+
+    private nonisolated static func processTapCallback(
+        event: CGEvent,
+        isMainThread: Bool = Thread.isMainThread
+    ) -> Bool {
+        guard isMainThread else { return false }
+
+        let screenLocation = ScreenCoordinateSpace.toAppKit(point: event.location)
+        MainActor.assumeIsolated {
+            MouseWarpHandler._instance?.receiveTapMouseWarpMoved(at: screenLocation)
+        }
+        return true
     }
 
     private func handleMouseWarpMoved(at location: CGPoint) {
