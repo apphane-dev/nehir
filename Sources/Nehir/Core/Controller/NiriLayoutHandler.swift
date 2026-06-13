@@ -1134,7 +1134,7 @@ enum NiriWindowMoveResult {
                     rememberedFocusToken: nil
                 )
             )
-            controller.layoutRefreshController.requestImmediateRelayout(reason: .layoutCommand)
+            controller.layoutRefreshController.requestRefresh(reason: .layoutCommand)
             startScrollAnimationIfNeeded(for: wsId, state: state, engine: engine)
             return
         }
@@ -1180,7 +1180,7 @@ enum NiriWindowMoveResult {
 
             engine.toggleFullscreen(windowNode, motion: motion, state: &state)
 
-            controller.layoutRefreshController.requestImmediateRelayout(reason: .layoutCommand)
+            controller.layoutRefreshController.requestRefresh(reason: .layoutCommand)
             startScrollAnimationIfNeeded(for: wsId, state: state, engine: engine)
         }
     }
@@ -1202,7 +1202,7 @@ enum NiriWindowMoveResult {
                 workingFrame: workingFrame,
                 gaps: gaps
             )
-            controller.layoutRefreshController.requestImmediateRelayout(reason: .layoutCommand)
+            controller.layoutRefreshController.requestRefresh(reason: .layoutCommand)
             startScrollAnimationIfNeeded(for: wsId, state: state, engine: engine)
         }
     }
@@ -1223,7 +1223,7 @@ enum NiriWindowMoveResult {
                 workingFrame: workingFrame,
                 gaps: gaps
             )
-            controller.layoutRefreshController.requestImmediateRelayout(reason: .layoutCommand)
+            controller.layoutRefreshController.requestRefresh(reason: .layoutCommand)
             startScrollAnimationIfNeeded(for: wsId, state: state, engine: engine)
         }
     }
@@ -1242,7 +1242,7 @@ enum NiriWindowMoveResult {
                 workingFrame: workingFrame,
                 gaps: gaps
             )
-            controller.layoutRefreshController.requestImmediateRelayout(reason: .layoutCommand)
+            controller.layoutRefreshController.requestRefresh(reason: .layoutCommand)
             startScrollAnimationIfNeeded(for: wsId, state: state, engine: engine)
         }
     }
@@ -1263,7 +1263,7 @@ enum NiriWindowMoveResult {
                 workingFrame: workingFrame,
                 gaps: gaps
             )
-            controller.layoutRefreshController.requestImmediateRelayout(reason: .layoutCommand)
+            controller.layoutRefreshController.requestRefresh(reason: .layoutCommand)
             startScrollAnimationIfNeeded(for: wsId, state: state, engine: engine)
         }
     }
@@ -1284,7 +1284,7 @@ enum NiriWindowMoveResult {
                 workingFrame: workingFrame,
                 gaps: gaps
             )
-            controller.layoutRefreshController.requestImmediateRelayout(reason: .layoutCommand)
+            controller.layoutRefreshController.requestRefresh(reason: .layoutCommand)
             startScrollAnimationIfNeeded(for: wsId, state: state, engine: engine)
         }
     }
@@ -1297,7 +1297,7 @@ enum NiriWindowMoveResult {
             else { return }
 
             engine.resetWindowHeight(windowNode, in: wsId)
-            controller.layoutRefreshController.requestImmediateRelayout(reason: .layoutCommand)
+            controller.layoutRefreshController.requestRefresh(reason: .layoutCommand)
             startScrollAnimationIfNeeded(for: wsId, state: state, engine: engine)
         }
     }
@@ -1319,7 +1319,7 @@ enum NiriWindowMoveResult {
             guard state.viewOffsetPixels.isAnimating || viewOffsetChanged || state.selectedNodeId != previousSelectedNodeId else { return }
 
             let focusToken = state.selectedNodeId != previousSelectedNodeId ? selectedWindow?.token : nil
-            controller.layoutRefreshController.requestImmediateRelayout(reason: .layoutCommand) { [weak controller] in
+            controller.layoutRefreshController.requestRefresh(reason: .layoutCommand) { [weak controller] in
                 if let focusToken {
                     controller?.focusWindow(focusToken)
                 }
@@ -1349,7 +1349,7 @@ enum NiriWindowMoveResult {
                 workingFrame: workingFrame,
                 gaps: gaps
             )
-            controller.layoutRefreshController.requestImmediateRelayout(reason: .layoutCommand)
+            controller.layoutRefreshController.requestRefresh(reason: .layoutCommand)
             startScrollAnimationIfNeeded(for: wsId, state: state, engine: engine)
         }
     }
@@ -1370,7 +1370,7 @@ enum NiriWindowMoveResult {
                 workingFrame: workingFrame,
                 gaps: gaps
             )
-            controller.layoutRefreshController.requestImmediateRelayout(reason: .layoutCommand)
+            controller.layoutRefreshController.requestRefresh(reason: .layoutCommand)
             startScrollAnimationIfNeeded(for: wsId, state: state, engine: engine)
         }
     }
@@ -1389,7 +1389,7 @@ enum NiriWindowMoveResult {
                 workingFrame: workingFrame,
                 gaps: gaps
             )
-            controller.layoutRefreshController.requestImmediateRelayout(reason: .layoutCommand)
+            controller.layoutRefreshController.requestRefresh(reason: .layoutCommand)
             startScrollAnimationIfNeeded(for: wsId, state: state, engine: engine)
         }
     }
@@ -1403,7 +1403,7 @@ enum NiriWindowMoveResult {
                 workingAreaWidth: workingFrame.width,
                 gaps: gaps
             )
-            controller.layoutRefreshController.requestImmediateRelayout(reason: .layoutCommand)
+            controller.layoutRefreshController.requestRefresh(reason: .layoutCommand)
             if engine.hasAnyColumnAnimationsRunning(in: wsId) {
                 controller.layoutRefreshController.startScrollAnimation(for: wsId)
             }
@@ -1423,7 +1423,7 @@ enum NiriWindowMoveResult {
 
         syncMonitorsToNiriEngine()
 
-        controller.layoutRefreshController.requestRelayout(reason: .layoutConfigChanged)
+        controller.layoutRefreshController.requestRefresh(reason: .layoutConfigChanged)
     }
 
     func syncMonitorsToNiriEngine() {
@@ -1474,7 +1474,7 @@ enum NiriWindowMoveResult {
             defaultColumnWidth: defaultColumnWidth.map { $0.map { CGFloat($0) } }
         )
         refreshResolvedMonitorSettings()
-        controller.layoutRefreshController.requestRelayout(reason: .layoutConfigChanged)
+        controller.layoutRefreshController.requestRefresh(reason: .layoutConfigChanged)
     }
 
     // MARK: - Node Activation & Operation Context
@@ -1540,7 +1540,7 @@ enum NiriWindowMoveResult {
                     onMonitor: controller.workspaceManager.monitorId(for: workspaceId)
                 )
             }
-            controller.layoutRefreshController.requestImmediateRelayout(
+            controller.layoutRefreshController.requestRefresh(
                 reason: .layoutCommand
             ) { [weak controller] in
                 if let focusToken {
@@ -1932,7 +1932,7 @@ struct NodeActivationOptions {
             oldFrames: oldFrames,
             newFrames: newFrames
         )
-        controller.layoutRefreshController.requestImmediateRelayout(reason: .layoutCommand)
+        controller.layoutRefreshController.requestRefresh(reason: .layoutCommand)
         return hasPendingAnimationWork(state: state)
     }
 
@@ -1940,7 +1940,7 @@ struct NodeActivationOptions {
         state: ViewportState,
         oldFrames: [WindowToken: CGRect]
     ) -> Bool {
-        controller.layoutRefreshController.requestImmediateRelayout(reason: .layoutCommand)
+        controller.layoutRefreshController.requestRefresh(reason: .layoutCommand)
         let newFrames = engine.captureWindowFrames(in: wsId)
         engine.triggerMoveAnimations(
             in: wsId,
@@ -1951,7 +1951,7 @@ struct NodeActivationOptions {
     }
 
     func commitSimple(state: ViewportState) -> Bool {
-        controller.layoutRefreshController.requestImmediateRelayout(reason: .layoutCommand)
+        controller.layoutRefreshController.requestRefresh(reason: .layoutCommand)
         return hasPendingAnimationWork(state: state)
     }
 }

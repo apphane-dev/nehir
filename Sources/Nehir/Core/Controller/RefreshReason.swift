@@ -31,7 +31,20 @@ enum RefreshRequestRoute: Equatable, Sendable {
     case windowRemoval
 }
 
-enum RefreshReason: String, Sendable {
+private struct RefreshRouting: Equatable, Sendable {
+    let route: RefreshRequestRoute
+    let scheduling: RelayoutSchedulingPolicy
+
+    init(
+        route: RefreshRequestRoute,
+        scheduling: RelayoutSchedulingPolicy = .plain
+    ) {
+        self.route = route
+        self.scheduling = scheduling
+    }
+}
+
+enum RefreshReason: String, CaseIterable, Sendable {
     case startup
     case appLaunched
     case unlock
@@ -55,69 +68,61 @@ enum RefreshReason: String, Sendable {
     case appHidden
     case appUnhidden
     case overviewMutation
+}
 
-    var requestRoute: RefreshRequestRoute {
-        switch self {
-        case .startup,
-             .appLaunched,
-             .unlock,
-             .activeSpaceChanged,
-             .monitorConfigurationChanged,
-             .appRulesChanged,
-             .workspaceConfigChanged,
-             .appTerminated:
-            .fullRescan
-        case .layoutConfigChanged,
-             .monitorSettingsChanged,
-             .gapsChanged,
-             .workspaceLayoutToggled,
-             .windowRuleReevaluation,
-             .axWindowCreated,
-             .axWindowChanged:
-            .relayout
-        case .workspaceTransition,
-             .appActivationTransition,
-             .layoutCommand,
-             .interactiveGesture,
-             .overviewMutation:
-            .immediateRelayout
-        case .appHidden,
-             .appUnhidden:
-            .visibilityRefresh
-        case .windowDestroyed:
-            .windowRemoval
-        }
+extension RefreshReason {
+    private static let routingTable: [RefreshReason: RefreshRouting] = [
+        .startup: .init(route: .fullRescan),
+        .appLaunched: .init(route: .fullRescan),
+        .unlock: .init(route: .fullRescan),
+        .activeSpaceChanged: .init(route: .fullRescan),
+        .monitorConfigurationChanged: .init(route: .fullRescan),
+        .appRulesChanged: .init(route: .fullRescan),
+        .workspaceConfigChanged: .init(route: .fullRescan),
+        .appTerminated: .init(route: .fullRescan),
+
+        .layoutConfigChanged: .init(route: .relayout),
+        .monitorSettingsChanged: .init(route: .relayout),
+        .gapsChanged: .init(route: .relayout),
+        .workspaceLayoutToggled: .init(route: .relayout),
+        .windowRuleReevaluation: .init(route: .relayout),
+        .axWindowCreated: .init(
+            route: .relayout,
+            scheduling: .debounced(nanoseconds: 4_000_000, dropWhileBusy: false)
+        ),
+        .axWindowChanged: .init(
+            route: .relayout,
+            scheduling: .debounced(nanoseconds: 8_000_000, dropWhileBusy: true)
+        ),
+
+        .workspaceTransition: .init(route: .immediateRelayout),
+        .appActivationTransition: .init(route: .immediateRelayout),
+        .layoutCommand: .init(route: .immediateRelayout),
+        .interactiveGesture: .init(route: .immediateRelayout),
+        .overviewMutation: .init(route: .immediateRelayout),
+
+        .appHidden: .init(route: .visibilityRefresh),
+        .appUnhidden: .init(route: .visibilityRefresh),
+
+        .windowDestroyed: .init(route: .windowRemoval)
+    ]
+
+    static var hasCompleteRoutingTable: Bool {
+        Set(routingTable.keys) == Set(allCases)
     }
 
-    var relayoutSchedulingPolicy: RelayoutSchedulingPolicy {
-        switch self {
-        case .startup,
-             .appLaunched,
-             .unlock,
-             .activeSpaceChanged,
-             .monitorConfigurationChanged,
-             .appRulesChanged,
-             .workspaceConfigChanged,
-             .layoutConfigChanged,
-             .monitorSettingsChanged,
-             .gapsChanged,
-             .workspaceTransition,
-             .appActivationTransition,
-             .workspaceLayoutToggled,
-             .appTerminated,
-             .windowRuleReevaluation,
-             .layoutCommand,
-             .interactiveGesture,
-             .appHidden,
-             .appUnhidden,
-             .overviewMutation:
-            .plain
-        case .axWindowCreated:
-            .debounced(nanoseconds: 4_000_000, dropWhileBusy: false)
-        case .axWindowChanged:
-            .debounced(nanoseconds: 8_000_000, dropWhileBusy: true)
-        case .windowDestroyed:
-            .plain
+    private var routing: RefreshRouting {
+        guard let routing = Self.routingTable[self] else {
+            preconditionFailure("Missing refresh routing for reason: \(self)")
         }
+        return routing
+    }
+
+    var route: RefreshRequestRoute {
+        routing.route
+    }
+
+    var scheduling: RelayoutSchedulingPolicy {
+        routing.scheduling
     }
 }

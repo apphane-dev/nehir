@@ -616,27 +616,28 @@ private func syncNiriWorkspaceStatesForRefreshTests(
 
 @Suite(.serialized) struct RefreshRoutingTests {
     @Test func relayoutPoliciesAreExplicit() {
-        #expect(RefreshReason.axWindowChanged.relayoutSchedulingPolicy == .debounced(
+        #expect(RefreshReason.axWindowChanged.scheduling == .debounced(
             nanoseconds: 8_000_000,
             dropWhileBusy: true
         ))
-        #expect(RefreshReason.axWindowCreated.relayoutSchedulingPolicy == .debounced(
+        #expect(RefreshReason.axWindowCreated.scheduling == .debounced(
             nanoseconds: 4_000_000,
             dropWhileBusy: false
         ))
-        #expect(RefreshReason.gapsChanged.relayoutSchedulingPolicy == .plain)
-        #expect(RefreshReason.workspaceTransition.relayoutSchedulingPolicy == .plain)
-        #expect(RefreshReason.windowRuleReevaluation.relayoutSchedulingPolicy == .plain)
+        #expect(RefreshReason.gapsChanged.scheduling == .plain)
+        #expect(RefreshReason.workspaceTransition.scheduling == .plain)
+        #expect(RefreshReason.windowRuleReevaluation.scheduling == .plain)
     }
 
     @Test func refreshRoutesAreExplicit() {
-        #expect(RefreshReason.appLaunched.requestRoute == .fullRescan)
-        #expect(RefreshReason.gapsChanged.requestRoute == .relayout)
-        #expect(RefreshReason.workspaceTransition.requestRoute == .immediateRelayout)
-        #expect(RefreshReason.appHidden.requestRoute == .visibilityRefresh)
-        #expect(RefreshReason.appUnhidden.requestRoute == .visibilityRefresh)
-        #expect(RefreshReason.windowDestroyed.requestRoute == .windowRemoval)
-        #expect(RefreshReason.windowRuleReevaluation.requestRoute == .relayout)
+        #expect(RefreshReason.hasCompleteRoutingTable)
+        #expect(RefreshReason.appLaunched.route == .fullRescan)
+        #expect(RefreshReason.gapsChanged.route == .relayout)
+        #expect(RefreshReason.workspaceTransition.route == .immediateRelayout)
+        #expect(RefreshReason.appHidden.route == .visibilityRefresh)
+        #expect(RefreshReason.appUnhidden.route == .visibilityRefresh)
+        #expect(RefreshReason.windowDestroyed.route == .windowRemoval)
+        #expect(RefreshReason.windowRuleReevaluation.route == .relayout)
     }
 
     @Test @MainActor func startupRestorePreservesPersistedNiriStackedColumnsAndWidths() async throws {

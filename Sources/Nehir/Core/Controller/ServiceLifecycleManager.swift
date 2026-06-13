@@ -176,7 +176,7 @@ final class ServiceLifecycleManager {
         controller.axManager.invalidateCachedFrameState()
         controller.workspaceManager.clearGeometryHiddenStates()
 
-        controller.layoutRefreshController.requestFullRescan(reason: .monitorConfigurationChanged)
+        controller.layoutRefreshController.requestRefresh(reason: .monitorConfigurationChanged)
     }
 
     func handleAppTerminated(pid: pid_t) {
@@ -200,31 +200,31 @@ final class ServiceLifecycleManager {
         }
         _ = controller.focusBorderController.refresh(forceOrdering: true)
         controller.appInfoCache.evict(pid: pid)
-        controller.layoutRefreshController.requestFullRescan(reason: .appTerminated)
+        controller.layoutRefreshController.requestRefresh(reason: .appTerminated)
     }
 
     func handleGapsChanged() {
-        controller?.layoutRefreshController.requestRelayout(reason: .gapsChanged)
+        controller?.layoutRefreshController.requestRefresh(reason: .gapsChanged)
     }
 
     func handleAppLaunched() {
-        controller?.layoutRefreshController.requestFullRescan(reason: .appLaunched)
+        controller?.layoutRefreshController.requestRefresh(reason: .appLaunched)
     }
 
     func handleUnlockDetected() {
         guard let controller else { return }
-        controller.layoutRefreshController.requestFullRescan(reason: .unlock)
+        controller.layoutRefreshController.requestRefresh(reason: .unlock)
     }
 
     func performStartupRefresh() {
-        controller?.layoutRefreshController.requestFullRescan(reason: .startup)
+        controller?.layoutRefreshController.requestRefresh(reason: .startup)
     }
 
     func handleActiveSpaceDidChange() {
         guard let controller else { return }
         controller.focusBorderController.hide()
         controller.workspaceManager.recordReconcileEvent(.activeSpaceChanged(source: .service))
-        controller.layoutRefreshController.requestFullRescan(reason: .activeSpaceChanged)
+        controller.layoutRefreshController.requestRefresh(reason: .activeSpaceChanged)
     }
 
     private func setupWorkspaceObservation() {
@@ -325,7 +325,7 @@ final class ServiceLifecycleManager {
             MainActor.assumeIsolated {
                 guard let controller = self?.controller else { return }
                 _ = controller.workspaceManager.recordReconcileEvent(.systemWake(source: .service))
-                controller.layoutRefreshController.requestFullRescan(reason: .unlock)
+                controller.layoutRefreshController.requestRefresh(reason: .unlock)
             }
         }
     }

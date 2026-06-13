@@ -1026,7 +1026,7 @@ private extension OverviewController {
             wmController.layoutRefreshController.startScrollAnimation(for: targetWsId)
         }
 
-        wmController.layoutRefreshController.requestImmediateRelayout(reason: .overviewMutation)
+        wmController.layoutRefreshController.requestRefresh(reason: .overviewMutation)
     }
 
     func overviewInsertPositionToNiri(_ position: InsertPosition) -> InsertPosition {
