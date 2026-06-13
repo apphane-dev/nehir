@@ -733,6 +733,7 @@ public enum IPCAutomationManifest {
         ),
         command(["scratchpad", "toggle"], name: .scratchpadToggle, summary: "Show or hide the scratchpad window."),
         command(["open-menu-anywhere"], name: .openMenuAnywhere, summary: "Open the menu surface anywhere."),
+        command(["open-settings"], name: .openSettings, summary: "Open the Nehir settings window."),
         command(["debug", "dump-runtime-state"], name: .debugDumpRuntimeState, summary: "Dump runtime debugging state to the clipboard and unified log."),
         command(["debug", "reset-runtime-state"], name: .debugResetRuntimeState, summary: "Clear runtime debugging state and rebootstrap from a startup-style rescan."),
         command(["debug", "restart-clearing-runtime-state"], name: .debugRestartClearingRuntimeState, summary: "Clear runtime debugging state, relaunch the app, and exit the current process."),

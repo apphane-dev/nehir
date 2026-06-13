@@ -713,6 +713,13 @@ enum ActionCatalog {
                 keywords: ["menu", "anywhere"]
             ),
             action(
+                id: "openSettings",
+                command: .openSettings,
+                category: .focus,
+                binding: .unassigned,
+                keywords: ["settings", "preferences", "configure", "config"]
+            ),
+            action(
                 id: "debug.dumpRuntimeState",
                 command: .debugDumpRuntimeState,
                 category: .debugging,
@@ -920,6 +927,7 @@ enum ActionCatalog {
         case .assignFocusedWindowToScratchpad: "Assign Focused Window to Scratchpad"
         case .toggleScratchpadWindow: "Toggle Scratchpad Window"
         case .openMenuAnywhere: "Open Menu Anywhere"
+        case .openSettings: "Open Settings"
         case .debugDumpRuntimeState: "Debug: Dump Runtime State"
         case .debugResetRuntimeState: "Debug: Reset Runtime State"
         case .debugRestartClearingRuntimeState: "Debug: Restart Clearing Runtime State"
@@ -1077,6 +1085,8 @@ enum ActionCatalog {
             .scratchpadToggle
         case .openMenuAnywhere:
             .openMenuAnywhere
+        case .openSettings:
+            .openSettings
         case .debugDumpRuntimeState:
             .debugDumpRuntimeState
         case .debugResetRuntimeState:

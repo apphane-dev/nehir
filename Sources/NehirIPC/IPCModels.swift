@@ -277,6 +277,7 @@ public enum IPCCommandName: String, Codable, CaseIterable, Equatable, Sendable {
     case scratchpadAssign = "scratchpad-assign"
     case scratchpadToggle = "scratchpad-toggle"
     case openMenuAnywhere = "open-menu-anywhere"
+    case openSettings = "open-settings"
     case debugDumpRuntimeState = "debug-dump-runtime-state"
     case debugResetRuntimeState = "debug-reset-runtime-state"
     case debugRestartClearingRuntimeState = "debug-restart-clearing-runtime-state"
@@ -411,6 +412,7 @@ public enum IPCCommandRequest: Equatable, Sendable {
     case scratchpadAssign
     case scratchpadToggle
     case openMenuAnywhere
+    case openSettings
     case debugDumpRuntimeState
     case debugResetRuntimeState
     case debugRestartClearingRuntimeState
@@ -564,6 +566,8 @@ public enum IPCCommandRequest: Equatable, Sendable {
             .scratchpadToggle
         case .openMenuAnywhere:
             .openMenuAnywhere
+        case .openSettings:
+            .openSettings
         case .debugDumpRuntimeState:
             .debugDumpRuntimeState
         case .debugResetRuntimeState:
@@ -836,6 +840,9 @@ public enum IPCCommandRequest: Equatable, Sendable {
         case .openMenuAnywhere:
             try requireNoArguments()
             self = .openMenuAnywhere
+        case .openSettings:
+            try requireNoArguments()
+            self = .openSettings
         case .debugDumpRuntimeState:
             try requireNoArguments()
             self = .debugDumpRuntimeState
@@ -1076,6 +1083,8 @@ extension IPCCommandRequest: Codable {
             self = .scratchpadToggle
         case .openMenuAnywhere:
             self = .openMenuAnywhere
+        case .openSettings:
+            self = .openSettings
         case .debugDumpRuntimeState:
             self = .debugDumpRuntimeState
         case .debugResetRuntimeState:
@@ -1251,6 +1260,8 @@ extension IPCCommandRequest: Codable {
         case .scratchpadToggle:
             break
         case .openMenuAnywhere:
+            break
+        case .openSettings:
             break
         case .debugDumpRuntimeState:
             break
