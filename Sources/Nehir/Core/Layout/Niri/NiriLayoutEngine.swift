@@ -109,6 +109,7 @@ final class NiriLayoutEngine {
     private static let presetMatchTolerance: CGFloat = 0.001
 
     var monitors: [Monitor.ID: NiriMonitor] = [:]
+    var workspaceMonitorIndex: [WorkspaceDescriptor.ID: Monitor.ID] = [:]
 
     var roots: [WorkspaceDescriptor.ID: NiriRoot] = [:]
 
