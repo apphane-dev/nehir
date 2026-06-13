@@ -86,7 +86,10 @@ final class MouseWarpHandler: NSObject {
         state.eventTap = CGEvent.tapCreate(
             tap: .cgSessionEventTap,
             place: .headInsertEventTap,
-            options: .listenOnly,
+            // `.listenOnly` can stop delivering to passive session taps while
+            // Nehir is inactive; an active pass-through tap keeps warp events
+            // flowing. See GitHub issue #32.
+            options: .defaultTap,
             eventsOfInterest: eventMask,
             callback: callback,
             userInfo: nil
