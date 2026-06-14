@@ -2996,6 +2996,28 @@ import QuartzCore
             return
         }
 
+        if let observedFrame = result.writeResult.observedFrame,
+           result.writeResult.failureReason == .verificationMismatch,
+           isCellQuantizationOvershoot(target: result.targetFrame, observed: observedFrame)
+        {
+            // Terminal/grid apps (e.g. Ghostty) snap window geometry to whole cell rows. Such
+            // overshoot is bidirectional quantization, not a one-sided hard minimum: the window
+            // could be smaller (next grid line down), it just cannot land exactly on the requested
+            // size. Accept the snapped frame and do NOT record an inferred resize minimum — pinning
+            // it would over-constrain the solver and permanently break uniform fill heights among
+            // sibling windows in the same workspace.
+            controller.axManager.confirmFrameWrite(for: result.windowId, frame: observedFrame)
+            _ = controller.focusBorderController.updateFrameHint(
+                for: entry.token,
+                frame: observedFrame,
+                forceOrdering: true
+            )
+            controller.axManager.recordFrameApplyTrace(
+                "resizeMin.skipQuantization id=\(entry.windowId) target=\(LayoutTrace.rect(result.targetFrame)) observed=\(LayoutTrace.rect(observedFrame))"
+            )
+            return
+        }
+
         guard let minimumSize = inferredResizeMinimumSize(for: result, entry: entry) else { return }
 
         let previousMinimumSize = controller.workspaceManager.inferredResizeMinimumSize(for: entry.token)
@@ -3110,6 +3132,35 @@ import QuartzCore
     private func targetSizeIsSmallerThanObservedSize(_ targetSize: CGSize, observedSize: CGSize) -> Bool {
         targetSize.width + 0.5 < observedSize.width
             || targetSize.height + 0.5 < observedSize.height
+    }
+
+    /// Maximum overshoot, in points, treated as cell-row/column quantization rather than an
+    /// app-enforced minimum. Covers typical terminal cell heights; genuine minimums are reported
+    /// via `AXMinSize` and respected independently of this fallback heuristic.
+    private static let cellQuantizationOvershootThreshold: CGFloat = 32.0
+
+    /// Returns true when the only thing separating `observed` from `target` is cell-quantizing
+    /// snap: at least one size axis overshoots (a pure shrink is handled by the inferred-minimum
+    /// path, not here) and every frame component — both sizes, including any non-overshooting
+    /// axis, and the origin — stays within `cellQuantizationOvershootThreshold`. Cell-quantizing
+    /// apps (terminal emulators) snap bidirectionally to whole grid lines and do not move the
+    /// window, so a genuine quantization mismatch never undershoots past one cell or shifts the
+    /// origin; anything larger is a real refusal/minimum and must not be swallowed here.
+    private func isCellQuantizationOvershoot(target: CGRect, observed: CGRect) -> Bool {
+        let threshold = Self.cellQuantizationOvershootThreshold
+        func axisOvershoot(_ targetDimension: CGFloat, _ observedDimension: CGFloat) -> CGFloat {
+            observedDimension > targetDimension + 0.5 ? observedDimension - targetDimension : 0
+        }
+        func withinThreshold(_ targetDimension: CGFloat, _ observedDimension: CGFloat) -> Bool {
+            abs(observedDimension - targetDimension) <= threshold
+        }
+        let widthOvershoot = axisOvershoot(target.width, observed.width)
+        let heightOvershoot = axisOvershoot(target.height, observed.height)
+        return (widthOvershoot > 0 || heightOvershoot > 0)
+            && withinThreshold(target.width, observed.width)
+            && withinThreshold(target.height, observed.height)
+            && withinThreshold(target.origin.x, observed.origin.x)
+            && withinThreshold(target.origin.y, observed.origin.y)
     }
 
 
