@@ -83,7 +83,7 @@ final class SettingsStore {
         didSet { scheduleSave() }
     }
 
-    var niriMaxVisibleColumns = SettingsStore.defaultExport.niriMaxVisibleColumns {
+    var niriBalancedColumnCount = SettingsStore.defaultExport.niriBalancedColumnCount {
         didSet { scheduleSave() }
     }
 
@@ -97,10 +97,29 @@ final class SettingsStore {
         didSet { scheduleSave() }
     }
 
-    var niriSingleWindowAspectRatio = SingleWindowAspectRatio(
-        rawValue: SettingsStore.defaultExport.niriSingleWindowAspectRatio
-    ) ?? .none {
-        didSet { scheduleSave() }
+    var niriLoneWindowMaxWidth = SettingsStore.validatedLoneWindowMaxWidth(
+        SettingsStore.defaultExport.niriLoneWindowMaxWidth
+    ) {
+        didSet {
+            let validated = SettingsStore.validatedLoneWindowMaxWidth(niriLoneWindowMaxWidth)
+            if validated != niriLoneWindowMaxWidth {
+                niriLoneWindowMaxWidth = validated
+                return
+            }
+            scheduleSave()
+        }
+    }
+
+    var loneWindowPolicy: LoneWindowPolicy {
+        guard let maxWidth = niriLoneWindowMaxWidth else { return .fill }
+        return .centered(maxWidthFraction: maxWidth)
+    }
+
+    var defaultColumnWidth: DefaultColumnWidth {
+        if let width = niriDefaultColumnWidth {
+            return .custom(fraction: width)
+        }
+        return .balanced(columns: niriBalancedColumnCount)
     }
 
     var workspaceConfigurations = SettingsStore.defaultExport.workspaceConfigurations {
@@ -208,6 +227,10 @@ final class SettingsStore {
     }
 
     var appRules = SettingsStore.defaultExport.appRules {
+        didSet { scheduleSave() }
+    }
+
+    var monitorGapSettings = SettingsStore.defaultExport.monitorGapSettings {
         didSet { scheduleSave() }
     }
 
@@ -344,6 +367,7 @@ final class SettingsStore {
         if !fm.fileExists(atPath: persistence.monitorsDirectoryURL.path) {
             try MonitorOverrideFileStore.write(
                 bar: export.monitorBarSettings,
+                gaps: export.monitorGapSettings,
                 orientation: export.monitorOrientationSettings,
                 niri: export.monitorNiriSettings,
                 to: persistence.monitorsDirectoryURL
@@ -374,10 +398,10 @@ final class SettingsStore {
             outerGapRight: outerGapRight,
             outerGapTop: outerGapTop,
             outerGapBottom: outerGapBottom,
-            niriMaxVisibleColumns: niriMaxVisibleColumns,
+            niriBalancedColumnCount: niriBalancedColumnCount,
             niriInfiniteLoop: niriInfiniteLoop,
             revealPartial: revealPartial.rawValue,
-            niriSingleWindowAspectRatio: niriSingleWindowAspectRatio.rawValue,
+            niriLoneWindowMaxWidth: niriLoneWindowMaxWidth,
             niriColumnWidthPresets: niriColumnWidthPresets,
             niriDefaultColumnWidth: niriDefaultColumnWidth,
             workspaceConfigurations: workspaceConfigurations,
@@ -407,6 +431,7 @@ final class SettingsStore {
             workspaceBarLabelFontSize: 12,
             monitorBarSettings: monitorBarSettings,
             appRules: appRules,
+            monitorGapSettings: monitorGapSettings,
             monitorOrientationSettings: monitorOrientationSettings,
             monitorNiriSettings: monitorNiriSettings,
             preventSleepEnabled: preventSleepEnabled,
@@ -444,10 +469,10 @@ final class SettingsStore {
         outerGapTop = export.outerGapTop
         outerGapBottom = export.outerGapBottom
 
-        niriMaxVisibleColumns = export.niriMaxVisibleColumns
+        niriBalancedColumnCount = export.niriBalancedColumnCount
         niriInfiniteLoop = export.niriInfiniteLoop
         revealPartial = RevealPartial(rawValue: export.revealPartial) ?? .default
-        niriSingleWindowAspectRatio = SingleWindowAspectRatio(rawValue: export.niriSingleWindowAspectRatio) ?? .none
+        niriLoneWindowMaxWidth = SettingsStore.validatedLoneWindowMaxWidth(export.niriLoneWindowMaxWidth)
         niriColumnWidthPresets = SettingsStore.validatedPresets(
             export.niriColumnWidthPresets ?? baseline.niriColumnWidthPresets ?? SettingsStore.defaultColumnWidthPresets
         )
@@ -486,6 +511,7 @@ final class SettingsStore {
         monitorBarSettings = SettingsStore.reboundMonitorSettings(export.monitorBarSettings, monitors: monitors)
 
         appRules = export.appRules
+        monitorGapSettings = SettingsStore.reboundMonitorSettings(export.monitorGapSettings, monitors: monitors)
         monitorOrientationSettings = SettingsStore.reboundMonitorSettings(
             export.monitorOrientationSettings,
             monitors: monitors
@@ -703,6 +729,37 @@ final class SettingsStore {
         appRules.first { $0.bundleId == bundleId }
     }
 
+    func gapSettings(for monitor: Monitor) -> MonitorGapSettings? {
+        MonitorSettingsStore.get(for: monitor, in: monitorGapSettings)
+    }
+
+    func gapSettings(for monitorName: String) -> MonitorGapSettings? {
+        MonitorSettingsStore.get(for: monitorName, in: monitorGapSettings)
+    }
+
+    func updateGapSettings(_ settings: MonitorGapSettings) {
+        MonitorSettingsStore.update(settings, in: &monitorGapSettings)
+    }
+
+    func removeGapSettings(for monitor: Monitor) {
+        MonitorSettingsStore.remove(for: monitor, from: &monitorGapSettings)
+    }
+
+    func removeGapSettings(for monitorName: String) {
+        MonitorSettingsStore.remove(for: monitorName, from: &monitorGapSettings)
+    }
+
+    func resolvedGapSettings(for monitor: Monitor) -> ResolvedGapSettings {
+        let override = gapSettings(for: monitor)
+        return ResolvedGapSettings(
+            gapSize: (override?.gapSize ?? gapSize).clamped(to: 0 ... 64),
+            outerGapLeft: (override?.outerGapLeft ?? outerGapLeft).clamped(to: 0 ... 64),
+            outerGapRight: (override?.outerGapRight ?? outerGapRight).clamped(to: 0 ... 64),
+            outerGapTop: (override?.outerGapTop ?? outerGapTop).clamped(to: 0 ... 64),
+            outerGapBottom: (override?.outerGapBottom ?? outerGapBottom).clamped(to: 0 ... 64)
+        )
+    }
+
     func orientationSettings(for monitor: Monitor) -> MonitorOrientationSettings? {
         MonitorSettingsStore.get(for: monitor, in: monitorOrientationSettings)
     }
@@ -761,9 +818,28 @@ final class SettingsStore {
     }
 
     private func resolvedNiriSettings(override: MonitorNiriSettings?) -> ResolvedNiriSettings {
+        let resolvedDefaultColumnWidth: DefaultColumnWidth
+        if let balancedColumnCount = override?.balancedColumnCount,
+           niriDefaultColumnWidth == nil
+        {
+            // balancedColumnCount only affects the Balanced column count. When the global mode is
+            // Custom (non-nil defaultColumnWidth), preserve the custom fraction and ignore the
+            // monitor count override so it doesn't silently defeat the global custom width.
+            resolvedDefaultColumnWidth = .balanced(columns: balancedColumnCount.clamped(to: 1 ... 5))
+        } else {
+            resolvedDefaultColumnWidth = defaultColumnWidth
+        }
+
+        let resolvedLoneWindowPolicy: LoneWindowPolicy
+        if let overridePolicy = override?.loneWindowPolicy {
+            resolvedLoneWindowPolicy = overridePolicy
+        } else {
+            resolvedLoneWindowPolicy = loneWindowPolicy
+        }
+
         return ResolvedNiriSettings(
-            maxVisibleColumns: override?.maxVisibleColumns ?? niriMaxVisibleColumns,
-            singleWindowAspectRatio: override?.singleWindowAspectRatio ?? niriSingleWindowAspectRatio,
+            defaultColumnWidth: resolvedDefaultColumnWidth,
+            loneWindowPolicy: resolvedLoneWindowPolicy,
             infiniteLoop: niriInfiniteLoop
         )
     }
@@ -781,5 +857,10 @@ final class SettingsStore {
     static func validatedDefaultColumnWidth(_ width: Double?) -> Double? {
         guard let width else { return nil }
         return min(1.0, max(0.05, width))
+    }
+
+    static func validatedLoneWindowMaxWidth(_ width: Double?) -> Double? {
+        guard let width else { return nil }
+        return min(0.95, max(0.10, width))
     }
 }

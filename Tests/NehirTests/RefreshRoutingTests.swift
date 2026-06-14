@@ -1150,7 +1150,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
 
         resetRefreshSpies(on: controller, recorder: recorder)
 
-        controller.updateNiriConfig(maxVisibleColumns: 3)
+        controller.updateNiriConfig(balancedColumnCount: 3)
         await waitForRefreshWork(on: controller)
 
         #expect(controller.layoutRefreshController.debugCounters.relayoutExecutions == 1)

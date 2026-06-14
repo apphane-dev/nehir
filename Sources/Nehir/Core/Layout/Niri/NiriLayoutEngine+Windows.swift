@@ -143,6 +143,12 @@ extension NiriLayoutEngine {
             root.columns.last
         }
 
+        if root.allWindows.count == 1 {
+            for column in root.columns where !column.hasManualSingleWindowWidthOverride {
+                column.cachedWidth = 0
+            }
+        }
+
         let newColumn = NiriContainer()
         initializeNewColumnWidth(newColumn, in: workspaceId)
         if let refCol = referenceColumn {

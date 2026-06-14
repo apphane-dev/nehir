@@ -843,7 +843,7 @@ final class MouseEventHandler {
                let monitor = controller.workspaceManager.monitor(for: wsId)
             {
                 let workingFrame = controller.insetWorkingFrame(for: monitor)
-                let gaps = CGFloat(controller.workspaceManager.gaps)
+                let gaps = controller.gapSize(for: monitor)
 
                 let isInsertMode = modifiers.contains(.maskShift)
                 var moveStarted = false
@@ -979,7 +979,8 @@ final class MouseEventHandler {
                                   targetWindowId: nodeId,
                                   position: insertPosition,
                                   in: wsId,
-                                  gaps: CGFloat(controller.workspaceManager.gaps)
+                                  gaps: controller.workspaceManager.monitor(for: wsId).map { controller.gapSize(for: $0) }
+                                      ?? CGFloat(controller.workspaceManager.gaps)
                               )
                     {
                         state.dragGhostController?.showSwapTarget(frame: dropFrame)
@@ -1004,9 +1005,9 @@ final class MouseEventHandler {
         }
 
         let gaps = LayoutGaps(
-            horizontal: CGFloat(controller.workspaceManager.gaps),
-            vertical: CGFloat(controller.workspaceManager.gaps),
-            outer: controller.workspaceManager.outerGaps
+            horizontal: controller.gapSize(for: monitor),
+            vertical: controller.gapSize(for: monitor),
+            outer: controller.outerGaps(for: monitor)
         )
         let insetFrame = controller.insetWorkingFrame(for: monitor)
 
@@ -1037,7 +1038,7 @@ final class MouseEventHandler {
                let monitor = controller.workspaceManager.monitor(for: wsId)
             {
                 let workingFrame = controller.insetWorkingFrame(for: monitor)
-                let gaps = CGFloat(controller.workspaceManager.gaps)
+                let gaps = controller.gapSize(for: monitor)
                 var didEnd = false
                 controller.workspaceManager.withNiriViewportState(for: wsId) { vstate in
                     didEnd = engine.interactiveMoveEnd(
@@ -1071,7 +1072,7 @@ final class MouseEventHandler {
            let monitor = controller.workspaceManager.monitor(for: wsId)
         {
             let workingFrame = controller.insetWorkingFrame(for: monitor)
-            let gaps = CGFloat(controller.workspaceManager.gaps)
+            let gaps = controller.gapSize(for: monitor)
             let hadInteractiveResize = engine.interactiveResize != nil
 
             controller.workspaceManager.withNiriViewportState(for: wsId) { vstate in
@@ -1538,14 +1539,24 @@ final class MouseEventHandler {
         guard let controller else { return }
         let insetFrame = controller.insetWorkingFrame(for: monitor)
         let viewportWidth = insetFrame.width
-        let gap = CGFloat(controller.workspaceManager.gaps)
-        let columns = engine.columns(in: wsId)
+        let gap = controller.gapSize(for: monitor)
+        let scale = backingScale(for: monitor)
 
         var didApply = false
         controller.workspaceManager.withNiriViewportState(for: wsId) { vstate in
             if vstate.viewOffsetPixels.isAnimating {
                 vstate.settleAtCurrentOffset()
             }
+
+            engine.prepareAndSeedSingleWindowViewport(
+                in: wsId,
+                workingFrame: insetFrame,
+                containingFrame: monitor.frame,
+                scale: scale,
+                gaps: gap,
+                state: &vstate
+            )
+            let columns = engine.columns(in: wsId)
 
             if !vstate.viewOffsetPixels.isGesture {
                 guard vstate.beginGesture(isTrackpad: true, columns: columns) else { return }
@@ -1575,6 +1586,11 @@ final class MouseEventHandler {
         }
     }
 
+    private func backingScale(for monitor: Monitor) -> CGFloat {
+        NSScreen.screens.first(where: { $0.displayId == monitor.displayId })?
+            .backingScaleFactor ?? 2.0
+    }
+
     private func applyMouseWheelColumnTicks(
         _ ticks: Int,
         engine: NiriLayoutEngine,
@@ -1583,7 +1599,7 @@ final class MouseEventHandler {
     ) {
         guard let controller else { return }
         let insetFrame = controller.insetWorkingFrame(for: monitor)
-        let gap = CGFloat(controller.workspaceManager.gaps)
+        let gap = controller.gapSize(for: monitor)
         let step = ticks > 0 ? 1 : -1
         let motion = controller.motionPolicy.snapshot()
 
@@ -1652,10 +1668,16 @@ final class MouseEventHandler {
         }
 
         let insetFrame = controller.insetWorkingFrame(for: monitor)
+        let gap = controller.gapSize(for: monitor)
+        let scale = backingScale(for: monitor)
+        engine.prepareSingleWindowViewport(
+            in: wsId,
+            workingFrame: insetFrame,
+            containingFrame: monitor.frame,
+            scale: scale,
+            gaps: gap
+        )
         let columns = engine.columns(in: wsId)
-        let gap = CGFloat(controller.workspaceManager.gaps)
-        let scale = NSScreen.screens.first(where: { $0.displayId == monitor.displayId })?
-            .backingScaleFactor ?? 2.0
 
         var selectedWindow: NiriWindow?
         var previousActiveColumnIndex: Int?

@@ -275,8 +275,8 @@ enum NiriWindowMoveResult {
             hasCompletedInitialRefresh: controller.layoutRefreshController.layoutState.hasCompletedInitialRefresh,
             useScrollAnimationPath: useScrollAnimationPath,
             removalSeed: removalSeed,
-            gap: CGFloat(controller.workspaceManager.gaps),
-            outerGaps: controller.workspaceManager.outerGaps,
+            gap: controller.gapSize(for: monitor),
+            outerGaps: controller.outerGaps(for: monitor),
             displayRefreshRate: controller.layoutRefreshController.layoutState
                 .refreshRateByDisplay[monitor.displayId] ?? 60.0,
             isActiveWorkspace: refreshInput.isActiveWorkspace
@@ -541,15 +541,33 @@ enum NiriWindowMoveResult {
             }
         }
 
-        let usesSingleWindowAspectRatio = pass.engine.singleWindowLayoutContext(in: pass.wsId) != nil
-        if usesSingleWindowAspectRatio {
-            resetViewportForSingleWindowAspectRatio(state: &state)
+        let usesCenteredLoneWindow = pass.engine.singleWindowLayoutContext(in: pass.wsId) != nil
+        let isGestureOrAnimation = state.viewOffsetPixels.isGesture || state.viewOffsetPixels.isAnimating
+        if usesCenteredLoneWindow, !isGestureOrAnimation {
+            // Capture the lone window's previously resolved width before re-preparing so we
+            // can detect a policy/size/monitor change (not just an initial setup).
+            let previousSingleWindowWidth = pass.engine.singleWindowLayoutContext(in: pass.wsId)?.container.cachedWidth ?? 0
+            let geometry = pass.engine.prepareSingleWindowViewport(
+                in: pass.wsId,
+                workingFrame: pass.insetFrame,
+                containingFrame: pass.monitor.frame,
+                scale: pass.engine.displayScale(in: pass.wsId),
+                gaps: pass.gap
+            )
+            // Reset to center on initial setup, window removal, or when the lone window's
+            // resolved width changed (policy/size/monitor change). Otherwise keep the
+            // current offset so deliberate side-snaps survive relayouts.
+            let widthChanged = abs((geometry.map { $0.rect.width } ?? 0) - previousSingleWindowWidth) > 1
+            let shouldResetSingleWindowViewport = previousSingleWindowWidth <= 0
+                || !removal.removalResult.removedTokens.isEmpty
+                || widthChanged
+            if shouldResetSingleWindowViewport {
+                resetViewportForCenteredLoneWindow(geometry: geometry, state: &state)
+            }
         }
 
         let offsetBefore = state.viewOffsetPixels.current()
         var viewportNeedsRecalc = removal.removalResult.viewportNeedsRecalc
-
-        let isGestureOrAnimation = state.viewOffsetPixels.isGesture || state.viewOffsetPixels.isAnimating
 
         for col in pass.engine.columns(in: pass.wsId) {
             if col.cachedWidth <= 0 {
@@ -557,7 +575,7 @@ enum NiriWindowMoveResult {
             }
         }
 
-        if !usesSingleWindowAspectRatio,
+        if !usesCenteredLoneWindow,
            !isGestureOrAnimation,
            snapshot.isActiveWorkspace,
            let selectedId = state.selectedNodeId,
@@ -579,7 +597,7 @@ enum NiriWindowMoveResult {
             }
         }
 
-        let ranEnsureVisible = !usesSingleWindowAspectRatio
+        let ranEnsureVisible = !usesCenteredLoneWindow
             && !isGestureOrAnimation
             && snapshot.isActiveWorkspace
             && state.selectedNodeId != nil
@@ -630,7 +648,14 @@ enum NiriWindowMoveResult {
 
             if wasEmpty {
                 if pass.engine.singleWindowLayoutContext(in: pass.wsId) != nil {
-                    resetViewportForSingleWindowAspectRatio(state: &state)
+                    let geometry = pass.engine.prepareSingleWindowViewport(
+                        in: pass.wsId,
+                        workingFrame: pass.insetFrame,
+                        containingFrame: pass.monitor.frame,
+                        scale: pass.engine.displayScale(in: pass.wsId),
+                        gaps: pass.gap
+                    )
+                    resetViewportForCenteredLoneWindow(geometry: geometry, state: &state)
                 } else {
                     let cols = pass.engine.columns(in: pass.wsId)
                     state.transitionToColumn(
@@ -700,9 +725,12 @@ enum NiriWindowMoveResult {
         return (newWindowToken, rememberedFocusToken)
     }
 
-    private func resetViewportForSingleWindowAspectRatio(state: inout ViewportState) {
+    private func resetViewportForCenteredLoneWindow(
+        geometry: SingleWindowViewportGeometry?,
+        state: inout ViewportState
+    ) {
         state.activeColumnIndex = 0
-        state.viewOffsetPixels = .static(0)
+        state.viewOffsetPixels = .static(geometry?.centerOffset ?? 0)
         state.activatePrevColumnOnRemoval = nil
         state.viewOffsetToRestore = nil
         state.selectionProgress = 0
@@ -1055,7 +1083,7 @@ enum NiriWindowMoveResult {
         controller.suppressMouseMoveToFocusedWindow(for: target.token)
         var state = controller.workspaceManager.niriViewportState(for: workspaceId)
         if let monitor = controller.workspaceManager.monitor(for: workspaceId) {
-            let gap = CGFloat(controller.workspaceManager.gaps)
+            let gap = controller.gapSize(for: monitor)
             engine.ensureSelectionVisible(
                 node: target,
                 in: workspaceId,
@@ -1114,7 +1142,7 @@ enum NiriWindowMoveResult {
                         motion: controller.motionPolicy.snapshot(),
                         state: &state,
                         workingFrame: controller.insetWorkingFrame(for: monitor),
-                        gaps: CGFloat(controller.workspaceManager.gaps)
+                        gaps: controller.gapSize(for: monitor)
                     )
                 }
                 activateNode(
@@ -1140,7 +1168,7 @@ enum NiriWindowMoveResult {
         }
 
         guard let monitor = controller.workspaceManager.monitor(for: wsId) else { return }
-        let gap = CGFloat(controller.workspaceManager.gaps)
+        let gap = controller.gapSize(for: monitor)
         let workingFrame = controller.insetWorkingFrame(for: monitor)
 
         for col in engine.columns(in: wsId) where col.cachedWidth <= 0 {
@@ -1457,19 +1485,19 @@ enum NiriWindowMoveResult {
     }
 
     func updateNiriConfig(
-        maxVisibleColumns: Int? = nil,
+        balancedColumnCount: Int? = nil,
         infiniteLoop: Bool? = nil,
         revealPartial: RevealPartial? = nil,
-        singleWindowAspectRatio: SingleWindowAspectRatio? = nil,
+        loneWindowPolicy: LoneWindowPolicy? = nil,
         columnWidthPresets: [Double]? = nil,
         defaultColumnWidth: Double?? = nil
     ) {
         guard let controller else { return }
         controller.niriEngine?.updateConfiguration(
-            maxVisibleColumns: maxVisibleColumns,
+            balancedColumnCount: balancedColumnCount,
             infiniteLoop: infiniteLoop,
             revealPartial: revealPartial,
-            singleWindowAspectRatio: singleWindowAspectRatio,
+            loneWindowPolicy: loneWindowPolicy,
             presetColumnWidths: columnWidthPresets?.map { .proportion($0) },
             defaultColumnWidth: defaultColumnWidth.map { $0.map { CGFloat($0) } }
         )
@@ -1497,7 +1525,7 @@ enum NiriWindowMoveResult {
         }
 
         if options.ensureVisible, let monitor = controller.workspaceManager.monitor(for: workspaceId) {
-            let gap = CGFloat(controller.workspaceManager.gaps)
+            let gap = controller.gapSize(for: monitor)
             let workingFrame = controller.insetWorkingFrame(for: monitor)
             engine.ensureSelectionVisible(
                 node: node,
@@ -1577,7 +1605,7 @@ enum NiriWindowMoveResult {
             return
         }
 
-        let gap = CGFloat(controller.workspaceManager.gaps)
+        let gap = controller.gapSize(for: monitor)
         let workingFrame = controller.insetWorkingFrame(for: monitor)
         let orientation = engine.monitor(for: monitor.id)?.orientation
             ?? controller.settings.effectiveOrientation(for: monitor)
@@ -1651,7 +1679,7 @@ enum NiriWindowMoveResult {
 
             guard let monitor = controller.workspaceManager.monitor(for: wsId) else { return }
             let workingFrame = controller.insetWorkingFrame(for: monitor)
-            let gaps = CGFloat(controller.workspaceManager.gaps)
+            let gaps = controller.gapSize(for: monitor)
 
             let ctx = NiriOperationContext(
                 controller: controller,
@@ -1801,7 +1829,7 @@ enum NiriWindowMoveResult {
         guard let monitor = controller.workspaceManager.monitor(for: wsId) else { return }
         let motion = controller.motionPolicy.snapshot()
         let workingFrame = controller.insetWorkingFrame(for: monitor)
-        let gaps = CGFloat(controller.workspaceManager.gaps)
+        let gaps = controller.gapSize(for: monitor)
         controller.workspaceManager.withNiriViewportState(for: wsId) { state in
             perform(engine, wsId, motion, &state, monitor, workingFrame, gaps)
         }
@@ -1824,7 +1852,7 @@ enum NiriWindowMoveResult {
         guard let monitor = controller.workspaceManager.monitor(for: workspaceId) else { return }
         let motion = controller.motionPolicy.snapshot()
         let workingFrame = controller.insetWorkingFrame(for: monitor)
-        let gaps = CGFloat(controller.workspaceManager.gaps)
+        let gaps = controller.gapSize(for: monitor)
         controller.workspaceManager.withNiriViewportState(for: workspaceId) { state in
             perform(engine, workspaceId, motion, &state, monitor, workingFrame, gaps)
         }
@@ -1916,7 +1944,7 @@ struct NodeActivationOptions {
         let layoutGaps = LayoutGaps(
             horizontal: gaps,
             vertical: gaps,
-            outer: controller.workspaceManager.outerGaps
+            outer: controller.outerGaps(for: monitor)
         )
         let animationTime = (engine.animationClock?.now() ?? CACurrentMediaTime()) + 2.0
         let newFrames = engine.calculateCombinedLayoutUsingPools(

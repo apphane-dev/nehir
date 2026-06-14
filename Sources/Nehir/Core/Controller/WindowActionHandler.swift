@@ -415,7 +415,7 @@ final class WindowActionHandler {
             {
                 engine.activateWindow(niriWindow.id)
 
-                let gap = CGFloat(controller.workspaceManager.gaps)
+                let gap = controller.gapSize(for: monitor)
                 let workingFrame = controller.insetWorkingFrame(for: monitor)
                 engine.ensureSelectionVisible(
                     node: niriWindow,

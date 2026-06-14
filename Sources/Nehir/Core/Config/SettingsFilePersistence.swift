@@ -151,6 +151,7 @@ final class SettingsFilePersistence {
         try AppRuleFileStore.write(export.appRules, to: appRulesDirectoryURL)
         try MonitorOverrideFileStore.write(
             bar: export.monitorBarSettings,
+            gaps: export.monitorGapSettings,
             orientation: export.monitorOrientationSettings,
             niri: export.monitorNiriSettings,
             to: monitorsDirectoryURL
@@ -444,6 +445,7 @@ final class SettingsFilePersistence {
 
         let monitorOverrides = MonitorOverrideFileStore.read(from: monitorsDirectoryURL)
         export.monitorBarSettings = monitorOverrides.bar
+        export.monitorGapSettings = monitorOverrides.gaps
         export.monitorOrientationSettings = monitorOverrides.orientation
         export.monitorNiriSettings = monitorOverrides.niri
 

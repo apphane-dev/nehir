@@ -574,7 +574,7 @@ private func makeNiriOverviewLayout(
             title: "Focused"
         )
 
-        let engine = NiriLayoutEngine(maxVisibleColumns: 3)
+        let engine = NiriLayoutEngine(balancedColumnCount: 3)
         let movedNode = engine.addWindow(token: moved.handle.id, to: sourceWorkspaceId, afterSelection: nil)
         let fallbackNode = engine.addWindow(
             token: fallback.handle.id,

@@ -459,7 +459,7 @@ final class CommandHandler {
             return
         }
 
-        let gap = CGFloat(controller.workspaceManager.gaps)
+        let gap = controller.gapSize(for: monitor)
         let workingFrame = controller.insetWorkingFrame(for: monitor)
         let motion = controller.motionPolicy.snapshot()
         guard let newNode = navigationAction(engine, currentNode, wsId, motion, &state, workingFrame, gap) else {

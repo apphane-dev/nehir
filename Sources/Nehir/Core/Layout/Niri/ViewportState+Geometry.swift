@@ -70,6 +70,7 @@ struct ViewportSnapContext {
     let gap: CGFloat
     let viewportWidth: CGFloat
     let snapPoints: [SnapPoint]
+    let intentionallyDoesNotFillViewport: Bool
 
     func currentViewStart(in state: ViewportState) -> CGFloat {
         state.targetViewPosPixels(columns: columns, gap: gap)
@@ -133,6 +134,8 @@ struct ViewportSnapContext {
     }
 
     func fillsViewport(at viewportStart: CGFloat, in state: ViewportState, pixelTolerance: CGFloat = 0.5) -> Bool {
+        if intentionallyDoesNotFillViewport { return false }
+
         let viewportEnd = viewportStart + viewportWidth
         var fullColumnIndices: [Int] = []
 
@@ -550,7 +553,8 @@ extension ViewportState {
         columns: [NiriContainer],
         gap: CGFloat,
         viewportWidth: CGFloat,
-        pixelTolerance: CGFloat = 0.5
+        pixelTolerance: CGFloat = 0.5,
+        intentionallyDoesNotFillViewport: Bool = false
     ) -> ViewportSnapContext {
         ViewportSnapContext(
             columns: columns,
@@ -561,7 +565,8 @@ extension ViewportState {
                 gap: gap,
                 viewportWidth: viewportWidth,
                 pixelTolerance: pixelTolerance
-            )
+            ),
+            intentionallyDoesNotFillViewport: intentionallyDoesNotFillViewport
         )
     }
 
@@ -586,8 +591,17 @@ extension ViewportState {
                 continue
             }
 
-            points.append(SnapPoint(offset: bounded(columnX - gap), columnIndex: index, kind: .leftEdge))
-            points.append(SnapPoint(offset: bounded(columnX + width + gap - viewportWidth), columnIndex: index, kind: .rightEdge))
+            // Edge snaps at columnX ± gap exist to park a narrower-than-viewport column with a
+            // gap sliver visible (the niri overscroll idiom). For a column that approximately
+            // fills the viewport there is no neighbor to reveal, so a ±gap shift only loses
+            // working-area margin — omit them. Over-wide columns (wider than the viewport due
+            // to an app minimum or fixed size) still need their edge snaps so clipped
+            // leading/trailing content can be reached via scrollViewport.
+            let columnApproximatelyFillsViewport = abs(width - viewportWidth) <= pixelTolerance
+            if !columnApproximatelyFillsViewport {
+                points.append(SnapPoint(offset: bounded(columnX - gap), columnIndex: index, kind: .leftEdge))
+                points.append(SnapPoint(offset: bounded(columnX + width + gap - viewportWidth), columnIndex: index, kind: .rightEdge))
+            }
             if width > 0.30 * viewportWidth {
                 points.append(SnapPoint(
                     offset: bounded(columnX + width / 2 - viewportWidth / 2),

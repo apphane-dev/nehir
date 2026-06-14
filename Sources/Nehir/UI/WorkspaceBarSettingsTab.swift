@@ -121,7 +121,7 @@ private struct GlobalBarSettingsSection: View {
                     .onChange(of: settings.workspaceBarReserveLayoutSpace) { _, _ in
                         controller.updateWorkspaceBarSettings()
                     }
-                SettingsCaption("Prevents tiled windows from appearing behind the bar.")
+                SettingsCaption("Prevents tiled windows from appearing behind the bar. For finer control, adjust the top margin in Layout settings.")
             }
 
             Section("Position Offset") {
@@ -366,6 +366,7 @@ private struct MonitorBarSettingsSection: View {
                 onChange: { newValue in updateSetting { $0.reserveLayoutSpace = newValue } },
                 onReset: { updateSetting { $0.reserveLayoutSpace = nil } }
             )
+            .help("Prevents tiled windows from appearing behind the bar. For finer control, adjust the top margin in Layout settings.")
         }
 
         Section("Position Offset") {

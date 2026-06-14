@@ -48,6 +48,10 @@ enum ProportionalSize: Codable, Equatable, Sendable {
         // then each proportional column contributes one gap of slack. A contiguous
         // group whose proportions sum to 1.0 spans availableSpace - 2 * gaps after
         // internal gaps are added, independent of the number of columns in the group.
+        // This 2*gap slack is intentional: it keeps proportional column groups inside
+        // the working frame against sub-pixel rounding and matches the fillsViewport
+        // tolerance (2*gap), which is what makes Reveal Partial "Default" treat a
+        // visible 50/50 pair as filling the screen.
         (availableSpace - gaps) * proportion - gaps
     }
 }

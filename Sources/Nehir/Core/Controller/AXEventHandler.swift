@@ -1793,14 +1793,15 @@ final class AXEventHandler: CGSEventDelegate {
                let columnIndex = engine.columnIndex(of: column, in: wsId),
                let monitor = controller.workspaceManager.monitor(for: wsId)
             {
-                let gap = CGFloat(controller.workspaceManager.gaps)
+                let gap = controller.gapSize(for: monitor)
                 let workingFrame = controller.insetWorkingFrame(for: monitor)
                 let columns = engine.columns(in: wsId)
                 let context = engine.makeViewportSnapContext(
                     columns: columns,
                     state: state,
                     workingFrame: workingFrame,
-                    gaps: gap
+                    gaps: gap,
+                    intentionallyDoesNotFillViewport: engine.loneWindowIntentionallyDoesNotFillViewport(in: wsId)
                 )
                 let viewStart = context.currentViewStart(in: state)
                 let visibility = context.visibility(of: columnIndex, viewportOffset: viewStart, in: state)

@@ -286,11 +286,15 @@ extension NiriLayoutEngine {
         if let singleWindowContext = singleWindowLayoutContext(in: workspaceId),
            singleWindowContext.window.token == token
         {
-            return resolvedSingleWindowRect(
+            let scale = displayScale(in: workspaceId)
+            return singleWindowViewportGeometry(
                 for: singleWindowContext,
                 in: workingFrame,
-                scale: 1.0,
+                scale: scale,
                 gaps: gaps
+            ).renderedRect(
+                viewOffset: state.viewOffsetPixels.target(),
+                scale: scale
             )
         }
 
@@ -341,15 +345,15 @@ extension NiriLayoutEngine {
         let targetHeight: CGFloat
 
         let fallbackHeight: CGFloat = if windowNodes.count == 1 || isEffectivelyTabbed {
-            max(1, availableHeight - gaps * 2)
+            max(1, availableHeight)
         } else {
-            max(1, (availableHeight - gaps * CGFloat(windowNodes.count + 1)) / CGFloat(windowNodes.count))
+            max(1, (availableHeight - gaps * CGFloat(max(0, windowNodes.count - 1))) / CGFloat(windowNodes.count))
         }
         if windowNodes.count == 1 || isEffectivelyTabbed {
-            targetY = contentY + gaps
+            targetY = contentY
             targetHeight = windowNodes[windowIndex].resolvedHeight ?? fallbackHeight
         } else {
-            var y = contentY + gaps
+            var y = contentY
             for i in 0 ..< windowIndex {
                 let h = windowNodes[i].resolvedHeight ?? fallbackHeight
                 y += h + gaps
@@ -426,12 +430,13 @@ extension NiriLayoutEngine {
         let windows = column.windowNodes
         guard tileIdx >= 0, tileIdx < windows.count else { return 0 }
 
-        var offset: CGFloat = gaps
+        // Stacks anchor at contentY with zero leading gap (matching renderColumn /
+        // targetFrameForWindow). Only inter-tile gaps are added.
+        var offset: CGFloat = 0
         guard tileIdx > 0 else { return offset }
         for i in 0 ..< tileIdx {
             let height = windows[i].resolvedHeight ?? windows[i].frame?.height ?? 0
-            offset += height
-            offset += gaps
+            offset += height + gaps
         }
         return offset
     }
@@ -440,8 +445,10 @@ extension NiriLayoutEngine {
         let windows = column.windowNodes
         guard !windows.isEmpty else { return [] }
 
-        var offsets: [CGFloat] = [gaps]
-        var y: CGFloat = gaps
+        // Stacks anchor at contentY with zero leading gap (matching renderColumn /
+        // targetFrameForWindow).
+        var offsets: [CGFloat] = [0]
+        var y: CGFloat = 0
         for i in 0 ..< windows.count - 1 {
             let height = windows[i].resolvedHeight ?? windows[i].frame?.height ?? 0
             y += height + gaps

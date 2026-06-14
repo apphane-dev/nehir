@@ -4,8 +4,7 @@ title: Viewport Navigation Spec
 
 # Viewport Navigation Spec
 
-Design specification for viewport navigation, snap behavior, and focus reveal policy.
-This document captures the intended design; implementation may differ during transition.
+Behavior specification for viewport navigation, snap behavior, and focus reveal policy.
 
 ---
 
@@ -64,27 +63,13 @@ Rules:
 
 ---
 
-## Settings (redesigned)
+## Settings
 
-### Removed
-
-| Setting | Reason |
-|---|---|
-| Center Focused Column (picker: never / onOverflow / always) | Snap grid produces centering automatically — this picker has no distinct behavior left to control |
-| Always Center Single Column (toggle) | A single visible column always gets a center snap point — this toggle has no independent effect |
-| Scroll Reveal (picker: always / keyboard-and-commands / never) | Replaced by visibility-based reveal policy |
-
-### Retained / renamed
-
-| Setting | Notes |
-|---|---|
-| Mouse Modifier | Renamed from "Right Mouse Resize Modifier". Hold during a scroll gesture to bypass snap for that gesture. `none` = no way to bypass snap. |
-
-### New
-
-| Setting | Type | Default | Notes |
+| Setting | Type | Default | Behavior |
 |---|---|---|---|
-| Reveal Partial | `.default` / `.off` / `.snapClosest` / `.snapCenter` | `.default` | What happens when focus moves to a [clipped](glossary.md#clipped-column) column from any non-FFM source |
+| Reveal Partial | `.default` / `.off` / `.snapClosest` / `.snapCenter` | `.default` | Controls what happens when focus moves to a [clipped](glossary.md#clipped-column) column from any non-FFM source. |
+| Mouse Modifier | Key binding or `none` | User setting | Hold during a scroll gesture to bypass snap for that gesture. `none` disables snap bypass. |
+| Lone Window | `Fill` / `Centered(width)` with per-monitor `Use Global` / `Fill` / `Centered(width)` | `Fill` | Controls the default viewport geometry for a one-window workspace. |
 
 ---
 
@@ -105,7 +90,16 @@ Consequences:
 
 Reveal `.default` uses this same rule indirectly: a closest snap is treated as viewport-fitting only when the candidate viewport contains a contiguous group of fully visible columns whose combined span is within `2 * gap` of the viewport width. This rejects oversized combinations such as `65% + 50%` while accepting intended `100%` groups.
 
-Implementation note: route proportional pixel conversion through `ProportionalSize.resolveProportionalSpan(...)`; do not duplicate the formula at call sites.
+Implementation contract: route proportional pixel conversion through `ProportionalSize.resolveProportionalSpan(...)`; do not duplicate the formula at call sites. Do not change this primary-axis formula to adjust secondary-axis edge padding; stacked/tiled secondary-axis spacing is owned by `NiriAxisSolver` and related layout helpers, where inner gaps mean only gaps between adjacent tiles.
+
+## Gap Semantics
+
+Nehir has two distinct gap concepts:
+
+- **Inner gap** — spacing between adjacent layout items. On the secondary axis for stacked/tiled windows, this means `count - 1` gaps and no implicit top/bottom edge padding.
+- **Outer gap** — monitor-edge padding around the working area, represented by `LayoutGaps.OuterGaps`.
+
+Monitor-specific gap values are resolved centrally by `SettingsStore.resolvedGapSettings(for:)` and exposed to runtime code by `WMController.gapSize(for:)` and `WMController.outerGaps(for:)`. Viewport/layout callers should use those monitor-aware helpers when a monitor is known, rather than reading global fallback gap values directly.
 
 ## Snap Grid
 
@@ -120,11 +114,34 @@ For each column:
 
 Columns narrower than 30% of the viewport only get edge snaps. This keeps the snap grid sparse for multi-column layouts with small panels.
 
+Columns whose effective width approximately fills the viewport (within pixel tolerance) do **not** get the synthetic `columnX - gap` / `columnX + width + gap - viewportWidth` edge snaps. For a full-width column those points are meaningless `±gap` shifts: they reveal no neighboring column and lose working-area margins. Over-wide columns (wider than the viewport) keep their edge snaps so clipped content can be reached. The column can still have a center snap and the snap grid still includes far overscroll boundary points.
+
 ### Gesture release
 
 On gesture release, the viewport snaps to the nearest snap point. The focused column updates to the column at the target snap position.
 
 Hold the **Mouse Modifier** key during a gesture to bypass snapping — the viewport settles at the decelerated natural position.
+
+Implementation contract: `computeSnapGrid(...)`, `viewportStartBounds(...)`, and `ViewportSnapContext` in `ViewportState+Geometry.swift` are the source of truth for snap points and bounds. Gesture release, viewport scroll commands, Reveal Partial, resize adjustment, and column transitions must consume this shared geometry instead of constructing local snap/edge formulas.
+
+---
+
+## Lone-Window Viewport Behavior
+
+A lone window is a normal, non-tabbed workspace with exactly one column and one window. Its default rect is controlled by `LoneWindowPolicy`:
+
+- **fill** — fill the working area
+- **centered** — cap width to the policy's max working-area fraction and center it
+
+Per-monitor overrides are tri-state through `MonitorNiriSettings.loneWindowPolicy`:
+
+- `nil` — inherit global policy
+- `.fill` — explicit Fill on that monitor
+- `.centered(maxWidthFraction:)` — explicit Centered on that monitor
+
+`SingleWindowViewportGeometry` is the source of truth for the resolved lone-window rect, center offset, and render offset. Controllers and gesture handlers should call `singleWindowViewportGeometry(...)`, `resolvedSingleWindowViewportRect(...)`, `prepareSingleWindowViewport(...)`, or `prepareAndSeedSingleWindowViewport(...)` rather than re-deriving the math.
+
+Lone-window rendering follows the raw viewport offset so scroll gestures are visible. The snap grid decides where the viewport settles. This keeps fill windows responsive during a gesture while preventing them from parking at bogus `±gap` edge snaps after release.
 
 ---
 
@@ -160,7 +177,7 @@ If the target column is already at a valid snap position (within pixel tolerance
 
 ## Viewport Scroll Commands
 
-Two new commands — `scrollViewport(.left)` and `scrollViewport(.right)` — scroll the viewport through [snap points](glossary.md#snap-point) without immediately changing focus.
+`scrollViewport(.left)` and `scrollViewport(.right)` scroll the viewport through [snap points](glossary.md#snap-point) without immediately changing focus.
 
 Default bindings: `Cmd+Option+[` (left) and `Cmd+Option+]` (right).
 
@@ -254,9 +271,3 @@ Press again. Col2 fully outside — [parked](glossary.md#parked-window) — focu
 ```text
 30 30 [|*50 .20].15
 ```
-
----
-
-## Open Questions
-
-- **Center snap threshold (30%)**: exact value TBD. Determines whether a column gets a center snap point.

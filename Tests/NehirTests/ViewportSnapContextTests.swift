@@ -57,6 +57,28 @@ private func makeContext(
         #expect(context.snapPoints.contains { $0.kind == .center })
     }
 
+    @Test func fullWidthColumnOmitsGapEdgeSnapPoints() {
+        let context = makeContext(widths: [1000], gap: 8, viewportWidth: 1000)
+        let offsets = context.snapPoints.map(\.offset)
+
+        // A full-width column should not get the synthetic ±gap edge snaps: snapping to
+        // those offsets shifts the column by one gap and loses working-area margins.
+        // Center and far overscroll boundary points may still exist.
+        #expect(!offsets.contains { abs($0 - 8) < 0.5 })
+        #expect(!offsets.contains { abs($0 + 8) < 0.5 })
+        #expect(offsets.contains { abs($0) < 0.5 })
+    }
+
+    @Test func overWideColumnKeepsEdgeSnapPoints() {
+        let context = makeContext(widths: [1400], gap: 8, viewportWidth: 1000)
+
+        // A column wider than the viewport needs its edge snaps so clipped leading/trailing
+        // content can be reached via scrollViewport. Only columns that approximately fill the
+        // viewport have their edge snaps omitted.
+        #expect(context.snapPoints.contains { $0.kind == .leftEdge })
+        #expect(context.snapPoints.contains { $0.kind == .rightEdge })
+    }
+
     @Test func narrowColumnOmitsCenterSnap() {
         // Column width = 300, viewportWidth = 1000. 300 > 0.30 * 1000 = 300? No (strictly >)
         let context = makeContext(widths: [300], gap: 8, viewportWidth: 1000)
@@ -377,7 +399,7 @@ private func makeContext(
 
 @Suite struct ScrollViewportTests {
     @Test func scrollViewportRightAdvancesToNextSnap() {
-        let engine = NiriLayoutEngine(maxVisibleColumns: 3)
+        let engine = NiriLayoutEngine(balancedColumnCount: 3)
         engine.animationClock = AnimationClock()
         let wsId = UUID()
 
@@ -411,7 +433,7 @@ private func makeContext(
     }
 
     @Test func scrollViewportLeftReturnsNilAtStart() {
-        let engine = NiriLayoutEngine(maxVisibleColumns: 3)
+        let engine = NiriLayoutEngine(balancedColumnCount: 3)
         engine.animationClock = AnimationClock()
         let wsId = UUID()
 
@@ -445,7 +467,7 @@ private func makeContext(
     }
 
     @Test func scrollViewportClampsAtStripEnd() {
-        let engine = NiriLayoutEngine(maxVisibleColumns: 3)
+        let engine = NiriLayoutEngine(balancedColumnCount: 3)
         engine.animationClock = AnimationClock()
         let wsId = UUID()
 

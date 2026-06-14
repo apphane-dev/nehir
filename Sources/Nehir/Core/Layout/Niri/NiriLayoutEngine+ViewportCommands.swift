@@ -11,11 +11,23 @@ extension NiriLayoutEngine {
         gaps: CGFloat
     ) -> NiriWindow? {
         guard direction == .left || direction == .right else { return nil }
+        let scale = displayScale(in: workspaceId)
+        prepareAndSeedSingleWindowViewport(
+            in: workspaceId,
+            workingFrame: workingFrame,
+            scale: scale,
+            gaps: gaps,
+            state: &state
+        )
         let columns = columns(in: workspaceId)
         guard !columns.isEmpty else { return nil }
-
-        let scale = displayScale(in: workspaceId)
-        let context = makeViewportSnapContext(columns: columns, state: state, workingFrame: workingFrame, gaps: gaps)
+        let context = makeViewportSnapContext(
+            columns: columns,
+            state: state,
+            workingFrame: workingFrame,
+            gaps: gaps,
+            intentionallyDoesNotFillViewport: loneWindowIntentionallyDoesNotFillViewport(in: workspaceId)
+        )
         guard !context.snapPoints.isEmpty else { return nil }
 
         let currentViewStart = context.currentViewStart(in: state)
@@ -148,12 +160,14 @@ extension NiriLayoutEngine {
         state: ViewportState,
         workingFrame: CGRect,
         gaps: CGFloat,
-        viewportWidth: CGFloat? = nil
+        viewportWidth: CGFloat? = nil,
+        intentionallyDoesNotFillViewport: Bool = false
     ) -> ViewportSnapContext {
         state.snapContext(
             columns: columns,
             gap: gaps,
-            viewportWidth: viewportWidth ?? workingFrame.width
+            viewportWidth: viewportWidth ?? workingFrame.width,
+            intentionallyDoesNotFillViewport: intentionallyDoesNotFillViewport
         )
     }
 

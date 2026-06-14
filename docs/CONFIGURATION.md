@@ -219,7 +219,7 @@ Monitor overrides use `[match]` / `[niri]` / `[bar]` / `[orientation]` sections:
 name = "LG HDR 5K"
 
 [niri]
-maxVisibleColumns = 3
+balancedColumnCount = 3
 ```
 
 ### 5. Live reload

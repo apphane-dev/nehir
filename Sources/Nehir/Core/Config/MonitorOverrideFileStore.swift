@@ -7,12 +7,14 @@ import Foundation
 enum MonitorOverrideFileStore {
     struct Documents {
         var bar: [MonitorBarSettings]
+        var gaps: [MonitorGapSettings]
         var orientation: [MonitorOrientationSettings]
         var niri: [MonitorNiriSettings]
     }
 
     static func write(
         bar: [MonitorBarSettings],
+        gaps: [MonitorGapSettings],
         orientation: [MonitorOrientationSettings],
         niri: [MonitorNiriSettings],
         to directory: URL
@@ -28,6 +30,9 @@ enum MonitorOverrideFileStore {
         var keys: [MonitorKey: MonitorDocument] = [:]
         for item in bar {
             keys[MonitorKey(name: item.monitorName, displayId: item.monitorDisplayId), default: .init()].bar = item
+        }
+        for item in gaps where item.hasOverrides {
+            keys[MonitorKey(name: item.monitorName, displayId: item.monitorDisplayId), default: .init()].gaps = item
         }
         for item in orientation {
             keys[MonitorKey(name: item.monitorName, displayId: item.monitorDisplayId), default: .init()].orientation = item
@@ -45,14 +50,15 @@ enum MonitorOverrideFileStore {
     static func read(from directory: URL) -> Documents {
         let fm = FileManager.default
         guard let contents = try? fm.contentsOfDirectory(at: directory, includingPropertiesForKeys: [.nameKey], options: [.skipsHiddenFiles]) else {
-            return Documents(bar: [], orientation: [], niri: [])
+            return Documents(bar: [], gaps: [], orientation: [], niri: [])
         }
-        var result = Documents(bar: [], orientation: [], niri: [])
+        var result = Documents(bar: [], gaps: [], orientation: [], niri: [])
         for fileURL in contents.filter({ $0.pathExtension == "toml" }).sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
             guard let content = try? String(contentsOf: fileURL, encoding: .utf8),
                   let document = decode(content)
             else { continue }
             if let bar = document.bar { result.bar.append(bar) }
+            if let gaps = document.gaps { result.gaps.append(gaps) }
             if let orientation = document.orientation { result.orientation.append(orientation) }
             if let niri = document.niri { result.niri.append(niri) }
         }
@@ -66,6 +72,7 @@ enum MonitorOverrideFileStore {
 
     private struct MonitorDocument {
         var bar: MonitorBarSettings?
+        var gaps: MonitorGapSettings?
         var orientation: MonitorOrientationSettings?
         var niri: MonitorNiriSettings?
     }
@@ -76,11 +83,29 @@ enum MonitorOverrideFileStore {
         lines.append("name = \(quoted(key.name))")
         if let displayId = key.displayId { lines.append("displayId = \(displayId)") }
 
+        if let gaps = document.gaps, gaps.hasOverrides {
+            lines.append("")
+            lines.append("[gaps]")
+            if let v = gaps.gapSize { lines.append("size = \(formatNumber(v))") }
+            if let v = gaps.outerGapLeft { lines.append("outerLeft = \(formatNumber(v))") }
+            if let v = gaps.outerGapRight { lines.append("outerRight = \(formatNumber(v))") }
+            if let v = gaps.outerGapTop { lines.append("outerTop = \(formatNumber(v))") }
+            if let v = gaps.outerGapBottom { lines.append("outerBottom = \(formatNumber(v))") }
+        }
+
         if let niri = document.niri {
             lines.append("")
             lines.append("[niri]")
-            if let v = niri.maxVisibleColumns { lines.append("maxVisibleColumns = \(v)") }
-            if let v = niri.singleWindowAspectRatio { lines.append("singleWindowAspectRatio = \(quoted(v.rawValue))") }
+            if let v = niri.balancedColumnCount { lines.append("balancedColumnCount = \(v)") }
+            switch niri.loneWindowPolicy {
+            case .fill:
+                lines.append("loneWindowPolicy = \(quoted("fill"))")
+            case let .centered(maxWidthFraction):
+                lines.append("loneWindowPolicy = \(quoted("centered"))")
+                lines.append("loneWindowMaxWidth = \(formatNumber(maxWidthFraction))")
+            case .none:
+                break
+            }
         }
 
         if let bar = document.bar {
@@ -130,12 +155,35 @@ enum MonitorOverrideFileStore {
         let displayId = match["displayId"].flatMap { CGDirectDisplayID($0.trimmingCharacters(in: .whitespaces)) }
         var document = MonitorDocument()
 
+        if let gaps = fields["gaps"] {
+            document.gaps = MonitorGapSettings(
+                monitorName: name,
+                monitorDisplayId: displayId,
+                gapSize: gaps["size"].flatMap(extractDouble),
+                outerGapLeft: gaps["outerLeft"].flatMap(extractDouble),
+                outerGapRight: gaps["outerRight"].flatMap(extractDouble),
+                outerGapTop: gaps["outerTop"].flatMap(extractDouble),
+                outerGapBottom: gaps["outerBottom"].flatMap(extractDouble)
+            )
+        }
+
         if let niri = fields["niri"] {
+            let policyRaw = niri["loneWindowPolicy"].flatMap(extractString)?.lowercased()
+            let maxWidth = niri["loneWindowMaxWidth"].flatMap(extractDouble)
+            let loneWindowPolicy: LoneWindowPolicy?
+            switch policyRaw {
+            case "fill":
+                loneWindowPolicy = .fill
+            case "centered":
+                loneWindowPolicy = .centered(maxWidthFraction: maxWidth ?? 0.6)
+            default:
+                loneWindowPolicy = nil
+            }
             document.niri = MonitorNiriSettings(
                 monitorName: name,
                 monitorDisplayId: displayId,
-                maxVisibleColumns: niri["maxVisibleColumns"].flatMap { Int($0.trimmingCharacters(in: .whitespaces)) },
-                singleWindowAspectRatio: niri["singleWindowAspectRatio"].flatMap(extractString).flatMap(SingleWindowAspectRatio.init(rawValue:))
+                balancedColumnCount: niri["balancedColumnCount"].flatMap { Int($0.trimmingCharacters(in: .whitespaces)) },
+                loneWindowPolicy: loneWindowPolicy
             )
         }
 

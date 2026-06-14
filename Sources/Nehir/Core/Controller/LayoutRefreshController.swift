@@ -477,7 +477,8 @@ import QuartzCore
     func buildWindowSnapshots(
         for entries: [WindowModel.Entry],
         resolveConstraints: Bool = true,
-        workingFrame: CGRect? = nil
+        workingFrame: CGRect? = nil,
+        containingFrame: CGRect? = nil
     ) -> [LayoutWindowSnapshot] {
         guard let controller else { return [] }
 
@@ -520,7 +521,8 @@ import QuartzCore
                 for: mergedConstraints,
                 layoutReason: layoutReason,
                 hiddenState: hiddenState,
-                workingFrame: workingFrame
+                workingFrame: workingFrame,
+                containingFrame: containingFrame
             )
 
             snapshots.append(
@@ -543,7 +545,8 @@ import QuartzCore
         for constraints: WindowSizeConstraints,
         layoutReason: LayoutReason,
         hiddenState: WindowModel.HiddenState?,
-        workingFrame: CGRect?
+        workingFrame: CGRect?,
+        containingFrame: CGRect?
     ) -> WindowSizeConstraints {
         let effectiveConstraints = constraints.normalized()
 
@@ -559,8 +562,9 @@ import QuartzCore
         }
 
         let tolerance: CGFloat = 0.5
-        if effectiveConstraints.minSize.width <= workingFrame.width + tolerance,
-           effectiveConstraints.minSize.height <= workingFrame.height + tolerance
+        let feasibilityFrame = containingFrame ?? workingFrame
+        if effectiveConstraints.minSize.width <= feasibilityFrame.width + tolerance,
+           effectiveConstraints.minSize.height <= feasibilityFrame.height + tolerance
         {
             return effectiveConstraints
         }
@@ -597,7 +601,8 @@ import QuartzCore
         let windows = buildWindowSnapshots(
             for: entries,
             resolveConstraints: resolveConstraints,
-            workingFrame: monitorSnapshot.workingFrame
+            workingFrame: monitorSnapshot.workingFrame,
+            containingFrame: monitorSnapshot.visibleFrame
         )
 
         return WorkspaceRefreshInput(

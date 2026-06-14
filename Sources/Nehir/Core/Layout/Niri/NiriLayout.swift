@@ -39,6 +39,36 @@ struct LayoutResult {
     let hiddenHandles: [WindowToken: HideSide]
 }
 
+struct SingleWindowViewportGeometry {
+    static let centeredOffsetEpsilon: CGFloat = 0.001
+
+    let rect: CGRect
+    let centerOffset: CGFloat
+
+    func effectiveViewOffset(_ offset: CGFloat) -> CGFloat {
+        // Render at the raw viewport offset so the lone window is responsive to scroll
+        // gestures exactly like a regular single column. Where it settles is governed by
+        // the snap grid / viewportStartBounds (shared with regular columns), not by a
+        // render-time clamp. A separate clamp here would desync render from gesture state
+        // (making gestures feel ignored) and leave stale offsets.
+        offset
+    }
+
+    func renderedRect(
+        viewOffset: CGFloat,
+        workspaceOffset: CGFloat = 0,
+        renderOffset: CGPoint = .zero,
+        scale: CGFloat
+    ) -> CGRect {
+        rect
+            .offsetBy(
+                dx: workspaceOffset - effectiveViewOffset(viewOffset) + renderOffset.x,
+                dy: renderOffset.y
+            )
+            .roundedToPhysicalPixels(scale: scale)
+    }
+}
+
 private enum ContainerVisibilityState {
     case visible
     case hidden(AxisHideEdge)
@@ -151,7 +181,9 @@ extension NiriLayoutEngine {
             }
             layoutSingleWindowWorkspace(
                 singleWindowContext,
+                state: state,
                 workingFrame: workingFrame,
+                containingFrame: viewFrame,
                 fullscreenRect: canonicalFullscreenRect,
                 renderedFullscreenRect: renderedFullscreenRect,
                 workspaceOffset: workspaceOffset,
@@ -583,87 +615,255 @@ extension NiriLayoutEngine {
         }
     }
 
-    func aspectFittedSingleWindowRect(
-        in workingFrame: CGRect,
-        aspectRatio: CGFloat,
+    func centeredLoneWindowRect(
+        maxWidthFraction: Double,
+        workingFrame: CGRect,
         scale: CGFloat
     ) -> CGRect {
-        guard aspectRatio > 0,
-              workingFrame.width > 0,
+        guard workingFrame.width > 0,
               workingFrame.height > 0
         else {
             return workingFrame.roundedToPhysicalPixels(scale: scale)
         }
 
-        let currentRatio = workingFrame.width / workingFrame.height
-        if abs(currentRatio - aspectRatio) < 0.001 {
-            return workingFrame.roundedToPhysicalPixels(scale: scale)
+        let width = workingFrame.width * CGFloat(maxWidthFraction.clamped(to: 0.0 ... 1.0))
+        return centeredLoneWindowRect(
+            in: workingFrame,
+            containingFrame: workingFrame,
+            width: width,
+            constraints: .unconstrained,
+            scale: scale
+        )
+    }
+
+    private func centeredLoneWindowRect(
+        in workingFrame: CGRect,
+        containingFrame: CGRect,
+        width: CGFloat,
+        constraints: WindowSizeConstraints,
+        scale: CGFloat
+    ) -> CGRect {
+        let size = resolvedSingleWindowSize(
+            width: width,
+            workingFrame: workingFrame,
+            constraints: constraints
+        )
+        let unclamped = CGRect(
+            x: workingFrame.midX - size.width / 2,
+            y: workingFrame.minY,
+            width: size.width,
+            height: size.height
+        )
+        return clampRect(unclamped, to: containingFrame).roundedToPhysicalPixels(scale: scale)
+    }
+
+    private func resolvedSingleWindowSize(
+        width: CGFloat,
+        workingFrame: CGRect,
+        constraints: WindowSizeConstraints
+    ) -> CGSize {
+        CGSize(
+            width: constraints.clampWidth(width),
+            height: constraints.clampHeight(workingFrame.height)
+        )
+    }
+
+    private func clampRect(_ rect: CGRect, to containingFrame: CGRect) -> CGRect {
+        guard containingFrame.width > 0,
+              containingFrame.height > 0
+        else { return rect }
+
+        let clampedX: CGFloat
+        let maxX = containingFrame.maxX - rect.width
+        if maxX >= containingFrame.minX {
+            clampedX = min(max(rect.minX, containingFrame.minX), maxX)
+        } else {
+            clampedX = containingFrame.minX
         }
 
-        var width = workingFrame.width
-        var height = workingFrame.height
-
-        if currentRatio > aspectRatio {
-            width = height * aspectRatio
+        let clampedY: CGFloat
+        let maxY = containingFrame.maxY - rect.height
+        if maxY >= containingFrame.minY {
+            clampedY = min(max(rect.minY, containingFrame.minY), maxY)
         } else {
-            height = width / aspectRatio
+            clampedY = containingFrame.minY
         }
 
         return CGRect(
-            x: workingFrame.minX + (workingFrame.width - width) / 2,
-            y: workingFrame.minY + (workingFrame.height - height) / 2,
-            width: width,
-            height: height
-        ).roundedToPhysicalPixels(scale: scale)
+            x: clampedX,
+            y: clampedY,
+            width: rect.width,
+            height: rect.height
+        )
     }
 
-    private func centeredSingleWindowRect(
-        in workingFrame: CGRect,
-        width: CGFloat,
-        scale: CGFloat
-    ) -> CGRect {
-        CGRect(
-            x: workingFrame.minX + (workingFrame.width - width) / 2,
-            y: workingFrame.minY,
-            width: width,
-            height: workingFrame.height
-        ).roundedToPhysicalPixels(scale: scale)
-    }
-
-    func resolvedSingleWindowRect(
+    private func resolvedSingleWindowWidth(
         for context: SingleWindowLayoutContext,
         in workingFrame: CGRect,
-        scale: CGFloat,
         gaps: CGFloat
-    ) -> CGRect {
+    ) -> CGFloat {
         guard context.container.hasManualSingleWindowWidthOverride else {
-            return aspectFittedSingleWindowRect(
-                in: workingFrame,
-                aspectRatio: context.aspectRatio,
-                scale: scale
-            )
+            return workingFrame.width * CGFloat(context.maxWidthFraction.clamped(to: 0.0 ... 1.0))
         }
 
         if context.container.cachedWidth <= 0 {
             context.container.resolveAndCacheWidth(workingAreaWidth: workingFrame.width, gaps: gaps)
         }
+        return max(0, context.container.cachedWidth)
+    }
 
-        let resolvedWidth = min(workingFrame.width, max(0, context.container.cachedWidth))
+    func resolvedSingleWindowRect(
+        for context: SingleWindowLayoutContext,
+        in workingFrame: CGRect,
+        containingFrame: CGRect? = nil,
+        scale: CGFloat,
+        gaps: CGFloat
+    ) -> CGRect {
+        let containingFrame = containingFrame ?? workingFrame
+        let resolvedWidth = resolvedSingleWindowWidth(for: context, in: workingFrame, gaps: gaps)
         guard resolvedWidth > 0 else {
             return workingFrame.roundedToPhysicalPixels(scale: scale)
         }
 
-        // Manual lone-window width commands bypass ratio mode but remain centered.
-        return centeredSingleWindowRect(
+        return centeredLoneWindowRect(
             in: workingFrame,
+            containingFrame: containingFrame,
             width: resolvedWidth,
+            constraints: context.window.constraints,
             scale: scale
         )
     }
 
+    func singleWindowViewportGeometry(
+        for context: SingleWindowLayoutContext,
+        in workingFrame: CGRect,
+        containingFrame: CGRect? = nil,
+        scale: CGFloat,
+        gaps: CGFloat
+    ) -> SingleWindowViewportGeometry {
+        let containingFrame = containingFrame ?? workingFrame
+        let resolvedWidth = resolvedSingleWindowWidth(for: context, in: workingFrame, gaps: gaps)
+        guard resolvedWidth > 0 else {
+            let rect = workingFrame.roundedToPhysicalPixels(scale: scale)
+            return SingleWindowViewportGeometry(rect: rect, centerOffset: 0)
+        }
+
+        let size = resolvedSingleWindowSize(
+            width: resolvedWidth,
+            workingFrame: workingFrame,
+            constraints: context.window.constraints
+        )
+        let unclampedYRect = CGRect(
+            x: workingFrame.minX,
+            y: workingFrame.minY,
+            width: size.width,
+            height: size.height
+        )
+        let yClampedRect = clampRect(
+            CGRect(
+                x: containingFrame.minX,
+                y: unclampedYRect.minY,
+                width: min(size.width, containingFrame.width),
+                height: size.height
+            ),
+            to: containingFrame
+        )
+        // For over-constrained lone windows (min size exceeds the working frame), clamp
+        // the rect to the containing (visible) frame so it does not leak offscreen. For
+        // normal fill/centered windows, keep the working-frame origin and desired size.
+        let overConstrained = size.width > workingFrame.width || size.height > workingFrame.height
+        let rect: CGRect
+        if overConstrained {
+            rect = yClampedRect.roundedToPhysicalPixels(scale: scale)
+        } else {
+            rect = CGRect(
+                x: workingFrame.minX,
+                y: yClampedRect.minY,
+                width: size.width,
+                height: size.height
+            ).roundedToPhysicalPixels(scale: scale)
+        }
+        return SingleWindowViewportGeometry(
+            rect: rect,
+            centerOffset: (rect.width - workingFrame.width) / 2
+        )
+    }
+
+    func resolvedSingleWindowViewportRect(
+        for context: SingleWindowLayoutContext,
+        in workingFrame: CGRect,
+        containingFrame: CGRect? = nil,
+        scale: CGFloat,
+        gaps: CGFloat
+    ) -> CGRect {
+        singleWindowViewportGeometry(
+            for: context,
+            in: workingFrame,
+            containingFrame: containingFrame,
+            scale: scale,
+            gaps: gaps
+        ).rect
+    }
+
+    @discardableResult
+    func prepareSingleWindowViewport(
+        in workspaceId: WorkspaceDescriptor.ID,
+        workingFrame: CGRect,
+        containingFrame: CGRect? = nil,
+        scale: CGFloat = 2.0,
+        gaps: CGFloat
+    ) -> SingleWindowViewportGeometry? {
+        guard let context = singleWindowLayoutContext(in: workspaceId) else { return nil }
+        let geometry = singleWindowViewportGeometry(
+            for: context,
+            in: workingFrame,
+            containingFrame: containingFrame,
+            scale: scale,
+            gaps: gaps
+        )
+        context.container.cachedWidth = geometry.rect.width
+        return geometry
+    }
+
+    func seedSingleWindowCenterOffsetIfNeeded(
+        _ geometry: SingleWindowViewportGeometry?,
+        state: inout ViewportState
+    ) {
+        // Only seed the centered offset from a genuine initial (zero) viewport state.
+        // Never overwrite an explicit side-snap or in-flight gesture offset — those are
+        // valid positions within the scrollable range and should survive relayouts.
+        guard let geometry,
+              !state.viewOffsetPixels.isGesture,
+              abs(state.viewOffsetPixels.current()) < SingleWindowViewportGeometry.centeredOffsetEpsilon
+        else { return }
+        state.viewOffsetPixels = .static(geometry.centerOffset)
+    }
+
+    @discardableResult
+    func prepareAndSeedSingleWindowViewport(
+        in workspaceId: WorkspaceDescriptor.ID,
+        workingFrame: CGRect,
+        containingFrame: CGRect? = nil,
+        scale: CGFloat = 2.0,
+        gaps: CGFloat,
+        state: inout ViewportState
+    ) -> SingleWindowViewportGeometry? {
+        let geometry = prepareSingleWindowViewport(
+            in: workspaceId,
+            workingFrame: workingFrame,
+            containingFrame: containingFrame,
+            scale: scale,
+            gaps: gaps
+        )
+        seedSingleWindowCenterOffsetIfNeeded(geometry, state: &state)
+        return geometry
+    }
+
     private func layoutSingleWindowWorkspace(
         _ context: SingleWindowLayoutContext,
+        state: ViewportState,
         workingFrame: CGRect,
+        containingFrame: CGRect,
         fullscreenRect: CGRect,
         renderedFullscreenRect: CGRect,
         workspaceOffset: CGFloat,
@@ -673,16 +873,22 @@ extension NiriLayoutEngine {
         result: inout [WindowToken: CGRect],
         orientation: Monitor.Orientation
     ) {
-        let canonicalRect = resolvedSingleWindowRect(
+        let geometry = singleWindowViewportGeometry(
             for: context,
             in: workingFrame,
+            containingFrame: containingFrame,
             scale: scale,
             gaps: gaps
         )
+        let canonicalRect = geometry.rect
+        context.container.cachedWidth = canonicalRect.width
         let renderOffset = context.container.renderOffset(at: time)
-        let renderedRect = canonicalRect
-            .offsetBy(dx: workspaceOffset + renderOffset.x, dy: renderOffset.y)
-            .roundedToPhysicalPixels(scale: scale)
+        let renderedRect = geometry.renderedRect(
+            viewOffset: state.viewOffsetPixels.value(at: time),
+            workspaceOffset: workspaceOffset,
+            renderOffset: renderOffset,
+            scale: scale
+        )
 
         layoutContainer(
             container: context.container,
@@ -791,7 +997,6 @@ extension NiriLayoutEngine {
         case .horizontal: contentRect.origin.y
         case .vertical: contentRect.origin.x
         }
-        pos += secondaryGap
 
         for i in 0 ..< windows.count {
             let span = resolvedSpans[i]

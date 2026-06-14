@@ -276,10 +276,10 @@ final class WMController {
             enableNiriLayout(revealPartial: settings.revealPartial)
         }
         updateNiriConfig(
-            maxVisibleColumns: settings.niriMaxVisibleColumns,
+            balancedColumnCount: settings.niriBalancedColumnCount,
             infiniteLoop: settings.niriInfiniteLoop,
             revealPartial: settings.revealPartial,
-            singleWindowAspectRatio: settings.niriSingleWindowAspectRatio,
+            loneWindowPolicy: settings.loneWindowPolicy,
             columnWidthPresets: settings.niriColumnWidthPresets,
             defaultColumnWidth: settings.niriDefaultColumnWidth
         )
@@ -350,10 +350,29 @@ final class WMController {
 
     func setGapSize(_ size: Double) {
         workspaceManager.setGaps(to: size)
+        niriEngine?.invalidateCachedLayoutSpans()
     }
 
     func setOuterGaps(left: Double, right: Double, top: Double, bottom: Double) {
         workspaceManager.setOuterGaps(left: left, right: right, top: top, bottom: bottom)
+        niriEngine?.invalidateCachedLayoutSpans()
+    }
+
+    func updateMonitorGapSettings() {
+        niriEngine?.invalidateCachedLayoutSpans()
+        layoutRefreshController.requestRefresh(reason: .gapsChanged)
+    }
+
+    func resolvedGapSettings(for monitor: Monitor) -> ResolvedGapSettings {
+        settings.resolvedGapSettings(for: monitor)
+    }
+
+    func gapSize(for monitor: Monitor) -> CGFloat {
+        CGFloat(resolvedGapSettings(for: monitor).gapSize)
+    }
+
+    func outerGaps(for monitor: Monitor) -> LayoutGaps.OuterGaps {
+        resolvedGapSettings(for: monitor).outerGaps
     }
 
     func setBordersEnabled(_ enabled: Bool) {
@@ -680,11 +699,21 @@ final class WMController {
             resolved: resolved,
             isVisible: isWorkspaceBarVisible(on: monitor, resolved: resolved)
         ).reservedTopInset
-        return insetWorkingFrame(from: monitor.visibleFrame, scale: scale, reservedTopInset: reservedTopInset)
+        return insetWorkingFrame(
+            from: monitor.visibleFrame,
+            scale: scale,
+            reservedTopInset: reservedTopInset,
+            outerGaps: outerGaps(for: monitor)
+        )
     }
 
-    func insetWorkingFrame(from frame: CGRect, scale: CGFloat = 2.0, reservedTopInset: CGFloat = 0) -> CGRect {
-        let outer = workspaceManager.outerGaps
+    func insetWorkingFrame(
+        from frame: CGRect,
+        scale: CGFloat = 2.0,
+        reservedTopInset: CGFloat = 0,
+        outerGaps: LayoutGaps.OuterGaps? = nil
+    ) -> CGRect {
+        let outer = outerGaps ?? workspaceManager.outerGaps
         let struts = Struts(
             left: outer.left,
             right: outer.right,
@@ -836,18 +865,18 @@ final class WMController {
     }
 
     func updateNiriConfig(
-        maxVisibleColumns: Int? = nil,
+        balancedColumnCount: Int? = nil,
         infiniteLoop: Bool? = nil,
         revealPartial: RevealPartial? = nil,
-        singleWindowAspectRatio: SingleWindowAspectRatio? = nil,
+        loneWindowPolicy: LoneWindowPolicy? = nil,
         columnWidthPresets: [Double]? = nil,
         defaultColumnWidth: Double?? = nil
     ) {
         niriLayoutHandler.updateNiriConfig(
-            maxVisibleColumns: maxVisibleColumns,
+            balancedColumnCount: balancedColumnCount,
             infiniteLoop: infiniteLoop,
             revealPartial: revealPartial,
-            singleWindowAspectRatio: singleWindowAspectRatio,
+            loneWindowPolicy: loneWindowPolicy,
             columnWidthPresets: columnWidthPresets,
             defaultColumnWidth: defaultColumnWidth
         )
@@ -2019,7 +2048,8 @@ final class WMController {
         guard runtimeTraceCaptureSession != nil else { return }
         guard let engine = niriEngine else { return }
 
-        let gap = CGFloat(workspaceManager.gaps)
+        let gap = workspaceManager.monitor(for: workspaceId).map { gapSize(for: $0) }
+            ?? CGFloat(workspaceManager.gaps)
         let state = workspaceManager.niriViewportState(for: workspaceId)
         let workspaceName = workspaceManager.descriptor(for: workspaceId)?.name ?? workspaceId.uuidString
         let columns = engine.columns(in: workspaceId)
@@ -2112,10 +2142,11 @@ final class WMController {
             return ([:], [:])
         }
 
+        let gap = gapSize(for: monitor)
         let gaps = LayoutGaps(
-            horizontal: CGFloat(workspaceManager.gaps),
-            vertical: CGFloat(workspaceManager.gaps),
-            outer: workspaceManager.outerGaps
+            horizontal: gap,
+            vertical: gap,
+            outer: outerGaps(for: monitor)
         )
         let area = WorkingAreaContext(
             workingFrame: insetWorkingFrame(for: monitor),
@@ -2186,7 +2217,6 @@ final class WMController {
 
     private func niriLayoutDecisionDebugDump() -> String {
         guard let engine = niriEngine else { return "niri disabled" }
-        let gap = CGFloat(workspaceManager.gaps)
         let workspaceIds = workspaceManager.workspaceIdsForDebug()
         guard !workspaceIds.isEmpty else { return "no-workspaces" }
 
@@ -2194,6 +2224,8 @@ final class WMController {
             let state = workspaceManager.niriViewportState(for: workspaceId)
             let workspaceName = workspaceManager.descriptor(for: workspaceId)?.name ?? workspaceId.uuidString
             let columns = engine.columns(in: workspaceId)
+            let gap = workspaceManager.monitor(for: workspaceId).map { gapSize(for: $0) }
+                ?? CGFloat(workspaceManager.gaps)
             return "workspace=\(workspaceName) id=\(workspaceId.uuidString) \(niriLayoutDecisionLine(workspaceId: workspaceId, state: state, columns: columns, gap: gap))"
         }.joined(separator: "\n")
     }
@@ -2201,7 +2233,6 @@ final class WMController {
     private func niriViewportDebugDump() -> String {
         guard let engine = niriEngine else { return "niri disabled" }
 
-        let gap = CGFloat(workspaceManager.gaps)
         let workspaceIds = workspaceManager.workspaceIdsForDebug()
         guard !workspaceIds.isEmpty else { return "no-workspaces" }
 
@@ -2209,6 +2240,8 @@ final class WMController {
             let state = workspaceManager.niriViewportState(for: workspaceId)
             let workspaceName = workspaceManager.descriptor(for: workspaceId)?.name ?? workspaceId.uuidString
             let columns = engine.columns(in: workspaceId)
+            let gap = workspaceManager.monitor(for: workspaceId).map { gapSize(for: $0) }
+                ?? CGFloat(workspaceManager.gaps)
             let currentViewStart = columns.isEmpty ? nil : state.viewPosPixels(columns: columns, gap: gap)
             let targetViewStart = columns.isEmpty ? nil : state.targetViewPosPixels(columns: columns, gap: gap)
             let selectedNode = state.selectedNodeId.map(String.init(describing:)) ?? "nil"
@@ -2481,10 +2514,10 @@ final class WMController {
         if niriEngine != nil {
             enableNiriLayout(revealPartial: settings.revealPartial)
             updateNiriConfig(
-                maxVisibleColumns: settings.niriMaxVisibleColumns,
+                balancedColumnCount: settings.niriBalancedColumnCount,
                 infiniteLoop: settings.niriInfiniteLoop,
                 revealPartial: settings.revealPartial,
-                singleWindowAspectRatio: settings.niriSingleWindowAspectRatio,
+                loneWindowPolicy: settings.loneWindowPolicy,
                 columnWidthPresets: settings.niriColumnWidthPresets,
                 defaultColumnWidth: settings.niriDefaultColumnWidth
             )
