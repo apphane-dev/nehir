@@ -29,11 +29,10 @@ enum NiriAxisSolver {
         guard !windows.isEmpty else { return [] }
 
         if isTabbed {
-            let usableSpace = max(0, availableSpace - gapSize * 2)
-            return solveTabbed(windows: windows, availableSpace: usableSpace)
+            return solveTabbed(windows: windows, availableSpace: availableSpace)
         }
 
-        let totalGaps = gapSize * CGFloat(windows.count + 1)
+        let totalGaps = gapSize * CGFloat(max(0, windows.count - 1))
         let usableSpace = max(0, availableSpace - totalGaps)
         let epsilon: CGFloat = 0.001
         let minConstraints = windows.map { sanitizedMinimum($0.minConstraint) }

@@ -268,15 +268,54 @@ struct NiriSettingsTab: View {
     }
 }
 
+private enum DefaultColumnWidthMode: String, CaseIterable, Identifiable {
+    case balanced
+    case custom
+
+    var id: String { rawValue }
+}
+
+private enum LoneWindowMode: String, CaseIterable, Identifiable {
+    case fill
+    case centered
+
+    var id: String { rawValue }
+}
+
+private enum LoneWindowOverrideMode: String, CaseIterable, Identifiable {
+    case inherit
+    case fill
+    case centered
+
+    var id: String { rawValue }
+}
+
+private struct StableSettingsControlRow<Content: View>: View {
+    let label: String
+    @ViewBuilder let content: () -> Content
+
+    init(_ label: String, @ViewBuilder content: @escaping () -> Content) {
+        self.label = label
+        self.content = content
+    }
+
+    var body: some View {
+        LabeledContent(label) {
+            content()
+                .frame(minHeight: 32, alignment: .center)
+        }
+    }
+}
+
 struct GlobalNiriSettingsSection: View {
     @Bindable var settings: SettingsStore
     @Bindable var controller: WMController
 
     var body: some View {
-        let useAutoDefaultColumnWidth = Binding(
-            get: { settings.niriDefaultColumnWidth == nil },
-            set: { useAuto in
-                settings.niriDefaultColumnWidth = useAuto ? nil : (settings.niriDefaultColumnWidth ?? 0.5)
+        let defaultColumnWidthMode = Binding(
+            get: { settings.niriDefaultColumnWidth == nil ? DefaultColumnWidthMode.balanced : .custom },
+            set: { mode in
+                settings.niriDefaultColumnWidth = mode == .balanced ? nil : (settings.niriDefaultColumnWidth ?? 0.5)
                 controller.updateNiriConfig(defaultColumnWidth: settings.niriDefaultColumnWidth)
             }
         )
@@ -287,50 +326,48 @@ struct GlobalNiriSettingsSection: View {
                 controller.updateNiriConfig(defaultColumnWidth: settings.niriDefaultColumnWidth)
             }
         )
+        let niriBalancedColumnCount = Binding(
+            get: { settings.niriBalancedColumnCount },
+            set: { newValue in
+                settings.niriBalancedColumnCount = newValue.clamped(to: 1 ... 5)
+                controller.updateNiriConfig(balancedColumnCount: settings.niriBalancedColumnCount)
+            }
+        )
+        let loneWindowMode = Binding(
+            get: { settings.niriLoneWindowMaxWidth == nil ? LoneWindowMode.fill : .centered },
+            set: { mode in
+                settings.niriLoneWindowMaxWidth = mode == .fill ? nil : (settings.niriLoneWindowMaxWidth ?? 0.6)
+                controller.updateNiriConfig(loneWindowPolicy: settings.loneWindowPolicy)
+            }
+        )
+        let loneWindowMaxWidthPercent = Binding(
+            get: { Int((settings.niriLoneWindowMaxWidth ?? 0.6) * 100) },
+            set: { newPercent in
+                settings.niriLoneWindowMaxWidth = Double(min(95, max(10, newPercent))) / 100.0
+                controller.updateNiriConfig(loneWindowPolicy: settings.loneWindowPolicy)
+            }
+        )
         let presets = settings.niriColumnWidthPresets
 
-        Section("Column Layout") {
-            SettingsSliderRow(
-                label: "Visible Columns",
-                value: Binding(
-                    get: { Double(settings.niriMaxVisibleColumns) },
-                    set: { settings.niriMaxVisibleColumns = Int($0) }
-                ),
-                range: 1 ... 5,
-                step: 1,
-                valueText: "\(settings.niriMaxVisibleColumns)",
-                valueWidth: 32
-            )
-            .onChange(of: settings.niriMaxVisibleColumns) { _, newValue in
-                controller.updateNiriConfig(maxVisibleColumns: newValue)
-            }
-
-            Picker("Single Window Width", selection: $settings.niriSingleWindowAspectRatio) {
-                ForEach(SingleWindowAspectRatio.allCases, id: \.self) { ratio in
-                    Text(ratio.displayName).tag(ratio)
-                }
-            }
-            .onChange(of: settings.niriSingleWindowAspectRatio) { _, newValue in
-                controller.updateNiriConfig(singleWindowAspectRatio: newValue)
-            }
-            SettingsCaption("Column width used when a window has no siblings on the same workspace.")
-        }
-
-        Section("Default New Column Width") {
-            LabeledContent("Width Mode") {
-                Picker("Width Mode", selection: useAutoDefaultColumnWidth) {
-                    Text("Auto").tag(true)
-                    Text("Custom").tag(false)
+        Section("Default Column Width") {
+            LabeledContent("Mode") {
+                Picker("Default Column Width Mode", selection: defaultColumnWidthMode) {
+                    Text("Balanced").tag(DefaultColumnWidthMode.balanced)
+                    Text("Custom").tag(DefaultColumnWidthMode.custom)
                 }
                 .labelsHidden()
                 .pickerStyle(.segmented)
                 .frame(maxWidth: 220)
             }
 
-            if settings.niriDefaultColumnWidth != nil {
-                LabeledContent("Custom Width") {
+            if settings.niriDefaultColumnWidth == nil {
+                StableSettingsControlRow("Columns to Fit") {
+                    Stepper("\(settings.niriBalancedColumnCount)", value: niriBalancedColumnCount, in: 1 ... 5)
+                }
+            } else {
+                StableSettingsControlRow("Width") {
                     HStack {
-                        TextField("Custom Width", value: defaultColumnWidthPercent, format: .number)
+                        TextField("Width", value: defaultColumnWidthPercent, format: .number)
                             .labelsHidden()
                             .textFieldStyle(.roundedBorder)
                             .frame(width: 48)
@@ -341,14 +378,38 @@ struct GlobalNiriSettingsSection: View {
                 }
             }
 
-            SettingsCaption(
-                settings.niriDefaultColumnWidth == nil
-                    ? "Auto uses the balanced width for the current Visible Columns setting."
-                    : "New or claimed columns start at this width until you resize them."
-            )
+            SettingsCaption("Applies when a column is created or reset. Existing columns are not resized by this setting.")
         }
 
-        Section("Column Width Cycle Presets") {
+        Section("Single-Window Default") {
+            LabeledContent("Mode") {
+                Picker("Single-Window Default Mode", selection: loneWindowMode) {
+                    Text("Fill").tag(LoneWindowMode.fill)
+                    Text("Centered").tag(LoneWindowMode.centered)
+                }
+                .labelsHidden()
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 220)
+            }
+
+            if settings.niriLoneWindowMaxWidth != nil {
+                StableSettingsControlRow("Centered Width") {
+                    HStack {
+                        TextField("Centered Width", value: loneWindowMaxWidthPercent, format: .number)
+                            .labelsHidden()
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 48)
+                            .multilineTextAlignment(.trailing)
+                        Text("%")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+
+            SettingsCaption("Applies only while a workspace has exactly one normal, non-tabbed window. Manual width changes override it.")
+        }
+
+        Section("Resize Presets") {
             ForEach(presets.indices, id: \.self) { index in
                 LabeledContent("Preset \(index + 1)") {
                     HStack {
@@ -391,12 +452,12 @@ struct GlobalNiriSettingsSection: View {
                     settings.niriColumnWidthPresets = presets
                     controller.updateNiriConfig(columnWidthPresets: settings.niriColumnWidthPresets)
                 }
-                Button("Reset Cycle Presets") {
+                Button("Reset Resize Presets") {
                     settings.niriColumnWidthPresets = SettingsStore.defaultColumnWidthPresets
                     controller.updateNiriConfig(columnWidthPresets: settings.niriColumnWidthPresets)
                 }
             }
-            SettingsCaption("Resize commands cycle through these presets in order. Duplicates are allowed.")
+            SettingsCaption("Used only by width-cycle commands. These do not affect default column width.")
         }
         .id(settings.niriColumnWidthPresets.count)
     }
@@ -426,27 +487,103 @@ struct MonitorNiriSettingsSection: View {
     var body: some View {
         let ms = monitorSettings
 
-        Section("Column Layout") {
-            OverridableSlider(
-                label: "Visible Columns",
-                value: ms.maxVisibleColumns.map { Double($0) },
-                globalValue: Double(settings.niriMaxVisibleColumns),
+        let loneWindowOverrideMode = Binding<LoneWindowOverrideMode>(
+            get: {
+                if let policy = ms.loneWindowPolicy {
+                    switch policy {
+                    case .fill: return .fill
+                    case .centered: return .centered
+                    }
+                }
+                return .inherit
+            },
+            set: { mode in
+                updateSetting {
+                    switch mode {
+                    case .inherit:
+                        $0.loneWindowPolicy = nil
+                    case .fill:
+                        $0.loneWindowPolicy = .fill
+                    case .centered:
+                        let existingWidth: Double
+                        if case let .centered(widthFraction) = ms.loneWindowPolicy {
+                            existingWidth = widthFraction
+                        } else if let globalWidth = settings.niriLoneWindowMaxWidth {
+                            existingWidth = globalWidth
+                        } else {
+                            existingWidth = 0.6
+                        }
+                        $0.loneWindowPolicy = .centered(maxWidthFraction: existingWidth)
+                    }
+                }
+            }
+        )
+        let loneWindowMaxWidthPercent = Binding(
+            get: {
+                let fraction: Double
+                if case let .centered(widthFraction) = ms.loneWindowPolicy {
+                    fraction = widthFraction
+                } else {
+                    fraction = settings.niriLoneWindowMaxWidth ?? 0.6
+                }
+                return Int(fraction * 100)
+            },
+            set: { newPercent in
+                updateSetting {
+                    $0.loneWindowPolicy = .centered(maxWidthFraction: Double(min(95, max(10, newPercent))) / 100.0)
+                }
+            }
+        )
+
+        Section("Monitor Column Defaults") {
+            OverridableStepper(
+                label: "Columns to Fit",
+                value: ms.balancedColumnCount.map { Double($0) },
+                globalValue: Double(settings.niriBalancedColumnCount),
                 range: 1 ... 5,
                 step: 1,
                 formatter: { "\(Int($0))" },
-                onChange: { newValue in updateSetting { $0.maxVisibleColumns = Int(newValue) } },
-                onReset: { updateSetting { $0.maxVisibleColumns = nil } }
+                onChange: { newValue in updateSetting { $0.balancedColumnCount = Int(newValue) } },
+                onReset: { updateSetting { $0.balancedColumnCount = nil } }
             )
+            SettingsCaption("Overrides the Balanced column count on this monitor. Used only when Default Column Width is Balanced.")
+        }
 
-            OverridablePicker(
-                label: "Single Window Width",
-                value: ms.singleWindowAspectRatio,
-                globalValue: settings.niriSingleWindowAspectRatio,
-                options: SingleWindowAspectRatio.allCases,
-                displayName: { $0.displayName },
-                onChange: { newValue in updateSetting { $0.singleWindowAspectRatio = newValue } },
-                onReset: { updateSetting { $0.singleWindowAspectRatio = nil } }
-            )
+        Section("Monitor Single-Window Default") {
+            LabeledContent("Mode") {
+                HStack {
+                    Picker("Single-Window Default Mode", selection: loneWindowOverrideMode) {
+                        Text("Use Global").tag(LoneWindowOverrideMode.inherit)
+                        Text("Fill").tag(LoneWindowOverrideMode.fill)
+                        Text("Centered").tag(LoneWindowOverrideMode.centered)
+                    }
+                    .labelsHidden()
+
+                    OverrideStatusIndicator(
+                        isOverridden: ms.loneWindowPolicy != nil,
+                        resetTitle: "Reset one-window layout to global default",
+                        globalAccessibilityLabel: "Single-window default uses global setting"
+                    ) {
+                        updateSetting { $0.loneWindowPolicy = nil }
+                    }
+                }
+            }
+
+            if case .centered = ms.loneWindowPolicy {
+                StableSettingsControlRow("Centered Width") {
+                    HStack {
+                        TextField("Centered Width", value: loneWindowMaxWidthPercent, format: .number)
+                            .labelsHidden()
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 48)
+                            .multilineTextAlignment(.trailing)
+                        Text("%")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+
+            SettingsCaption("Use Global inherits the main setting. Fill or Centered overrides only this monitor's single-window default.")
         }
     }
 }

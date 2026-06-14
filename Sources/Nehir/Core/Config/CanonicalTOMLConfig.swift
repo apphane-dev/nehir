@@ -57,10 +57,10 @@ struct CanonicalTOMLConfig: Codable, Equatable {
     }
 
     struct Niri: Codable, Equatable {
-        var maxVisibleColumns: Int
+        var balancedColumnCount: Int
         var infiniteLoop: Bool
         var revealPartial: String
-        var singleWindowAspectRatio: String
+        var loneWindowMaxWidth: Double?
         var columnWidthPresets: [Double]?
         var defaultColumnWidth: Double?
     }
@@ -171,10 +171,10 @@ extension CanonicalTOMLConfig {
             )
         )
         niri = Niri(
-            maxVisibleColumns: export.niriMaxVisibleColumns,
+            balancedColumnCount: export.niriBalancedColumnCount,
             infiniteLoop: export.niriInfiniteLoop,
             revealPartial: export.revealPartial,
-            singleWindowAspectRatio: export.niriSingleWindowAspectRatio,
+            loneWindowMaxWidth: export.niriLoneWindowMaxWidth,
             columnWidthPresets: export.niriColumnWidthPresets,
             defaultColumnWidth: export.niriDefaultColumnWidth
         )
@@ -237,10 +237,10 @@ extension CanonicalTOMLConfig {
             outerGapRight: gaps.outer.right,
             outerGapTop: gaps.outer.top,
             outerGapBottom: gaps.outer.bottom,
-            niriMaxVisibleColumns: niri.maxVisibleColumns,
+            niriBalancedColumnCount: niri.balancedColumnCount,
             niriInfiniteLoop: niri.infiniteLoop,
             revealPartial: niri.revealPartial,
-            niriSingleWindowAspectRatio: niri.singleWindowAspectRatio,
+            niriLoneWindowMaxWidth: niri.loneWindowMaxWidth,
             niriColumnWidthPresets: niri.columnWidthPresets,
             niriDefaultColumnWidth: niri.defaultColumnWidth,
             workspaceConfigurations: BuiltInSettingsDefaults.workspaceConfigurations,
@@ -270,6 +270,7 @@ extension CanonicalTOMLConfig {
             workspaceBarLabelFontSize: workspaceBar.labelFontSize,
             monitorBarSettings: [],
             appRules: BuiltInSettingsDefaults.appRules,
+            monitorGapSettings: [],
             monitorOrientationSettings: [],
             monitorNiriSettings: [],
             preventSleepEnabled: general.preventSleepEnabled,
@@ -363,10 +364,10 @@ extension CanonicalTOMLConfig.Niri {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let d = CanonicalTOMLConfig.defaults().niri
-        maxVisibleColumns = try container.decodeWithDefault(Int.self, forKey: .maxVisibleColumns, default: d.maxVisibleColumns)
+        balancedColumnCount = try container.decodeWithDefault(Int.self, forKey: .balancedColumnCount, default: d.balancedColumnCount)
         infiniteLoop = try container.decodeWithDefault(Bool.self, forKey: .infiniteLoop, default: d.infiniteLoop)
         revealPartial = try container.decodeWithDefault(String.self, forKey: .revealPartial, default: d.revealPartial)
-        singleWindowAspectRatio = try container.decodeWithDefault(String.self, forKey: .singleWindowAspectRatio, default: d.singleWindowAspectRatio)
+        loneWindowMaxWidth = try container.decodeIfPresent(Double.self, forKey: .loneWindowMaxWidth)
         columnWidthPresets = try container.decodeIfPresent([Double].self, forKey: .columnWidthPresets)
         defaultColumnWidth = try container.decodeIfPresent(Double.self, forKey: .defaultColumnWidth)
     }

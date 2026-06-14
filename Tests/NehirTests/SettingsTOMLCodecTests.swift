@@ -65,7 +65,7 @@ private extension String {
         export.workspaceConfigurations = [WorkspaceConfiguration(name: "10", monitorAssignment: .secondary)]
         export.monitorBarSettings = [MonitorBarSettings(monitorName: "Display", enabled: false)]
         export.monitorOrientationSettings = [MonitorOrientationSettings(monitorName: "Display", orientation: .vertical)]
-        export.monitorNiriSettings = [MonitorNiriSettings(monitorName: "Display", maxVisibleColumns: 4)]
+        export.monitorNiriSettings = [MonitorNiriSettings(monitorName: "Display", balancedColumnCount: 4)]
 
         let output = try #require(String(data: SettingsTOMLCodec.encode(export), encoding: .utf8))
 
@@ -88,13 +88,13 @@ private extension String {
 
     @Test func unknownNiriKeysAreIgnoredAndNotReencoded() throws {
         var export = SettingsExport.defaults()
-        export.niriMaxVisibleColumns = 4
+        export.niriBalancedColumnCount = 4
 
         let output = try #require(String(data: SettingsTOMLCodec.encode(export), encoding: .utf8))
         let unknownKey = "maxWindows" + "PerColumn"
         let edited = output.replacingOccurrences(
-            of: "maxVisibleColumns = 4",
-            with: "maxVisibleColumns = 4\n\(unknownKey) = 7"
+            of: "balancedColumnCount = 4",
+            with: "balancedColumnCount = 4\n\(unknownKey) = 7"
         )
 
         let decoded = try SettingsTOMLCodec.decode(Data(edited.utf8))

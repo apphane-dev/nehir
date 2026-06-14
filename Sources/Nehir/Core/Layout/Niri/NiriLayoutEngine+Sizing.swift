@@ -892,7 +892,7 @@ extension NiriLayoutEngine {
                 }
         }
 
-        let heightLeft = max(1, workingFrame.height - gaps - minHeightTaken - gaps)
+        let heightLeft = max(1, workingFrame.height - minHeightTaken)
         windowHeight = min(heightLeft, windowHeight)
         windowHeight = window.constraints.clampHeight(windowHeight)
         window.height = .fixed(windowHeight.clamped(to: 1 ... NiriSizeChange.maxPixels))

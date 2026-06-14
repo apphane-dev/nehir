@@ -191,24 +191,24 @@ struct MonitorSettingsStoreTests {
 
     @Test func updateReplacesExistingAtSameIndex() {
         var settings = [
-            MonitorNiriSettings(monitorName: "A", maxVisibleColumns: 2),
-            MonitorNiriSettings(monitorName: "B", maxVisibleColumns: 3)
+            MonitorNiriSettings(monitorName: "A", balancedColumnCount: 2),
+            MonitorNiriSettings(monitorName: "B", balancedColumnCount: 3)
         ]
-        let updated = MonitorNiriSettings(monitorName: "A", maxVisibleColumns: 5)
+        let updated = MonitorNiriSettings(monitorName: "A", balancedColumnCount: 5)
         MonitorSettingsStore.update(updated, in: &settings)
         #expect(settings.count == 2)
         #expect(settings[0].monitorName == "A")
-        #expect(settings[0].maxVisibleColumns == 5)
+        #expect(settings[0].balancedColumnCount == 5)
         #expect(settings[1].monitorName == "B")
     }
 
     @Test func updateAppendsWhenNotFound() {
         var settings = [MonitorNiriSettings(monitorName: "A")]
-        let newItem = MonitorNiriSettings(monitorName: "B", maxVisibleColumns: 4)
+        let newItem = MonitorNiriSettings(monitorName: "B", balancedColumnCount: 4)
         MonitorSettingsStore.update(newItem, in: &settings)
         #expect(settings.count == 2)
         #expect(settings[1].monitorName == "B")
-        #expect(settings[1].maxVisibleColumns == 4)
+        #expect(settings[1].balancedColumnCount == 4)
     }
 
     @Test func removeDeletesAllMatches() {
@@ -225,39 +225,39 @@ struct MonitorSettingsStoreTests {
     @Test func monitorLookupPrefersDisplayIdOverNameFallback() {
         let monitor = makeSettingsTestMonitor(displayId: 42, name: "Studio Display")
         let settings = [
-            MonitorNiriSettings(monitorName: "Studio Display", maxVisibleColumns: 1),
-            MonitorNiriSettings(monitorName: "Studio Display", monitorDisplayId: 42, maxVisibleColumns: 3)
+            MonitorNiriSettings(monitorName: "Studio Display", balancedColumnCount: 1),
+            MonitorNiriSettings(monitorName: "Studio Display", monitorDisplayId: 42, balancedColumnCount: 3)
         ]
 
         let result = MonitorSettingsStore.get(for: monitor, in: settings)
-        #expect(result?.maxVisibleColumns == 3)
+        #expect(result?.balancedColumnCount == 3)
     }
 
     @Test func monitorLookupFallsBackToNameWhenDisplayIdMissing() {
         let monitor = makeSettingsTestMonitor(displayId: 99, name: "Fallback")
         let settings = [
-            MonitorNiriSettings(monitorName: "Fallback", maxVisibleColumns: 2)
+            MonitorNiriSettings(monitorName: "Fallback", balancedColumnCount: 2)
         ]
 
         let result = MonitorSettingsStore.get(for: monitor, in: settings)
-        #expect(result?.maxVisibleColumns == 2)
+        #expect(result?.balancedColumnCount == 2)
     }
 
     @Test func updateMigratesNameEntryToDisplayIdEntry() {
         var settings = [
-            MonitorNiriSettings(monitorName: "Studio Display", maxVisibleColumns: 1)
+            MonitorNiriSettings(monitorName: "Studio Display", balancedColumnCount: 1)
         ]
 
         let updated = MonitorNiriSettings(
             monitorName: "Studio Display",
             monitorDisplayId: 77,
-            maxVisibleColumns: 4
+            balancedColumnCount: 4
         )
         MonitorSettingsStore.update(updated, in: &settings)
 
         #expect(settings.count == 1)
         #expect(settings[0].monitorDisplayId == 77)
-        #expect(settings[0].maxVisibleColumns == 4)
+        #expect(settings[0].balancedColumnCount == 4)
     }
 }
 
@@ -313,10 +313,9 @@ struct SettingsExportTests {
         #expect(defaults.outerGapRight == 0)
         #expect(defaults.outerGapTop == 0)
         #expect(defaults.outerGapBottom == 0)
-        // niriAlwaysCenterSingleColumn removed in refactor; revealPartial replaces scroll-reveal
         #expect(defaults.revealPartial == RevealPartial.default.rawValue)
-        #expect(defaults.niriSingleWindowAspectRatio == SingleWindowAspectRatio.none.rawValue)
-        #expect(defaults.niriDefaultColumnWidth == 0.5)
+        #expect(defaults.niriLoneWindowMaxWidth == nil)
+        #expect(defaults.niriDefaultColumnWidth == nil)
         #expect(defaults.workspaceConfigurations == BuiltInSettingsDefaults.workspaceConfigurations)
         #expect(defaults.bordersEnabled == true)
         #expect(defaults.borderWidth == 5.0)

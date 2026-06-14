@@ -60,11 +60,14 @@ struct SettingsSliderRow: View {
     let step: Double
     let valueText: String
     var valueWidth: CGFloat = 56
+    var onEditingChanged: ((Bool) -> Void)? = nil
 
     var body: some View {
         LabeledContent(label) {
             HStack {
-                Slider(value: $value, in: range, step: step) {
+                Slider(value: $value, in: range, step: step, onEditingChanged: { editing in
+                    onEditingChanged?(editing)
+                }) {
                     Text(label)
                 }
                 .labelsHidden()
@@ -166,10 +169,34 @@ struct ResetIconButton: View {
         }
         .buttonStyle(.borderless)
         .controlSize(.regular)
-        .frame(width: 44, height: 44)
+        .frame(width: OverrideStatusIndicator.width, height: OverrideStatusIndicator.height)
         .contentShape(Rectangle())
         .help(title)
         .accessibilityLabel(title)
+    }
+}
+
+struct OverrideStatusIndicator: View {
+    static let width: CGFloat = 45
+    static let height: CGFloat = 44
+
+    let isOverridden: Bool
+    let resetTitle: String
+    let globalAccessibilityLabel: String
+    let onReset: () -> Void
+
+    var body: some View {
+        ZStack {
+            if isOverridden {
+                ResetIconButton(title: resetTitle, action: onReset)
+            } else {
+                Text("Global")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .accessibilityLabel(globalAccessibilityLabel)
+            }
+        }
+        .frame(width: Self.width, height: Self.height)
     }
 }
 
@@ -205,17 +232,13 @@ struct OverridableToggle: View {
         }
     }
 
-    @ViewBuilder
     private var overrideStatus: some View {
-        if isOverridden {
-            ResetIconButton(title: "Reset \(label) to global default", action: onReset)
-        } else {
-            Text("Global")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .frame(minWidth: 45)
-                .accessibilityLabel("\(label) uses global default")
-        }
+        OverrideStatusIndicator(
+            isOverridden: isOverridden,
+            resetTitle: "Reset \(label) to global default",
+            globalAccessibilityLabel: "\(label) uses global default",
+            onReset: onReset
+        )
     }
 }
 
@@ -255,17 +278,13 @@ struct OverridablePicker<T: Hashable & Identifiable>: View {
         }
     }
 
-    @ViewBuilder
     private var overrideStatus: some View {
-        if isOverridden {
-            ResetIconButton(title: "Reset \(label) to global default", action: onReset)
-        } else {
-            Text("Global")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .frame(minWidth: 45)
-                .accessibilityLabel("\(label) uses global default")
-        }
+        OverrideStatusIndicator(
+            isOverridden: isOverridden,
+            resetTitle: "Reset \(label) to global default",
+            globalAccessibilityLabel: "\(label) uses global default",
+            onReset: onReset
+        )
     }
 }
 
@@ -276,15 +295,18 @@ struct OverridableSlider: View {
     let range: ClosedRange<Double>
     let step: Double
     let formatter: (Double) -> String
+    var commitOnEditingEnd = false
     let onChange: (Double) -> Void
     let onReset: () -> Void
 
+    @State private var draftValue: Double?
+
     private var effectiveValue: Double {
-        value ?? globalValue
+        draftValue ?? value ?? globalValue
     }
 
     private var isOverridden: Bool {
-        value != nil
+        draftValue != nil || value != nil
     }
 
     var body: some View {
@@ -293,8 +315,18 @@ struct OverridableSlider: View {
                 let displayValue = formatter(effectiveValue)
                 Slider(value: Binding(
                     get: { effectiveValue },
-                    set: { onChange($0) }
-                ), in: range, step: step) {
+                    set: { newValue in
+                        if commitOnEditingEnd {
+                            draftValue = newValue
+                        } else {
+                            onChange(newValue)
+                        }
+                    }
+                ), in: range, step: step, onEditingChanged: { editing in
+                    guard commitOnEditingEnd, !editing, let draftValue else { return }
+                    onChange(draftValue)
+                    self.draftValue = nil
+                }) {
                     Text(label)
                 }
                 .labelsHidden()
@@ -307,16 +339,14 @@ struct OverridableSlider: View {
         }
     }
 
-    @ViewBuilder
     private var overrideStatus: some View {
-        if isOverridden {
-            ResetIconButton(title: "Reset \(label) to global default", action: onReset)
-        } else {
-            Text("Global")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .frame(minWidth: 45)
-                .accessibilityLabel("\(label) uses global default")
+        OverrideStatusIndicator(
+            isOverridden: isOverridden,
+            resetTitle: "Reset \(label) to global default",
+            globalAccessibilityLabel: "\(label) uses global default"
+        ) {
+            draftValue = nil
+            onReset()
         }
     }
 }
@@ -372,16 +402,12 @@ struct OverridableStepper: View {
         )
     }
 
-    @ViewBuilder
     private var overrideStatus: some View {
-        if isOverridden {
-            ResetIconButton(title: "Reset \(label) to global default", action: onReset)
-        } else {
-            Text("Global")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .frame(minWidth: 45)
-                .accessibilityLabel("\(label) uses global default")
-        }
+        OverrideStatusIndicator(
+            isOverridden: isOverridden,
+            resetTitle: "Reset \(label) to global default",
+            globalAccessibilityLabel: "\(label) uses global default",
+            onReset: onReset
+        )
     }
 }

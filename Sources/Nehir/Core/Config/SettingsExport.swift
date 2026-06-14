@@ -24,10 +24,10 @@ struct SettingsExport: Equatable {
     var outerGapTop: Double
     var outerGapBottom: Double
 
-    var niriMaxVisibleColumns: Int
+    var niriBalancedColumnCount: Int
     var niriInfiniteLoop: Bool
     var revealPartial: String
-    var niriSingleWindowAspectRatio: String
+    var niriLoneWindowMaxWidth: Double?
     var niriColumnWidthPresets: [Double]?
     var niriDefaultColumnWidth: Double?
 
@@ -62,6 +62,7 @@ struct SettingsExport: Equatable {
     var monitorBarSettings: [MonitorBarSettings]
 
     var appRules: [AppRule]
+    var monitorGapSettings: [MonitorGapSettings]
     var monitorOrientationSettings: [MonitorOrientationSettings]
     var monitorNiriSettings: [MonitorNiriSettings]
 
@@ -101,12 +102,12 @@ extension SettingsExport {
             outerGapRight: 0,
             outerGapTop: 0,
             outerGapBottom: 0,
-            niriMaxVisibleColumns: 2,
+            niriBalancedColumnCount: 2,
             niriInfiniteLoop: false,
             revealPartial: RevealPartial.default.rawValue,
-            niriSingleWindowAspectRatio: SingleWindowAspectRatio.none.rawValue,
+            niriLoneWindowMaxWidth: nil,
             niriColumnWidthPresets: BuiltInSettingsDefaults.niriColumnWidthPresets,
-            niriDefaultColumnWidth: 0.5,
+            niriDefaultColumnWidth: nil,
             workspaceConfigurations: BuiltInSettingsDefaults.workspaceConfigurations,
             bordersEnabled: true,
             borderWidth: 5.0,
@@ -134,6 +135,7 @@ extension SettingsExport {
             workspaceBarLabelFontSize: 12,
             monitorBarSettings: [],
             appRules: BuiltInSettingsDefaults.appRules,
+            monitorGapSettings: [],
             monitorOrientationSettings: [],
             monitorNiriSettings: [],
             preventSleepEnabled: false,

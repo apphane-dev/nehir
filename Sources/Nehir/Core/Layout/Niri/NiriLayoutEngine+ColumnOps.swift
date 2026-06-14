@@ -391,7 +391,7 @@ extension NiriLayoutEngine {
             : currentColX + (
                 column.cachedWidth > 0
                     ? column.cachedWidth
-                    : workingFrame.width / CGFloat(effectiveMaxVisibleColumns(in: workspaceId))
+                    : workingFrame.width * CGFloat(effectiveDefaultColumnWidth(in: workspaceId).fraction)
             ) + gaps
 
         guard let root = roots[workspaceId] else { return false }

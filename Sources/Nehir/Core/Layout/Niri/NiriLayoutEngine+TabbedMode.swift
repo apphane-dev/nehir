@@ -63,7 +63,7 @@ extension NiriLayoutEngine {
             }
             return partial + max(NiriAxisSolver.minimumRenderableSpan, minimumSpan)
         }
-        let requiredSpan = requiredWindowSpan + gaps * CGFloat(windows.count + 1)
+        let requiredSpan = requiredWindowSpan + gaps * CGFloat(max(0, windows.count - 1))
         return (requiredSpan, requiredSpan > availableSpan + 0.5)
     }
 

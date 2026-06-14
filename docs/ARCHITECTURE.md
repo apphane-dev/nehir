@@ -77,14 +77,14 @@ Sources/
 │   │   ├── Animation/               Spring, cubic & workspace-switch animations (6 files)
 │   │   ├── Ax/                      Accessibility wrappers, DefaultFloatingApps (10 files)
 │   │   ├── Border/                  Focused window border rendering (3 files)
-│   │   ├── Config/                  Settings store, export, per-monitor settings (16 files)
+│   │   ├── Config/                  Settings store, export, per-monitor settings (26 files)
 │   │   ├── Controller/              WMController, event handlers, refresh pipeline (17 files)
 │   │   ├── Input/                   Hotkey action catalog, binding persistence (7 files)
 │   │   ├── Layout/
 │   │   │   ├── DNode.swift          Shared types: WindowToken, WindowHandle
 │   │   │   ├── LayoutBoundary.swift Layout snapshots & workspace geometry
 │   │   │   ├── SideHiding.swift     Side-hiding edge types
-│   │   │   ├── Niri/                Scrolling columns layout engine (28 files)
+│   │   │   ├── Niri/                Scrolling columns layout engine (31 files)
 │   │   ├── LockScreen/              Lock screen detection (1 file)
 │   │   ├── Menu/                    Menu extraction for MenuAnywhere (3 files)
 │   │   ├── Monitor/                 Display detection, OutputId, restore assignments (5 files)
@@ -522,7 +522,18 @@ All three types inherit from `NiriNode` (base class with `id: NodeId`, `parent`,
 
 **Viewport scrolling:** The viewport tracks which columns are visible separately from the command/focus target. User gestures (trackpad swipe/scroll) drive the viewport via `ViewGesture` → `SwipeTracker`, which accumulates deltas and produces spring animations. Gesture release, viewport scroll commands, keyboard/AX reveal, resize adjustment, and column transitions share `ViewportSnapContext` snap geometry. During an active gesture Nehir keeps selection, border, hotkey target, and keyboard focus stable so the border does not jump under the fingers. On release, the viewport snaps to the nearest snap point unless the Mouse Modifier is held to bypass snap for that trackpad gesture. Focus-follows-mouse never reveals, relayouts, or scrolls the viewport; duplicate AX confirmations for an FFM target are treated as FFM for a short freshness window.
 
-**File Organization (28 files):**
+**Centralization boundaries:** Keep layout rules in their owning layer rather than re-deriving them in controllers.
+
+| Rule family | Source of truth | Notes for contributors |
+|-------------|-----------------|------------------------|
+| Proportional width gap accounting | `ProportionalSize.resolveProportionalSpan(...)` | Do not duplicate `(availableSpace - gap) * proportion - gap`; Reveal Partial `.default` depends on the same `2 * gap` fit tolerance so 50% + 50% columns remain viewport-fitting. |
+| Stacked/tiled secondary-axis sizing | `NiriAxisSolver` and the tabbed/shared-frame layout helpers | Inner gaps are between adjacent stacked tiles only (`count - 1` gaps). Top/bottom monitor-edge padding comes from outer gaps, not inner gap. |
+| Snap points, viewport bounds, and full-width-column snap exceptions | `ViewportState+Geometry.swift` (`computeSnapGrid`, `viewportStartBounds`, `clampedViewportStart`) and `ViewportSnapContext` | Gesture release, scroll commands, reveal, resize adjustment, and column transitions must share this geometry. Do not add ad-hoc `±gap` snaps elsewhere; columns that approximately fill the viewport intentionally omit synthetic edge snaps that would only lose margins, while over-wide columns keep theirs so clipped content stays reachable. |
+| Lone-window viewport rect and render offset | `SingleWindowViewportGeometry` plus `singleWindowViewportGeometry(...)`, `resolvedSingleWindowViewportRect(...)`, `prepareSingleWindowViewport(...)`, and `prepareAndSeedSingleWindowViewport(...)` in `NiriLayout.swift` | Controllers may prepare/seed geometry, but must not re-derive centered width, center offset, or rendered frame offset. Lone-window rendering follows the raw viewport offset; the shared snap grid decides where it settles. |
+| Monitor-aware gap resolution | `SettingsStore.resolvedGapSettings(for:)`, exposed at runtime through `WMController.gapSize(for:)` and `WMController.outerGaps(for:)` | Use these helpers when a monitor is known. Direct `workspaceManager.gaps` / `workspaceManager.outerGaps` access should be limited to no-monitor fallback paths. |
+| Monitor-aware Niri settings and lone-window override resolution | `SettingsStore.resolvedNiriSettings(for:)` and `MonitorNiriSettings.loneWindowPolicy` | `nil` means inherit global policy; `.fill` and `.centered(maxWidthFraction:)` are explicit per-monitor overrides. Do not infer override mode from nullable centered width. |
+
+**File Organization (31 files):**
 
 The Niri directory is the largest subsystem. Files are organized by responsibility:
 

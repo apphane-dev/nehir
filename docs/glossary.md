@@ -24,6 +24,29 @@ In the [layout notation](viewport-navigation-spec.md#layout-notation), clipped c
 
 ---
 
+## default column width
+
+`DefaultColumnWidth` is the width assigned to a new or newly claimed column before manual resizing. It has two modes:
+
+- **balanced** — fit `N` columns across the working area, so each column starts at `1/N` width
+- **custom** — use an explicit working-area width fraction
+
+Column-width resolution (highest wins):
+
+1. `LoneWindowPolicy.fill` / `.centered` — only when the lone-window predicate holds
+2. `DefaultColumnWidth.custom(fraction)`
+3. `DefaultColumnWidth.balanced(columns)` → `1/N`
+
+---
+
+## far overscroll boundary
+
+A snap point at the scrollable start or end of the whole column strip, produced from `viewportStartBounds(...)`. It is not a per-column edge snap: it represents the farthest legal viewport position for the current layout, including the small overscroll/reveal allowance used by Niri-style scrolling.
+
+See also: [snap grid](#snap-grid), [viewport offset](#viewport-offset).
+
+---
+
 ## focused window
 
 The macOS window currently receiving keyboard input, as reported by the Accessibility API. Nehir tracks this via `AXEventHandler`.
@@ -32,9 +55,54 @@ See also: [active column](#active-column).
 
 ---
 
+## inner gap
+
+The spacing between adjacent tiled surfaces inside the layout. In stacked/tiled columns, inner gap applies only between neighboring tiles on the secondary axis (`count - 1` gaps). It is not monitor-edge padding.
+
+Primary-axis proportional column widths intentionally keep Niri-compatible gap accounting through `ProportionalSize.resolveProportionalSpan(...)`; do not reinterpret that formula when changing secondary-axis gap behavior.
+
+See also: [outer gap](#outer-gap), [proportional span](#proportional-span).
+
+---
+
 ## focus follows mouse (FFM)
 
 A mode where keyboard focus moves to whichever tiled window is under the cursor as the cursor moves. When FFM triggers a focus change, the viewport does **not** scroll — the cursor is already in the visible portion of the target column. FFM can only activate fully visible or [clipped](glossary.md#clipped-column) columns; [parked](glossary.md#parked-window) windows are offscreen and unreachable by the cursor. See [Reveal on Focus](viewport-navigation-spec.md#reveal-on-focus).
+
+---
+
+## lone-window policy
+
+`LoneWindowPolicy` controls a normal, non-tabbed workspace with exactly one column and exactly one window.
+
+- **fill** — make the lone window fill the working area
+- **centered** — cap the lone window to a max working-area width fraction and keep it horizontally centered
+
+The policy defines only the default initial lone-window rect. After a manual resize, the window keeps the requested width (still centered) and is not capped by the policy max width.
+
+Per-monitor lone-window overrides are tri-state through `MonitorNiriSettings.loneWindowPolicy`:
+
+- `nil` — inherit the global policy
+- `.fill` — explicitly use fill on that monitor
+- `.centered(maxWidthFraction:)` — explicitly use centered on that monitor
+
+Do not infer this override state from a nullable centered width; `SettingsStore.resolvedNiriSettings(for:)` is the source of truth.
+
+See also: [single-window viewport geometry](#single-window-viewport-geometry).
+
+---
+
+## monitor gap settings
+
+Per-monitor gap overrides stored as `MonitorGapSettings` and resolved to `ResolvedGapSettings`. `SettingsStore.resolvedGapSettings(for:)` merges global defaults with per-monitor overrides; runtime code should consume this through `WMController.gapSize(for:)` and `WMController.outerGaps(for:)` when a monitor is known.
+
+---
+
+## outer gap
+
+Monitor-edge padding around the working area. Outer gaps are represented as `LayoutGaps.OuterGaps` and are applied when computing monitor working frames/insets.
+
+Outer gap is distinct from [inner gap](#inner-gap): top/bottom edge padding must come from outer gaps, not from secondary-axis tile spacing.
 
 ---
 
@@ -45,6 +113,18 @@ A window the layout engine has moved to an offscreen resting position. Parked wi
 Represented internally as `ContainerVisibilityState.hidden(AxisHideEdge)` with a `layoutTransient` hidden reason. The edge (`.left` / `.right`) records which side the window is parked on.
 
 In the [layout notation](viewport-navigation-spec.md#layout-notation), columns that are fully outside the viewport and have been parked appear as plain numbers outside `[]`, e.g. `30 [...]` — the `30` is a parked column on the left. A [clipped column](#clipped-column) (partially visible) is distinct and uses the split notation.
+
+---
+
+## proportional span
+
+A proportional column/window span resolved by `ProportionalSize.resolveProportionalSpan(...)` using Niri-compatible gap accounting:
+
+```text
+resolvedSpan = (availableSpace - gap) * proportion - gap
+```
+
+This rule is intentionally centralized. Reveal Partial `.default` relies on the same `2 * gap` fit tolerance so groups such as 50% + 50% remain viewport-fitting.
 
 ---
 
@@ -61,9 +141,25 @@ See [Reveal on Focus](viewport-navigation-spec.md#reveal-on-focus).
 
 ---
 
+## single-window viewport geometry
+
+The centralized geometry model for a workspace containing exactly one normal non-tabbed window. `SingleWindowViewportGeometry` owns:
+
+- the resolved lone-window viewport rect
+- the center offset for initial/resting placement
+- rendered-frame offsetting relative to the current viewport offset
+
+Callers should use `singleWindowViewportGeometry(...)`, `resolvedSingleWindowViewportRect(...)`, `prepareSingleWindowViewport(...)`, or `prepareAndSeedSingleWindowViewport(...)` instead of re-deriving centered width, center offset, or frame offset rules in controllers.
+
+Lone-window rendering follows the raw viewport offset so gestures are visibly responsive. The shared [snap grid](#snap-grid), not a render-time clamp, decides where the window settles.
+
+---
+
 ## snap grid
 
-The ordered set of [snap points](#snap-point) for the current column layout. Computed from column positions and widths. The viewport targets the nearest snap point on gesture release.
+The ordered set of [snap points](#snap-point) for the current column layout. Computed from column positions and widths by `computeSnapGrid(...)` / `ViewportSnapContext`. The viewport targets the nearest snap point on gesture release.
+
+Columns that approximately fill the viewport (within pixel tolerance) intentionally omit synthetic `±gap` edge snaps; those points would only shift a full-width column by one gap and lose working-area margins. Over-wide columns (wider than the viewport) keep their edge snaps so clipped leading/trailing content can still be reached. Center and [far overscroll boundary](#far-overscroll-boundary) snaps remain in both cases.
 
 See [Snap Grid](viewport-navigation-spec.md#snap-grid).
 

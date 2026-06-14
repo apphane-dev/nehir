@@ -743,7 +743,7 @@ final class WorkspaceNavigationHandler {
                let monitor = controller.workspaceManager.monitor(for: target.id)
             {
                 targetState.selectedNodeId = movedNode.id
-                let gap = CGFloat(controller.workspaceManager.gaps)
+                let gap = controller.gapSize(for: monitor)
                 let workingFrame = controller.insetWorkingFrame(for: monitor)
                 engine.ensureSelectionVisible(
                     node: movedNode,
@@ -863,7 +863,7 @@ final class WorkspaceNavigationHandler {
             {
                 targetState.selectedNodeId = movedNode.id
 
-                let gap = CGFloat(controller.workspaceManager.gaps)
+                let gap = controller.gapSize(for: monitor)
                 let workingFrame = controller.insetWorkingFrame(for: monitor)
                 engine.ensureSelectionVisible(
                     node: movedNode,

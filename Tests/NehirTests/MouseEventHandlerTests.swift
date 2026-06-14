@@ -908,7 +908,7 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
 
         let originalWidth = column.cachedWidth
         let insetFrame = fixture.controller.insetWorkingFrame(for: monitor)
-        let maxWidth = insetFrame.width - CGFloat(fixture.controller.workspaceManager.gaps)
+        let maxWidth = insetFrame.width
         let expectedWidth = min(originalWidth + 24, maxWidth)
         let start = CGPoint(x: fixture.nodeFrame.maxX - 20, y: fixture.nodeFrame.midY)
         let end = CGPoint(x: start.x + 24, y: start.y)
@@ -939,7 +939,7 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
         fixture.controller.settings.mouseResizeModifierKey = .controlShift
         let originalWidth = column.cachedWidth
         let insetFrame = fixture.controller.insetWorkingFrame(for: monitor)
-        let maxWidth = insetFrame.width - CGFloat(fixture.controller.workspaceManager.gaps)
+        let maxWidth = insetFrame.width
         let expectedWidth = min(originalWidth + 24, maxWidth)
         let start = CGPoint(x: fixture.nodeFrame.maxX - 20, y: fixture.nodeFrame.midY)
         let end = CGPoint(x: start.x + 24, y: start.y)
@@ -1041,7 +1041,7 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
 
         let originalWidth = column.cachedWidth
         let insetFrame = fixture.controller.insetWorkingFrame(for: monitor)
-        let maxWidth = insetFrame.width - CGFloat(fixture.controller.workspaceManager.gaps)
+        let maxWidth = insetFrame.width
         let expectedWidth = min(originalWidth + 24, maxWidth)
 
         #expect(engine.interactiveResizeBegin(
@@ -1113,7 +1113,7 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
         )
         await fixture.controller.layoutRefreshController.waitForRefreshWorkForTests()
 
-        #expect(abs(column.cachedWidth - cappedWidth) < 0.001)
+        #expect(abs(column.cachedWidth - originalWidth) < 0.001)
         #expect(fixture.handler.state.isResizing == false)
     }
 
@@ -1947,7 +1947,7 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
                 in: fixture.workspaceId,
                 state: &state,
                 workingFrame: fixture.controller.insetWorkingFrame(for: monitor),
-                gaps: CGFloat(fixture.controller.workspaceManager.gaps)
+                gaps: fixture.controller.gapSize(for: monitor)
             )
         }
         #expect(moveStarted)

@@ -6,25 +6,25 @@ struct MonitorNiriSettings: MonitorSettingsType {
     var monitorName: String
     var monitorDisplayId: CGDirectDisplayID?
 
-    var maxVisibleColumns: Int?
-    var singleWindowAspectRatio: SingleWindowAspectRatio?
+    var balancedColumnCount: Int?
+    var loneWindowPolicy: LoneWindowPolicy?
 
     init(
         id: UUID = UUID(),
         monitorName: String,
         monitorDisplayId: CGDirectDisplayID? = nil,
-        maxVisibleColumns: Int? = nil,
-        singleWindowAspectRatio: SingleWindowAspectRatio? = nil
+        balancedColumnCount: Int? = nil,
+        loneWindowPolicy: LoneWindowPolicy? = nil
     ) {
         self.id = id
         self.monitorName = monitorName
         self.monitorDisplayId = monitorDisplayId
-        self.maxVisibleColumns = maxVisibleColumns
-        self.singleWindowAspectRatio = singleWindowAspectRatio
+        self.balancedColumnCount = balancedColumnCount
+        self.loneWindowPolicy = loneWindowPolicy
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, monitorName, monitorDisplayId, maxVisibleColumns, singleWindowAspectRatio
+        case id, monitorName, monitorDisplayId, balancedColumnCount, loneWindowPolicy
     }
 
     init(from decoder: Decoder) throws {
@@ -32,9 +32,8 @@ struct MonitorNiriSettings: MonitorSettingsType {
         id = try container.decode(UUID.self, forKey: .id)
         monitorName = try container.decode(String.self, forKey: .monitorName)
         monitorDisplayId = try container.decodeIfPresent(CGDirectDisplayID.self, forKey: .monitorDisplayId)
-        maxVisibleColumns = try container.decodeIfPresent(Int.self, forKey: .maxVisibleColumns)
-        singleWindowAspectRatio = try container.decodeIfPresent(String.self, forKey: .singleWindowAspectRatio)
-            .flatMap { SingleWindowAspectRatio(rawValue: $0) }
+        balancedColumnCount = try container.decodeIfPresent(Int.self, forKey: .balancedColumnCount)
+        loneWindowPolicy = try container.decodeIfPresent(LoneWindowPolicy.self, forKey: .loneWindowPolicy)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -42,13 +41,13 @@ struct MonitorNiriSettings: MonitorSettingsType {
         try container.encode(id, forKey: .id)
         try container.encode(monitorName, forKey: .monitorName)
         try container.encodeIfPresent(monitorDisplayId, forKey: .monitorDisplayId)
-        try container.encodeIfPresent(maxVisibleColumns, forKey: .maxVisibleColumns)
-        try container.encodeIfPresent(singleWindowAspectRatio?.rawValue, forKey: .singleWindowAspectRatio)
+        try container.encodeIfPresent(balancedColumnCount, forKey: .balancedColumnCount)
+        try container.encodeIfPresent(loneWindowPolicy, forKey: .loneWindowPolicy)
     }
 }
 
 struct ResolvedNiriSettings: Equatable {
-    let maxVisibleColumns: Int
-    let singleWindowAspectRatio: SingleWindowAspectRatio
+    let defaultColumnWidth: DefaultColumnWidth
+    let loneWindowPolicy: LoneWindowPolicy
     let infiniteLoop: Bool
 }

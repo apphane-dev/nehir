@@ -822,7 +822,7 @@ private func waitUntilAXEventTest(
         controller.hasStartedServices = true
         controller.setBordersEnabled(true)
         controller.enableNiriLayout()
-        controller.updateNiriConfig(maxVisibleColumns: 1)
+        controller.updateNiriConfig(balancedColumnCount: 1)
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
         controller.syncMonitorsToNiriEngine()
         controller.niriEngine?.presetColumnWidths = [.proportion(1.0), .proportion(1.0)]
@@ -973,7 +973,7 @@ private func waitUntilAXEventTest(
         }
 
         controller.enableNiriLayout()
-        controller.updateNiriConfig(maxVisibleColumns: 1)
+        controller.updateNiriConfig(balancedColumnCount: 1)
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
         controller.syncMonitorsToNiriEngine()
 
@@ -1066,7 +1066,7 @@ private func waitUntilAXEventTest(
         controller.hasStartedServices = true
         controller.setBordersEnabled(true)
         controller.enableNiriLayout()
-        controller.updateNiriConfig(maxVisibleColumns: 1)
+        controller.updateNiriConfig(balancedColumnCount: 1)
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
         controller.syncMonitorsToNiriEngine()
         controller.niriEngine?.presetColumnWidths = [.proportion(1.0), .proportion(1.0)]
@@ -1854,7 +1854,7 @@ private func waitUntilAXEventTest(
         controller.hasStartedServices = true
         controller.setBordersEnabled(true)
         controller.enableNiriLayout()
-        controller.updateNiriConfig(maxVisibleColumns: 1)
+        controller.updateNiriConfig(balancedColumnCount: 1)
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
         controller.syncMonitorsToNiriEngine()
 
@@ -1926,7 +1926,7 @@ private func waitUntilAXEventTest(
         controller.hasStartedServices = true
         controller.setBordersEnabled(true)
         controller.enableNiriLayout()
-        controller.updateNiriConfig(maxVisibleColumns: 1)
+        controller.updateNiriConfig(balancedColumnCount: 1)
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
         controller.syncMonitorsToNiriEngine()
 

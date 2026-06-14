@@ -19,34 +19,54 @@ enum RevealPartial: String, CaseIterable, Codable, Identifiable {
     }
 }
 
-enum SingleWindowAspectRatio: String, CaseIterable, Codable, Identifiable {
-    case none
-    case ratio16x9 = "16:9"
-    case ratio4x3 = "4:3"
-    case ratio21x9 = "21:9"
-    case square = "1:1"
+enum LoneWindowPolicy: Equatable, Identifiable, Codable {
+    case fill
+    case centered(maxWidthFraction: Double)
 
     var id: String {
-        rawValue
-    }
-
-    var displayName: String {
         switch self {
-        case .none: "None (Fill)"
-        case .ratio16x9: "16:9"
-        case .ratio4x3: "4:3"
-        case .ratio21x9: "21:9"
-        case .square: "Square"
+        case .fill: "fill"
+        case .centered: "centered"
         }
     }
 
-    var ratio: CGFloat? {
+    private enum CodingKeys: String, CodingKey {
+        case kind, maxWidthFraction
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let kind = try container.decode(String.self, forKey: .kind)
+        switch kind {
+        case "fill":
+            self = .fill
+        case "centered":
+            self = .centered(maxWidthFraction: try container.decode(Double.self, forKey: .maxWidthFraction))
+        default:
+            throw DecodingError.dataCorruptedError(forKey: .kind, in: container, debugDescription: "unknown lone window policy \(kind)")
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
         switch self {
-        case .none: nil
-        case .ratio16x9: 16.0 / 9.0
-        case .ratio4x3: 4.0 / 3.0
-        case .ratio21x9: 21.0 / 9.0
-        case .square: 1.0
+        case .fill:
+            try container.encode("fill", forKey: .kind)
+        case let .centered(maxWidthFraction):
+            try container.encode("centered", forKey: .kind)
+            try container.encode(maxWidthFraction, forKey: .maxWidthFraction)
+        }
+    }
+}
+
+enum DefaultColumnWidth: Equatable {
+    case balanced(columns: Int)
+    case custom(fraction: Double)
+
+    var fraction: Double {
+        switch self {
+        case let .balanced(columns): 1.0 / Double(max(1, columns))
+        case let .custom(fraction): fraction
         }
     }
 }
@@ -102,7 +122,7 @@ struct NiriRenderStyle {
 }
 
 final class NiriLayoutEngine {
-    static let defaultPresetColumnWidthValues: [CGFloat] = [1.0 / 3.0, 0.5, 2.0 / 3.0]
+    static let defaultPresetColumnWidthValues: [CGFloat] = [0.35, 0.50, 0.65, 0.95]
     static let defaultPresetColumnWidths: [PresetSize] = defaultPresetColumnWidthValues.map { .proportion($0) }
     static let defaultPresetWindowHeightValues: [CGFloat] = [1.0 / 3.0, 0.5, 2.0 / 3.0]
     static let defaultPresetWindowHeights: [PresetSize] = defaultPresetWindowHeightValues.map { .proportion($0) }
@@ -120,12 +140,12 @@ final class NiriLayoutEngine {
     var framePool: [WindowToken: CGRect] = [:]
     var hiddenPool: [WindowToken: HideSide] = [:]
 
-    var maxVisibleColumns: Int
+    var balancedColumnCount: Int
     var infiniteLoop: Bool
 
     var revealPartial: RevealPartial = .default
 
-    var singleWindowAspectRatio: SingleWindowAspectRatio = .none
+    var loneWindowPolicy: LoneWindowPolicy = .fill
 
     var renderStyle: NiriRenderStyle = .default
 
@@ -141,7 +161,7 @@ final class NiriLayoutEngine {
 
     var presetColumnWidths: [PresetSize] = NiriLayoutEngine.defaultPresetColumnWidths
     var presetWindowHeights: [PresetSize] = NiriLayoutEngine.defaultPresetWindowHeights
-    var defaultColumnWidth: CGFloat? = 0.5
+    var defaultColumnWidth: CGFloat? = nil
 
     var resizeTraceSink: ((String) -> Void)?
     private(set) var resizeCommandGeneration: UInt64 = 0
@@ -151,8 +171,8 @@ final class NiriLayoutEngine {
         return resizeCommandGeneration
     }
 
-    init(maxVisibleColumns: Int = 2, infiniteLoop: Bool = false) {
-        self.maxVisibleColumns = max(1, min(5, maxVisibleColumns))
+    init(balancedColumnCount: Int = 2, infiniteLoop: Bool = false) {
+        self.balancedColumnCount = max(1, min(5, balancedColumnCount))
         self.infiniteLoop = infiniteLoop
     }
 
@@ -190,11 +210,14 @@ final class NiriLayoutEngine {
     func resolvedColumnResetWidth(in workspaceId: WorkspaceDescriptor
         .ID) -> (proportion: CGFloat, presetWidthIdx: Int?)
     {
-        if let defaultColumnWidth {
-            return (defaultColumnWidth, matchingPresetIndex(for: defaultColumnWidth))
+        let resolvedDefaultColumnWidth = effectiveDefaultColumnWidth(in: workspaceId)
+        let width = CGFloat(resolvedDefaultColumnWidth.fraction)
+        switch resolvedDefaultColumnWidth {
+        case .custom:
+            return (width, matchingPresetIndex(for: width))
+        case .balanced:
+            return (width, nil)
         }
-
-        return (1.0 / CGFloat(effectiveMaxVisibleColumns(in: workspaceId)), nil)
     }
 
     func initializeNewColumnWidth(_ column: NiriContainer, in workspaceId: WorkspaceDescriptor.ID) {
@@ -229,12 +252,13 @@ final class NiriLayoutEngine {
     struct SingleWindowLayoutContext {
         let container: NiriContainer
         let window: NiriWindow
-        let aspectRatio: CGFloat
+        let maxWidthFraction: Double
     }
 
     func singleWindowLayoutContext(in workspaceId: WorkspaceDescriptor.ID) -> SingleWindowLayoutContext? {
-        guard let aspectRatio = effectiveSingleWindowAspectRatio(in: workspaceId).ratio else {
-            return nil
+        let maxWidthFraction: Double = switch effectiveLoneWindowPolicy(in: workspaceId) {
+        case .fill: 1.0
+        case let .centered(maxWidthFraction): maxWidthFraction
         }
 
         let workspaceColumns = columns(in: workspaceId)
@@ -256,8 +280,17 @@ final class NiriLayoutEngine {
         return SingleWindowLayoutContext(
             container: column,
             window: window,
-            aspectRatio: aspectRatio
+            maxWidthFraction: maxWidthFraction
         )
+    }
+
+    func loneWindowIntentionallyDoesNotFillViewport(in workspaceId: WorkspaceDescriptor.ID) -> Bool {
+        guard singleWindowLayoutContext(in: workspaceId) != nil,
+              case let .centered(maxWidthFraction) = effectiveLoneWindowPolicy(in: workspaceId)
+        else {
+            return false
+        }
+        return maxWidthFraction < 1.0
     }
 
     func wrapIndex(_ idx: Int, total: Int, in workspaceId: WorkspaceDescriptor.ID) -> Int? {
@@ -326,15 +359,15 @@ final class NiriLayoutEngine {
     }
 
     func updateConfiguration(
-        maxVisibleColumns: Int? = nil,
+        balancedColumnCount: Int? = nil,
         infiniteLoop: Bool? = nil,
         revealPartial: RevealPartial? = nil,
-        singleWindowAspectRatio: SingleWindowAspectRatio? = nil,
+        loneWindowPolicy: LoneWindowPolicy? = nil,
         presetColumnWidths: [PresetSize]? = nil,
         defaultColumnWidth: CGFloat?? = nil
     ) {
-        if let max = maxVisibleColumns {
-            self.maxVisibleColumns = max.clamped(to: 1 ... 5)
+        if let max = balancedColumnCount {
+            self.balancedColumnCount = max.clamped(to: 1 ... 5)
         }
         if let loop = infiniteLoop {
             self.infiniteLoop = loop
@@ -342,8 +375,8 @@ final class NiriLayoutEngine {
         if let revealPartial {
             self.revealPartial = revealPartial
         }
-        if let aspectRatio = singleWindowAspectRatio {
-            self.singleWindowAspectRatio = aspectRatio
+        if let loneWindowPolicy {
+            self.loneWindowPolicy = loneWindowPolicy
         }
         // Double optional distinguishes "no config change" from "set Auto/nil".
         if let defaultColumnWidth {
@@ -353,6 +386,16 @@ final class NiriLayoutEngine {
         if let presets = presetColumnWidths, !presets.isEmpty {
             self.presetColumnWidths = presets
             resetAllPresetWidthIndices()
+        }
+    }
+
+    func invalidateCachedLayoutSpans() {
+        for root in roots.values {
+            for child in root.children {
+                guard let column = child as? NiriContainer else { continue }
+                column.cachedWidth = 0
+                column.cachedHeight = 0
+            }
         }
     }
 

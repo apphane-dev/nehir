@@ -52,8 +52,9 @@ extension NiriLayoutEngine {
 
     func globalResolvedSettings() -> ResolvedNiriSettings {
         ResolvedNiriSettings(
-            maxVisibleColumns: maxVisibleColumns,
-            singleWindowAspectRatio: singleWindowAspectRatio,
+            defaultColumnWidth: defaultColumnWidth.map { .custom(fraction: Double($0)) }
+                ?? .balanced(columns: balancedColumnCount),
+            loneWindowPolicy: loneWindowPolicy,
             infiniteLoop: infiniteLoop
         )
     }
@@ -73,20 +74,20 @@ extension NiriLayoutEngine {
         monitorForWorkspace(workspaceId)?.scale ?? 2.0
     }
 
-    func effectiveMaxVisibleColumns(for monitorId: Monitor.ID) -> Int {
-        effectiveSettings(for: monitorId).maxVisibleColumns
+    func effectiveDefaultColumnWidth(for monitorId: Monitor.ID) -> DefaultColumnWidth {
+        effectiveSettings(for: monitorId).defaultColumnWidth
     }
 
-    func effectiveMaxVisibleColumns(in workspaceId: WorkspaceDescriptor.ID) -> Int {
-        effectiveSettings(in: workspaceId).maxVisibleColumns
+    func effectiveDefaultColumnWidth(in workspaceId: WorkspaceDescriptor.ID) -> DefaultColumnWidth {
+        effectiveSettings(in: workspaceId).defaultColumnWidth
     }
 
-    func effectiveSingleWindowAspectRatio(for monitorId: Monitor.ID) -> SingleWindowAspectRatio {
-        effectiveSettings(for: monitorId).singleWindowAspectRatio
+    func effectiveLoneWindowPolicy(for monitorId: Monitor.ID) -> LoneWindowPolicy {
+        effectiveSettings(for: monitorId).loneWindowPolicy
     }
 
-    func effectiveSingleWindowAspectRatio(in workspaceId: WorkspaceDescriptor.ID) -> SingleWindowAspectRatio {
-        effectiveSettings(in: workspaceId).singleWindowAspectRatio
+    func effectiveLoneWindowPolicy(in workspaceId: WorkspaceDescriptor.ID) -> LoneWindowPolicy {
+        effectiveSettings(in: workspaceId).loneWindowPolicy
     }
 
     func effectiveInfiniteLoop(for monitorId: Monitor.ID) -> Bool {
