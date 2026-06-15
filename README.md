@@ -166,22 +166,54 @@ mise run test
 mise run clean
 ```
 
-## Origin
+## Lineage
 
-Nehir is a highly opinionated fork of [Hiro](https://github.com/BarutSRB/Hiro) (formerly OmniWM), rebuilt around a single layout engine — Niri scrolling columns — with stripped-down controls and no backward-compatibility baggage.
+Nehir is the macOS embodiment of an idea with a clear family tree.
 
-The original project tried to accommodate a wide range of user requests; Nehir deliberately narrows the scope to do one thing well. We're deeply grateful to the original author for the foundation this builds on.
+### Paradigm — Niri
 
-### Notable changes from Hiro/OmniWM
+Nehir's interaction model — windows in horizontally scrolling columns — is a direct port of [Niri]'s design language. Niri is a scrollable tiling Wayland compositor; Nehir brings that workflow to macOS.
+
+### Code — OmniWM
+
+Nehir is an opinionated fork of [OmniWM], a general-purpose macOS tiling window manager by BarutSRB. We borrowed its macOS window-management engine and narrowed it to a single layout engine, dropping backward-compatibility baggage to do one thing well. Deeply grateful to the original author for the foundation — see [NOTICE.md](NOTICE.md) for full attribution.
+
+> The upstream repo has been renamed to [Hiro](https://github.com/BarutSRB/Hiro), with a rewrite under that name announced for a future release. The code Nehir forks from is OmniWM.
+
+<details>
+<summary><strong>Notable changes from OmniWM</strong></summary>
 
 - **Single layout model.** Nehir is rebuilt around Niri-style scrolling columns instead of keeping multiple layout/control models.
 - **No legacy compatibility layer.** Configuration, defaults, hotkeys, and behavior are allowed to change to fit Nehir's narrower workflow.
-- **Required motion stays enabled.** Unlike Hiro/OmniWM's user-toggleable animation preference, Nehir treats layout motion as part of the interaction model: disabling it makes Niri-style scrolling, resizing, and transition state hard to follow, so there is no `animationsEnabled` setting.
+- **Required motion stays enabled.** Unlike OmniWM's user-toggleable animation preference, Nehir treats layout motion as part of the interaction model: disabling it makes Niri-style scrolling, resizing, and transition state hard to follow, so there is no `animationsEnabled` setting.
 - **Split TOML configuration.** Runtime config is organized under `~/.config/nehir/` with separate files for settings, hotkeys, workspaces, app rules, and monitor overrides.
 - **Close/collapse focus stays local.** When macOS reports another same-app window as focused after closing or collapsing the current one, Nehir treats that as native fallback focus rather than user navigation. Same-app fallback to inactive workspaces is ignored, and unmanaged quick-terminal fallback is also ignored on the current workspace so the viewport does not scroll to that app's managed column. Explicit Nehir focus commands still take precedence.
 - **Configurable gesture scroll snap.** Trackpad swipe gestures can snap to column boundaries or stop freely mid-scroll. Controlled by `gestures.scrollSnap` in `settings.toml` (default `true`).
 - **Smarter mouse focus and cursor warp.** Pointer-initiated focus no longer makes `moveMouseToFocusedWindow` jump the cursor, and hover focus is constrained around floating/unmanaged windows to fit the Niri layout model.
 - **Built-in runtime debugging tools.** Nehir now ships command-palette and IPC/CLI actions to dump runtime state, reset/rebootstrap runtime state, restart while clearing runtime state, and capture runtime trace bundles under `${XDG_STATE_HOME:-$HOME/.local/state}/nehir/traces/`.
+
+</details>
+
+### Peers — scrollable tiling elsewhere
+
+Nehir is one of several projects exploring this workflow:
+
+- [PaperWM] — GNOME Shell.
+- [Paneru] — macOS (another Niri-inspired strip manager).
+- [karousel] — KDE.
+- [papersway] — sway/i3.
+- [hyprscroller] and [hyprslidr] — Hyprland.
+- [PaperWM.spoon] — macOS (Hammerspoon).
+
+[Niri]: https://github.com/niri-wm/niri
+[OmniWM]: https://github.com/BarutSRB/OmniWM
+[PaperWM]: https://github.com/paperwm/PaperWM
+[Paneru]: https://github.com/karinushka/paneru
+[karousel]: https://github.com/peterfajdiga/karousel
+[papersway]: https://spwhitton.name/tech/code/papersway/
+[hyprscroller]: https://github.com/dawsers/hyprscroller
+[hyprslidr]: https://gitlab.com/magus/hyprslidr
+[PaperWM.spoon]: https://github.com/mogenson/PaperWM.spoon
 
 ## License
 

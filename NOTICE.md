@@ -1,9 +1,10 @@
 # Notice
 
-Nehir is a renamed derivative/fork of Hiro, formerly OmniWM, by BarutSRB:
+Nehir is a fork of OmniWM by BarutSRB:
 
-- https://github.com/BarutSRB/Hiro
 - https://github.com/BarutSRB/OmniWM
+
+The upstream repo has been renamed to [Hiro](https://github.com/BarutSRB/Hiro), with a rewrite under that name announced for a future release. The code Nehir forks from is OmniWM.
 
 Nehir is maintained independently and is not affiliated with or endorsed by the upstream author.
 
