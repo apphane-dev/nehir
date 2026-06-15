@@ -63,6 +63,7 @@ struct WorkspacesSettingsTab: View {
                             } label: {
                                 Label("Delete", systemImage: "trash")
                             }
+                            .disabled(!canDeleteConfiguration(config))
                         }
                 }
                 .listStyle(.sidebar)
@@ -257,7 +258,7 @@ struct WorkspaceSidebarRow: View {
                     .font(.system(.body, design: .monospaced).weight(.bold))
                     .foregroundColor(.secondary)
 
-                Text(configuration.displayName ?? "Workspace \(configuration.name)")
+                Text(configuration.displayName.flatMap { $0.isEmpty ? nil : $0 } ?? "Workspace \(configuration.name)")
                     .font(.body)
                     .lineLimit(1)
             }
@@ -329,6 +330,8 @@ struct WorkspaceDetailPane: View {
     let onDelete: () -> Void
     let onChange: () -> Void
 
+    @State private var pendingConfigSync: Task<Void, Never>?
+
     var body: some View {
         Form {
             Section {
@@ -369,6 +372,15 @@ struct WorkspaceDetailPane: View {
         }
         .formStyle(.grouped)
         .onChange(of: configuration) { _, _ in
+            debouncedConfigSync()
+        }
+    }
+
+    private func debouncedConfigSync() {
+        pendingConfigSync?.cancel()
+        pendingConfigSync = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(16))
+            guard !Task.isCancelled else { return }
             onChange()
         }
     }
@@ -469,7 +481,7 @@ struct HomeMonitorPicker: View {
     }
 }
 
-func monitorAssignmentLabel(_ assignment: MonitorAssignment, monitors: [Monitor]) -> String {
+private func monitorAssignmentLabel(_ assignment: MonitorAssignment, monitors: [Monitor]) -> String {
     switch assignment {
     case .main:
         return "Main"
