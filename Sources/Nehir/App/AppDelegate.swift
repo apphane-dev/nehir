@@ -16,6 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var ipcServer: IPCServerLifecycle?
     private var cliManager: AppCLIManager?
     private var runtimeStateStore: RuntimeStateStore?
+    private var onboardingStateStore: OnboardingStateStore?
 
     func applicationDidFinishLaunching(_: Notification) {
         NSApplication.shared.setActivationPolicy(.accessory)
@@ -34,6 +35,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         AppDelegate.sharedBootstrap?.settings?.flushNow()
         stopIPCServer()
         runtimeStateStore?.flushNow()
+        onboardingStateStore?.flushNow()
     }
 
     func bootstrapApplication() {
@@ -48,16 +50,57 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func finishBootstrap(enableTracing: Bool = false) {
         let storagePaths = NehirStoragePaths.live
 
+        // Phase 0: config drift. This gate runs before SettingsStore, WMController,
+        // status bar, IPC, onboarding, hotkeys, or tiling are created/activated.
+        // Detection compares the raw file against the schema via round-trip decode→encode;
+        // any key the schema doesn't recognize triggers backup + cleanup before the screen.
+        // No manifest to maintain.
+        let settingsURL = storagePaths.configDirectory.appendingPathComponent("settings.toml", isDirectory: false)
+        let unknown = detectConfigMismatches(in: settingsURL)
+        if !unknown.isEmpty {
+            let backup = createTimestampedSettingsBackup(settingsURL: settingsURL)
+            let cleanupError = backup.url == nil ? nil : cleanSettingsFile(settingsURL: settingsURL)
+            OnboardingWindowController.shared.showMigration(
+                unknownKeys: unknown,
+                backupURL: backup.url,
+                backupError: backup.errorDescription,
+                cleanupError: cleanupError,
+                onClose: { [weak self] in
+                    self?.continueBootstrap(storagePaths: storagePaths, enableTracing: enableTracing)
+                }
+            )
+            return
+        }
+
+        continueBootstrap(storagePaths: storagePaths, enableTracing: enableTracing)
+    }
+
+    private func continueBootstrap(storagePaths: NehirStoragePaths, enableTracing: Bool) {
+        // Guard against duplicate continuation if a close notification is delivered twice.
+        if AppDelegate.sharedBootstrap?.controller != nil {
+            return
+        }
+
         let runtimeState = RuntimeStateStore(directory: storagePaths.stateDirectory)
         self.runtimeStateStore = runtimeState
+
+        let onboardingStore = OnboardingStateStore(directory: storagePaths.stateDirectory)
+        self.onboardingStateStore = onboardingStore
 
         let settings = SettingsStore(
             persistence: SettingsFilePersistence(directory: storagePaths.configDirectory),
             runtimeState: runtimeState
         )
+        OnboardingWindowController.shared.configure(settings: settings, onboardingStore: onboardingStore)
         let controller = WMController(
             settings: settings
         )
+        let willShowOnboarding = !onboardingStore.hasCompletedOnboarding
+        if willShowOnboarding {
+            // Suppress tiling + global hotkeys before the engine starts so the wizard
+            // never moves real windows or intercepts the shortcuts it demonstrates.
+            controller.setOnboardingActive(true)
+        }
         if enableTracing {
             _ = controller.toggleRuntimeTraceCapture(desiredState: .active)
         }
@@ -105,6 +148,97 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             )
             settings.ipcEnabled = false
         }
+
+        if willShowOnboarding {
+            DispatchQueue.main.async {
+                OnboardingWindowController.shared.show(settings: settings, onboardingStore: onboardingStore)
+            }
+        } else {
+            // Auto-show What's New once per release. The running build must be a release
+            // version (dev's `0.0.0` placeholder and prereleases like `0.5.0-rc.1` stay
+            // silent), newer than the version the user last acknowledged, and there must
+            // be content to show. No hardcoded version constant to keep in sync — the
+            // comparison is against the running build's own version.
+            if let appVersion = Bundle.main.appVersion,
+               Self.isReleaseVersion(appVersion),
+               !WhatsNewContent.bullets.isEmpty,
+               let lastSeen = onboardingStore.lastSeenVersion,
+               Self.isVersion(appVersion, newerThan: lastSeen) {
+                DispatchQueue.main.async {
+                    OnboardingWindowController.shared.showWhatsNew(
+                        version: appVersion,
+                        bullets: WhatsNewContent.bullets
+                    )
+                }
+            }
+        }
+    }
+
+    private func createTimestampedSettingsBackup(settingsURL: URL) -> (url: URL?, errorDescription: String?) {
+        let fileManager = FileManager.default
+        let directory = settingsURL.deletingLastPathComponent()
+
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyyMMdd-HHmmss"
+        let stamp = formatter.string(from: Date())
+
+        let baseName = settingsURL.deletingPathExtension().lastPathComponent
+        let fileExtension = settingsURL.pathExtension
+        let backupName = fileExtension.isEmpty
+            ? "\(baseName)-\(stamp).backup"
+            : "\(baseName)-\(stamp).\(fileExtension).backup"
+
+        var backupURL = directory.appendingPathComponent(backupName, isDirectory: false)
+        var suffix = 2
+        while fileManager.fileExists(atPath: backupURL.path) {
+            let suffixedName = fileExtension.isEmpty
+                ? "\(baseName)-\(stamp)-\(suffix).backup"
+                : "\(baseName)-\(stamp)-\(suffix).\(fileExtension).backup"
+            backupURL = directory.appendingPathComponent(suffixedName, isDirectory: false)
+            suffix += 1
+        }
+
+        do {
+            try fileManager.copyItem(at: settingsURL, to: backupURL)
+            return (backupURL, nil)
+        } catch {
+            return (nil, error.localizedDescription)
+        }
+    }
+
+    private func cleanSettingsFile(settingsURL: URL) -> String? {
+        do {
+            let original = try Data(contentsOf: settingsURL)
+            let export = try SettingsTOMLCodec.decode(original)
+            let clean = try SettingsTOMLCodec.encode(export)
+            try clean.write(to: settingsURL, options: .atomic)
+            return nil
+        } catch {
+            return error.localizedDescription
+        }
+    }
+
+    /// A "release" version is `MAJOR.MINOR.PATCH` with no prerelease tag and not the `0.0.0`
+    /// dev placeholder. Prereleases (`0.5.0-rc.1`) and dev builds stay silent.
+    private static func isReleaseVersion(_ version: String) -> Bool {
+        if version.contains("-") { return false }
+        let parts = version.split(separator: ".").compactMap { Int($0) }
+        return parts.count == 3 && parts != [0, 0, 0]
+    }
+
+    /// Numeric `MAJOR.MINOR.PATCH` ordering, ignoring any prerelease suffix. Unparseable
+    /// components sort as `-1` so junk recorded on disk can never block an upgrade showing.
+    private static func isVersion(_ a: String, newerThan b: String) -> Bool {
+        func tuple(_ v: String) -> (Int, Int, Int) {
+            let core = v.split(separator: "-").first.map(String.init) ?? v
+            let parts = core.split(separator: ".").compactMap { Int($0) }
+            return parts.count == 3 ? (parts[0], parts[1], parts[2]) : (-1, -1, -1)
+        }
+        let (x, y) = (tuple(a), tuple(b))
+        if x.0 != y.0 { return x.0 > y.0 }
+        if x.1 != y.1 { return x.1 > y.1 }
+        return x.2 > y.2
     }
 
     func startIPCServer(controller: WMController) throws {

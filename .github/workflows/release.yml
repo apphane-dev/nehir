@@ -80,16 +80,9 @@ jobs:
 
       - name: Apply release plan
         shell: bash
-        env:
-          SINCE_TAG: ${{ steps.last-rc.outputs.since_tag || '' }}
-          RELEASE_BYPASS_NOTARIZATION: ${{ inputs.bypass_notarization }}
         run: |
           set -euo pipefail
-          ARGS=("${{ steps.version.outputs.version }}")
-          if [ -n "$SINCE_TAG" ]; then
-            ARGS+=("--since-tag" "$SINCE_TAG")
-          fi
-          mise run release:apply -- "${ARGS[@]}"
+          mise run release:apply -- "${{ steps.version.outputs.version }}"
 
       - name: Import Apple Developer ID certificate
         env:
@@ -198,6 +191,20 @@ jobs:
           NOTARIZE_WAIT_TIMEOUT: 25m
         run: mise run package:finalize-notarization
 
+      - name: Render release notes
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          SINCE_TAG: ${{ steps.last-rc.outputs.since_tag || '' }}
+          RELEASE_BYPASS_NOTARIZATION: ${{ inputs.bypass_notarization }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          NOTES_ARGS=("$VERSION")
+          if [ -n "$SINCE_TAG" ]; then
+            NOTES_ARGS+=("--since-tag" "$SINCE_TAG")
+          fi
+          mise run release:notes -- "${NOTES_ARGS[@]}" > "$RUNNER_TEMP/release-notes.md"
+
       - name: Create release tag
         shell: bash
         run: |
@@ -224,7 +231,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.version.outputs.tag }}
           ZIP: ${{ steps.version.outputs.zip }}
-          NOTES_FILE: ${{ steps.version.outputs.notes }}
         shell: bash
         run: |
           set -euo pipefail
@@ -237,7 +243,7 @@ jobs:
             "$ZIP"
             --target "$(git rev-parse HEAD)"
             --title "Nehir ${TAG#v}"
-            --notes-file "$NOTES_FILE"
+            --notes-file "$RUNNER_TEMP/release-notes.md"
           )
           if [ "${{ inputs.prerelease }}" = "true" ]; then
             args+=(--prerelease)
@@ -317,10 +323,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # release:apply stamps Info.plist and generates notes in the working tree for
-          # this run only. Do not commit those generated release-prep files.
+          # release:apply stamps Info.plist in the working tree for this run only.
+          # Reset it so the generated stamp is never committed.
           git reset --hard HEAD
-          rm -f "${{ steps.version.outputs.notes }}"
 
           git checkout main
           git pull --ff-only origin main

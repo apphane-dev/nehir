@@ -46,8 +46,8 @@ if [ -z "$CHANGED" ]; then
   exit 0
 fi
 
-if printf '%s\n' "$CHANGED" | grep -Eq '^(\.changeset/[^/]+\.md|docs/releases/v[0-9][^/]*\.md)$'; then
-  echo "Changeset or release notes present."
+if printf '%s\n' "$CHANGED" | grep -E '^\.changeset/[^/]+\.md$' | grep -Ev '^\.changeset/README\.md$' | grep -q .; then
+  echo "Changeset present."
   exit 0
 fi
 

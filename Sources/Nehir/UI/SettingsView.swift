@@ -93,6 +93,13 @@ struct GeneralSettingsTab: View {
                 SettingsCaption("Shows debug commands in the palette, hotkey settings, and enables IPC debug endpoints.")
             }
 
+            Section("Onboarding") {
+                Button("Re-run Setup Wizard") {
+                    OnboardingWindowController.shared.rerun()
+                }
+                SettingInfo(text: "Walk through the onboarding steps again.", consequence: nil)
+            }
+
             if let cliManager {
                 CLISettingsSection(cliManager: cliManager)
             }

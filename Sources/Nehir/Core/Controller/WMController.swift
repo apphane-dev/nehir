@@ -86,6 +86,7 @@ final class WMController {
     var hotkeysEnabled: Bool = true
     private(set) var desiredEnabled: Bool = true
     private(set) var desiredHotkeysEnabled: Bool = true
+    private(set) var onboardingActive: Bool = false
     private(set) var accessibilityPermissionGranted = AccessibilityPermissionMonitor.shared.isGranted
     private(set) var focusFollowsMouseEnabled: Bool = false
     private(set) var moveMouseToFocusedWindowEnabled: Bool = false
@@ -320,12 +321,30 @@ final class WMController {
 
     func setEnabled(_ enabled: Bool) {
         desiredEnabled = enabled
-        if enabled {
+        if enabled && !onboardingActive {
             serviceLifecycleManager.start()
-        } else {
+        } else if !enabled {
             serviceLifecycleManager.stop()
         }
         reconcileEnabledAndHotkeysState()
+    }
+
+    /// While onboarding is active, the layout engine and global hotkeys are suppressed so the
+    /// wizard never moves real windows or intercepts the shortcuts it teaches. Toggling back
+    /// to false (re)activates the engine with the previously desired enabled state.
+    func setOnboardingActive(_ active: Bool) {
+        guard onboardingActive != active else { return }
+        onboardingActive = active
+        if active {
+            serviceLifecycleManager.stop()
+            reconcileEnabledAndHotkeysState()
+            // Force re-evaluation so any existing bars are torn down immediately.
+            workspaceBarManager.setEnabled(false)
+        } else {
+            setEnabled(desiredEnabled)
+            // Re-apply the configured bar state now that the onboarding gate is open.
+            setWorkspaceBarEnabled(settings.workspaceBarEnabled)
+        }
     }
 
     func setHotkeysEnabled(_ enabled: Bool) {
@@ -339,7 +358,9 @@ final class WMController {
     }
 
     func reconcileEnabledAndHotkeysState() {
-        isEnabled = desiredEnabled && accessibilityPermissionGranted
+        // Onboarding suppresses both the layout engine and global hotkeys so the wizard
+        // never moves real windows or intercepts the shortcuts it demonstrates.
+        isEnabled = desiredEnabled && accessibilityPermissionGranted && !onboardingActive
 
         let shouldEnableHotkeys = desiredHotkeysEnabled
             && isEnabled
@@ -390,6 +411,9 @@ final class WMController {
         pruneHiddenWorkspaceBarMonitorIds()
         cancelPendingWorkspaceBarRefresh()
         workspaceBarManager.setup(controller: self, settings: settings)
+        // isWorkspaceBarVisible gates on onboardingActive, so this is a no-op render while
+        // onboarding is active and renders the bar once it completes.
+        workspaceBarManager.setEnabled(enabled)
         layoutRefreshController.requestRefresh(reason: .monitorSettingsChanged)
     }
 
@@ -805,6 +829,11 @@ final class WMController {
     }
 
     func isWorkspaceBarVisible(on monitor: Monitor, resolved: ResolvedBarSettings? = nil) -> Bool {
+        // Onboarding suppresses the workspace bar regardless of config — it must not render
+        // until the wizard completes. This is the single chokepoint consulted by
+        // `reconfigureBars`, so it gates every entry path (setup, screen-change observer,
+        // sleep/wake, scheduled reconfigures).
+        if onboardingActive { return false }
         let effective = resolved ?? settings.resolvedBarSettings(for: monitor)
         return effective.enabled && !hiddenWorkspaceBarMonitorIds.contains(monitor.id)
     }

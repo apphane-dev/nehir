@@ -38,6 +38,7 @@ final class ServiceLifecycleManager {
         controller.updateAccessibilityPermissionGranted(initialPermissionGranted)
         if controller.desiredEnabled,
            initialPermissionGranted,
+           !controller.onboardingActive,
            !controller.hasStartedServices
         {
             startServices()
@@ -50,7 +51,7 @@ final class ServiceLifecycleManager {
 
                 if granted {
                     controller.updateAccessibilityPermissionGranted(true)
-                    if controller.desiredEnabled, !controller.hasStartedServices {
+                    if controller.desiredEnabled, !controller.onboardingActive, !controller.hasStartedServices {
                         self.startServices()
                     }
                 } else {

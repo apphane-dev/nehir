@@ -24,6 +24,21 @@ rm -f "$state_home/nehir/runtime-state.json"
 swift run Nehir
 '''
 
+[tasks."dev:onboarding"]
+description = "Kill any running Nehir instance, clear onboarding state, then start Nehir to trigger the setup wizard"
+depends = ["build"]
+run = '''
+set -euo pipefail
+
+pkill -x Nehir 2>/dev/null || true
+pkill -f '.build/.*/Nehir' 2>/dev/null || true
+sleep 0.5
+
+state_home="${XDG_STATE_HOME:-$HOME/.local/state}"
+rm -f "$state_home/nehir/onboarding-version"
+
+swift run Nehir
+'''
 [tasks."trace:clean"]
 description = "Remove Nehir trace captures"
 run = '''
