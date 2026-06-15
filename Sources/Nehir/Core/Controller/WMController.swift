@@ -2567,6 +2567,8 @@ final class WMController {
             niriLayoutDecisionDebugDump(),
             "-- AXEventHandler --",
             "geometryRelayoutRequests=\(axEventSnapshot.geometryRelayoutRequests) scopedGeometryRelayoutRequests=\(axEventSnapshot.scopedGeometryRelayoutRequests) suppressedDuringGesture=\(axEventSnapshot.geometryRelayoutsSuppressedDuringGesture) suppressedForOwnFrameWrites=\(axEventSnapshot.geometryRelayoutsSuppressedForOwnFrameWrites)",
+            "-- Create Placement Contexts --",
+            axEventHandler.createPlacementContextDebugDump(),
             "-- LayoutRefreshController --",
             "fullRescan=\(refreshSnapshot.fullRescanExecutions) relayout=\(refreshSnapshot.relayoutExecutions) immediateRelayout=\(refreshSnapshot.immediateRelayoutExecutions) visibility=\(refreshSnapshot.visibilityExecutions) windowRemoval=\(refreshSnapshot.windowRemovalExecutions)",
             "requestedByReason=\(String(describing: refreshSnapshot.requestedByReason))",
@@ -2719,6 +2721,10 @@ final class WMController {
         let mouseTraceDump = runtimeMouseTraceRecords.isEmpty
             ? "mouse trace empty"
             : runtimeMouseTraceRecords.joined(separator: "\n")
+        let createFocusTraceEvents = axEventHandler.createFocusTraceSnapshot()
+        let createFocusTraceDump = createFocusTraceEvents.isEmpty
+            ? "create focus trace empty"
+            : createFocusTraceEvents.map(\.description).joined(separator: "\n")
         let body = [
             "Nehir runtime trace capture",
             "startedAt=\(session.startedAt.ISO8601Format())",
@@ -2736,6 +2742,9 @@ final class WMController {
             "",
             "## Niri resize trace",
             resizeTraceDump,
+            "",
+            "## Niri create focus trace",
+            createFocusTraceDump,
             "",
             "## Mouse focus trace",
             mouseTraceDump,

@@ -87,6 +87,18 @@ struct WindowCreatePlacementContext: Equatable {
     let createdAt: Date
 }
 
+extension WindowCreatePlacementContext: CustomStringConvertible {
+    var description: String {
+        "native_monitor=\(String(describing: nativeSpaceMonitorId)) "
+            + "active_focus_request_workspace=\(activeFocusRequestWorkspaceId?.uuidString ?? "nil") "
+            + "active_focus_request_monitor=\(String(describing: activeFocusRequestMonitorId)) "
+            + "focused_workspace=\(focusedWorkspaceId?.uuidString ?? "nil") "
+            + "focused_monitor=\(String(describing: focusedMonitorId)) "
+            + "interaction_monitor=\(String(describing: interactionMonitorId)) "
+            + "createdAt=\(createdAt.ISO8601Format())"
+    }
+}
+
 extension NiriCreateFocusTraceEvent: CustomStringConvertible {
     var description: String {
         switch kind {
@@ -511,12 +523,31 @@ final class AXEventHandler: CGSEventDelegate {
         }
     }
 
-    func niriCreateFocusTraceSnapshotForTests() -> [NiriCreateFocusTraceEvent] {
+    func createFocusTraceSnapshot() -> [NiriCreateFocusTraceEvent] {
         createFocusTrace
+    }
+
+    func niriCreateFocusTraceSnapshotForTests() -> [NiriCreateFocusTraceEvent] {
+        createFocusTraceSnapshot()
     }
 
     func managedReplacementTraceSnapshotForTests() -> [ManagedReplacementTraceEvent] {
         managedReplacementTrace
+    }
+
+    /// Renders the live `WindowCreatePlacementContext` map (the inputs captured at
+    /// create time) for the runtime trace dump. Preserves the placement inputs even
+    /// if `create_placement_resolved` has rotated out of the ring buffer.
+    func createPlacementContextDebugDump() -> String {
+        pruneExpiredCreatePlacementContexts()
+        guard !createPlacementContextsByWindowId.isEmpty else {
+            return "create placement contexts empty"
+        }
+        let entries = createPlacementContextsByWindowId
+            .sorted { $0.key < $1.key }
+            .map { windowId, context in "window=\(windowId) \(context)" }
+        return "count=\(createPlacementContextsByWindowId.count)\n"
+            + entries.joined(separator: "\n")
     }
 
     func pendingCreatePlacementContext(for windowId: Int) -> WindowCreatePlacementContext? {
