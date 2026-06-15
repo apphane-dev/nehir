@@ -41,7 +41,8 @@ final class RuntimeStore {
             event: event,
             normalizedEvent: normalizedEvent,
             plan: resolvedPlan,
-            snapshot: snapshot()
+            snapshot: snapshot(),
+            preInteractionMonitorId: currentSnapshot.interactionMonitorId
         )
     }
 
@@ -50,7 +51,8 @@ final class RuntimeStore {
         event: WMEvent,
         normalizedEvent: WMEvent? = nil,
         plan: ActionPlan,
-        snapshot: ReconcileSnapshot
+        snapshot: ReconcileSnapshot,
+        preInteractionMonitorId: Monitor.ID? = nil
     ) -> ReconcileTxn {
         let invariantViolations = InvariantChecks.validate(snapshot: snapshot)
         var tracedPlan = plan
@@ -64,7 +66,8 @@ final class RuntimeStore {
             normalizedEvent: normalizedEvent ?? event,
             plan: tracedPlan,
             snapshot: snapshot,
-            invariantViolations: invariantViolations
+            invariantViolations: invariantViolations,
+            preInteractionMonitorId: preInteractionMonitorId
         )
         traceRecorder.append(transaction: txn)
         return txn

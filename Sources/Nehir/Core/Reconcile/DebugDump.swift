@@ -35,10 +35,16 @@ enum ReconcileDebugDump {
 
         var output = [versionHeader]
         output += truncated.map { record in
+            let postInteraction = record.snapshot.interactionMonitorId.map(String.init(describing:)) ?? "nil"
+            let preInteraction = record.preInteractionMonitorId.map(String.init(describing:)) ?? "nil"
+            let interactionField = preInteraction == postInteraction
+                ? "interaction=\(postInteraction)"
+                : "interaction=\(preInteraction)→\(postInteraction)"
             var parts = [
                 "#\(record.sequence)",
                 record.timestamp.ISO8601Format(),
-                "event=\(record.event.summary)"
+                "event=\(record.event.summary)",
+                "\(interactionField)/prev=\(record.snapshot.previousInteractionMonitorId.map(String.init(describing:)) ?? "nil")"
             ]
             if record.normalizedEvent != record.event {
                 parts.append("normalized=\(record.normalizedEvent.summary)")

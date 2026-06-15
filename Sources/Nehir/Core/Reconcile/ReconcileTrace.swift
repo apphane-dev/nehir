@@ -8,6 +8,9 @@ struct ReconcileTraceRecord: Equatable {
     let plan: ActionPlan
     let snapshot: ReconcileSnapshot
     let invariantViolations: [ReconcileInvariantViolation]
+    /// `interactionMonitorId` as it was *before* the reconcile transaction was
+    /// applied. See `ReconcileTxn.preInteractionMonitorId` for why this exists.
+    let preInteractionMonitorId: Monitor.ID?
 }
 
 @MainActor
@@ -28,7 +31,8 @@ final class ReconcileTraceRecorder {
         plan: ActionPlan,
         snapshot: ReconcileSnapshot,
         invariantViolations: [ReconcileInvariantViolation] = [],
-        timestamp: Date = Date()
+        timestamp: Date = Date(),
+        preInteractionMonitorId: Monitor.ID? = nil
     ) {
         let record = ReconcileTraceRecord(
             sequence: nextSequence,
@@ -37,7 +41,8 @@ final class ReconcileTraceRecorder {
             normalizedEvent: normalizedEvent ?? event,
             plan: plan,
             snapshot: snapshot,
-            invariantViolations: invariantViolations
+            invariantViolations: invariantViolations,
+            preInteractionMonitorId: preInteractionMonitorId
         )
         nextSequence += 1
         if records.count == limit {
@@ -53,7 +58,8 @@ final class ReconcileTraceRecorder {
             plan: transaction.plan,
             snapshot: transaction.snapshot,
             invariantViolations: transaction.invariantViolations,
-            timestamp: transaction.timestamp
+            timestamp: transaction.timestamp,
+            preInteractionMonitorId: transaction.preInteractionMonitorId
         )
     }
 

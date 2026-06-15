@@ -45,10 +45,16 @@ All file references should be re-verified before implementing; line numbers drif
   lacked `create_placement_resolved`; the `native_app_switch` lease observed in
   the first capture was a *consequence* of where focus ended up, not the
   *cause* of placement.
-- **Fix direction (revised, surgical):** make `monitorForInteraction()` prefer
-  `previousInteractionMonitorId` over the bare `monitors.first` fallback, so
-  the new-window placement path preserves the last-known monitor across the
-  transient clear. See [Fix direction (revised)](#fix-direction-revised-after-step-1).
+- **⚠️ Fix direction revised again (third capture):** the obvious fix — make
+  `monitorForInteraction()` prefer `previousInteractionMonitorId` — is **on
+  hold pending Q4.** A third capture showed `previousInteractionMonitorId=nil`
+  throughout a run where the nil definitely fired, which is inconsistent with
+  the nil flowing through `updateInteractionMonitor` (the one path that
+  populates `prev`). If the nil enters through a reconcile write site that
+  doesn't touch `prev`, that fix is a no-op. Pre-apply tracing was added to
+  answer Q4; see
+  [Third capture](#third-capture-2026-06-15-1833-utc--the-nil-is-transient-prevnil-throughout)
+  and [Fix direction (revised)](#fix-direction-revised-after-step-1).
 
 The sections below this point are the **original step-2 investigation**,
 preserved for context. The section above and the
@@ -175,6 +181,101 @@ repro (user on display 2) the identical mechanism routes the window to display
 actor clears the raw `interactionMonitorId` to nil during the app-switch
 sequence (see [Open questions](#open-questions-for-step-1-output)); the fix
 below is robust to it regardless.
+
+### Third capture (2026-06-15, 18:33 UTC) — the nil is transient, `prev=nil` throughout
+
+A third capture (nehir v0.5.0, build `vc4b54f`, startedAt `2026-06-15T18:33:03Z`,
+duration 11.292 s) added the per-event `interaction=<id>/prev=<id>` field to the
+reconcile trace records and produced two decisive findings.
+
+Same topology (display 1 main, display 2 secondary above it). Workspace mapping:
+**workspace 1** = `A282FE26-6CB7-4BA2-8421-6BA8FF8FAFBD` (display 1),
+**workspace 6** = `09AD3819-AF06-4E1D-87E3-03CBBC202995` (display 2). User on
+display 1 throughout (`focus focused=nil`, `non-managed-focus=true`,
+`interaction current=ID(displayId: 1)`).
+
+**Finding A — the raw `interactionMonitorId` fluctuates per window.**
+`create_placement_resolved` for the two new Ghostty windows in this capture:
+
+```
+create_placement_resolved token=897:5290 workspace=A282FE26…
+  pending_workspace=nil pending_monitor=nil
+  focused_workspace=nil focused_monitor=nil
+  native_monitor=Optional(ID(displayId: 1))
+  frame_monitor=Optional(ID(displayId: 1))
+  interaction_monitor=Optional(ID(displayId: 1))   ← non-nil
+
+create_placement_resolved token=897:5296 workspace=A282FE26…
+  pending_workspace=nil pending_monitor=nil
+  focused_workspace=nil focused_monitor=nil
+  native_monitor=nil
+  frame_monitor=Optional(ID(displayId: 1))
+  interaction_monitor=nil                          ← nil
+```
+
+So `5290` snapped a non-nil interaction monitor (display 1) while `5296`, ~4 s
+later in the same capture, snapped `nil`. The nil is therefore **strictly
+transient** — present at some `CGSWindowCreated` instants, absent at others.
+
+**Finding B — `previousInteractionMonitorId` is `nil` on every reconcile record.**
+All 44 tracing-log records in this capture carry `interaction=ID(displayId: 1)/prev=nil`.
+No monitor transition occurred, so `updateInteractionMonitor` (the only writer of
+`previousInteractionMonitorId`, `WorkspaceManager.swift:3939`) never populated it.
+
+**Finding C — the post-apply reconcile trace is structurally blind to the nil.**
+The `interaction=` field in `## Tracing logs` is sourced from the recorded
+snapshot, which `RuntimeStore.transact` (`RuntimeStore.swift:50`) captures
+*after* `applyPlan` runs. Because every reconcile transaction recovers
+`interactionMonitorId` to a non-nil value (via `reconcileInteractionMonitorState`,
+`WorkspaceManager.swift:3961`, which ends in `?? sortedByPosition.first`), the
+post-apply snapshot always shows display 1, regardless of what the pre-apply
+value was. That is why all 44 records look identical and none names the nil-writer.
+
+### Q4 is load-bearing for the proposed fix (revised)
+
+The combination of Findings B and C revises the earlier "Q4 is secondary"
+framing. The proposed `monitorForInteraction()` → `previousInteractionMonitorId`
+fix is correct **only if** the nil flows through `updateInteractionMonitor(nil,
+preservePrevious: true)` (`WorkspaceManager.swift:3937`), because that is the
+sole path that sets `prev = currentMonitorId` *before* nilling. But:
+
+- Static analysis rules out every `updateInteractionMonitor`/`setInteractionMonitor`
+  caller as a nil-source (all take non-optional `Monitor.ID` or are `if let`/
+  `guard let`-guarded — see [Open questions](#open-questions-for-step-1-output) Q4).
+- Finding B shows `prev=nil` throughout a capture where the nil definitely fired
+  (window `5296`), which is inconsistent with the nil flowing through
+  `updateInteractionMonitor` (that path would have left `prev` populated).
+
+So the nil most likely enters through one of the other write sites of
+`sessionState.interactionMonitorId` (`applyRestoreRefresh` `:684`,
+`applyTopologyTransition` `:706`, `applyReconciledFocusSession` `:641`) during
+the reconcile churn — **none of which touch `previousInteractionMonitorId`**.
+In the reported repro that would leave `prev` pointing at display 1 (the
+pre-transition monitor) or nil, so the `previousInteractionMonitorId` fix would
+return display 1 — a no-op, not a fix.
+
+**Implication:** do not ship the `previousInteractionMonitorId` fix blind. Q4
+must be answered first.
+
+### Pre-apply tracing added (2026-06-15)
+
+To answer Q4, the reconcile trace now records the **pre-apply**
+`interactionMonitorId` alongside the post-apply one. Changes:
+
+- `ReconcileTxn` / `ReconcileTraceRecord` gained `preInteractionMonitorId`
+  (`ReconcileTxn.swift`, `ReconcileTrace.swift`).
+- `RuntimeStore.transact` threads `currentSnapshot.interactionMonitorId` (the
+  pre-apply value it already computes at `RuntimeStore.swift:33`) through to
+  the recorded transaction (`RuntimeStore.swift`).
+- `ReconcileDebugDump.trace` renders the interaction as `interaction=<pre>→<post>`
+  when the pre and post values differ, else `interaction=<value>`
+  (`DebugDump.swift`).
+
+A fresh repro with this build will show the exact reconcile record that received
+`pre=nil→post=ID(displayId: 1)` — that record's `event` is the recovery, and the
+nil-writer fired in the gap immediately before it. That brackets Q4 to a single
+event and identifies whether the nil flows through a `prev`-preserving path or
+not — deciding the fix shape.
 
 ---
 
@@ -420,6 +521,14 @@ chose — it is downstream of H1/H2, not an independent cause.
 
 ## Fix direction (revised after step 1)
 
+> **⚠️ Status update (third capture):** the `previousInteractionMonitorId`
+> variant below is **on hold.** The third capture showed `prev=nil`
+> throughout a run where the nil fired, which is inconsistent with the nil
+> flowing through `updateInteractionMonitor` (the only path that populates
+> `prev`). If the nil enters via a reconcile write site that does not touch
+> `prev`, this fix is a no-op. Do not implement until Q4 is answered with the
+> pre-apply tracing. The candidates below remain otherwise.
+
 **Primary fix (confirmed root cause H4):** the new-window placement fallback
 resolves to `monitors.first` because `monitorForInteraction()`
 (`WMController.swift:922`) ignores `previousInteractionMonitorId`. Make it
@@ -530,11 +639,26 @@ test, `:9703`) are the right neighbourhood to extend.
 3. ✅ Was `focusedWorkspaceId` nil at snapshot time? **Yes —
    `focused_workspace=nil`, `focused_monitor=nil`.** The "focused workspace"
    input was disabled in all three events.
-4. ⬜ (still open, secondary) **What clears the raw `interactionMonitorId` to
-   nil on the main actor right before these `CGSWindowCreated` events?**
+4. ⚠️ **(LOAD-BEARING, no longer secondary)** **What clears the raw
+   `interactionMonitorId` to nil on the main actor right before these
+   `CGSWindowCreated` events — and does that path preserve
+   `previousInteractionMonitorId`?**
    `StateReducer.nonManagedFocusChanged` (`StateReducer.swift:340`) does **not**
-   touch it, so the nil comes from an `updateInteractionMonitor(nil, …)` call
-   elsewhere in the `workspaceDidActivateApplication` / `focusedWindowChanged`
-   churn. Name that call site. Note: the proposed fix via
-   `previousInteractionMonitorId` is correct regardless of the answer, but
-   identifying the writer would let us also stop the spurious clear.
+   touch it. Static analysis rules out every `updateInteractionMonitor`/
+   `setInteractionMonitor` caller as a nil-source (all take non-optional
+   `Monitor.ID` or are `if let`/`guard let`-guarded at every call site —
+   `WorkspaceManager.swift:1099` `setInteractionMonitor`, `:3937`
+   `updateInteractionMonitor`, `:3809` `setActiveWorkspaceInternal`). That
+   leaves the reconcile write sites `applyReconciledFocusSession`
+   (`WorkspaceManager.swift:641`), `applyRestoreRefresh` (`:684`), and
+   `applyTopologyTransition` (`:706`) as the candidates.
+   **Why it now matters:** the third capture showed `previousInteractionMonitorId=nil`
+   throughout a run where the nil definitely fired (window `5296`), which is
+   inconsistent with the nil flowing through `updateInteractionMonitor` (that
+   path sets `prev` before nilling). If the nil instead enters through one of
+   the reconcile write sites, none of which touch `prev`, then the proposed
+   `monitorForInteraction()` → `previousInteractionMonitorId` fix would be a
+   no-op (returning display 1, not the user's actual monitor). **Do not ship
+   that fix until Q4 is answered.** The pre-apply tracing added on 2026-06-15
+   (see [Third capture](#third-capture-2026-06-15-1833-utc--the-nil-is-transient-prevnil-throughout))
+   is the instrument to answer it.

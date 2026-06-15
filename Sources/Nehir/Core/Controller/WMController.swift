@@ -2547,7 +2547,7 @@ final class WMController {
         let cgsSnapshot = CGSEventObserver.shared.cgsDebugSnapshot()
         let traceCaptureStatus = traceCaptureStatusOverride ?? runtimeTraceCaptureStatus
 
-        let lines: [String] = [
+        var lines: [String] = [
             "WMController runtime state",
             "enabled=\(isEnabled) desiredEnabled=\(desiredEnabled) hotkeysEnabled=\(hotkeysEnabled) desiredHotkeysEnabled=\(desiredHotkeysEnabled)",
             "accessibilityGranted=\(accessibilityPermissionGranted) lockScreenActive=\(isLockScreenActive) overviewOpen=\(isOverviewOpen()) startedServices=\(hasStartedServices)",
@@ -2601,10 +2601,14 @@ final class WMController {
                 }
             ),
             "-- Reconcile Snapshot --",
-            workspaceManager.reconcileSnapshotDump(),
-            "-- Reconcile Trace --",
-            workspaceManager.reconcileTraceDump(limit: traceLimit)
+            workspaceManager.reconcileSnapshotDump()
         ]
+        if traceLimit > 0 {
+            lines.append(contentsOf: [
+                "-- Reconcile Trace --",
+                workspaceManager.reconcileTraceDump(limit: traceLimit)
+            ])
+        }
 
         return lines.joined(separator: "\n")
     }
