@@ -208,6 +208,18 @@ final class SurfaceScene {
         surfaceIDsByWindowNumber.removeAll()
     }
 
+    /// Window numbers of visible surfaces whose `hitTestPolicy` is `.passthrough`
+    /// (the focus border). Such surfaces sit on top of real content but do not own
+    /// pointer input, so callers that infer occlusion from the window server must
+    /// ignore them.
+    var passthroughSurfaceWindowNumbers: Set<Int> {
+        Set(
+            visibleNodes
+                .filter { $0.policy.hitTestPolicy == .passthrough }
+                .compactMap { $0.windowNumber }
+        )
+    }
+
     private func node(for window: NSWindow) -> SurfaceNode? {
         guard let id = windowIDByObject[ObjectIdentifier(window)] else { return nil }
         return nodesByID[id]

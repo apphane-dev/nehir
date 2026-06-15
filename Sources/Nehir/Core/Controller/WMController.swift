@@ -178,8 +178,41 @@ final class WMController {
     var workspaceBarRefreshExecutionHookForTests: (() -> Void)?
     @ObservationIgnored
     var warpMouseCursorPosition: (CGPoint) -> Void = { CGWarpMouseCursorPosition($0) }
+    /// Injectable on-screen window-server snapshot consumed by the unmanaged-window
+    /// occlusion checks. Defaults to the live `CGWindowList`; tests inject synthetic
+    /// snapshots to exercise the real layer/size/onscreen predicate (see
+    /// `visibleUnmanagedWindowServerFrames(trackedWindowIds:snapshot:)`).
     @ObservationIgnored
-    var unmanagedWindowServerWindowFramesProvider: @MainActor (Set<Int>) -> [CGRect] = WMController.visibleUnmanagedWindowServerFrames
+    var windowServerSnapshotProvider: @MainActor () -> [[String: Any]] = {
+        guard let windows = CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID) as? [[String: Any]] else {
+            return []
+        }
+        return windows
+    }
+    /// Resolves the activation policy for a window-server owner PID. Used to keep
+    /// system chrome — Notification Center (`com.apple.notificationcenterui`), Dock,
+    /// Control Center, menu-bar/status items — out of the unmanaged-occlusion set:
+    /// those run at `.accessory` / `.prohibited` policy and are typically full-screen
+    /// transparent event surfaces, so counting them as occluders blocks the entire
+    /// display whenever a notification/banner is visible. Real overlay windows such
+    /// as Ghostty's Quick terminal belong to `.regular` apps and remain caught.
+    /// Injectable for tests.
+    @ObservationIgnored
+    var windowOwnerActivationPolicyProvider: @MainActor (pid_t) -> NSApplication.ActivationPolicy? = { pid in
+        NSRunningApplication(processIdentifier: pid)?.activationPolicy
+    }
+    /// Frame-level seam over the unmanaged-window snapshot. Tests may inject frames
+    /// directly to bypass the layer predicate; the production default routes through
+    /// `windowServerSnapshotProvider` and the pure static predicate below.
+    @ObservationIgnored
+    lazy var unmanagedWindowServerWindowFramesProvider: @MainActor (Set<Int>) -> [CGRect] = { [weak self] trackedWindowIds in
+        guard let self else { return [] }
+        return Self.visibleUnmanagedWindowServerFrames(
+            trackedWindowIds: trackedWindowIds,
+            snapshot: self.windowServerSnapshotProvider(),
+            activationPolicyProvider: self.windowOwnerActivationPolicyProvider
+        )
+    }
     @ObservationIgnored
     weak var ipcApplicationBridge: IPCApplicationBridge?
     @ObservationIgnored
@@ -2332,19 +2365,42 @@ final class WMController {
         ].joined(separator: " ")
     }
 
+    /// Pure predicate over a window-server snapshot: returns app-coordinate frames of
+    /// on-screen, ≥80×80 windows that Nehir does not manage. Any non-desktop layer
+    /// (`layer >= 0`) qualifies, so overlay levels (`.floating` = 3, `.popUpMenu` =
+    /// 101, dock / menu-bar / status-item layers, etc.) correctly count as occluding
+    /// the pointer. This is what stops focus-follows-mouse from firing through windows
+    /// such as Ghostty's Quick terminal, which never sit at layer 0. The desktop /
+    /// wallpaper lives at `kCGDesktopWindowLevel` (a large negative value) and is
+    /// therefore excluded.
     static func visibleUnmanagedWindowServerFrames(
-        trackedWindowIds: Set<Int> = []
-    ) -> [CGRect] {
-        guard let windows = CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID) as? [[String: Any]] else {
-            return []
+        trackedWindowIds: Set<Int> = [],
+        snapshot: [[String: Any]],
+        activationPolicyProvider: (pid_t) -> NSApplication.ActivationPolicy? = { pid in
+            NSRunningApplication(processIdentifier: pid)?.activationPolicy
         }
-
-        return windows.compactMap { info -> CGRect? in
+    ) -> [CGRect] {
+        snapshot.compactMap { info -> CGRect? in
             let windowId = (info[kCGWindowNumber as String] as? NSNumber)?.uint32Value
             guard let windowId, !trackedWindowIds.contains(Int(windowId)) else { return nil }
 
+            // Only real foreground-app windows occlude. System chrome (Notification
+            // Center, Dock, Control Center, menu-bar/status items) runs at .accessory /
+            // .prohibited policy and is typically a full-screen transparent event
+            // surface; counting it as an occluder blocks the whole display whenever a
+            // notification or banner is visible. Ghostty's Quick terminal and other
+            // real overlays belong to .regular apps and stay caught. An unresolvable
+            // owner (e.g. a synthetic test snapshot) is treated as regular so the
+            // check stays conservative.
+            if let pid = (info[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value,
+               let policy = activationPolicyProvider(pid),
+               policy != .regular
+            {
+                return nil
+            }
+
             let layer = (info[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0
-            guard layer == 0 else { return nil }
+            guard layer >= 0 else { return nil }
 
             let isOnscreen = (info[kCGWindowIsOnscreen as String] as? NSNumber)?.boolValue ?? false
             guard isOnscreen else { return nil }
@@ -2365,8 +2421,14 @@ final class WMController {
     }
 
     func unmanagedWindowServerWindowCovers(point: CGPoint) -> Bool {
-        let trackedWindowIds = Set(workspaceManager.trackedWindowIdsForDebug())
-        return unmanagedWindowServerWindowFramesProvider(trackedWindowIds).contains { $0.contains(point) }
+        // Window numbers Nehir owns and therefore must not treat as "unmanaged":
+        // tracked app windows plus our own visible pass-through surfaces (e.g. the
+        // focus border, which overlays the focused tile at a non-zero layer). Without
+        // the pass-through exclusion the broader `layer >= 0` occlusion check would
+        // suppress focus-follows-mouse over the very tile the border decorates.
+        var excludedWindowIds = Set(workspaceManager.trackedWindowIdsForDebug())
+        excludedWindowIds.formUnion(ownedWindowRegistry.passthroughSurfaceWindowNumbers)
+        return unmanagedWindowServerWindowFramesProvider(excludedWindowIds).contains { $0.contains(point) }
     }
 
     private func visibleUnmanagedWindowServerDebugDump() -> String {
@@ -2374,13 +2436,24 @@ final class WMController {
             return "unavailable"
         }
 
-        let trackedWindowIds = Set(workspaceManager.trackedWindowIdsForDebug())
+        // Keep the debug dump consistent with `unmanagedWindowServerWindowCovers`:
+        // Nehir's own pass-through surfaces are not "unmanaged" windows.
+        var excludedWindowIds = Set(workspaceManager.trackedWindowIdsForDebug())
+        excludedWindowIds.formUnion(ownedWindowRegistry.passthroughSurfaceWindowNumbers)
         let visibleCandidates = windows.compactMap { info -> String? in
             let windowId = (info[kCGWindowNumber as String] as? NSNumber)?.uint32Value
-            guard let windowId, !trackedWindowIds.contains(Int(windowId)) else { return nil }
+            guard let windowId, !excludedWindowIds.contains(Int(windowId)) else { return nil }
+
+            let pid = (info[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value ?? 0
+            // Mirror `visibleUnmanagedWindowServerFrames`: system chrome (Notification
+            // Center, Dock, Control Center) is not an unmanaged occluder, so keep the
+            // debug dump aligned with what the occlusion check actually considers.
+            if let policy = windowOwnerActivationPolicyProvider(pid), policy != .regular {
+                return nil
+            }
 
             let layer = (info[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0
-            guard layer == 0 else { return nil }
+            guard layer >= 0 else { return nil }
 
             let isOnscreen = (info[kCGWindowIsOnscreen as String] as? NSNumber)?.boolValue ?? false
             guard isOnscreen else { return nil }
@@ -2394,7 +2467,6 @@ final class WMController {
                   height >= 80
             else { return nil }
 
-            let pid = (info[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value ?? 0
             let ownerName = info[kCGWindowOwnerName as String] as? String ?? "nil"
             let title = info[kCGWindowName as String] as? String ?? "nil"
             let runningApp = NSRunningApplication(processIdentifier: pid)

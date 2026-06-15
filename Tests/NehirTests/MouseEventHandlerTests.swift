@@ -1916,6 +1916,87 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
         #expect(fixture.handler.state.gesturePhase == .idle)
     }
 
+    @Test @MainActor func trackpadGestureSuppressesOverUnmanagedOverlayWindow() async {
+        // When the pointer is over an on-screen, non-tracked overlay at a non-zero
+        // layer (e.g. Ghostty's Quick terminal at layer 3), the trackpad column-
+        // navigation gesture must not fire against the niri tile behind it. The OS
+        // already routes the scroll to the overlay (the gesture tap is listen-only);
+        // Nehir simply must not perform its own column-nav side effect.
+        let fixture = await prepareMouseWheelScrollFixture()
+        let controller = fixture.controller
+
+        // Drive occlusion through the real layer predicate (makeMouseEventTestController
+        // otherwise stubs the frame provider to []).
+        controller.unmanagedWindowServerWindowFramesProvider = { [weak controller] excludedWindowIds in
+            guard let controller else { return [] }
+            return WMController.visibleUnmanagedWindowServerFrames(
+                trackedWindowIds: excludedWindowIds,
+                snapshot: controller.windowServerSnapshotProvider()
+            )
+        }
+        let overlayAppFrame = CGRect(
+            x: fixture.location.x - 200,
+            y: fixture.location.y - 150,
+            width: 400,
+            height: 300
+        )
+        controller.windowServerSnapshotProvider = {
+            [makeWindowServerSnapshotEntry(windowId: 5301, layer: 3, appKitFrame: overlayAppFrame)]
+        }
+
+        #expect(controller.unmanagedWindowServerWindowCovers(point: fixture.location))
+        sendCommittingTrackpadGesture(to: fixture.handler, at: fixture.location)
+
+        #expect(fixture.handler.state.gesturePhase == .idle)
+    }
+
+    @Test @MainActor func trackpadGestureStillCommitsOverOwnPassthroughBorder() async {
+        // Nehir's focus border is a pass-through overlay sized over the focused tile.
+        // It must not suppress trackpad gestures over the tile it decorates — the
+        // passthrough-surface exclusion in `unmanagedWindowServerWindowCovers` keeps
+        // the gesture path working, mirroring the focus-follows-mouse border case.
+        let surfaceCoordinator = SurfaceCoordinator()
+        let registry = OwnedWindowRegistry(surfaceCoordinator: surfaceCoordinator)
+        let fixture = await prepareMouseWheelScrollFixture(ownedWindowRegistry: registry)
+        let controller = fixture.controller
+
+        let borderWindowNumber: UInt32 = 5302
+        let borderAppFrame = CGRect(
+            x: fixture.location.x - 200,
+            y: fixture.location.y - 150,
+            width: 400,
+            height: 300
+        )
+        // Register the border exactly like BorderManager: `.border` kind, pass-through
+        // hit testing, excluded from capture.
+        registry.registerWindowNumber(
+            surfaceId: "test-border-surface",
+            kind: .border,
+            windowNumber: Int(borderWindowNumber),
+            frameProvider: { borderAppFrame },
+            visibilityProvider: { true },
+            hitTestPolicy: .passthrough,
+            capturePolicy: .excluded,
+            suppressesManagedFocusRecovery: false
+        )
+
+        controller.unmanagedWindowServerWindowFramesProvider = { [weak controller] excludedWindowIds in
+            guard let controller else { return [] }
+            return WMController.visibleUnmanagedWindowServerFrames(
+                trackedWindowIds: excludedWindowIds,
+                snapshot: controller.windowServerSnapshotProvider()
+            )
+        }
+        controller.windowServerSnapshotProvider = {
+            [makeWindowServerSnapshotEntry(windowId: borderWindowNumber, layer: 3, appKitFrame: borderAppFrame)]
+        }
+
+        #expect(controller.unmanagedWindowServerWindowCovers(point: fixture.location) == false)
+        sendCommittingTrackpadGesture(to: fixture.handler, at: fixture.location)
+
+        #expect(fixture.handler.state.gesturePhase == .committed)
+    }
+
     @Test @MainActor func ownedWindowDragCancelsActiveNiriMoveAndResize() async {
         var frontmostWindow: NSWindow?
         let registry = makeOwnedMouseWindowRegistry { frontmostWindow }
@@ -2321,7 +2402,308 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
         #expect(controller.workspaceManager.activeFocusRequestToken == nil)
     }
 
-    @Test @MainActor func focusFollowsMouseDoesNotActivateTiledWindowWhileFloatingWindowIsVisible() async {
+/// Builds a synthetic window-server snapshot entry (CG/Quartz-coordinate bounds)
+/// whose frame round-trips back to `appKitFrame` after
+/// `ScreenCoordinateSpace.toAppKit(rect:)` is applied by the predicate under test.
+@MainActor
+private func makeWindowServerSnapshotEntry(
+    windowId: UInt32,
+    layer: Int,
+    appKitFrame: CGRect,
+    onscreen: Bool = true,
+    ownerPid: pid_t? = nil
+) -> [String: Any] {
+    let serverFrame = ScreenCoordinateSpace.toWindowServer(rect: appKitFrame)
+    var entry: [String: Any] = [
+        kCGWindowNumber as String: NSNumber(value: windowId),
+        kCGWindowLayer as String: NSNumber(value: layer),
+        kCGWindowIsOnscreen as String: NSNumber(value: onscreen),
+        kCGWindowBounds as String: [
+            "X": NSNumber(value: Double(serverFrame.origin.x)),
+            "Y": NSNumber(value: Double(serverFrame.origin.y)),
+            "Width": NSNumber(value: Double(serverFrame.width)),
+            "Height": NSNumber(value: Double(serverFrame.height))
+        ] as [String: Any]
+    ]
+    if let ownerPid {
+        entry[kCGWindowOwnerPID as String] = NSNumber(value: ownerPid)
+    }
+    return entry
+}
+
+/// Shared fixture for the unmanaged-overlay FFM suppression tests: two tiled
+/// windows with managed focus on the first, returning the controller, both
+/// tokens, and the second (hover-target) tile's frame. Pass a dedicated
+/// `ownedWindowRegistry` to register Nehir surfaces (e.g. a pass-through border)
+/// against an isolated surface coordinator.
+@MainActor
+private func prepareUnmanagedOverlayFFMFixture(
+    ownedWindowRegistry: OwnedWindowRegistry = .shared
+) async -> (controller: WMController, firstToken: WindowToken, secondToken: WindowToken, secondFrame: CGRect)? {
+    let controller = makeMouseEventTestController(ownedWindowRegistry: ownedWindowRegistry)
+    controller.enableNiriLayout()
+    await controller.layoutRefreshController.waitForRefreshWorkForTests()
+    controller.syncMonitorsToNiriEngine()
+    controller.setFocusFollowsMouse(true)
+
+    guard let workspaceId = controller.interactionWorkspace()?.id,
+          let engine = controller.niriEngine,
+          let monitor = controller.workspaceManager.monitor(for: workspaceId)
+    else {
+        Issue.record("Missing Niri context for unmanaged overlay FFM regression test")
+        return nil
+    }
+
+    let firstToken = controller.workspaceManager.addWindow(
+        makeMouseEventTestWindow(windowId: 940),
+        pid: getpid(),
+        windowId: 940,
+        to: workspaceId
+    )
+    let secondToken = controller.workspaceManager.addWindow(
+        makeMouseEventTestWindow(windowId: 941),
+        pid: getpid(),
+        windowId: 941,
+        to: workspaceId
+    )
+    guard let firstHandle = controller.workspaceManager.handle(for: firstToken),
+          let secondHandle = controller.workspaceManager.handle(for: secondToken)
+    else {
+        Issue.record("Missing handles for unmanaged overlay FFM regression test")
+        return nil
+    }
+
+    _ = engine.syncWindows(
+        [firstHandle, secondHandle],
+        in: workspaceId,
+        selectedNodeId: nil,
+        focusedHandle: firstHandle
+    )
+    _ = controller.workspaceManager.setManagedFocus(firstHandle, in: workspaceId, onMonitor: monitor.id)
+    controller.layoutRefreshController.requestImmediateRelayout(reason: .workspaceTransition)
+    await controller.layoutRefreshController.waitForRefreshWorkForTests()
+
+    guard let secondNode = engine.findNode(for: secondHandle),
+          let secondFrame = secondNode.frame
+    else {
+        Issue.record("Missing tiled target frame for unmanaged overlay FFM regression test")
+        return nil
+    }
+
+    return (controller, firstToken, secondToken, secondFrame)
+}
+
+@MainActor
+private func assertFocusFollowsMouseSuppressedOverUnmanagedOverlay(
+    layer: Int,
+    windowId: UInt32
+) async {
+    guard let fixture = await prepareUnmanagedOverlayFFMFixture() else { return }
+    let controller = fixture.controller
+    let firstToken = fixture.firstToken
+    let secondFrame = fixture.secondFrame
+
+    // Route FFM occlusion off the injected window-server snapshot so the real
+    // `layer >= 0` predicate is exercised. (makeMouseEventTestController otherwise
+    // stubs the frame provider to [], which would bypass the layer logic entirely.)
+    controller.unmanagedWindowServerWindowFramesProvider = { [weak controller] trackedWindowIds in
+        guard let controller else { return [] }
+        return WMController.visibleUnmanagedWindowServerFrames(
+            trackedWindowIds: trackedWindowIds,
+            snapshot: controller.windowServerSnapshotProvider()
+        )
+    }
+    let overlayAppFrame = CGRect(
+        x: secondFrame.midX - 200,
+        y: secondFrame.midY - 150,
+        width: 400,
+        height: 300
+    )
+    let snapshot = [
+        makeWindowServerSnapshotEntry(windowId: windowId, layer: layer, appKitFrame: overlayAppFrame)
+    ]
+    controller.windowServerSnapshotProvider = { snapshot }
+
+    controller.mouseEventHandler.dispatchMouseMoved(at: overlayAppFrame.center)
+    await controller.layoutRefreshController.waitForRefreshWorkForTests()
+
+    #expect(controller.workspaceManager.confirmedManagedFocusToken == firstToken)
+    #expect(controller.workspaceManager.activeFocusRequestToken == nil)
+}
+
+@Test @MainActor func focusFollowsMouseSuppressesOverUnmanagedOverlayWindow() async {
+    // Ghostty's Quick terminal settles at NSWindow.Level.floating (layer 3) once
+    // its slide-in completes — it is never at layer 0, so the old filter missed it.
+    await assertFocusFollowsMouseSuppressedOverUnmanagedOverlay(layer: 3, windowId: 4242)
+}
+
+@Test @MainActor func focusFollowsMouseSuppressesOverUnmanagedPopUpMenuWindow() async {
+    // Ghostty's Quick terminal sits at NSWindow.Level.popUpMenu (layer 101) during
+    // its slide-in/out animation.
+    await assertFocusFollowsMouseSuppressedOverUnmanagedOverlay(layer: 101, windowId: 4243)
+}
+
+@Test @MainActor func focusFollowsMouseActivatesTileBehindOwnPassthroughBorder() async {
+    // Nehir's own focus border is a pass-through overlay sized to the focused tile
+    // plus padding, at layer 3 (NSWindow.Level.floating). Once the occlusion check
+    // broadened to `layer >= 0`, the border itself started suppressing
+    // focus-follows-mouse over the very tile it decorates. Registered own
+    // pass-through surface window numbers must be excluded so FFM still reaches the
+    // tile beneath them — contrasting with the third-party overlay case above.
+    let surfaceCoordinator = SurfaceCoordinator()
+    let registry = OwnedWindowRegistry(surfaceCoordinator: surfaceCoordinator)
+    guard let fixture = await prepareUnmanagedOverlayFFMFixture(ownedWindowRegistry: registry) else { return }
+    let controller = fixture.controller
+    let firstToken = fixture.firstToken
+    let secondToken = fixture.secondToken
+    let secondFrame = fixture.secondFrame
+
+    let borderWindowNumber: UInt32 = 4244
+    let borderAppFrame = CGRect(
+        x: secondFrame.midX - 200,
+        y: secondFrame.midY - 150,
+        width: 400,
+        height: 300
+    )
+    // Register the border exactly like BorderManager does: `.border` kind,
+    // pass-through hit testing, excluded from capture.
+    registry.registerWindowNumber(
+        surfaceId: "test-border-surface",
+        kind: .border,
+        windowNumber: Int(borderWindowNumber),
+        frameProvider: { borderAppFrame },
+        visibilityProvider: { true },
+        hitTestPolicy: .passthrough,
+        capturePolicy: .excluded,
+        suppressesManagedFocusRecovery: false
+    )
+
+    // Drive FFM occlusion through the real predicate via the injected snapshot, so
+    // the union of tracked ids + pass-through surface numbers is exercised.
+    controller.unmanagedWindowServerWindowFramesProvider = { [weak controller] excludedWindowIds in
+        guard let controller else { return [] }
+        return WMController.visibleUnmanagedWindowServerFrames(
+            trackedWindowIds: excludedWindowIds,
+            snapshot: controller.windowServerSnapshotProvider()
+        )
+    }
+    controller.windowServerSnapshotProvider = {
+        [makeWindowServerSnapshotEntry(windowId: borderWindowNumber, layer: 3, appKitFrame: borderAppFrame)]
+    }
+
+    controller.mouseEventHandler.dispatchMouseMoved(at: borderAppFrame.center)
+    await controller.layoutRefreshController.waitForRefreshWorkForTests()
+
+    // FFM must reach the tile under the pass-through border — focus did not stay on
+    // the first window, and a focus request was issued for the hovered tile.
+    #expect(controller.workspaceManager.confirmedManagedFocusToken == firstToken)
+    #expect(controller.workspaceManager.activeFocusRequestToken == secondToken)
+}
+
+@Test @MainActor func visibleUnmanagedWindowServerFramesIncludesOverlayLayers() {
+    // On-screen, >=80x80, untracked windows at any non-desktop layer must be
+    // reported. This is the regression guard for Ghostty's Quick terminal, which
+    // was silently dropped by the old `layer == 0` filter.
+    //
+    // Each accepted entry gets a distinct (windowId-derived) frame so the assertion
+    // can pin exactly which window IDs survive the predicate — not just the count,
+    // which would silently pass if an expected ID were swapped for a rejected one.
+    func frame(forWindowId id: UInt32) -> CGRect {
+        CGRect(x: CGFloat(id), y: 100, width: 200, height: 200)
+    }
+    let accepted: [(id: UInt32, layer: Int)] = [
+        (1001, 0),
+        (1003, 3),
+        (1025, 25),
+        (1101, 101),
+        (2000, 1000)
+    ]
+    let expectedFrames = Set(accepted.map { frame(forWindowId: $0.id) })
+    var snapshot: [[String: Any]] = accepted.map {
+        makeWindowServerSnapshotEntry(windowId: $0.id, layer: $0.layer, appKitFrame: frame(forWindowId: $0.id))
+    }
+    // Excluded: desktop-class (negative) layer — wallpaper lives below layer 0.
+    snapshot.append(makeWindowServerSnapshotEntry(windowId: 9001, layer: -1000, appKitFrame: frame(forWindowId: 9001)))
+    // Excluded: tracked by Nehir.
+    snapshot.append(makeWindowServerSnapshotEntry(windowId: 940, layer: 0, appKitFrame: frame(forWindowId: 940)))
+    // Excluded: smaller than the 80x80 floor.
+    snapshot.append(makeWindowServerSnapshotEntry(windowId: 9002, layer: 0, appKitFrame: CGRect(x: 9002, y: 100, width: 50, height: 50)))
+    // Excluded: off-screen.
+    snapshot.append(makeWindowServerSnapshotEntry(windowId: 9003, layer: 0, appKitFrame: frame(forWindowId: 9003), onscreen: false))
+
+    let frames = WMController.visibleUnmanagedWindowServerFrames(
+        trackedWindowIds: [940],
+        snapshot: snapshot
+    )
+
+    #expect(frames.count == accepted.count)
+    // Every returned frame is one we expect, and every expected frame is present —
+    // i.e. exactly the accepted window IDs survived, none of the rejected ones.
+    #expect(Set(frames) == expectedFrames)
+}
+
+@Test @MainActor func visibleUnmanagedWindowServerFramesExcludesSystemChrome() {
+    // System chrome — Notification Center (`com.apple.notificationcenterui`), Dock,
+    // Control Center — runs at `.accessory` / `.prohibited` activation policy and is
+    // typically a full-screen transparent event surface. It must NOT be treated as an
+    // occluder, or every focus-follows-mouse evaluation and trackpad gesture would be
+    // suppressed across the whole display while a notification banner is visible.
+    // Real overlay windows (Ghostty's Quick terminal) belong to `.regular` apps.
+    let coveringFrame = CGRect(x: 100, y: 100, width: 200, height: 200)
+    let snapshot: [[String: Any]] = [
+        // Ghostty-like real overlay: regular app → occludes.
+        makeWindowServerSnapshotEntry(windowId: 5001, layer: 3, appKitFrame: coveringFrame, ownerPid: 897),
+        // Notification Center: full-screen, layer 0, accessory app → must be ignored.
+        makeWindowServerSnapshotEntry(windowId: 5002, layer: 0, appKitFrame: coveringFrame, ownerPid: 886),
+        // Dock: accessory → ignored.
+        makeWindowServerSnapshotEntry(windowId: 5003, layer: 20, appKitFrame: coveringFrame, ownerPid: 900)
+    ]
+    let policyByPid: [pid_t: NSApplication.ActivationPolicy] = [
+        897: .regular,    // Ghostty
+        886: .accessory,  // Notification Center
+        900: .prohibited  // Dock
+    ]
+
+    let frames = WMController.visibleUnmanagedWindowServerFrames(
+        trackedWindowIds: [],
+        snapshot: snapshot,
+        activationPolicyProvider: { pid in policyByPid[pid] }
+    )
+    #expect(frames.count == 1)
+}
+
+@Test @MainActor func trackpadGestureIgnoresSystemNotificationWindow() async {
+    // Regression for the freeze: while a system notification is visible the
+    // Notification Center window covers the whole display at layer 0. It must not
+    // suppress the trackpad column-navigation gesture — only real app overlays do.
+    let fixture = await prepareMouseWheelScrollFixture()
+    let controller = fixture.controller
+
+    controller.unmanagedWindowServerWindowFramesProvider = { [weak controller] excludedWindowIds in
+        guard let controller else { return [] }
+        return WMController.visibleUnmanagedWindowServerFrames(
+            trackedWindowIds: excludedWindowIds,
+            snapshot: controller.windowServerSnapshotProvider(),
+            activationPolicyProvider: controller.windowOwnerActivationPolicyProvider
+        )
+    }
+    // Notification Center: full-screen, layer 0, owned by an `.accessory` app.
+    controller.windowOwnerActivationPolicyProvider = { pid in
+        pid == 886 ? .accessory : .regular
+    }
+    let fullScreen = CGRect(x: 0, y: 0, width: 1920, height: 1080)
+    controller.windowServerSnapshotProvider = {
+        [makeWindowServerSnapshotEntry(windowId: 18, layer: 0, appKitFrame: fullScreen, ownerPid: 886)]
+    }
+
+    // Not an occluder despite covering the pointer everywhere...
+    #expect(controller.unmanagedWindowServerWindowCovers(point: fixture.location) == false)
+    // ...so the gesture still commits.
+    sendCommittingTrackpadGesture(to: fixture.handler, at: fixture.location)
+    #expect(fixture.handler.state.gesturePhase == .committed)
+}
+
+@Test @MainActor func focusFollowsMouseDoesNotActivateTiledWindowWhileFloatingWindowIsVisible() async {
         let controller = makeMouseEventTestController()
         controller.enableNiriLayout()
         await controller.layoutRefreshController.waitForRefreshWorkForTests()

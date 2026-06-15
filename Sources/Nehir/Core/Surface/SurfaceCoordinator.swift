@@ -64,6 +64,15 @@ final class SurfaceCoordinator {
         scene.contains(windowNumber: windowNumber)
     }
 
+    /// Window numbers of currently-visible Nehir-owned surfaces registered as
+    /// `.passthrough` (e.g. the focus border). These overlay real tiles but pass
+    /// clicks through, so they must not be treated as unmanaged occluders by the
+    /// focus-follows-mouse suppression check — otherwise FFM is suppressed over
+    /// the very tile the border decorates.
+    var passthroughSurfaceWindowNumbers: Set<Int> {
+        scene.passthroughSurfaceWindowNumbers
+    }
+
     func containsInteractive(point: CGPoint) -> Bool {
         scene.containsInteractive(point: point)
     }

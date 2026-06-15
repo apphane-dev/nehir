@@ -1358,6 +1358,18 @@ final class MouseEventHandler {
             abortActiveGestureIfNeeded()
             return
         }
+        // Mirror the focus-follows-mouse occlusion rule: when the pointer is over an
+        // on-screen, non-tracked, non-passthrough overlay (e.g. Ghostty's Quick
+        // terminal), the trackpad gesture must not navigate the niri tile behind it.
+        // The gesture tap is listen-only, so the OS already routes the scroll/touch to
+        // the window under the cursor; this guard only skips Nehir's column-navigation
+        // side effect. Nehir's own pass-through surfaces (the focus border) are
+        // excluded by `unmanagedWindowServerWindowCovers`, so gestures still work over
+        // the focused tile.
+        if controller.unmanagedWindowServerWindowCovers(point: location) {
+            abortActiveGestureIfNeeded()
+            return
+        }
         guard !state.isResizing, !state.isMoving else {
             abortActiveGestureIfNeeded()
             return

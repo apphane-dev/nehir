@@ -116,6 +116,13 @@ final class OwnedWindowRegistry {
         surfaceCoordinator.contains(windowNumber: windowNumber)
     }
 
+    /// Window numbers of visible Nehir-owned pass-through surfaces (e.g. the focus
+    /// border). Consumers that treat higher-layer windows as "unmanaged" overlays
+    /// must exclude these, since they overlay real tiles but pass clicks through.
+    var passthroughSurfaceWindowNumbers: Set<Int> {
+        surfaceCoordinator.passthroughSurfaceWindowNumbers
+    }
+
     var hasFrontmostWindow: Bool {
         surfaceCoordinator.hasFrontmostSuppressingWindow
     }

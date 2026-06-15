@@ -1,6 +1,6 @@
 # FFM: Suppress focus-follows-mouse when hovering unmanaged overlay windows
 
-Status: **plan, not yet implemented** — investigation complete, awaiting approval.
+Status: **implemented** — see `.changeset/20260615135853-fixed-ffm-stealing-focus-behind-ghostty-quick-terminal.md`. Implementation notes appended below.
 Owner path: `Sources/Nehir/Core/Controller/{MouseEventHandler,WMController}.swift`
 
 ## TL;DR
@@ -212,3 +212,82 @@ In `Tests/NehirTests/MouseEventHandlerTests.swift`:
 - The `layer == 0` restriction also appears in `AXManager.swift:462` (app
   discovery) and `LayoutRefreshController` (`windowLevel` handling). Those are
   unrelated to FFM and should **not** be changed here; call out in review.
+
+## Implementation notes (post-merge follow-on fixes)
+
+After landing the original `layer >= 0` broadening, three issues surfaced in
+real use and were fixed against the same occlusion predicate. Captured here so
+the user-facing changeset can stay short.
+
+### 1. Exclude Nehir's own pass-through surfaces (the focus border)
+
+Broadening to `layer >= 0` made Nehir's own `BorderWindow` (layer 3, sized to
+the focused tile + padding, registered as a `.border` / `.passthrough` surface)
+count as an unmanaged occluder — suppressing FFM (and, later, gestures) over the
+very tile the border decorates. Fix: surface-coordinator now exposes
+`passthroughSurfaceWindowNumbers` (`SurfaceScene` → `SurfaceCoordinator` →
+`OwnedWindowRegistry`), and `unmanagedWindowServerWindowCovers(point:)` unions
+those numbers into the exclusion set alongside tracked window IDs. The debug
+dump uses the same exclusion. Regression tests:
+`focusFollowsMouseActivatesTileBehindOwnPassthroughBorder`,
+`trackpadGestureStillCommitsOverOwnPassthroughBorder`.
+
+Note (reviewed, deliberately not implemented): a proposal to make
+`passthroughSurfaceWindowNumbers` fall back to the live `NSWindow.windowNumber`
+when `node.windowNumber` is nil is unnecessary — the border is the only
+`.passthrough` surface, is `NSWindow`-less (SkyLight-native, window-number
+only), and its registration is gated on a resolved non-zero window number
+(`BorderManager.syncSurfaceRegistration`). The fallback could never fire.
+
+### 2. Suppress trackpad gestures over the same overlays
+
+The trackpad column-navigation gesture (`handleGestureEvent`) observes the
+system gesture tap, which is `.listenOnly` and always passes the event through —
+the OS already routes the scroll/touch to the window under the cursor. Nehir's
+own column-nav side effect should not fire against the tile *behind* an overlay,
+for the same reason FFM shouldn't. Added a mirror of the FFM occlusion guard
+right after the existing `shouldBlockOwnWindowInput` guard; it reuses
+`unmanagedWindowServerWindowCovers`, so the pass-through-border exclusion comes
+for free. Regression tests: `trackpadGestureSuppressesOverUnmanagedOverlayWindow`,
+`trackpadGestureStillCommitsOverOwnPassthroughBorder`,
+`trackpadGestureIgnoresSystemNotificationWindow`.
+
+### 3. System chrome / Notification Center freeze (the real regression)
+
+When a system notification (e.g. Telegram) appears, the Notification Center
+window (`com.apple.notificationcenterui`, full-screen 2056×1329, layer 0,
+`.accessory` activation policy) becomes on-screen and covers the entire
+display. With the guard from #2 in place, it occluded the pointer everywhere →
+every trackpad gesture frame was aborted → gestures froze completely while any
+notification was visible. This was the bug behind the “I can’t move at all”
+trace.
+
+Fix: the occlusion predicate now only counts windows owned by `.regular`
+activation-policy apps (real foreground overlays like Ghostty). System chrome —
+Notification Center, Dock, Control Center, menu-bar/status items — runs at
+`.accessory` / `.prohibited` policy and is a full-screen transparent event
+surface, so it is excluded. The owner-policy resolver is injectable
+(`windowOwnerActivationPolicyProvider`) for tests; an unresolvable owner
+(synthetic snapshot without an owner PID) is treated as regular so the check
+stays conservative. Regression tests:
+`visibleUnmanagedWindowServerFramesExcludesSystemChrome`,
+`trackpadGestureIgnoresSystemNotificationWindow`.
+
+### 4. Test hardening
+
+`visibleUnmanagedWindowServerFramesIncludesOverlayLayers` originally asserted
+only `frames.count == 5` with all windows sharing one frame — a swapped window
+ID would pass. Each accepted window now carries a distinct (id-derived) frame,
+and the assertion pins both count and the exact surviving frame set
+(`Set(frames) == expectedFrames`).
+
+### Design note: occlusion cost on the hot path
+
+Both the FFM evaluation (per mouse-move) and the gesture guard (per gesture
+frame) now resolve `unmanagedWindowServerWindowCovers(point:)`, which calls the
+snapshot provider (default: a synchronous `CGWindowListCopyWindowInfo`) and runs
+the static predicate. Traces during heavy pointer activity showed notable
+main-thread load (see `mouseMove.replay staleQueued` churn with
+`moveMouseToFocusedWindow` enabled). If this proves expensive in practice, the
+next step is to throttle/cache the snapshot (recompute ≤ ~100 ms) rather than
+re-fetching per event. Not yet implemented — noted as a candidate follow-up.
