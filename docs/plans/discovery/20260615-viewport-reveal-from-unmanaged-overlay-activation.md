@@ -20,7 +20,7 @@ The evidence below is reproduced inline from the runtime trace that first
 exposed this; the log itself is machine-local and should not be relied on.
 
 This is the **viewport-reveal** sibling of the already-planned **FFM** fix
-(`docs/plans/20260615-ffm-suppress-over-unmanaged-overlay-windows.md`). Both have
+(`docs/plans/discovery/20260615-ffm-suppress-over-unmanaged-overlay-windows.md`). Both have
 the same root actor (the Quick Terminal's unmanaged overlay) but travel through
 different code: FFM via `MouseEventHandler`, this one via
 `AXEventHandler.handleAppActivation` → `handleManagedAppActivation` →
@@ -37,7 +37,7 @@ All line numbers reference commit `442e2aa`; re-verify before implementing.
 - **Symptom.** While the user is on display 2 (DELL), opening Ghostty's Quick
   Terminal makes the **display 1 viewport scroll** to a different column, with no
   input directed at display 1. In one reproduction the target workspace isn't
-  even visible at the moment, so the jump surfaces the next time it is shown.
+  even visible, so the jump surfaces the next time it is shown.
   (Multi-monitor reproduction only; the underlying path reproduces on one display
   too — see [Single-display manifestations](#single-display-manifestations).)
 - **Mechanism.** Quick Terminal opens → Ghostty (`pid 897`) becomes frontmost →
@@ -87,7 +87,7 @@ floating layer — see the FFM plan for its `CGWindowLayer` values).
 
 At capture start the user is on display 2:
 
-```
+```log
 interactionWorkspace=BDC7449B-… (workspace 6, display 2)
 interactionMonitor=ID(displayId: 2)
 observedManagedFocus=WindowToken(pid: 33418, windowId: 1692)   // Helium
@@ -95,19 +95,19 @@ observedManagedFocus=WindowToken(pid: 33418, windowId: 1692)   // Helium
 
 Workspace 1 (display 1) viewport is parked showing the right-hand columns:
 `currentViewStart=3186.1` (columns 2/3 — VSCode). It is **not** the active
-workspace on its monitor at this moment (workspace 2 / Telegram is visible on
+currently the active workspace on its monitor (workspace 2 / Telegram is visible on
 display 1): `workspace=1 … visible=false`.
 
 Event log when the Quick Terminal is toggled:
 
-```
+```log
 #3 managed_focus_confirmed token=WindowToken(pid: 897, windowId: 2314)
    workspace=86AD…(ws 1) monitor=Optional(displayId: 1)   ← Ghostty confirmed on display 1
 ```
 
 Viewport trace for workspace 1:
 
-```
+```log
 ax_focus_confirm_before_activate token=w2314 isFFM=false preserveActiveViewport=false
    isGesture=false wasAnimating=false … currentViewStart=3186.1 targetViewStart=3186.1
 ax_focus_confirm_reveal_candidate token=w2314 columnIndex=1
@@ -130,7 +130,7 @@ Here workspace 1 **is** the active/visible workspace on display 1, so the same
 path produces a viewport that animates live on screen while the user is on
 display 2:
 
-```
+```log
 focus_lease_changed owner=native_app_switch reason=workspaceDidActivateApplication   ← app switch
 …
 ax_focus_confirm_* token=WindowToken(pid: 897, windowId: 2314) workspace=1 …
@@ -159,7 +159,7 @@ if let entry = controller.workspaceManager.entry(for: token) { … // entry = w2
 ```
 
 `resolveFocusedAXWindowRef` reads the app's AX `focused window` attribute. The
-Quick Terminal overlay is **not** reported as the AX focused window — Ghostty
+Quick Terminal overlay is **not** reported as the AX-focused window — Ghostty
 keeps that pointing at the main terminal (`w2314`). So the activation is
 attributed to the managed window on display 1, not the overlay the user actually
 opened on display 2. (Contrast: the `getpid()` branch at `:1305` correctly
@@ -228,7 +228,7 @@ Two facts combine into the bug:
   `isWorkspaceActive` gate at `:1863` protects only the *relayout* and
   `startScrollAnimation`. The viewport offset/target write at `:1827`/`:1856`
   happens first, so a non-active workspace still inherits a wrong, animating
-  target — which is exactly what reproduction A shows (`isWorkspaceActive=false`,
+  target — which is what reproduction A shows (`isWorkspaceActive=false`,
   `isAnimating=true`, `targetViewStart=1259.5`).
 
 Net effect: an external app activation that resolves to a managed window on a
