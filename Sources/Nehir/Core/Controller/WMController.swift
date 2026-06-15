@@ -497,15 +497,23 @@ final class WMController {
     private var statusBarRefreshGeneration: Int = 0
 
     private func requestFocusProjectionRefreshScheduling() {
-        requestStatusBarRefreshScheduling(reason: "focusProjection")
+        // Focus changes are only interesting while the status bar is actually
+        // displaying workspace info, so skip them when the feature is off.
+        requestStatusBarRefreshScheduling(reason: "focusProjection", requireFeatureEnabled: true)
     }
 
     private func requestSettingsProjectionRefreshScheduling() {
-        requestStatusBarRefreshScheduling(reason: "settingsProjection")
+        // Settings refreshes must run even when the feature is being turned OFF —
+        // otherwise the status bar never clears its title (it stays until restart).
+        // refreshWorkspaces() applies the current settings, including hiding.
+        requestStatusBarRefreshScheduling(reason: "settingsProjection", requireFeatureEnabled: false)
     }
 
-    private func requestStatusBarRefreshScheduling(reason: String) {
-        guard statusBarRefreshIsEnabled else { return }
+    private func requestStatusBarRefreshScheduling(reason: String, requireFeatureEnabled: Bool) {
+        guard statusBarController != nil else { return }
+        if requireFeatureEnabled {
+            guard settings.statusBarShowWorkspaceName else { return }
+        }
         guard pendingStatusBarRefreshGeneration == nil else { return }
 
         let generation = statusBarRefreshGeneration

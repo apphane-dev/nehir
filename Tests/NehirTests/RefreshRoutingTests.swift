@@ -1092,6 +1092,48 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         #expect(statusBarController.statusButtonTitleForTests() == " 1 \u{2013} Second App")
     }
 
+    @Test @MainActor func disablingStatusBarWorkspaceClearsTitleWithoutRestart() async {
+        // Regression: turning "Show Workspace" off must clear the status bar title
+        // immediately. Previously the settings refresh was gated on the feature being
+        // enabled, so the clearing refresh never ran and the title persisted until restart.
+        let controller = makeRefreshTestController()
+        controller.settings.workspaceBarEnabled = false
+        controller.settings.statusBarShowWorkspaceName = true
+
+        guard let monitor = controller.monitorForInteraction(),
+              let workspaceId = controller.interactionWorkspace()?.id
+        else {
+            Issue.record("Missing active workspace for status bar disable test")
+            return
+        }
+
+        let token = controller.workspaceManager.addWindow(
+            makeRefreshTestWindow(windowId: 601),
+            pid: 601,
+            windowId: 601,
+            to: workspaceId
+        )
+        controller.appInfoCache.storeInfoForTests(pid: 601, name: "Test App", bundleId: "com.example.test")
+        _ = controller.workspaceManager.setManagedFocus(token, in: workspaceId, onMonitor: monitor.id)
+
+        let statusBarController = makeRefreshTestStatusBarController(controller)
+        defer {
+            statusBarController.cleanup()
+            cleanupRefreshTestController(controller)
+        }
+        statusBarController.setup()
+        await controller.waitForStatusBarRefreshForTests()
+        #expect(statusBarController.statusButtonTitleForTests() == " 1")
+
+        controller.resetWorkspaceBarRefreshDebugStateForTests()
+        controller.settings.statusBarShowWorkspaceName = false
+        controller.requestSettingsProjectionRefresh(reason: "statusBarShowWorkspaceName")
+        await controller.waitForStatusBarRefreshForTests()
+
+        #expect(statusBarController.statusButtonTitleForTests() == "")
+        #expect(statusBarController.statusButtonImagePositionForTests() == .imageOnly)
+    }
+
     @Test @MainActor func interactionMonitorChangeOnUnassignedThirdDisplayDoesNotRecurseAfterMonitorExpansion() async {
         let controller = makeRefreshTestController(
             workspaceConfigurations: [
