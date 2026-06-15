@@ -15,31 +15,166 @@ All file references should be re-verified before implementing; line numbers drif
 
 ## TL;DR
 
-- **Confirmed reproducible** from a runtime trace capture (nehir v0.5.0,
-  2026-06-15, 11:29:41Z–11:29:47Z). A new **Ghostty** window (`pid 897`,
-  `windowId 2318`) was admitted to **workspace 1 on the main monitor (display
-  1)** while the user's interaction monitor and confirmed focus were on the
-  **secondary monitor (display 2)**.
-- Placement for a new tiling window is decided in
-  `WMController.resolveWorkspacePlacement` (`WMController.swift:1008`) →
-  `createPlacementTarget` (`:1205`) from a snapshot captured at
-  `CGSWindowCreated` time (`AXEventHandler.captureCreatePlacementContext`,
-  `:3356`). Seven inputs feed one strict-priority decision; the existing dump
-  shows only the result.
-- **Most likely cause (H1):** a native app-switch into Ghostty
-  (`focus_lease owner=native_app_switch reason=workspaceDidActivateApplication`)
-  left a pending managed focus request pointing at Ghostty's *existing* window
-  on display 1. `activeFocusRequestWorkspaceId` is checked **first** in
-  `createPlacementTarget`, so the new window inherited display 1 — overriding
-  the live interaction monitor (display 2) and confirmed focus (Telegram).
-- **Cannot be fully disambiguated from the current trace** because the
-  decisive event (`create_placement_resolved`) is not written to the dump. That
-  is exactly what step 1 fixes. The evidence below narrows it to H1 vs H2
-  (native-Space input) with H1 favored.
-- **Likely fix direction:** when placing a *brand-new* window, do not let an
-  app-switch-induced `activeFocusRequest*` (or the native-Space input) override
-  the live `interactionMonitorId` / confirmed focus when they disagree. Details
-  in [Fix direction](#fix-direction-pending-step-1-confirmation).
+> **Updated after step 1 landed** (2026-06-15, second capture set). The new
+> `## Niri create focus trace` section wrote `create_placement_resolved` to
+> the dump and **refuted both original hypotheses**. See
+> [Step 1 confirmed — root cause revised](#step-1-confirmed--root-cause-revised-2026-06-15).
+
+- **Root cause (H4, confirmed by tracing):** for every new Ghostty window
+  captured with the new tracing, **all** snapshotted placement inputs are
+  `nil` (`pending_workspace`, `pending_monitor`, `focused_workspace`,
+  `focused_monitor`, `native_monitor`, `interaction_monitor`; only
+  `frame_monitor` is occasionally non-nil). With the snapshot empty,
+  `createPlacementTarget` falls straight through every priority branch to its
+  final fallback, `fallbackWorkspaceId` (`WMController.swift:1271`), which is
+  the **live** `interactionWorkspace()?.id` (`WMController.swift:2953`).
+  `interactionWorkspace()` → `monitorForInteraction()` (`WMController.swift:922`)
+  returns `monitors.first` — i.e. the **main** display, because
+  `Monitor.current()` is built from `NSScreen.screens` whose index 0 is the
+  main screen (`Monitor.swift:19`) — whenever `interactionMonitorId` **and**
+  `confirmedManagedFocusToken` are both nil. That is exactly the transient
+  state left behind by the app-switch / non-managed-focus churn. So a
+  brand-new window is placed on the **main monitor regardless of where the
+  user actually is.**
+- `monitorForInteraction()` consults `interactionMonitorId`, then the focused
+  token's monitor, then `monitors.first` — it **never** consults
+  `previousInteractionMonitorId` (`WorkspaceManager.swift:166`), which exists
+  precisely to remember the monitor across such a transient clear. That gap is
+  the bug.
+- The earlier reasoning (H1 favored) was a best-effort read of a dump that
+  lacked `create_placement_resolved`; the `native_app_switch` lease observed in
+  the first capture was a *consequence* of where focus ended up, not the
+  *cause* of placement.
+- **Fix direction (revised, surgical):** make `monitorForInteraction()` prefer
+  `previousInteractionMonitorId` over the bare `monitors.first` fallback, so
+  the new-window placement path preserves the last-known monitor across the
+  transient clear. See [Fix direction (revised)](#fix-direction-revised-after-step-1).
+
+The sections below this point are the **original step-2 investigation**,
+preserved for context. The section above and the
+[Step 1 confirmed](#step-1-confirmed--root-cause-revised-2026-06-15) section
+supersede the H1/H2/H3 hypotheses.
+
+---
+
+## Step 1 confirmed — root cause revised (2026-06-15)
+
+Step 1 landed (the runtime dump now includes a `## Niri create focus trace`
+section that writes `create_placement_resolved`). Two captures taken with it
+built (nehir v0.5.0, build `v92ab0c`) contain the decisive event for three
+separate new **Ghostty** windows. All findings are inlined below; nothing in
+this section depends on a trace file surviving.
+
+### Monitor topology (identical in both captures, unchanged across each)
+
+```
+ID(displayId: 1) isMain=true  hasNotch=true  frame=(0.0, 0.0, 2056.0, 1329.0)
+    visibleFrame=(0.0, 0.0, 2056.0, 1290.0) name=Built-in Retina Display
+ID(displayId: 2) isMain=false hasNotch=false frame=(-282.0, 1329.0, 2560.0, 1440.0)
+    visibleFrame=(-282.0, 1329.0, 2560.0, 1440.0) name=DELL P2423D
+```
+
+Workspace → monitor mapping (stable, from `-- Niri Viewports --`):
+- **workspace 1** = `7BDEC9B0-C9A1-4CE7-8D55-81C7B311923E` → **display 1**
+- **workspace 6** = `732AF6A9-86E9-44A5-BB39-BD8BAFAE75CD` → **display 2**
+
+Display 1 is `isMain`. `monitors.first` therefore resolves to display 1
+(`Monitor.current()` is `NSScreen.screens`, whose index 0 is the main screen —
+`Monitor.swift:19`).
+
+### The decisive evidence: `create_placement_resolved` with an empty snapshot
+
+Capture A (startedAt `2026-06-15T17:47:13Z`, duration 6.844 s). At START the
+user was on display 1 (`focus focused=897:4920`,
+`interaction current=ID(displayId: 1)`). The new Ghostty window `897:5045`
+resolved with **every** input nil:
+
+```
+create_placement_resolved token=WindowToken(pid: 897, windowId: 5045)
+  workspace=7BDEC9B0-C9A1-4CE7-8D55-81C7B311923E
+  pending_workspace=nil pending_monitor=nil
+  focused_workspace=nil focused_monitor=nil
+  native_monitor=nil frame_monitor=nil interaction_monitor=nil
+```
+
+Capture B (startedAt `2026-06-15T17:48:48Z`, duration 7.783 s). At START the
+focus was non-managed (`focus focused=nil`, `non-managed-focus=true`,
+`interaction current=ID(displayId: 1)`). Two more Ghostty windows resolved
+the same way:
+
+```
+create_placement_resolved token=WindowToken(pid: 897, windowId: 5060)
+  workspace=7BDEC9B0-C9A1-4CE7-8D55-81C7B311923E
+  pending_workspace=nil pending_monitor=nil
+  focused_workspace=nil focused_monitor=nil
+  native_monitor=nil frame_monitor=nil interaction_monitor=nil
+
+create_placement_resolved token=WindowToken(pid: 897, windowId: 5070)
+  workspace=7BDEC9B0-C9A1-4CE7-8D55-81C7B311923E
+  pending_workspace=nil pending_monitor=nil
+  focused_workspace=nil focused_monitor=nil
+  native_monitor=nil
+  frame_monitor=Optional(Nehir.Monitor.ID(displayId: 1)) interaction_monitor=nil
+```
+
+All three resolved to workspace 1 (display 1). For `5070` the only non-nil
+input is `frame_monitor=display 1`, which is just the window's own birth frame
+— it was born on display 1's geometry, so it is consistent with the main
+monitor, not an independent signal. The matching reconcile snapshot at the
+end of capture B confirms the result: `5070` tiled at
+`liveAXFrame={{1336.0, 0.0}, {1006.0, 1280.0}}` on `monitor=ID(displayId: 1)`.
+
+### What this refutes and what it proves
+
+| Hypothesis | Status | Evidence |
+|---|---|---|
+| **H1** pending managed focus from app switch wins | **Refuted** | `pending_workspace=nil`, `pending_monitor=nil` in all 3 events. The app-switch lease did **not** leave a pending request at capture time. |
+| **H2** native Space input wins | **Refuted** | `native_monitor=nil` in all 3 events. `resolveNativeSpacePlacementMonitorId` returned nil. |
+| **H3** same-app sibling preference | N/A (downstream) | Only fires off a `workspaceName` rule / authoritative target; none of the snapshot inputs produced an authoritative target. |
+| **H4 (new, confirmed)** empty snapshot → live fallback → `monitors.first` | **Confirmed** | All snapshot inputs nil ⇒ `createPlacementTarget` reaches its final `fallbackWorkspaceId` branch ⇒ `interactionWorkspace()?.id` ⇒ `monitorForInteraction()` ⇒ `monitors.first` (main). |
+
+### The mechanism, cited
+
+1. `createPlacementTarget` (`WMController.swift:1195`) tries, in order:
+   `activeFocusRequest*`, `focused*` (both via `managedFocusPlacementTarget`,
+   `:1237`), `nativeSpaceMonitorId` (`:1257`), frame monitor (`:1266`),
+   multi-monitor fast-AX frame (`:1274`), and only then (for new tiling,
+   since `preferManagedFocusPlacement` already ran) `interactionMonitorId`
+   (`:1260`), and finally `fallbackWorkspaceId` (`:1271`). With every
+   snapshotted input nil and no usable frame, **only the last branch fires**.
+2. `fallbackWorkspaceId` is `interactionWorkspace()?.id`, supplied live at the
+   call site (`WMController.swift:2953`) — not snapshotted.
+3. `interactionWorkspace()` (`WMController.swift:957`) → `monitorForInteraction()`
+   (`WMController.swift:922`) falls back to `monitors.first` when both
+   `interactionMonitorId` and `confirmedManagedFocusToken` are nil. It does
+   **not** consult `previousInteractionMonitorId` (`WorkspaceManager.swift:166`).
+4. So a new window, created during the transient post-app-switch window where
+   focus/interaction state is cleared, is placed on the **main monitor** no
+   matter where the user is.
+
+### Why the reconcile snapshot still shows `interaction current=ID(displayId: 1)`
+
+`captureCreatePlacementContext` reads the **raw** `interactionMonitorId` on the
+main actor (`AXEventHandler.swift:3404`; `AXEventHandler` is `@MainActor` at
+`:141`), and that raw value is `nil` at `CGSWindowCreated` time. The reconcile
+snapshot, by contrast, runs `reconcileInteractionMonitorState`
+(`WorkspaceManager.swift:3972`) which **writes back** a derived value —
+`interactionMonitorId ?? focusedWorkspaceMonitor ?? monitors.first?.id` — so
+the dump shows display 1 even when the raw value was nil. This is why the
+snapshot and the `create_placement_resolved` `interaction_monitor` field
+disagree: the former is reconciled, the latter is the raw capture.
+
+### Caveat on these two captures
+
+In **both** new captures the user was already on display 1, so placing the new
+Ghostty window on display 1 was *not* a visible misplacement — the symptom was
+**latent**. What the captures prove is the **mechanism**: a real new window
+funnels through the empty-snapshot → `monitors.first` fallback. In the original
+repro (user on display 2) the identical mechanism routes the window to display
+1 — that is the reported bug. The remaining open question is *what* on the main
+actor clears the raw `interactionMonitorId` to nil during the app-switch
+sequence (see [Open questions](#open-questions-for-step-1-output)); the fix
+below is robust to it regardless.
 
 ---
 
@@ -283,7 +418,59 @@ chose — it is downstream of H1/H2, not an independent cause.
 
 ---
 
-## Fix direction (pending step 1 confirmation)
+## Fix direction (revised after step 1)
+
+**Primary fix (confirmed root cause H4):** the new-window placement fallback
+resolves to `monitors.first` because `monitorForInteraction()`
+(`WMController.swift:922`) ignores `previousInteractionMonitorId`. Make it
+consult the previous monitor before falling back to `monitors.first`:
+
+```swift
+func monitorForInteraction() -> Monitor? {
+    if let interactionMonitorId = workspaceManager.interactionMonitorId,
+       let monitor = workspaceManager.monitor(byId: interactionMonitorId) {
+        return monitor
+    }
+    // NEW: preserve the last-known monitor across a transient clear
+    if let previousInteractionMonitorId = workspaceManager.previousInteractionMonitorId,
+       let monitor = workspaceManager.monitor(byId: previousInteractionMonitorId) {
+        return monitor
+    }
+    if let focusedToken = workspaceManager.confirmedManagedFocusToken,
+       let workspaceId = workspaceManager.workspace(for: focusedToken),
+       let monitor = workspaceManager.monitor(for: workspaceId) {
+        return monitor
+    }
+    return workspaceManager.monitors.first
+}
+```
+
+This is the smallest change that fixes the reported case: in the original
+repro the user was on display 2, so `previousInteractionMonitorId` would hold
+display 2 at the moment the new window's snapshot is empty, and the fallback
+would place the window on display 2 instead of snapping to main.
+
+`previousInteractionMonitorId` is already maintained by `updateInteractionMonitor`
+(`WorkspaceManager.swift:3939`) whenever the monitor changes, and it is exposed
+in the dump as `previous-interaction-monitor`, so the fix is low-risk and
+observable. Add a regression test on the inlined scenario (two monitors,
+confirmed focus + interaction on display 2, app-switch into an app whose
+existing window is on display 1, spawn a new window, assert the resolved
+workspace is on display 2) near
+`Tests/NehirTests/AXEventHandlerTests.swift:9703`.
+
+A narrower alternative is to make only `createPlacementTarget`'s final
+`fallbackWorkspaceId` branch consult `previousInteractionMonitorId`, but fixing
+`monitorForInteraction()` is preferred because the fallback chain is shared by
+all interaction-monitor consumers, and they have the same blind spot.
+
+---
+
+The candidate fixes below are the **original (pre-step-1) options**, retained
+for context. They were predicated on H1/H2 and are now **moot** — step 1
+proved the snapshot inputs were nil, so none of them was the winning input.
+
+## Fix direction (pending step 1 confirmation) — historical
 
 These are candidate fixes, to be selected after step 1 names the winning input.
 All touch `createPlacementTarget` / `resolveWorkspacePlacement`
@@ -330,12 +517,24 @@ test, `:9703`) are the right neighbourhood to extend.
 
 ## Open questions for step 1 output
 
-1. In the repro `create_placement_resolved` line for `897:2318`, which input
-   equals the resolved `workspace=45A8DBE4`? (Decides H1 vs H2 vs H3.)
-2. At snapshot time, was `activeFocusRequestWorkspaceId` non-nil, and did it
-   equal `45A8DBE4`? (Confirms/refutes H1 directly.)
-3. Was `focusedWorkspaceId` nil at snapshot time (as `#1` suggests)? (Confirms
-   the "focused workspace" input was disabled.)
-4. What set the pending managed focus request — which call site during
-   `workspaceDidActivateApplication`? Trace through `handleAppActivation` and
-   `beginManagedFocusRequest` to name it for the fix.
+**Answered (2026-06-15, second capture):**
+
+1. ✅ Which input equals the resolved workspace? **None of the snapshotted
+   inputs.** All of `pending_*`, `focused_*`, `native_monitor`,
+   `interaction_monitor` are `nil` (only `frame_monitor` non-nil for one
+   window, and only because it was born on display 1). The decision is made by
+   the **live fallback** `fallbackWorkspaceId = interactionWorkspace()?.id`,
+   which degenerates to `monitors.first` (main). ⇒ H4, H1 and H2 refuted.
+2. ✅ Was `activeFocusRequestWorkspaceId` non-nil / equal to the resolved
+   workspace? **No — `pending_workspace=nil`.** Refutes H1 outright.
+3. ✅ Was `focusedWorkspaceId` nil at snapshot time? **Yes —
+   `focused_workspace=nil`, `focused_monitor=nil`.** The "focused workspace"
+   input was disabled in all three events.
+4. ⬜ (still open, secondary) **What clears the raw `interactionMonitorId` to
+   nil on the main actor right before these `CGSWindowCreated` events?**
+   `StateReducer.nonManagedFocusChanged` (`StateReducer.swift:340`) does **not**
+   touch it, so the nil comes from an `updateInteractionMonitor(nil, …)` call
+   elsewhere in the `workspaceDidActivateApplication` / `focusedWindowChanged`
+   churn. Name that call site. Note: the proposed fix via
+   `previousInteractionMonitorId` is correct regardless of the answer, but
+   identifying the writer would let us also stop the spurious clear.
