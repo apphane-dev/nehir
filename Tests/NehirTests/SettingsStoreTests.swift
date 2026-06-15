@@ -317,7 +317,7 @@ struct SettingsExportTests {
         #expect(defaults.niriLoneWindowMaxWidth == nil)
         #expect(defaults.niriDefaultColumnWidth == nil)
         #expect(defaults.workspaceConfigurations == BuiltInSettingsDefaults.workspaceConfigurations)
-        #expect(defaults.bordersEnabled == true)
+        #expect(defaults.bordersEnabled == false)
         #expect(defaults.borderWidth == 5.0)
         #expect(defaults.borderColorRed == 0.084585202284378935)
         #expect(defaults.borderColorGreen == 1.0)

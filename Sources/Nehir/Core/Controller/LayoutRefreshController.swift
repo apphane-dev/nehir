@@ -663,6 +663,9 @@ import QuartzCore
         affectedWorkspaceIds: Set<WorkspaceDescriptor.ID> = [],
         postLayout: PostLayoutAction? = nil
     ) {
+        // Onboarding suppresses all layout activity so the wizard never moves windows.
+        // On completion, startServices() → performStartupRefresh() issues a full rescan.
+        if controller?.onboardingActive == true { return }
         switch reason.route {
         case .fullRescan:
             assert(affectedWorkspaceIds.isEmpty, "Full rescan refreshes ignore affected workspace IDs")

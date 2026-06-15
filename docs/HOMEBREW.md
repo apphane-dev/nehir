@@ -78,16 +78,15 @@ The workflow will:
 1. Read pending `.changeset/*.md` files.
 2. Calculate the next app version from the latest stable semantic version tag and the highest pending bump type, falling back to `Info.plist` only when no stable tag exists.
 3. Stamp `CFBundleShortVersionString` in the workflow working tree only.
-4. Generate `docs/releases/vX.Y.Z.md` in the workflow working tree only.
-5. Build, sign, and notarize `dist/Nehir-X.Y.Z.zip`.
-6. Create tag `vX.Y.Z` on the source commit after the signed/notarized build succeeds.
-7. Create the GitHub Release using the generated release notes.
-8. Compute the release ZIP SHA-256.
-9. Update `Guria/homebrew-tap/Casks/nehir.rb` with the new version and checksum.
-10. Commit and push the tap update.
-11. Clear consumed pending changesets from `main` after publishing succeeds.
+4. Build, sign, and notarize `dist/Nehir-X.Y.Z.zip`.
+5. Create tag `vX.Y.Z` on the source commit after the signed/notarized build succeeds.
+6. Create the GitHub Release with notes rendered from the pending changesets.
+7. Compute the release ZIP SHA-256.
+8. Update `Guria/homebrew-tap/Casks/nehir.rb` with the new version and checksum.
+9. Commit and push the tap update.
+10. Clear consumed pending changesets from `main` after publishing succeeds.
 
-If any publishing step fails before changeset cleanup, pending changesets remain in `.changeset/` so the release can be retried safely. Release tags are created only after the signed and notarized build succeeds. `Info.plist` and generated release notes are not committed during release prep; they are stamped in the workflow workspace only, so failed runs do not advance the source version.
+If any publishing step fails before changeset cleanup, pending changesets remain in `.changeset/` so the release can be retried safely. Release tags are created only after the signed and notarized build succeeds. `Info.plist` is not committed during release prep; it is stamped in the workflow workspace only, so failed runs do not advance the source version.
 
 The workflow uploads a short-lived notarization resume artifact immediately after submitting to Apple. If the wait step times out but the submission later completes, rerun the workflow with `resume_notary_run_id` set to the previous workflow run ID. The rerun downloads the exact submitted `Nehir-notary.zip`, waits on the existing Apple submission ID from the artifact, staples it, and continues publishing without creating a new notarization submission.
 
@@ -143,7 +142,7 @@ Run the changeset coverage check:
 mise run changeset:check
 ```
 
-Generate release notes manually only for debugging the release workflow:
+Render the release notes to stdout:
 
 ```bash
 mise run release:notes -- 0.2.2

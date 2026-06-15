@@ -109,7 +109,7 @@ extension SettingsExport {
             niriColumnWidthPresets: BuiltInSettingsDefaults.niriColumnWidthPresets,
             niriDefaultColumnWidth: nil,
             workspaceConfigurations: BuiltInSettingsDefaults.workspaceConfigurations,
-            bordersEnabled: true,
+            bordersEnabled: false,
             borderWidth: 5.0,
             borderColorRed: 0.084585202284378935,
             borderColorGreen: 1.0,

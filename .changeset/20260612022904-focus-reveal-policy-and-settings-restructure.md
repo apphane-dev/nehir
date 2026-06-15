@@ -4,11 +4,25 @@
 
 Redesigned Niri viewport navigation around snap points instead of explicit centering and legacy reveal controls.
 
-**Breaking changes**:
+**Breaking changes** — the following config keys are removed and no longer accepted. Migrate them to the new `[niri]` `revealPartial` setting:
 
-- Removed the old `scroll-reveal`, `center-focused-column`, and `always-center-single-column` settings.
+| Removed key (was in `[niri]`) | Migrate to |
+| --- | --- |
+| `centerFocusedColumn = "never"` | remove it, or set `revealPartial = "off"` |
+| `centerFocusedColumn = "onOverflow"` | `revealPartial = "default"` (closest equivalent) |
+| `centerFocusedColumn = "always"` | `revealPartial = "snapCenter"` |
+| `alwaysCenterSingleColumn = true` | `revealPartial = "snapCenter"` |
+| `alwaysCenterSingleColumn = false` | `revealPartial = "default"` (or remove it) |
+
+| Removed key (was in `[gestures]`) | Migrate to |
+| --- | --- |
+| `scrollSnap = true` | remove it — snap is now always driven by the snap grid. To temporarily bypass snap during a scroll, hold the **Mouse Modifier** key. |
+| `scrollSnap = false` | remove it — there is no longer a global disable toggle; use the Mouse Modifier to bypass snap per-gesture, and `revealPartial` to control reveal-on-focus. |
+
+The new `[niri]` `revealPartial` accepts: `default`, `off`, `snapClosest`, `snapCenter`.
+
 - Removed explicit center commands from hotkeys, IPC, command handling, and the action catalog. Centering is now produced by the snap grid when a center snap point is the selected target.
-- Removed per-monitor overrides for the removed viewport navigation settings.
+- Removed per-monitor overrides for the removed viewport navigation settings (`niriCenterFocusedColumn`, `niriAlwaysCenterSingleColumn`, and the gesture `scrollSnap`). There is no per-monitor equivalent for these keys.
 
 Added **Reveal Partial** in Gestures & Focus → Navigation. It controls what happens when focus moves to a partially visible column:
 

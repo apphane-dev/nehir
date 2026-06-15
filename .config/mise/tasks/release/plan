@@ -117,7 +117,6 @@ else:
         raise SystemExit("PRERELEASE_SUFFIX requires PRERELEASE=true")
     version = base_version
 tag = f"v{version}"
-notes = f"docs/releases/{tag}.md"
 zip_path = f"dist/Nehir-{version}.zip"
 
 github_output = os.environ.get("GITHUB_OUTPUT")
@@ -128,7 +127,6 @@ if github_output:
         output.write(f"base_version={base_version}\n")
         output.write(f"version={version}\n")
         output.write(f"tag={tag}\n")
-        output.write(f"notes={notes}\n")
         output.write(f"zip={zip_path}\n")
 
 print(f"current_version={current}")
@@ -136,6 +134,5 @@ print(f"bump={bump}")
 print(f"base_version={base_version}")
 print(f"version={version}")
 print(f"tag={tag}")
-print(f"notes={notes}")
 print(f"zip={zip_path}")
 PY

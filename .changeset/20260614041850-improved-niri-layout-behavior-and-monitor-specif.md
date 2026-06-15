@@ -5,8 +5,11 @@
 
 Breaking: improved Niri layout behavior and monitor-specific layout settings with a simplified configuration model.
 
-- **Breaking:** renamed the Niri balanced-width config from `maxVisibleColumns` / `niriMaxVisibleColumns` to `balancedColumnCount` / `niriBalancedColumnCount`. Old keys are not migrated or accepted.
-- **Breaking:** replaced the old single-window aspect-ratio config with **Lone Window** policy. Use `Fill` for full working-area lone windows, or `Centered(width)` for capped centered lone windows.
+- **Breaking:** renamed the Niri balanced-width config from `maxVisibleColumns` / `niriMaxVisibleColumns` (in `[niri]` / per-monitor overrides) to `balancedColumnCount` / `niriBalancedColumnCount`. Old keys are not migrated or accepted — update them manually, e.g. `maxVisibleColumns = 2` → `balancedColumnCount = 2` (and `niriMaxVisibleColumns` → `niriBalancedColumnCount` in monitor overrides).
+- **Breaking:** replaced the old `[niri]` `singleWindowAspectRatio` (and per-monitor `niriSingleWindowAspectRatio`) config with the **Lone Window** policy. There is no 1:1 aspect-ratio equivalent; express the intent through the new keys:
+  - `singleWindowAspectRatio = "none"` (Fill) → `loneWindowPolicy = "fill"`
+  - Any ratio (`"16:9"`, `"4:3"`, `"21:9"`, `"1:1"`) → `loneWindowPolicy = "centered"` plus `loneWindowMaxWidth = <fraction 0.0–1.0>`, where the fraction is now of the monitor working-area width (e.g. `loneWindowMaxWidth = 0.5` for half width). The fixed aspect-ratio presets no longer exist.
+  - In per-monitor overrides use `loneWindowPolicy` / `loneWindowMaxWidth` (the `niriSingleWindowAspectRatio` key is gone).
 - Added per-monitor spacing overrides in Layout settings. You can now customize **Inner Gap** and per-edge **Screen Margins** separately for each display, while leaving individual values set to **Use Global** when you want them to inherit the global defaults.
 - Added explicit per-monitor **Lone Window** overrides. Each monitor can now use **Use Global**, **Fill**, or **Centered** with its own centered width, so a display can intentionally force Fill even when the global default is Centered.
 - Fixed lone-window layouts after monitor changes. When a constrained single window is left alone on a smaller or different display, Nehir now keeps it inside the monitor’s visible area instead of letting it leak offscreen.

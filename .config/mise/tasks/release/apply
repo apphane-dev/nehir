@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
-#MISE description="Apply release plan by updating Info.plist and release notes"
+#MISE description="Stamp Info.plist with the release version"
 #USAGE arg "<version>" help="Release version, with or without leading v"
-#USAGE flag "--since-tag <tag>" help="Only include changesets added since this tag (for prerelease diffs)"
 set -euo pipefail
 
 VERSION="${usage_version:-${1:-}}"
 if [ -z "$VERSION" ]; then
-  echo "Usage: mise run release:apply -- <version> [--since-tag <tag>]" >&2
+  echo "Usage: mise run release:apply -- <version>" >&2
   exit 1
 fi
 VERSION="${VERSION#v}"
@@ -15,15 +14,3 @@ ROOT_DIR="$(git rev-parse --show-toplevel)"
 cd "$ROOT_DIR"
 
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $BASE_VERSION" Info.plist
-
-NOTES_FILE="docs/releases/v$VERSION.md"
-if [ ! -f "$NOTES_FILE" ]; then
-  NOTES_ARGS=("$VERSION")
-  SINCE_TAG="${usage_since_tag:-}"
-  if [ -n "$SINCE_TAG" ]; then
-    NOTES_ARGS+=("--since-tag" "$SINCE_TAG")
-  fi
-  mise run release:notes -- "${NOTES_ARGS[@]}"
-else
-  echo "Release notes already exist: $NOTES_FILE"
-fi

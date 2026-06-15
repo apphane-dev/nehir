@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#MISE description="Generate docs/releases/vX.Y.Z.md from pending changesets"
+#MISE description="Render release notes from pending changesets to stdout"
 #USAGE arg "<version>" help="Release version, with or without leading v"
 #USAGE flag "--since-tag <tag>" help="Only include changesets added since this tag (for prerelease diffs)"
 set -euo pipefail
@@ -14,8 +14,6 @@ fi
 TAG="v${VERSION#v}"
 ROOT_DIR="$(git rev-parse --show-toplevel)"
 CHANGESET_DIR="$ROOT_DIR/.changeset"
-RELEASE_DIR="$ROOT_DIR/docs/releases"
-NOTES_FILE="$RELEASE_DIR/$TAG.md"
 
 # Collect only changesets added since --since-tag (if provided)
 SINCE_TAG="${usage_since_tag:-}"
@@ -53,16 +51,15 @@ FILE_LIST=$(mktemp)
 printf '%s\n' "${INCLUDED_FILES[@]}" > "$FILE_LIST"
 trap 'rm -f "$FILE_LIST"' EXIT
 
-python3 - "$CHANGESET_DIR" "$NOTES_FILE" "$TAG" "$FILE_LIST" <<'PY'
+python3 - "$CHANGESET_DIR" "$TAG" "$FILE_LIST" <<'PY'
 from pathlib import Path
 import os
 import re
 import sys
 
 changeset_dir = Path(sys.argv[1])
-notes_file = Path(sys.argv[2])
-tag = sys.argv[3]
-file_list = Path(sys.argv[4])
+tag = sys.argv[2]
+file_list = Path(sys.argv[3])
 bypass_notarization = os.environ.get("RELEASE_BYPASS_NOTARIZATION", "false").lower() == "true"
 
 files = [Path(line.strip()) for line in file_list.read_text().splitlines() if line.strip()]
@@ -241,11 +238,8 @@ lines += [
     "",
 ]
 
-notes_file.parent.mkdir(parents=True, exist_ok=True)
-if notes_file.exists():
-    raise SystemExit(f"Release notes already exist: {notes_file}")
-notes_file.write_text("\n".join(lines))
-
-print(f"Created {notes_file}")
-print(f"Included {len(files)} pending changeset(s). Pending changesets stay in .changeset/ until the release workflow succeeds and clears them.")
+# Pure markdown to stdout so the caller can pipe it straight into the GitHub
+# release description. Status goes to stderr to keep stdout clean.
+print(f"Rendered release notes for {tag} from {len(files)} changeset(s).", file=sys.stderr)
+print("\n".join(lines))
 PY

@@ -195,6 +195,17 @@ final class StatusBarMenuBuilder {
         let settingsItem = NSMenuItem()
         settingsItem.view = settingsRow
         menu.addItem(settingsItem)
+
+        let whatsNewRow = MenuActionRowView(
+            icon: "sparkles",
+            label: "What's New",
+            showChevron: true
+        ) {
+            OnboardingWindowController.shared.showWhatsNewForCurrentVersion()
+        }
+        let whatsNewItem = NSMenuItem()
+        whatsNewItem.view = whatsNewRow
+        menu.addItem(whatsNewItem)
     }
 
     private func presentInfoAlert(title: String, message: String) {
