@@ -1,9 +1,24 @@
 # FFM: Suppress focus-follows-mouse when hovering unmanaged overlay windows
 
-Status: **failed** —  Implementation notes appended below. But note that result was discarded completely.
+Status: **superseded** — the broad WindowServer snapshot approach below was discarded after causing severe hot-path regressions during ordinary drags and screenshot-area selection. The follow-up implementation uses the CGEvent-provided `mouseEventWindowUnderMousePointer` ID instead, so normal event-tap FFM suppression does not poll `CGWindowListCopyWindowInfo` per mouse move/drag.
 Owner path: `Sources/Nehir/Core/Controller/{MouseEventHandler,WMController}.swift`
 
-## TL;DR
+## 2026-06-15 follow-up: low-overhead replacement
+
+The failed attempt broadened the WindowServer snapshot predicate (`layer >= 0`) and reused it from hot paths. That made routine pointer-heavy operations (file drag, screenshot-region selection, etc.) unusable.
+
+Replacement design now implemented:
+
+- Read `CGEventField.mouseEventWindowUnderMousePointer` (falling back to `mouseEventWindowUnderMousePointerThatCanHandleThisEvent`) in the mouse event tap.
+- Carry that window number through the queued mouse-move / drag payload.
+- Treat FFM as occluded when the event's topmost window number is neither a Nehir-tracked managed window nor an owned Nehir UI surface.
+- Avoid WindowServer snapshot fallback on `mouseDragged` and ordinary gesture frames when the event did not provide a window number; mouse down/up still refresh the short FFM suppression window.
+- Apply the same event-window-number guard to trackpad swipe gestures over unmanaged overlays. A later trace showed gesture events may not carry a window number, so the gesture path now performs at most one broadened WindowServer snapshot while the gesture is still idle / starting, then suppresses until all touches end. It does **not** poll `CGWindowListCopyWindowInfo` per gesture frame.
+- Keep the old frame-provider snapshot path only as a fallback for synthetic/direct dispatches and non-event-tap refreshes.
+
+This fixes Ghostty Quick-terminal-style unmanaged overlays without broad positive-layer scanning.
+
+## Historical TL;DR of the discarded attempt
 
 Focus-follows-mouse (FFM) keeps stealing focus to the niri tile **behind**
 Ghostty's Quick terminal while the pointer is over it, which obstructs clicks
@@ -13,9 +28,10 @@ Quick terminal runs at `NSWindow.Level.floating` (CGWindowLayer = 3) once
 settled and `.popUpMenu` (= 101) during its slide-in animation — both are
 non-zero, so the Quick terminal is invisible to FFM suppression.
 
-Fix: broaden the occlusion check so any **on-screen, non-tracked, non-desktop**
-window (any non-negative layer, sized ≥ 80×80) counts as "unmanaged window
-covers pointer". This realises the user's rule verbatim:
+Discarded fix: broaden the occlusion check so any **on-screen, non-tracked,
+non-desktop** window (any non-negative layer, sized ≥ 80×80) counts as
+"unmanaged window covers pointer". This realised the user's rule verbatim but
+was too expensive / too broad in practice:
 
 > FFM should never have effect if the user is hovering a window that isn't part
 > of the niri layout.
@@ -102,7 +118,7 @@ unmanaged window. Because the Quick terminal is undetected, clicks on it do not
 earn the 2 s suppression either — compounding the obstruction. Both call sites
 are fixed by fixing the one function.
 
-## Proposed change
+## Discarded proposed change
 
 **Primary fix (minimal, low-risk):** replace the hard `layer == 0` requirement
 with "any non-desktop layer", i.e. `layer >= 0` (equivalently, drop the guard —

@@ -181,6 +181,8 @@ final class WMController {
     @ObservationIgnored
     var unmanagedWindowServerWindowFramesProvider: @MainActor (Set<Int>) -> [CGRect] = WMController.visibleUnmanagedWindowServerFrames
     @ObservationIgnored
+    var unmanagedOverlayWindowServerWindowCoversOverride: (@MainActor (CGPoint) -> Bool)?
+    @ObservationIgnored
     weak var ipcApplicationBridge: IPCApplicationBridge?
     @ObservationIgnored
     private var runtimeTraceCaptureSession: RuntimeTraceCaptureSession?
@@ -2364,9 +2366,98 @@ final class WMController {
         }
     }
 
-    func unmanagedWindowServerWindowCovers(point: CGPoint) -> Bool {
+    func unmanagedWindowServerWindowCovers(
+        point: CGPoint,
+        windowUnderPointer: Int? = nil,
+        allowWindowServerSnapshotFallback: Bool = true
+    ) -> Bool {
         let trackedWindowIds = Set(workspaceManager.trackedWindowIdsForDebug())
+        if let windowUnderPointer, windowUnderPointer > 0 {
+            return isUnmanagedWindowServerWindow(
+                windowId: windowUnderPointer,
+                trackedWindowIds: trackedWindowIds
+            )
+        }
+
+        guard allowWindowServerSnapshotFallback else { return false }
         return unmanagedWindowServerWindowFramesProvider(trackedWindowIds).contains { $0.contains(point) }
+    }
+
+    private func isUnmanagedWindowServerWindow(windowId: Int, trackedWindowIds: Set<Int>) -> Bool {
+        guard !trackedWindowIds.contains(windowId) else { return false }
+        guard !ownedWindowRegistry.contains(windowNumber: windowId) else { return false }
+        return true
+    }
+
+    func unmanagedOverlayWindowServerWindowCovers(point: CGPoint) -> Bool {
+        if let unmanagedOverlayWindowServerWindowCoversOverride {
+            return unmanagedOverlayWindowServerWindowCoversOverride(point)
+        }
+
+        let trackedWindowIds = Set(workspaceManager.trackedWindowIdsForDebug())
+        return Self.visibleUnmanagedOverlayWindowServerWindowCovers(
+            point: point,
+            trackedWindowIds: trackedWindowIds,
+            isOwnedWindowNumber: { [ownedWindowRegistry] windowNumber in
+                ownedWindowRegistry.contains(windowNumber: windowNumber)
+            }
+        )
+    }
+
+    static func visibleUnmanagedOverlayWindowServerWindowCovers(
+        point: CGPoint,
+        trackedWindowIds: Set<Int> = [],
+        windows providedWindows: [[String: Any]]? = nil,
+        isOwnedWindowNumber: @MainActor (Int) -> Bool = { _ in false },
+        ownerActivationPolicyProvider: (pid_t) -> NSApplication.ActivationPolicy? = {
+            NSRunningApplication(processIdentifier: $0)?.activationPolicy
+        }
+    ) -> Bool {
+        let windows: [[String: Any]]
+        if let providedWindows {
+            windows = providedWindows
+        } else {
+            windows = CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID) as? [[String: Any]] ?? []
+        }
+
+        for info in windows {
+            let layer = (info[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0
+            guard layer >= 0 else { continue }
+
+            let isOnscreen = (info[kCGWindowIsOnscreen as String] as? NSNumber)?.boolValue ?? false
+            guard isOnscreen else { continue }
+
+            guard let bounds = info[kCGWindowBounds as String] as? [String: Any],
+                  let x = (bounds["X"] as? NSNumber)?.doubleValue,
+                  let y = (bounds["Y"] as? NSNumber)?.doubleValue,
+                  let width = (bounds["Width"] as? NSNumber)?.doubleValue,
+                  let height = (bounds["Height"] as? NSNumber)?.doubleValue,
+                  width >= 80,
+                  height >= 80
+            else { continue }
+
+            let frame = ScreenCoordinateSpace.toAppKit(
+                rect: CGRect(x: x, y: y, width: width, height: height)
+            )
+            guard frame.contains(point) else { continue }
+
+            let windowId = (info[kCGWindowNumber as String] as? NSNumber)?.intValue ?? 0
+            guard windowId > 0 else { continue }
+            if isOwnedWindowNumber(windowId) { continue }
+            if trackedWindowIds.contains(windowId) { return false }
+
+            let pid = (info[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value ?? 0
+            if pid > 0,
+               let activationPolicy = ownerActivationPolicyProvider(pid),
+               activationPolicy != .regular
+            {
+                continue
+            }
+
+            return true
+        }
+
+        return false
     }
 
     private func visibleUnmanagedWindowServerDebugDump() -> String {

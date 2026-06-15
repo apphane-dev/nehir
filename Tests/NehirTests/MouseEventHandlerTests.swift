@@ -100,6 +100,7 @@ private func makeMouseEventTestController(
     )
     controller.lockScreenObserver.frontmostApplicationProvider = { nil }
     controller.unmanagedWindowServerWindowFramesProvider = { _ in [] }
+    controller.unmanagedOverlayWindowServerWindowCoversOverride = { _ in false }
     let frame = CGRect(x: 0, y: 0, width: 1920, height: 1080)
     let monitor = Monitor(
         id: Monitor.ID(displayId: 1),
@@ -1117,6 +1118,31 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
         #expect(fixture.handler.state.isResizing == false)
     }
 
+    @Test @MainActor func mouseTapCallbackStoresWindowUnderPointerForQueuedMouseMove() {
+        let controller = makeMouseEventTestController()
+        let handler = controller.mouseEventHandler
+
+        guard let event = CGEvent(
+            mouseEventSource: nil,
+            mouseType: .mouseMoved,
+            mouseCursorPosition: CGPoint(x: 120, y: 140),
+            mouseButton: .left
+        ) else {
+            Issue.record("Failed to create mouse moved event")
+            return
+        }
+        event.setIntegerValueField(.mouseEventWindowUnderMousePointer, value: 12_345)
+
+        let suppress = handler.handleTapCallbackForTests(
+            type: .mouseMoved,
+            event: event,
+            isMainThread: true
+        )
+
+        #expect(suppress == false)
+        #expect(handler.state.pendingTapEvents.mouseMovedPayload?.windowUnderPointer == 12_345)
+    }
+
     @Test @MainActor func offMainThreadMouseTapCallbackFailsOpenWithoutQueueingState() {
         let controller = makeMouseEventTestController()
         let handler = controller.mouseEventHandler
@@ -1266,6 +1292,101 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
         #expect(handler.state.lockedGestureContext == nil)
         #expect(finalizedState.viewOffsetPixels.isGesture == false)
         #expect(finalizedState.viewOffsetPixels.isAnimating)
+    }
+
+    @Test @MainActor func unmanagedOverlayWindowServerOverlayPredicateIncludesPositiveLayers() {
+        let appFrame = CGRect(x: 50, y: 50, width: 200, height: 160)
+        let windowServerFrame = ScreenCoordinateSpace.toWindowServer(rect: appFrame)
+        let windows: [[String: Any]] = [
+            [
+                kCGWindowNumber as String: NSNumber(value: 91_000),
+                kCGWindowLayer as String: NSNumber(value: 3),
+                kCGWindowIsOnscreen as String: NSNumber(value: true),
+                kCGWindowOwnerPID as String: NSNumber(value: 123),
+                kCGWindowBounds as String: [
+                    "X": NSNumber(value: windowServerFrame.origin.x),
+                    "Y": NSNumber(value: windowServerFrame.origin.y),
+                    "Width": NSNumber(value: windowServerFrame.width),
+                    "Height": NSNumber(value: windowServerFrame.height)
+                ]
+            ]
+        ]
+
+        let covers = WMController.visibleUnmanagedOverlayWindowServerWindowCovers(
+            point: appFrame.center,
+            windows: windows,
+            ownerActivationPolicyProvider: { _ in .regular }
+        )
+
+        #expect(covers == true)
+    }
+
+    @Test @MainActor func trackpadGestureSuppressesViaOverlaySnapshotOnlyWhenEventWindowIsMissing() async {
+        let fixture = await prepareMouseWheelScrollFixture()
+        let controller = fixture.controller
+        let handler = fixture.handler
+        let baseTime = CACurrentMediaTime()
+        var overlayProbeCount = 0
+        controller.unmanagedOverlayWindowServerWindowCoversOverride = { _ in
+            overlayProbeCount += 1
+            return true
+        }
+
+        handler.receiveTapGestureEvent(
+            .init(
+                location: fixture.location,
+                phaseRawValue: NSEvent.Phase.began.rawValue,
+                timestamp: baseTime,
+                touches: makeGestureTouchSamples(xPositions: [0.20, 0.25, 0.30])
+            )
+        )
+        handler.receiveTapGestureEvent(
+            .init(
+                location: fixture.location,
+                phaseRawValue: NSEvent.Phase.changed.rawValue,
+                timestamp: baseTime + 0.016,
+                touches: makeGestureTouchSamples(xPositions: [0.60, 0.65, 0.70])
+            )
+        )
+
+        #expect(overlayProbeCount == 1)
+        #expect(handler.state.gesturePhase == .idle)
+        #expect(handler.state.lockedGestureContext == nil)
+    }
+
+    @Test @MainActor func trackpadGestureSuppressesViaEventWindowUnderPointerWithoutSnapshot() async {
+        let fixture = await prepareMouseWheelScrollFixture()
+        let controller = fixture.controller
+        let handler = fixture.handler
+        let baseTime = CACurrentMediaTime()
+        var snapshotCalls = 0
+        controller.unmanagedWindowServerWindowFramesProvider = { _ in
+            snapshotCalls += 1
+            return []
+        }
+
+        handler.receiveTapGestureEvent(
+            .init(
+                location: fixture.location,
+                phaseRawValue: NSEvent.Phase.began.rawValue,
+                timestamp: baseTime,
+                windowUnderPointer: 55_555,
+                touches: makeGestureTouchSamples(xPositions: [0.20, 0.25, 0.30])
+            )
+        )
+        handler.receiveTapGestureEvent(
+            .init(
+                location: fixture.location,
+                phaseRawValue: NSEvent.Phase.changed.rawValue,
+                timestamp: baseTime + 0.016,
+                windowUnderPointer: 55_555,
+                touches: makeGestureTouchSamples(xPositions: [0.60, 0.65, 0.70])
+            )
+        )
+
+        #expect(snapshotCalls == 0)
+        #expect(handler.state.gesturePhase == .idle)
+        #expect(handler.state.lockedGestureContext == nil)
     }
 
     @Test @MainActor func trackpadGestureFocusSuppressesMouseMoveToFocusedWindow() async {
@@ -2317,6 +2438,87 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
         controller.mouseEventHandler.dispatchMouseMoved(at: unmanagedFrame.center)
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
 
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == firstToken)
+        #expect(controller.workspaceManager.activeFocusRequestToken == nil)
+    }
+
+    @Test @MainActor func mouseDraggedDoesNotPollWindowServerSnapshotWhenEventWindowIsUnavailable() {
+        let controller = makeMouseEventTestController()
+        var snapshotCalls = 0
+        controller.unmanagedWindowServerWindowFramesProvider = { _ in
+            snapshotCalls += 1
+            return [CGRect(x: 0, y: 0, width: 200, height: 200)]
+        }
+
+        controller.mouseEventHandler.dispatchMouseDragged(at: CGPoint(x: 100, y: 100))
+
+        #expect(snapshotCalls == 0)
+    }
+
+    @Test @MainActor func focusFollowsMouseSuppressesViaEventWindowUnderPointerWithoutSnapshot() async {
+        let controller = makeMouseEventTestController()
+        controller.enableNiriLayout()
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+        controller.syncMonitorsToNiriEngine()
+        controller.setFocusFollowsMouse(true)
+
+        guard let workspaceId = controller.interactionWorkspace()?.id,
+              let engine = controller.niriEngine,
+              let monitor = controller.workspaceManager.monitor(for: workspaceId)
+        else {
+            Issue.record("Missing Niri context for event-window unmanaged hover test")
+            return
+        }
+
+        let firstToken = controller.workspaceManager.addWindow(
+            makeMouseEventTestWindow(windowId: 936),
+            pid: getpid(),
+            windowId: 936,
+            to: workspaceId
+        )
+        let secondToken = controller.workspaceManager.addWindow(
+            makeMouseEventTestWindow(windowId: 937),
+            pid: getpid(),
+            windowId: 937,
+            to: workspaceId
+        )
+        guard let firstHandle = controller.workspaceManager.handle(for: firstToken),
+              let secondHandle = controller.workspaceManager.handle(for: secondToken)
+        else {
+            Issue.record("Missing handles for event-window unmanaged hover test")
+            return
+        }
+
+        _ = engine.syncWindows(
+            [firstHandle, secondHandle],
+            in: workspaceId,
+            selectedNodeId: nil,
+            focusedHandle: firstHandle
+        )
+        _ = controller.workspaceManager.setManagedFocus(firstHandle, in: workspaceId, onMonitor: monitor.id)
+        controller.layoutRefreshController.requestImmediateRelayout(reason: .workspaceTransition)
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+
+        guard let secondNode = engine.findNode(for: secondHandle),
+              let secondFrame = secondNode.frame
+        else {
+            Issue.record("Missing tiled target frame for event-window unmanaged hover test")
+            return
+        }
+
+        var snapshotCalls = 0
+        controller.unmanagedWindowServerWindowFramesProvider = { _ in
+            snapshotCalls += 1
+            return []
+        }
+
+        controller.mouseEventHandler.dispatchMouseMoved(
+            at: secondFrame.center,
+            windowUnderPointer: 44_444
+        )
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+
+        #expect(snapshotCalls == 0)
         #expect(controller.workspaceManager.confirmedManagedFocusToken == firstToken)
         #expect(controller.workspaceManager.activeFocusRequestToken == nil)
     }
