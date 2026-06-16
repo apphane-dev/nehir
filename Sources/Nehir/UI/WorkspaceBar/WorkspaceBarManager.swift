@@ -214,7 +214,7 @@ final class WorkspaceBarManager {
             rootView: WorkspaceBarView(
                 model: model,
                 onFocusWorkspace: { [weak controller] item in
-                    controller?.focusWorkspaceFromBar(named: item.name)
+                    controller?.focusWorkspaceFromBar(id: item.id)
                 },
                 onFocusWindow: { [weak controller] token in
                     controller?.focusWindowFromBar(token: token)

@@ -196,6 +196,7 @@ final class WorkspaceManager {
     private(set) var outerGaps: LayoutGaps.OuterGaps = .zero
     private let windows = WindowModel()
     private let reconcileTrace = ReconcileTraceRecorder()
+    private let interactionMonitorWriteTrace = InteractionMonitorWriteRecorder()
     private lazy var runtimeStore = RuntimeStore(traceRecorder: reconcileTrace)
     private let restorePlanner = RestorePlanner()
     private var bootPersistedWindowRestoreCatalog: PersistedWindowRestoreCatalog
@@ -224,6 +225,7 @@ final class WorkspaceManager {
     var onGapsChanged: (() -> Void)?
     var onSessionStateChanged: (() -> Void)?
     var onProjectionInvalidated: ((ProjectionInvalidationRequest) -> Void)?
+    var onHiddenStateChanged: ((WindowToken, WindowModel.HiddenState?, WindowModel.HiddenState?) -> Void)?
 
     private func invalidateProjection(_ kind: ProjectionInvalidation, reason: String) {
         onProjectionInvalidated?(.init(kind, reason: reason))
@@ -305,6 +307,14 @@ final class WorkspaceManager {
 
     func reconcileTraceDump(limit: Int? = nil) -> String {
         ReconcileDebugDump.trace(reconcileTrace.snapshot(), limit: limit)
+    }
+
+    func interactionMonitorWriteTraceDump() -> String {
+        interactionMonitorWriteTrace.dump()
+    }
+
+    func resetInteractionMonitorWriteTraceForDebug() {
+        interactionMonitorWriteTrace.reset()
     }
 
     func resetReconcileTraceForDebug() {
@@ -448,7 +458,7 @@ final class WorkspaceManager {
 
         sessionState.scratchpadToken = nil
         sessionState.focus = .init()
-        sessionState.previousInteractionMonitorId = nil
+        assignPreviousInteractionMonitorId(nil, reason: "resetRuntimeState")
         for workspaceId in sessionState.workspaceSessions.keys {
             sessionState.workspaceSessions[workspaceId]?.niriViewportState?.reset()
         }
@@ -638,8 +648,8 @@ final class WorkspaceManager {
         sessionState.focus.focusLease = focusSession.focusLease
         sessionState.focus.isNonManagedFocusActive = focusSession.isNonManagedFocusActive
         sessionState.focus.isAppFullscreenActive = focusSession.isAppFullscreenActive
-        sessionState.interactionMonitorId = focusSession.interactionMonitorId
-        sessionState.previousInteractionMonitorId = focusSession.previousInteractionMonitorId
+        assignInteractionMonitorId(focusSession.interactionMonitorId, reason: "applyReconciledFocusSession")
+        assignPreviousInteractionMonitorId(focusSession.previousInteractionMonitorId, reason: "applyReconciledFocusSession")
     }
 
     @discardableResult
@@ -681,8 +691,8 @@ final class WorkspaceManager {
             schedulePersistedWindowRestoreCatalogSave()
         }
 
-        sessionState.interactionMonitorId = plan.interactionMonitorId
-        sessionState.previousInteractionMonitorId = plan.previousInteractionMonitorId
+        assignInteractionMonitorId(plan.interactionMonitorId, reason: "applyRestoreRefresh")
+        assignPreviousInteractionMonitorId(plan.previousInteractionMonitorId, reason: "applyRestoreRefresh")
     }
 
     private func applyTopologyTransition(_ transition: TopologyTransitionPlan) {
@@ -703,8 +713,8 @@ final class WorkspaceManager {
 
         reconcileConfiguredVisibleWorkspaces(notify: false)
         disconnectedVisibleWorkspaceCache = transition.disconnectedVisibleWorkspaceCache
-        sessionState.interactionMonitorId = transition.interactionMonitorId
-        sessionState.previousInteractionMonitorId = transition.previousInteractionMonitorId
+        assignInteractionMonitorId(transition.interactionMonitorId, reason: "applyTopologyTransition")
+        assignPreviousInteractionMonitorId(transition.previousInteractionMonitorId, reason: "applyTopologyTransition")
         reconcileInteractionMonitorState(notify: false)
         refreshWindowMonitorReferencesForAllEntries()
         if transition.refreshRestoreIntents {
@@ -2354,6 +2364,11 @@ final class WorkspaceManager {
     func focusWorkspace(named name: String) -> (workspace: WorkspaceDescriptor, monitor: Monitor)? {
         ensureVisibleWorkspaces()
         guard let workspaceId = workspaceId(for: name, createIfMissing: false) else { return nil }
+        return focusWorkspace(id: workspaceId)
+    }
+
+    func focusWorkspace(id workspaceId: WorkspaceDescriptor.ID) -> (workspace: WorkspaceDescriptor, monitor: Monitor)? {
+        ensureVisibleWorkspaces()
         guard let targetMonitor = monitorForWorkspace(workspaceId) else { return nil }
         guard setActiveWorkspace(workspaceId, on: targetMonitor.id) else { return nil }
         guard let workspace = descriptor(for: workspaceId) else { return nil }
@@ -2919,6 +2934,9 @@ final class WorkspaceManager {
     func setHiddenState(_ state: WindowModel.HiddenState?, for token: WindowToken) {
         let previousState = windows.hiddenState(for: token)
         windows.setHiddenState(state, for: token)
+        if previousState != state {
+            onHiddenStateChanged?(token, previousState, state)
+        }
         if let workspaceId = workspace(for: token) {
             recordReconcileEvent(
                 .hiddenStateChanged(
@@ -3944,14 +3962,47 @@ final class WorkspaceManager {
            let currentMonitorId = sessionState.interactionMonitorId,
            currentMonitorId != monitorId
         {
-            sessionState.previousInteractionMonitorId = currentMonitorId
+            assignPreviousInteractionMonitorId(currentMonitorId, reason: "updateInteractionMonitor.preservePrevious")
         }
-        sessionState.interactionMonitorId = monitorId
+        assignInteractionMonitorId(monitorId, reason: "updateInteractionMonitor")
         if notify {
             notifySessionStateChanged()
         }
         invalidateWorkspaceProjection(reason: "interactionMonitorChanged")
         return true
+    }
+
+    /// Tagged assignment for `sessionState.interactionMonitorId`. Every write
+    /// routes through here so runtime traces can show whether placement saw a
+    /// real interaction-monitor write or a missing/stale create context.
+    private func assignInteractionMonitorId(
+        _ monitorId: Monitor.ID?,
+        reason: String
+    ) {
+        let oldValue = sessionState.interactionMonitorId
+        sessionState.interactionMonitorId = monitorId
+        interactionMonitorWriteTrace.append(
+            field: .interaction,
+            oldValue: oldValue,
+            newValue: monitorId,
+            reason: reason
+        )
+    }
+
+    /// Tagged assignment for `sessionState.previousInteractionMonitorId`. See
+    /// `assignInteractionMonitorId(_:reason:)`.
+    private func assignPreviousInteractionMonitorId(
+        _ monitorId: Monitor.ID?,
+        reason: String
+    ) {
+        let oldValue = sessionState.previousInteractionMonitorId
+        sessionState.previousInteractionMonitorId = monitorId
+        interactionMonitorWriteTrace.append(
+            field: .previous,
+            oldValue: oldValue,
+            newValue: monitorId,
+            reason: reason
+        )
     }
 
     private func restoreKeySortKey(_ restoreKey: MonitorRestoreKey) -> (CGFloat, CGFloat, UInt32) {
@@ -3975,8 +4026,8 @@ final class WorkspaceManager {
         let changed = sessionState.interactionMonitorId != newInteractionMonitorId
             || sessionState.previousInteractionMonitorId != newPreviousInteractionMonitorId
 
-        sessionState.interactionMonitorId = newInteractionMonitorId
-        sessionState.previousInteractionMonitorId = newPreviousInteractionMonitorId
+        assignInteractionMonitorId(newInteractionMonitorId, reason: "reconcileInteractionMonitorState")
+        assignPreviousInteractionMonitorId(newPreviousInteractionMonitorId, reason: "reconcileInteractionMonitorState")
 
         if changed, notify {
             notifySessionStateChanged()

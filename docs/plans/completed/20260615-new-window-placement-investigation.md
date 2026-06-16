@@ -15,51 +15,88 @@ All file references should be re-verified before implementing; line numbers drif
 
 ## TL;DR
 
-> **Updated after step 1 landed** (2026-06-15, second capture set). The new
-> `## Niri create focus trace` section wrote `create_placement_resolved` to
-> the dump and **refuted both original hypotheses**. See
-> [Step 1 confirmed — root cause revised](#step-1-confirmed--root-cause-revised-2026-06-15).
+> **Latest update (2026-06-15, 21:02 capture):** direct interaction-monitor
+> write tracing refutes the nil-writer theory. The `interaction_monitor=nil`
+> fields in `create_placement_resolved` are best explained by **missing create
+> placement context**, because AX focus/activation can admit a new window before
+> the CGS `.created` event runs `captureCreatePlacementContext`.
 
-- **Root cause (H4, confirmed by tracing):** for every new Ghostty window
-  captured with the new tracing, **all** snapshotted placement inputs are
-  `nil` (`pending_workspace`, `pending_monitor`, `focused_workspace`,
-  `focused_monitor`, `native_monitor`, `interaction_monitor`; only
-  `frame_monitor` is occasionally non-nil). With the snapshot empty,
-  `createPlacementTarget` falls straight through every priority branch to its
-  final fallback, `fallbackWorkspaceId` (`WMController.swift:1271`), which is
-  the **live** `interactionWorkspace()?.id` (`WMController.swift:2953`).
-  `interactionWorkspace()` → `monitorForInteraction()` (`WMController.swift:922`)
-  returns `monitors.first` — i.e. the **main** display, because
-  `Monitor.current()` is built from `NSScreen.screens` whose index 0 is the
-  main screen (`Monitor.swift:19`) — whenever `interactionMonitorId` **and**
-  `confirmedManagedFocusToken` are both nil. That is exactly the transient
-  state left behind by the app-switch / non-managed-focus churn. So a
-  brand-new window is placed on the **main monitor regardless of where the
-  user actually is.**
-- `monitorForInteraction()` consults `interactionMonitorId`, then the focused
-  token's monitor, then `monitors.first` — it **never** consults
-  `previousInteractionMonitorId` (`WorkspaceManager.swift:166`), which exists
-  precisely to remember the monitor across such a transient clear. That gap is
-  the bug.
-- The earlier reasoning (H1 favored) was a best-effort read of a dump that
-  lacked `create_placement_resolved`; the `native_app_switch` lease observed in
-  the first capture was a *consequence* of where focus ended up, not the
-  *cause* of placement.
-- **⚠️ Fix direction revised again (third capture):** the obvious fix — make
-  `monitorForInteraction()` prefer `previousInteractionMonitorId` — is **on
-  hold pending Q4.** A third capture showed `previousInteractionMonitorId=nil`
-  throughout a run where the nil definitely fired, which is inconsistent with
-  the nil flowing through `updateInteractionMonitor` (the one path that
-  populates `prev`). If the nil enters through a reconcile write site that
-  doesn't touch `prev`, that fix is a no-op. Pre-apply tracing was added to
-  answer Q4; see
-  [Third capture](#third-capture-2026-06-15-1833-utc--the-nil-is-transient-prevnil-throughout)
-  and [Fix direction (revised)](#fix-direction-revised-after-step-1).
+- The original hypotheses are still refuted: `pending_workspace=nil` /
+  `pending_monitor=nil` rules out pending focus, and `native_monitor=nil` rules
+  out native Space placement for the problematic windows.
+- Earlier captures showed every context-derived placement input nil. The latest
+  capture adds the decisive ordering: `create_placement_resolved …` appears
+  **before** `create_seen window=…` for Ghostty windows `6160`, `6164`, and
+  `6166`. That means the placement can run through
+  `admitFocusedWindowBeforeNonManagedFallback(... createPlacementContext:
+  createPlacementContextsByWindowId[windowId])` before the create context exists.
+- `## Interaction monitor writes` contains only `interaction=ID(displayId: 1)`
+  writes from `applyReconciledFocusSession`, never a write to nil. Therefore a
+  `previousInteractionMonitorId` fallback is not supported by the current
+  evidence and should not be shipped blindly.
+- Current fix direction: make AX-first admission synthesize/capture a
+  `WindowCreatePlacementContext` before calling `prepareCreateCandidate`, or
+  otherwise ensure placement uses create-time focus/interaction inputs even when
+  AX focus beats CGS create.
 
-The sections below this point are the **original step-2 investigation**,
-preserved for context. The section above and the
-[Step 1 confirmed](#step-1-confirmed--root-cause-revised-2026-06-15) section
-supersede the H1/H2/H3 hypotheses.
+The sections below preserve the full investigation history. The newest section,
+[Direct write tracing result](#direct-write-tracing-result-2026-06-15-2102-utc--q4-revised-again),
+supersedes the earlier nil-writer / `previousInteractionMonitorId` fix direction.
+
+## Resolution architecture (2026-06-16)
+
+The final placement fix is intentionally source-ordered and monitor-aware:
+
+1. **AX-first admissions synthesize placement context.** If an AX focus event
+   admits a standard window before the CGS create event has populated
+   `createPlacementContextsByWindowId`, `AXEventHandler` now constructs the same
+   `WindowCreatePlacementContext` on the AX path. The trace fields
+   `context_source`, `focused_workspace_source`, and `recent_pid_workspace`
+   make that decision visible.
+2. **Recent same-pid workspace is a fallback, not a global truth.** It helps when
+   focus was cleared before the AX-first admission, but it must not override a
+   current active workspace/monitor signal.
+3. **Frame/interaction monitor beats stale confirmed focus.**
+   `WMController.createPlacementTarget` now prefers the active workspace on the
+   frame/interaction monitor when confirmed focus points at another workspace or
+   monitor. This fixed the case where a quick terminal or old app focus kept
+   confirmed focus anchored to the previous workspace while the user had already
+   switched.
+4. **Relayout does not steal focus from inactive workspaces.** `NiriLayoutHandler`
+   only emits automatic activation for newly synced windows when the workspace is
+   active on its monitor and matches the current interaction monitor. Rediscovering
+   an old window during layout refresh can no longer teleport focus.
+5. **Workspace bar navigation uses identity.** Workspace-bar clicks now pass the
+   `WorkspaceDescriptor.ID` of the clicked item instead of re-resolving the
+   display label. This avoids ambiguous or stale label resolution when activating
+   later workspaces.
+
+### Validation evidence
+
+A later live validation run confirmed the user-visible behavior: new windows
+were created on the expected workspace after switching workspaces with the quick
+terminal open. Representative resolved placements in that run showed the target
+workspace following the active workspace/monitor rather than stale focus:
+
+```text
+create_placement_resolved token=WindowToken(pid: 897, windowId: 7619)
+  workspace=9B7FB1EB-9116-453B-8463-C09FC85F71D1
+  focused_workspace=9B7FB1EB-9116-453B-8463-C09FC85F71D1
+  frame_monitor=Optional(ID(displayId: 1)) interaction_monitor=Optional(ID(displayId: 1))
+  context_source=ax_focused_admission_synthesized
+  focused_workspace_source=confirmed_focus
+
+create_placement_resolved token=WindowToken(pid: 33418, windowId: 7650)
+  workspace=7FBFE458-6A8C-47E2-B88A-638130428B53
+  focused_workspace=E1041C23-1AA5-4681-8BD5-99B0F3086180
+  frame_monitor=Optional(ID(displayId: 1)) interaction_monitor=Optional(ID(displayId: 1))
+  context_source=ax_focused_admission_synthesized
+  focused_workspace_source=recent_pid
+```
+
+The second event is the important architecture check: the resolved workspace
+(`7FBFE...`) intentionally differs from the stale focused/recent workspace
+(`E104...`) because the active interaction/frame placement target took priority.
 
 ---
 
@@ -276,6 +313,81 @@ A fresh repro with this build will show the exact reconcile record that received
 nil-writer fired in the gap immediately before it. That brackets Q4 to a single
 event and identifies whether the nil flows through a `prev`-preserving path or
 not — deciding the fix shape.
+
+### Direct write tracing result (2026-06-15, 21:02 UTC) — Q4 revised again
+
+A later capture added `## Interaction monitor writes` and `## AX notification
+trace`. It changes the interpretation of the `interaction_monitor=nil` lines.
+The capture ran from `2026-06-15T21:02:29Z` to `21:02:44Z` on one built-in
+display.
+
+**Direct interaction-monitor writes never set the value to nil.** The write log
+contains only no-op/refresh writes from `applyReconciledFocusSession`, all with
+`interaction=ID(displayId: 1)` and `previous=nil`, for example:
+
+```
+2026-06-15T21:02:38Z interaction=ID(displayId: 1) reason=applyReconciledFocusSession
+2026-06-15T21:02:38Z previous=nil reason=applyReconciledFocusSession
+2026-06-15T21:02:39Z interaction=ID(displayId: 1) reason=applyReconciledFocusSession
+2026-06-15T21:02:39Z previous=nil reason=applyReconciledFocusSession
+2026-06-15T21:02:40Z interaction=ID(displayId: 1) reason=applyReconciledFocusSession
+2026-06-15T21:02:40Z previous=nil reason=applyReconciledFocusSession
+```
+
+There is no `interaction=ID(displayId: 1)→nil`, no `interaction=nil`, and no
+`previous=ID(displayId: 1)` record in the whole capture. So Q4's answer is:
+**the observed `interaction_monitor=nil` is not explained by a runtime write that
+clears `sessionState.interactionMonitorId` during the capture.** The
+`previousInteractionMonitorId` fallback would not help this capture.
+
+**The stronger signal is event ordering: placement resolves before
+`create_seen`.** For each Ghostty window below, `create_placement_resolved` is
+recorded before `create_seen window=…`:
+
+```
+activation_source_observed pid=897 source=workspaceDidActivateApplication
+create_placement_resolved token=WindowToken(pid: 897, windowId: 6160)
+  workspace=DBD47BBA-5B7F-4013-B64C-408E95674A06
+  pending_workspace=nil pending_monitor=nil
+  focused_workspace=nil focused_monitor=nil
+  native_monitor=nil frame_monitor=Optional(ID(displayId: 1)) interaction_monitor=nil
+candidate_tracked token=WindowToken(pid: 897, windowId: 6160) workspace=DBD47BBA…
+focus_confirmed token=WindowToken(pid: 897, windowId: 6160) workspace=DBD47BBA…
+create_seen window=6160
+
+activation_source_observed pid=897 source=focusedWindowChanged
+create_placement_resolved token=WindowToken(pid: 897, windowId: 6164)
+  workspace=F339DEEE-E6DE-4BE6-A474-9E44C4FD2466
+  pending_workspace=nil pending_monitor=nil
+  focused_workspace=nil focused_monitor=nil
+  native_monitor=nil frame_monitor=Optional(ID(displayId: 1)) interaction_monitor=nil
+candidate_tracked token=WindowToken(pid: 897, windowId: 6164) workspace=F339DEEE…
+create_seen window=6164
+
+activation_source_observed pid=897 source=focusedWindowChanged
+create_placement_resolved token=WindowToken(pid: 897, windowId: 6166)
+  workspace=F339DEEE-E6DE-4BE6-A474-9E44C4FD2466
+  pending_workspace=nil pending_monitor=nil
+  focused_workspace=nil focused_monitor=nil
+  native_monitor=nil frame_monitor=nil interaction_monitor=nil
+candidate_tracked token=WindowToken(pid: 897, windowId: 6166) workspace=F339DEEE…
+create_seen window=6166
+```
+
+This points to a different root cause than a nil-writer: the window can be
+admitted through the AX focus / activation path before the CGS `.created` event
+runs `captureCreatePlacementContext`. The relevant code path is
+`admitFocusedWindowBeforeNonManagedFallback(... createPlacementContext:
+createPlacementContextsByWindowId[windowId])`; when the CGS create has not yet
+arrived, that dictionary lookup is nil, so all context-derived fields in
+`create_placement_resolved` are nil. Only frame/current-live placement remains.
+
+**Current fix direction after this capture:** stop treating
+`interaction_monitor=nil` as proof that `interactionMonitorId` was cleared.
+Instead, make AX-first admission synthesize/capture a placement context before
+calling `prepareCreateCandidate`, or otherwise ensure create placement uses a
+create-time context even when AX focus beats CGS create. A
+`previousInteractionMonitorId` fallback is not supported by this evidence.
 
 ---
 
@@ -662,3 +774,143 @@ test, `:9703`) are the right neighbourhood to extend.
    that fix until Q4 is answered.** The pre-apply tracing added on 2026-06-15
    (see [Third capture](#third-capture-2026-06-15-1833-utc--the-nil-is-transient-prevnil-throughout))
    is the instrument to answer it.
+
+---
+
+## Latest regression evidence — recent same-pid fallback can be stale
+
+A later repro with the new placement-source fields showed the AX-first synthesis
+path working, but choosing the wrong fallback source for a quick-terminal spawn.
+The decisive event was self-contained in the runtime dump:
+
+```text
+create_placement_resolved token=WindowToken(pid: 897, windowId: 6708)
+workspace=741420DA-78FC-4051-9F6A-AD13033E062C
+pending_workspace=nil pending_monitor=nil
+focused_workspace=741420DA-78FC-4051-9F6A-AD13033E062C
+focused_monitor=Optional(ID(displayId: 1))
+native_monitor=nil frame_monitor=nil
+interaction_monitor=Optional(ID(displayId: 1))
+context_source=ax_focused_admission_synthesized
+focused_workspace_source=recent_pid
+recent_pid_workspace=741420DA-78FC-4051-9F6A-AD13033E062C
+```
+
+That means the synthesized context no longer lost all placement data; instead it
+selected workspace 1 specifically because `recentManagedWorkspaceByPid[897]`
+pointed at an older same-pid Ghostty window. This is a valid fallback only when
+there is no fresher app-event workspace. It is wrong for dropdown/quick-terminal
+flows where the app emits `AXFocusedWindowChanged window=nil` or an auxiliary
+`AXUIElementDestroyed window=101` on the currently active workspace before the
+real standard window is admitted.
+
+The follow-up fix keeps the recent-PID fallback, but makes it second-choice:
+
+1. Record a short-lived `recent_app_event` workspace for same-app focused-window
+   loss / auxiliary destroy events, anchored to the current app-event workspace.
+2. For AX-first standard-window admission, prefer `recent_app_event` over
+   `recent_pid`; retain `recent_pid` only as the fallback for cases where focus
+   was cleared without a fresh app event.
+3. Preserve the trace fields so the next capture can distinguish:
+   `focused_workspace_source=recent_app_event` vs `recent_pid` vs
+   `confirmed_focus`.
+
+Regression added:
+
+- `focusedUntrackedStandardWindowAdmissionPrefersRecentAppEventWorkspaceOverStaleSamePidWorkspace`
+
+
+### Still open: wrong column / stacking behavior
+
+The workspace fix deliberately does **not** change Niri insertion semantics. The
+current engine path is:
+
+```text
+NiriLayoutHandler.syncAndInsert
+→ NiriLayoutEngine.syncWindows
+→ NiriLayoutEngine.addWindow
+```
+
+`addWindow` always creates a new column for a new token and inserts it after, in
+priority order, an existing focused-token column, the selected-node column, or
+the last column. Because the latest repro also complained that terminal windows
+were inserted as new columns instead of the expected existing terminal column,
+a new diagnostics-only `## Niri insertion trace` section was added. Each line
+records:
+
+```text
+workspace=<uuid> token=<new token> beforeColumns=<n>
+selectedNodeBefore=<node> selectedTokenBefore=<token-or-nil> selectedColumnBefore=<idx-or-nil>
+focusedTokenBefore=<token-or-nil> focusedColumnBefore=<idx-or-nil>
+reference=<focused_token|selected_node|last_column|empty_workspace>
+referenceColumn=<idx-or-nil> landedColumn=<idx-or-nil> landedColumnTokens=<tokens>
+```
+
+Use the next capture to decide whether the wrong-column symptom is merely the
+current “new token ⇒ new column” policy, or whether the selected/focused
+reference is stale at insertion time.
+
+---
+
+## Revert note (2026-06-16) — recent-app-event fallback did not help, lease change regressed
+
+The `recent_app_event` workspace fallback and the `windowCloseFocusRecoveryDuration`
+bump to 4.0 s were reverted. Two fresh captures showed why:
+
+1. **Placement still wrong.** A capture with the active workspace = workspace 3
+   (empty, no managed windows) and all existing Ghostty windows on workspace 1
+   still placed the new Ghostty window on workspace 1. The decisive line:
+
+   ```text
+   create_placement_resolved token=WindowToken(pid: 897, windowId: 6906)
+     workspace=5A1CF56C-… focused_workspace=5A1CF56C-…
+     context_source=ax_focused_admission_synthesized
+     focused_workspace_source=recent_pid
+     recent_pid_workspace=5A1CF56C-…
+   ```
+
+   `recent_app_event` was never populated, and even if it had been, by the time
+   the new window was admitted, `focus_confirmed token=897:6712
+   workspace=5A1CF56C source=focusedWindowChanged` had already activated
+   workspace 1. The placement faithfully followed the (now wrong) active focus.
+
+2. **Scroll became common.** The 4.0 s lease plus arming on every
+   `AXFocusedWindowChanged window=nil` made the viewport reveal fire routinely.
+   The smoking gun is the focus-confirm reveal on the parked column:
+
+   ```text
+   reason=ax_focus_confirm_reveal_result token=WindowToken(pid: 897, windowId: 6712)
+     columnIndex=3 visibility=parked(maximum) didReveal=true
+     currentViewStart=0.0 targetViewStart=2932.6 animating=true
+   ```
+
+   Hiding the quick terminal lets macOS re-focus the existing Ghostty managed
+   window (`897:6712`), which is parked offscreen in column 3; the focus-confirm
+   reveal then scrolls the viewport to it. The longer/broader lease made that
+   re-focus reach the reveal path far more often.
+
+### True root cause (both symptoms share it)
+
+The quick terminal shares `pid 897` with the existing managed Ghostty windows on
+workspace 1. When the quick terminal shows/hides, macOS fires
+`AXFocusedWindowChanged pid=897`, and Nehir resolves it to the existing managed
+window `897:6712` on workspace 1 and confirms focus there — pulling the user to
+workspace 1 and scrolling to its column.
+
+The suppression guard
+`shouldSuppressSameAppInactiveWorkspaceActivationBeforeCloseRecovery`
+(`AXEventHandler.swift`) fails in this topology because the user is on an
+**empty** active workspace (workspace 3) with `confirmedManagedFocusToken == nil`,
+so its `guard let focusedToken = …` falls through and returns `false`. The
+guard was written assuming the user always has a confirmed managed focus on the
+active workspace to anchor against; that assumption breaks for empty
+workspaces.
+
+### Next direction (not yet implemented)
+
+- Suppress same-pid inactive-workspace activation anchored on the **active
+  workspace** (not the confirmed focus token) when the app event is
+  `focusedWindowChanged` and the resolved window lives on an inactive workspace.
+- Consider not revealing (preserving the viewport) for a focus-confirm that
+  arrives while a window-close/quick-terminal recovery context is active on the
+  same workspace.

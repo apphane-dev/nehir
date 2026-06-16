@@ -191,6 +191,8 @@ final class WMController {
     @ObservationIgnored
     private var runtimeResizeTraceRecords: [String] = []
     @ObservationIgnored
+    private var runtimeInsertionTraceRecords: [String] = []
+    @ObservationIgnored
     private var runtimeMouseTraceRecords: [String] = []
 
     var runtimeTraceCaptureStatus: RuntimeTraceCaptureStatus {
@@ -237,6 +239,13 @@ final class WMController {
         }
         workspaceManager.onProjectionInvalidated = { [weak self] invalidation in
             self?.requestProjectionRefresh(invalidation)
+        }
+        workspaceManager.onHiddenStateChanged = { [weak self] token, previousState, newState in
+            self?.axEventHandler.handleManagedWindowHiddenStateChanged(
+                token: token,
+                previousState: previousState,
+                newState: newState
+            )
         }
         focusPolicyEngine.onLeaseChanged = { [weak self] lease in
             self?.workspaceManager.recordReconcileEvent(
@@ -633,6 +642,10 @@ final class WMController {
 
     func focusWorkspaceFromBar(named name: String) {
         windowActionHandler.focusWorkspaceFromBar(named: name, suppressMouseWarp: true)
+    }
+
+    func focusWorkspaceFromBar(id workspaceId: WorkspaceDescriptor.ID) {
+        windowActionHandler.focusWorkspaceFromBar(id: workspaceId, suppressMouseWarp: true)
     }
 
     func focusWindowFromBar(token: WindowToken) {
@@ -1204,6 +1217,50 @@ final class WMController {
                                                         createPlacementContext?.activeFocusRequestMonitorId)
             {
                 return target
+            }
+
+            let frameMonitor = monitorForPlacementFrame(windowFrame)
+                ?? (workspaceManager.monitors.count > 1
+                    ? monitorForPlacementFrame(AXWindowService.framePreferFast(axRef))
+                    : nil)
+            if let focusedMonitorId = createPlacementContext?.focusedMonitorId {
+                if let frameMonitor,
+                   frameMonitor.id != focusedMonitorId,
+                   (createPlacementContext?.interactionMonitorId == nil
+                       || createPlacementContext?.interactionMonitorId == frameMonitor.id),
+                   let workspace = workspaceManager.activeWorkspaceOrFirst(on: frameMonitor.id)
+                {
+                    return WorkspacePlacementTarget(
+                        workspaceId: workspace.id,
+                        monitorId: frameMonitor.id,
+                        isAuthoritative: true
+                    )
+                }
+
+                if let interactionMonitorId = createPlacementContext?.interactionMonitorId,
+                   interactionMonitorId != focusedMonitorId,
+                   let workspace = workspaceManager.activeWorkspaceOrFirst(on: interactionMonitorId)
+                {
+                    return WorkspacePlacementTarget(
+                        workspaceId: workspace.id,
+                        monitorId: interactionMonitorId,
+                        isAuthoritative: true
+                    )
+                }
+            }
+
+            if let interactionMonitorId = createPlacementContext?.interactionMonitorId,
+               let activeWorkspace = workspaceManager.activeWorkspace(on: interactionMonitorId),
+               let focusedWorkspaceId = createPlacementContext?.focusedWorkspaceId,
+               activeWorkspace.id != focusedWorkspaceId,
+               (createPlacementContext?.focusedMonitorId == nil
+                   || createPlacementContext?.focusedMonitorId == interactionMonitorId)
+            {
+                return WorkspacePlacementTarget(
+                    workspaceId: activeWorkspace.id,
+                    monitorId: interactionMonitorId,
+                    isAuthoritative: true
+                )
             }
 
             if let target = managedFocusPlacementTarget(createPlacementContext?.focusedWorkspaceId,
@@ -2079,6 +2136,14 @@ final class WMController {
         }
     }
 
+    func recordRuntimeInsertionTrace(_ message: String) {
+        guard runtimeTraceCaptureSession != nil else { return }
+        runtimeInsertionTraceRecords.append(Date().ISO8601Format() + " " + message)
+        if runtimeInsertionTraceRecords.count > 400 {
+            runtimeInsertionTraceRecords.removeFirst(runtimeInsertionTraceRecords.count - 400)
+        }
+    }
+
     func recordRuntimeViewportTrace(
         workspaceId: WorkspaceDescriptor.ID,
         reason: String,
@@ -2553,7 +2618,7 @@ final class WMController {
             "accessibilityGranted=\(accessibilityPermissionGranted) lockScreenActive=\(isLockScreenActive) overviewOpen=\(isOverviewOpen()) startedServices=\(hasStartedServices)",
             "focusFollowsMouse=\(focusFollowsMouseEnabled) moveMouseToFocusedWindow=\(moveMouseToFocusedWindowEnabled) mouseWarpPolicyEnabled=\(isMouseWarpPolicyEnabled)",
             "isTransferringWindow=\(isTransferringWindow) hiddenAppPIDs=\(hiddenAppPIDs.count) workspaceBarHiddenMonitors=\(hiddenWorkspaceBarMonitorIds.count)",
-            "runtimeTraceCaptureActive=\(traceCaptureStatus.isActive) runtimeTraceStartedAt=\(traceCaptureStatus.startedAt?.ISO8601Format() ?? "nil") viewportTraceRecords=\(runtimeViewportTraceRecords.count) resizeTraceRecords=\(runtimeResizeTraceRecords.count) mouseTraceRecords=\(runtimeMouseTraceRecords.count)",
+            "runtimeTraceCaptureActive=\(traceCaptureStatus.isActive) runtimeTraceStartedAt=\(traceCaptureStatus.startedAt?.ISO8601Format() ?? "nil") viewportTraceRecords=\(runtimeViewportTraceRecords.count) resizeTraceRecords=\(runtimeResizeTraceRecords.count) insertionTraceRecords=\(runtimeInsertionTraceRecords.count) mouseTraceRecords=\(runtimeMouseTraceRecords.count)",
             "workspaceBarRefreshDebugState requestCount=\(workspaceBarRefreshDebugState.requestCount) scheduledCount=\(workspaceBarRefreshDebugState.scheduledCount) executionCount=\(workspaceBarRefreshDebugState.executionCount) isQueued=\(workspaceBarRefreshDebugState.isQueued)",
             "-- Focus Targets --",
             focusTargetDebugDump(),
@@ -2624,6 +2689,7 @@ final class WMController {
             runtimeTraceCaptureSession = nil
             runtimeViewportTraceRecords.removeAll(keepingCapacity: true)
             runtimeResizeTraceRecords.removeAll(keepingCapacity: true)
+            runtimeInsertionTraceRecords.removeAll(keepingCapacity: true)
             runtimeMouseTraceRecords.removeAll(keepingCapacity: true)
             syncNiriResizeTraceSink()
             workspaceBarManager.update()
@@ -2693,6 +2759,7 @@ final class WMController {
 
         runtimeViewportTraceRecords.removeAll(keepingCapacity: true)
         runtimeResizeTraceRecords.removeAll(keepingCapacity: true)
+        runtimeInsertionTraceRecords.removeAll(keepingCapacity: true)
         runtimeMouseTraceRecords.removeAll(keepingCapacity: true)
         let startedAt = Date()
         let startRuntimeStateDump = runtimeStateDebugDump(
@@ -2705,6 +2772,8 @@ final class WMController {
         )
         syncNiriResizeTraceSink()
         workspaceManager.resetReconcileTraceForDebug()
+        workspaceManager.resetInteractionMonitorWriteTraceForDebug()
+        AppAXContext.resetRawAXNotificationTraceForDebug()
         workspaceBarManager.update()
         return .executed
     }
@@ -2730,6 +2799,9 @@ final class WMController {
         let resizeTraceDump = runtimeResizeTraceRecords.isEmpty
             ? "resize trace empty"
             : runtimeResizeTraceRecords.joined(separator: "\n")
+        let insertionTraceDump = runtimeInsertionTraceRecords.isEmpty
+            ? "insertion trace empty"
+            : runtimeInsertionTraceRecords.joined(separator: "\n")
         let mouseTraceDump = runtimeMouseTraceRecords.isEmpty
             ? "mouse trace empty"
             : runtimeMouseTraceRecords.joined(separator: "\n")
@@ -2737,6 +2809,8 @@ final class WMController {
         let createFocusTraceDump = createFocusTraceEvents.isEmpty
             ? "create focus trace empty"
             : createFocusTraceEvents.map(\.description).joined(separator: "\n")
+        let rawAXNotificationDump = AppAXContext.rawAXNotificationTraceDump()
+        let interactionMonitorWriteDump = workspaceManager.interactionMonitorWriteTraceDump()
         let body = [
             "Nehir runtime trace capture",
             "startedAt=\(session.startedAt.ISO8601Format())",
@@ -2755,8 +2829,17 @@ final class WMController {
             "## Niri resize trace",
             resizeTraceDump,
             "",
+            "## Niri insertion trace",
+            insertionTraceDump,
+            "",
             "## Niri create focus trace",
             createFocusTraceDump,
+            "",
+            "## AX notification trace",
+            rawAXNotificationDump,
+            "",
+            "## Interaction monitor writes",
+            interactionMonitorWriteDump,
             "",
             "## Mouse focus trace",
             mouseTraceDump,
@@ -2782,6 +2865,7 @@ final class WMController {
         runtimeTraceCaptureSession = nil
         runtimeViewportTraceRecords.removeAll(keepingCapacity: true)
         runtimeResizeTraceRecords.removeAll(keepingCapacity: true)
+        runtimeInsertionTraceRecords.removeAll(keepingCapacity: true)
         runtimeMouseTraceRecords.removeAll(keepingCapacity: true)
         syncNiriResizeTraceSink()
         workspaceBarManager.update()

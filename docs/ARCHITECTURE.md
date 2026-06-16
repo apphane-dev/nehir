@@ -302,14 +302,15 @@ struct AXWindowRef: Hashable, @unchecked Sendable {
 From creation to destruction, a window passes through these stages:
 
 **Creation:**
-1. `CGSEventObserver` receives `.created(windowId, spaceId)` from SkyLight
-2. `AXEventHandler` queries window attributes via accessibility APIs (role, subrole, title, size, buttons)
+1. `CGSEventObserver` receives `.created(windowId, spaceId)` from SkyLight and captures a `WindowCreatePlacementContext` when possible (native-space monitor, active focus request, confirmed focus, interaction monitor, and source metadata).
+2. `AXEventHandler` queries window attributes via accessibility APIs (role, subrole, title, size, buttons). AX can occasionally report focused-window state before the SkyLight create event has drained; in that AX-first path, `AXEventHandler` synthesizes the same placement context before admission.
 3. `WindowRuleEngine.evaluate()` produces a `WindowDecision`:
    - `.managed` — tiled in the layout engine
    - `.floating` — tracked but positioned independently
    - `.unmanaged` — ignored entirely (e.g., system UI, panels)
-4. If tracked: `WindowModel` creates an `Entry`, layout engine inserts a node
-5. `LayoutRefreshController` schedules a refresh to compute and apply frames
+4. `WMController.resolveWorkspaceForNewWindow(...)` chooses the workspace from placement inputs. Current frame/interaction monitor evidence beats stale confirmed focus; recent same-pid workspace is only a fallback for focus-cleared AX-first admission.
+5. If tracked: `WindowModel` creates an `Entry`, layout engine inserts a node.
+6. `LayoutRefreshController` schedules a refresh to compute and apply frames.
 
 **Destruction:**
 1. `CGSEventObserver` receives `.destroyed(windowId, spaceId)`
@@ -318,7 +319,7 @@ From creation to destruction, a window passes through these stages:
 4. `LayoutRefreshController` schedules a `windowRemoval` refresh
 5. Focus recovery runs if the destroyed window was focused
 
-Nehir also guards the native activation race around close/collapse. macOS may focus another window from the same application before Nehir receives the destroy/miniaturize event; if that sibling window lives on an inactive workspace, Nehir suppresses the unrelated same-PID activation instead of following macOS to the other workspace. For unmanaged quick-terminal surfaces, same-PID fallback is suppressed even on the current workspace so closing/collapsing the quick terminal does not scroll to that app's managed column. Explicit Nehir focus requests still bypass this guard.
+Nehir also guards the native activation race around close/collapse. macOS may focus another window before Nehir receives the destroy, hide, or AX focus-loss signal for the disappearing surface. `AXEventHandler` arms a short `windowCloseFocusRecovery` lease from tracked destroys, untracked auxiliary same-pid destroys, focused-window loss, and the confirmed managed window becoming hidden. While the lease is active, unrelated native activations away from the recovery workspace are suppressed; duplicate confirmations of the already-focused token preserve the active viewport instead of revealing parked columns. If an inactive-workspace `workspaceDidActivateApplication` arrives just before the close signal, Nehir briefly defers and retries it so recovery can arm first; if no recovery appears, the retry is allowed as a real native activation. Explicit Nehir focus requests still bypass this guard.
 
 **Managed Replacement:**
 Some apps (browsers, terminals) destroy and recreate windows during internal operations. `AXEventHandler` detects these patterns via `ManagedReplacementMetadata` correlation — matching a destroy+create pair within a 150ms grace period to preserve the window's workspace assignment and position.
@@ -357,6 +358,8 @@ RefreshReason              → Route              → Scheduling
 ```
 
 **Coalescing:** If a refresh is already in progress, incoming requests are merged into a `pendingRefresh`. When the active refresh completes, the pending refresh fires. This prevents redundant layout calculations during bursts of events.
+
+**Activation boundary:** Relayout may rediscover or sync windows that already existed before the current refresh. Those windows are inserted into the layout state, but automatic focus activation is only emitted for a newly synced window when its workspace is active on its monitor and that monitor is the current interaction monitor. Refreshing an inactive workspace must never steal focus or scroll the user away.
 
 **DisplayLink Integration:** When animations are active (spring-based viewport scrolling, workspace switch effects), a `CADisplayLink` per display fires at the native refresh rate, driving per-frame layout recalculation.
 
@@ -594,7 +597,16 @@ The `FocusBridgeCoordinator` manages the request/confirmation part of this model
 
 **Focus serialization:** `focusWindow(_:performFocus:onDeferredFocus:)` serializes focus operations. If a focus request arrives while one is in-flight, it queues as the active focus request successor and fires after the current request completes or times out.
 
-**Close/collapse focus guard:** When the focused window closes, collapses, or otherwise disappears, the OS can immediately report a different same-app window as focused. For terminals and apps with quick-terminal surfaces, that replacement focus often points at another workspace. Nehir treats unrelated same-PID activation on an inactive workspace as a native fallback, not as user workspace navigation, and ignores it unless it matches an explicit `ManagedFocusRequest`. If the disappearing focus target is unmanaged (for example a quick terminal), same-PID fallback is also ignored on the current workspace to avoid scrolling to that app's managed column. This keeps the active workspace stable after closing a Niri-managed window, a managed floating window, or an unmanaged quick-terminal surface. The tradeoff is intentional: native same-app window switching should go through Nehir commands if it must be guaranteed.
+**Close/hide focus recovery:** When the focused window closes, hides, collapses, or otherwise loses AX focus, the OS can immediately report a different managed window as focused. For terminals and apps with dropdown/quick-terminal surfaces, that replacement focus often points at another workspace or parked column. Nehir treats this as a native fallback, not as user navigation, unless it matches an explicit `ManagedFocusRequest`.
+
+Recovery is deliberately short-lived and signal-driven:
+
+- tracked focused-window destroy;
+- untracked auxiliary same-pid destroy (common for dropdown helper AX elements);
+- focused-window loss from `AXFocusedWindowChanged window=nil`;
+- the confirmed managed window becoming hidden while its workspace is active.
+
+During the `windowCloseFocusRecovery` lease, unrelated activations off the recovery workspace are suppressed. Same-workspace activations for a different token are also suppressed when they are native fallbacks rather than requests. Because macOS can report the successor `workspaceDidActivateApplication` before the close signal, Nehir briefly defers ambiguous inactive-workspace native activations and retries them; if recovery armed in the meantime they are suppressed, otherwise the retry proceeds.
 
 ### 4.6 Input Handling
 
@@ -763,7 +775,7 @@ A lightweight `NSWindow` overlay that draws a rounded rectangle around the focus
 | **Overview** | `Core/Overview/OverviewController.swift` | Bird's-eye view of all workspaces with window thumbnails (ScreenCaptureKit), search, drag-to-reorganize |
 | **Command Palette** | `UI/CommandPalette/CommandPaletteController.swift` | Fuzzy-search interface for windows, commands, and menu items |
 | **Menu Anywhere** | `UI/MenuAnywhere/MenuAnywhereController.swift` | UI controller that uses the Core menu extraction layer to display any app's menu at cursor position |
-| **Workspace Bar** | `UI/WorkspaceBar/WorkspaceBarManager.swift` | Visual workspace indicators with window icons per workspace |
+| **Workspace Bar** | `UI/WorkspaceBar/WorkspaceBarManager.swift` | Visual workspace indicators with window icons per workspace. Clicks route by `WorkspaceDescriptor.ID` rather than display label so UI labels can change without changing activation identity. |
 | **Scratchpad** | `Core/Workspace/WorkspaceManager.swift` | Tracks the transient scratchpad window via `scratchpadToken()`. Show/hide and focus recovery are coordinated by `WMController`. |
 | **Status Bar** | `UI/StatusBar/StatusBarController.swift` | Menu bar icon with settings access and workspace summary |
 

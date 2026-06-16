@@ -107,6 +107,11 @@ final class AppAXContext {
     @MainActor static var onWindowMiniaturized: ((pid_t, Int) -> Void)?
     @MainActor static var onFocusedWindowChanged: ((pid_t) -> Void)?
 
+    /// Bounded ring of every AX notification the per-app observers deliver,
+    /// captured before the destroy/miniaturize filter. Diagnostic only — see
+    /// `RawAXNotificationRecorder`.
+    @MainActor static let rawAXNotificationRecorder = RawAXNotificationRecorder()
+
     @MainActor static var contexts: [pid_t: AppAXContext] = [:]
     @MainActor private static var inFlightCreations: [pid_t: Task<AppAXContext?, Error>] = [:]
     @MainActor static var contextFactoryForTests: ((NSRunningApplication) async throws -> AppAXContext?)?
@@ -247,6 +252,26 @@ final class AppAXContext {
         let windowId = Int(bitPattern: refcon)
         guard windowId > 0 else { return nil }
         return windowId
+    }
+
+    /// Diagnostic entry point for the raw AX notification ring. Callable from
+    /// the nonisolated AX callbacks; hops to the main actor to append.
+    nonisolated static func recordRawNotification(
+        name: String,
+        pid: pid_t,
+        windowId: Int?
+    ) {
+        scheduleOnMainRunLoop {
+            rawAXNotificationRecorder.append(name: name, pid: pid, windowId: windowId)
+        }
+    }
+
+    @MainActor static func rawAXNotificationTraceDump() -> String {
+        rawAXNotificationRecorder.dump()
+    }
+
+    @MainActor static func resetRawAXNotificationTraceForDebug() {
+        rawAXNotificationRecorder.reset()
     }
 
     nonisolated static func handleWindowDestroyedCallback(
@@ -871,12 +896,18 @@ private func axWindowNotificationCallback(
     _ refcon: UnsafeMutableRawPointer?
 ) {
     let notificationName = notification as String
+    var pid: pid_t = 0
+    guard AXUIElementGetPid(element, &pid) == .success else { return }
+
+    // Record every window-observer notification (with windowId from refcon)
+    // BEFORE the destroy/miniaturize filter — diagnostic trace for hide/close
+    // sequences. See docs/plans/completed/20260615-quick-terminal-close-switches-workspace.md.
+    let recordedWindowId = AppAXContext.destroyNotificationWindowId(from: refcon)
+    AppAXContext.recordRawNotification(name: notificationName, pid: pid, windowId: recordedWindowId)
+
     let isDestroyed = notificationName == (kAXUIElementDestroyedNotification as String)
     let isMiniaturized = notificationName == (kAXWindowMiniaturizedNotification as String)
     guard isDestroyed || isMiniaturized else { return }
-
-    var pid: pid_t = 0
-    guard AXUIElementGetPid(element, &pid) == .success else { return }
 
     if isDestroyed {
         AppAXContext.handleWindowDestroyedCallback(pid: pid, refcon: refcon)
@@ -891,10 +922,15 @@ private func axFocusedWindowChangedCallback(
     _ notification: CFString,
     _: UnsafeMutableRawPointer?
 ) {
-    guard (notification as String) == (kAXFocusedWindowChangedNotification as String) else { return }
-
+    let notificationName = notification as String
     var pid: pid_t = 0
     guard AXUIElementGetPid(element, &pid) == .success else { return }
+
+    // Focus observer carries no refcon, so windowId is unavailable without an
+    // extra AX attribute read; record pid + name for diagnostic timing.
+    AppAXContext.recordRawNotification(name: notificationName, pid: pid, windowId: nil)
+
+    guard notificationName == (kAXFocusedWindowChangedNotification as String) else { return }
 
     scheduleOnMainRunLoop {
         AppAXContext.onFocusedWindowChanged?(pid)
