@@ -59,7 +59,7 @@ struct BehaviorSettingsTab: View {
                     value: $settings.scrollSensitivity,
                     range: 0.5 ... 20.0,
                     step: 0.5,
-                    valueText: String(format: "%.1f", settings.scrollSensitivity) + "x"
+                    formatter: { String(format: "%.1f", $0) + "x" }
                 )
                 .disabled(!settings.scrollGestureEnabled)
 

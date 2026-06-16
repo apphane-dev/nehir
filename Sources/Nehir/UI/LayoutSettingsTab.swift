@@ -74,7 +74,7 @@ struct LayoutSettingsTab: View {
                 ),
                 range: 0 ... 32,
                 step: 1,
-                valueText: "\(Int(effectiveGapSize)) px",
+                formatter: { "\(Int($0)) px" },
                 valueWidth: 64,
                 onEditingChanged: { editing in
                     if !editing { commitGapSizeDraft() }
@@ -94,7 +94,7 @@ struct LayoutSettingsTab: View {
                 ),
                 range: 0 ... 64,
                 step: 1,
-                valueText: "\(Int(effectiveOuterGapLeft)) px",
+                formatter: { "\(Int($0)) px" },
                 valueWidth: 64,
                 onEditingChanged: { editing in
                     if !editing { commitOuterGapDrafts() }
@@ -111,7 +111,7 @@ struct LayoutSettingsTab: View {
                 ),
                 range: 0 ... 64,
                 step: 1,
-                valueText: "\(Int(effectiveOuterGapRight)) px",
+                formatter: { "\(Int($0)) px" },
                 valueWidth: 64,
                 onEditingChanged: { editing in
                     if !editing { commitOuterGapDrafts() }
@@ -128,7 +128,7 @@ struct LayoutSettingsTab: View {
                 ),
                 range: 0 ... 64,
                 step: 1,
-                valueText: "\(Int(effectiveOuterGapTop)) px",
+                formatter: { "\(Int($0)) px" },
                 valueWidth: 64,
                 onEditingChanged: { editing in
                     if !editing { commitOuterGapDrafts() }
@@ -145,7 +145,7 @@ struct LayoutSettingsTab: View {
                 ),
                 range: 0 ... 64,
                 step: 1,
-                valueText: "\(Int(effectiveOuterGapBottom)) px",
+                formatter: { "\(Int($0)) px" },
                 valueWidth: 64,
                 onEditingChanged: { editing in
                     if !editing { commitOuterGapDrafts() }
