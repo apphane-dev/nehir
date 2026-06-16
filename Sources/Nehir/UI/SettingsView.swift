@@ -4,6 +4,10 @@ import SwiftUI
 @MainActor @Observable
 final class SettingsNavigationModel {
     var selectedSection: SettingsSection
+    /// A one-shot search query handed to the Hotkeys tab on navigation. The
+    /// Hotkeys view consumes and clears it on appear so it filters to the
+    /// relevant bindings (e.g. the debug commands) instead of showing all.
+    var hotkeySearchSeed: String?
 
     init(selectedSection: SettingsSection = .general) {
         self.selectedSection = selectedSection
@@ -24,6 +28,7 @@ struct SettingsView: View {
                 section: navigation.selectedSection,
                 settings: settings,
                 controller: controller,
+                navigation: navigation,
                 cliManager: cliManager
             )
         }
@@ -81,16 +86,6 @@ struct GeneralSettingsTab: View {
                         controller.setPreventSleepEnabled(newValue)
                     }
                 SettingsCaption("Keeps the display awake while Nehir is running.")
-            }
-
-            Section("Developer") {
-                Toggle(isOn: $settings.developerModeEnabled) {
-                    HStack(spacing: 8) {
-                        Text("Developer Mode")
-                        DeveloperBadge()
-                    }
-                }
-                SettingsCaption("Shows debug commands in the palette, hotkey settings, and enables IPC debug endpoints.")
             }
 
             Section("Onboarding") {
