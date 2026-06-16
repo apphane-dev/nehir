@@ -196,6 +196,7 @@ enum HotkeySettingsDisplayModel {
 struct HotkeySettingsView: View {
     @Bindable var settings: SettingsStore
     @Bindable var controller: WMController
+    var navigation: SettingsNavigationModel
     @State private var recordingTarget: HotkeyRecordingTarget?
     @State private var conflictAlert: ConflictAlert?
     @State private var noticeAlert: HotkeyNoticeAlert?
@@ -278,6 +279,9 @@ struct HotkeySettingsView: View {
                     confirmsResetToDefaults = true
                 }
             }
+        }
+        .onAppear {
+            consumeHotkeySearchSeed()
         }
         .onChange(of: recordingTarget) { _, _ in
             syncHotkeyRecordingState()
@@ -485,6 +489,15 @@ struct HotkeySettingsView: View {
 
     private func syncHotkeyRecordingState() {
         controller.setHotkeysEnabled(recordingTarget != nil ? false : settings.hotkeysEnabled)
+    }
+
+    /// Consumes a one-shot search seed handed over by another tab (e.g. the
+    /// Diagnostics tab linking to debug commands). Filters the Hotkeys list to
+    /// the relevant bindings instead of showing all.
+    private func consumeHotkeySearchSeed() {
+        guard let seed = navigation.hotkeySearchSeed else { return }
+        navigation.hotkeySearchSeed = nil
+        searchText = seed
     }
 
     private func bindingsForNumberedGroup(_ group: HotkeyConfigMapping.NumberedGroup) -> [HotkeyBinding] {

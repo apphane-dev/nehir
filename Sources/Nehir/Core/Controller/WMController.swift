@@ -2890,11 +2890,15 @@ final class WMController {
         pasteboard.setString(text, forType: .string)
     }
 
+    /// Directory where exported runtime trace captures are written. Exposed so
+    /// the Diagnostics settings tab can list recent captures from the same path
+    /// the capture writer uses.
+    static let traceCaptureDirectory: URL = NehirStoragePaths.live.stateDirectory
+        .appendingPathComponent("traces", isDirectory: true)
+
     private func runtimeTraceCaptureFileURL(startedAt: Date, endedAt: Date) -> URL {
-        let baseDirectory = NehirStoragePaths.live.stateDirectory
-            .appendingPathComponent("traces", isDirectory: true)
         let filename = "runtime-trace-\(Int(startedAt.timeIntervalSince1970 * 1000))-\(Int(endedAt.timeIntervalSince1970 * 1000)).log"
-        return baseDirectory.appendingPathComponent(filename, isDirectory: false)
+        return Self.traceCaptureDirectory.appendingPathComponent(filename, isDirectory: false)
     }
 
     private func relaunchCurrentApplication(extraArguments: [String] = []) -> Bool {

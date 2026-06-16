@@ -2,6 +2,10 @@ import AppKit
 import SwiftUI
 
 struct DisplayDiagnosticsSettingsTab: View {
+    @Bindable var settings: SettingsStore
+    var controller: WMController
+    @Bindable var navigation: SettingsNavigationModel
+
     @State private var diagnostics = DisplayEnvironmentDiagnostics.current()
     @State private var monitors = Monitor.current()
     @State private var axGranted = AccessibilityPermissionMonitor.shared.isGranted
@@ -10,16 +14,26 @@ struct DisplayDiagnosticsSettingsTab: View {
     @State private var migrationError: String?
     @State private var unknownKeysConfirmation: String?
     @State private var unknownKeysError: String?
+    @State private var traceCaptureStatus: WMController.RuntimeTraceCaptureStatus = .init(isActive: false, startedAt: nil)
+    @State private var recentTraces: [TraceFile] = []
+    @State private var traceCopyStatus: String?
+    @State private var runtimeActionStatus: String?
 
     private let configDirectory: URL
     private let migrationStateStore: SettingsMigrationStateStore
     private let appVersion: String
 
     init(
+        settings: SettingsStore,
+        controller: WMController,
+        navigation: SettingsNavigationModel,
         configDirectory: URL = SettingsFilePersistence.defaultDirectoryURL,
         migrationStateStore: SettingsMigrationStateStore = SettingsMigrationStateStore(),
         appVersion: String = Bundle.main.appVersion ?? "dev"
     ) {
+        self.settings = settings
+        self.controller = controller
+        self.navigation = navigation
         self.configDirectory = configDirectory
         self.migrationStateStore = migrationStateStore
         self.appVersion = appVersion
@@ -141,6 +155,25 @@ struct DisplayDiagnosticsSettingsTab: View {
                     }
                 }
             }
+
+            Section("Developer") {
+                Toggle(isOn: $settings.developerModeEnabled) {
+                    HStack(spacing: 8) {
+                        Text("Developer Mode")
+                        DeveloperBadge()
+                    }
+                }
+                .onChange(of: settings.developerModeEnabled) { _, _ in
+                    controller.updateWorkspaceBarSettings()
+                }
+                SettingsCaption("Shows debug commands in the palette, hotkey settings, and enables IPC debug endpoints.")
+            }
+
+            if settings.developerModeEnabled {
+                runtimeStateSection
+                workspaceBarTraceSection
+                recentTracesSection
+            }
         }
         .formStyle(.grouped)
         .onAppear(perform: refresh)
@@ -152,6 +185,163 @@ struct DisplayDiagnosticsSettingsTab: View {
         }
     }
 
+    @ViewBuilder
+    private var workspaceBarTraceSection: some View {
+        Section("Workspace Bar") {
+            Toggle("Show Trace Capture Button", isOn: $settings.workspaceBarShowTraceButton)
+                .onChange(of: settings.workspaceBarShowTraceButton) { _, _ in
+                    controller.updateWorkspaceBarSettings()
+                }
+                .disabled(!settings.workspaceBarEnabled)
+
+            if settings.workspaceBarEnabled {
+                SettingsCaption("Adds a workspace bar button that starts or stops runtime trace capture.")
+            } else {
+                SettingsCaption("Enable the workspace bar before showing its trace capture button.")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var runtimeStateSection: some View {
+        Section {
+            if traceCaptureStatus.isActive, let startedAt = traceCaptureStatus.startedAt {
+                HStack(alignment: .top, spacing: 10) {
+                    Image(systemName: "record.circle.fill")
+                        .foregroundStyle(.red)
+                        .font(.title3)
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Trace capture in progress")
+                            .font(.headline)
+                        TimelineView(.periodic(from: startedAt, by: 1)) { context in
+                            Text("Recording for \(formatDuration(context.date.timeIntervalSince(startedAt)))")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+
+            DebugCommandRow(
+                title: "Dump Runtime State",
+                hotkey: hotkey(for: "debug.dumpRuntimeState"),
+                buttonTitle: "Copy State",
+                run: {
+                    controller.dumpRuntimeState()
+                    runtimeActionStatus = "Runtime state copied to clipboard."
+                    traceCopyStatus = nil
+                }
+            )
+
+            DebugCommandRow(
+                title: "Trace Capture",
+                hotkey: hotkey(for: "debug.toggleTraceCapture"),
+                buttonTitle: traceCaptureStatus.isActive ? "Stop and Export" : "Start",
+                run: {
+                    _ = controller.toggleRuntimeTraceCapture()
+                    runtimeActionStatus = nil
+                    traceCopyStatus = nil
+                    refresh()
+                }
+            )
+
+            DebugCommandRow(
+                title: "Reset Runtime State",
+                hotkey: hotkey(for: "debug.resetRuntimeState"),
+                buttonTitle: "Reset",
+                role: .destructive,
+                run: { resetRuntimeState() }
+            )
+
+            DebugCommandRow(
+                title: "Restart Clearing State",
+                hotkey: hotkey(for: "debug.restartClearingRuntimeState"),
+                buttonTitle: "Restart",
+                role: .destructive,
+                run: { restartClearingRuntimeState() }
+            )
+
+            Button("Assign in Hotkeys") {
+                navigation.hotkeySearchSeed = "debug"
+                navigation.selectedSection = .hotkeys
+            }
+
+            if let runtimeActionStatus {
+                Label(runtimeActionStatus, systemImage: "checkmark.circle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.green)
+            }
+
+            SettingsCaption("Reset rebuilds runtime state from a fresh rescan. Restart Clearing State relaunches Nehir after the same cleanup and can enable tracing from startup.")
+        } header: {
+            HStack(spacing: 6) {
+                Text("Runtime State")
+                DeveloperBadge()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var recentTracesSection: some View {
+        Section("Recent Traces") {
+            if recentTraces.isEmpty {
+                Text("No trace captures yet. Start a trace, then stop it to export a log file.")
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(recentTraces) { trace in
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(alignment: .firstTextBaseline) {
+                            Text(trace.url.lastPathComponent)
+                                .font(.caption.monospaced())
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                            Spacer()
+                            Text(formatFileSize(trace.size))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        HStack {
+                            Text(formatDate(trace.modificationDate))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Button("Copy Path") {
+                                copyTracePath(trace)
+                            }
+                            .buttonStyle(.borderless)
+                            Button("Copy File") {
+                                copyTraceFile(trace)
+                            }
+                            .buttonStyle(.borderless)
+                        }
+                    }
+                    .padding(.vertical, 2)
+                }
+            }
+
+            HStack {
+                Button("Refresh Traces") {
+                    refresh()
+                }
+                Button("Reveal Traces Folder") {
+                    NSWorkspace.shared.activateFileViewerSelecting([WMController.traceCaptureDirectory])
+                }
+            }
+
+            if let traceCopyStatus {
+                Label(traceCopyStatus, systemImage: "checkmark.circle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.green)
+            }
+        }
+    }
+
+    private func hotkey(for actionId: String) -> HotkeyTrigger {
+        settings.hotkeyBindings.first { $0.id == actionId }?.binding ?? .unassigned
+    }
+
     private var statusMessage: String {
         guard diagnostics.hasWarnings else {
             return "Auto-hide Dock and vertical display arrangement are the expected low-artifact configuration."
@@ -159,11 +349,101 @@ struct DisplayDiagnosticsSettingsTab: View {
         return "Nehir can still run, but parked offscreen windows may leave visible strips or bleed onto neighboring displays."
     }
 
+    private func resetRuntimeState() {
+        let confirmed = DestructiveConfirmationAlert.confirm(
+            title: "Reset Runtime State",
+            message: "This will clear all runtime state and rebootstrap from a rescan. Continue?",
+            confirmTitle: "Reset"
+        )
+        guard confirmed else { return }
+
+        _ = controller.commandHandler.performCommand(.debugResetRuntimeState)
+        runtimeActionStatus = "Runtime state reset."
+        traceCopyStatus = nil
+        refresh()
+    }
+
+    private func restartClearingRuntimeState() {
+        let result = DestructiveConfirmationAlert.confirmRestart(
+            title: "Restart Clearing Runtime State",
+            message: "This will clear runtime state and relaunch the app. Continue?",
+            confirmTitle: "Restart"
+        )
+        guard result.confirmed else { return }
+
+        _ = controller.commandHandler.performRestartClearingRuntimeState(enableTracing: result.enableTracing)
+    }
+
+    private func copyTracePath(_ trace: TraceFile) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        if pasteboard.setString(trace.url.path, forType: .string) {
+            traceCopyStatus = "Copied trace path."
+        } else {
+            traceCopyStatus = "Couldn't copy trace path."
+        }
+        runtimeActionStatus = nil
+    }
+
+    private func copyTraceFile(_ trace: TraceFile) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        if pasteboard.writeObjects([trace.url as NSURL]) {
+            traceCopyStatus = "Copied trace file."
+        } else {
+            traceCopyStatus = "Couldn't copy trace file."
+        }
+        runtimeActionStatus = nil
+    }
+
+    private func loadRecentTraces() -> [TraceFile] {
+        let keys: Set<URLResourceKey> = [.contentModificationDateKey, .fileSizeKey]
+        guard let contents = try? FileManager.default.contentsOfDirectory(
+            at: WMController.traceCaptureDirectory,
+            includingPropertiesForKeys: Array(keys),
+            options: [.skipsHiddenFiles, .skipsSubdirectoryDescendants]
+        ) else {
+            return []
+        }
+
+        let traces = contents
+            .filter { $0.pathExtension.lowercased() == "log" }
+            .compactMap { url -> TraceFile? in
+                guard let values = try? url.resourceValues(forKeys: keys) else { return nil }
+                return TraceFile(
+                    url: url,
+                    modificationDate: values.contentModificationDate ?? Date(timeIntervalSince1970: 0),
+                    size: Int64(values.fileSize ?? 0)
+                )
+            }
+            .sorted { $0.modificationDate > $1.modificationDate }
+
+        return Array(traces.prefix(10))
+    }
+
+    private func formatDate(_ date: Date) -> String {
+        date.formatted(date: .abbreviated, time: .shortened)
+    }
+
+    private func formatDuration(_ duration: TimeInterval) -> String {
+        let seconds = max(0, Int(duration.rounded()))
+        if seconds >= 3600 {
+            return String(format: "%d:%02d:%02d", seconds / 3600, (seconds % 3600) / 60, seconds % 60)
+        }
+        return String(format: "%d:%02d", seconds / 60, seconds % 60)
+    }
+
+    private func formatFileSize(_ bytes: Int64) -> String {
+        ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+    }
+
     private func refresh() {
         monitors = Monitor.current()
         diagnostics = DisplayEnvironmentDiagnostics.evaluate(monitors: monitors)
         axGranted = AccessibilityPermissionMonitor.shared.isGranted
         refreshSettingsIssues()
+        traceCaptureStatus = controller.runtimeTraceCaptureStatus
+        recentTraces = loadRecentTraces()
     }
 
     private func refreshSettingsIssues() {
@@ -258,6 +538,47 @@ struct DisplayDiagnosticsSettingsTab: View {
             NotificationCenter.default.post(name: .settingsMigrationStateDidChange, object: nil)
         } catch {
             unknownKeysError = error.localizedDescription
+        }
+    }
+}
+
+private struct TraceFile: Identifiable {
+    let url: URL
+    let modificationDate: Date
+    let size: Int64
+
+    var id: URL { url }
+}
+
+/// A single debug command rendered as a row: its title, the currently
+/// assigned shortcut, and a button that runs the command directly. Joins the
+/// "what hotkey is bound" info with the run action in one place.
+private struct DebugCommandRow: View {
+    let title: String
+    let hotkey: HotkeyTrigger
+    let buttonTitle: String
+    var role: ButtonRole?
+    let run: () -> Void
+
+    var body: some View {
+        LabeledContent(title) {
+            HStack(spacing: 8) {
+                Text(hotkey.displayString)
+                    .font(.system(.body, design: .monospaced))
+                    .foregroundStyle(hotkey.isUnassigned ? .tertiary : .secondary)
+                    .lineLimit(1)
+                runButton
+                    .frame(width: 104, alignment: .center)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var runButton: some View {
+        if let role {
+            Button(buttonTitle, role: role, action: run)
+        } else {
+            Button(buttonTitle, action: run)
         }
     }
 }

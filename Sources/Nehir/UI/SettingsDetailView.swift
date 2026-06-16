@@ -4,6 +4,7 @@ struct SettingsDetailView: View {
     let section: SettingsSection
     @Bindable var settings: SettingsStore
     @Bindable var controller: WMController
+    @Bindable var navigation: SettingsNavigationModel
     var cliManager: AppCLIManager?
 
     var body: some View {
@@ -40,9 +41,9 @@ struct SettingsDetailView: View {
         case .appRules:
             AppRulesView(settings: settings, controller: controller)
         case .hotkeys:
-            HotkeySettingsView(settings: settings, controller: controller)
+            HotkeySettingsView(settings: settings, controller: controller, navigation: navigation)
         case .diagnostics:
-            DisplayDiagnosticsSettingsTab()
+            DisplayDiagnosticsSettingsTab(settings: settings, controller: controller, navigation: navigation)
         }
     }
 }
