@@ -37,7 +37,6 @@ final class SettingsFilePersistence {
     nonisolated static let workspacesFileName = "workspaces.toml"
     nonisolated static let appRulesDirectoryName = "apprules.d"
     nonisolated static let monitorsDirectoryName = "monitors.d"
-    nonisolated static let corruptFileName = "settings.toml.corrupt"
     nonisolated static var fileURL: URL {
         defaultDirectoryURL.appendingPathComponent(fileName, isDirectory: false)
     }
@@ -491,19 +490,6 @@ final class SettingsFilePersistence {
 
     private static func nanoseconds(from timestamp: timespec) -> Int64 {
         Int64(timestamp.tv_sec) * nanosecondsPerSecond + Int64(timestamp.tv_nsec)
-    }
-
-    private func moveCorruptFileAsideIfPresent() {
-        guard FileManager.default.fileExists(atPath: fileURL.path) else { return }
-
-        let corruptURL = directoryURL.appendingPathComponent(Self.corruptFileName, isDirectory: false)
-        try? FileManager.default.removeItem(at: corruptURL)
-
-        do {
-            try FileManager.default.moveItem(at: fileURL, to: corruptURL)
-        } catch {
-            report("Failed to move corrupt settings file aside: \(error.localizedDescription)")
-        }
     }
 
     private func report(_ message: String) {

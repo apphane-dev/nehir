@@ -453,11 +453,11 @@ extension CanonicalTOMLConfig.General {
     }
 
     func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(hotkeysEnabled, forKey: .hotkeysEnabled)
-        try container.encode(preventSleepEnabled, forKey: .preventSleepEnabled)
-        try container.encode(ipcEnabled, forKey: .ipcEnabled)
-        try container.encode(developerModeEnabled, forKey: .developerModeEnabled)
+        var container = encoder.container(keyedBy: SettingsTOMLDynamicKey.self)
+        try container.encode(hotkeysEnabled, forKey: "hotkeysEnabled")
+        try container.encode(preventSleepEnabled, forKey: "preventSleepEnabled")
+        try container.encode(ipcEnabled, forKey: "ipcEnabled")
+        try container.encode(developerModeEnabled, forKey: "developerModeEnabled")
         try container.encodeUnknownFields(unknownFields)
     }
 }
@@ -473,10 +473,10 @@ extension CanonicalTOMLConfig.Focus {
     }
 
     func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(followsMouse, forKey: .followsMouse)
-        try container.encode(moveMouseToFocusedWindow, forKey: .moveMouseToFocusedWindow)
-        try container.encode(followsWindowToMonitor, forKey: .followsWindowToMonitor)
+        var container = encoder.container(keyedBy: SettingsTOMLDynamicKey.self)
+        try container.encode(followsMouse, forKey: "followsMouse")
+        try container.encode(moveMouseToFocusedWindow, forKey: "moveMouseToFocusedWindow")
+        try container.encode(followsWindowToMonitor, forKey: "followsWindowToMonitor")
         try container.encodeUnknownFields(unknownFields)
     }
 }
@@ -492,10 +492,10 @@ extension CanonicalTOMLConfig.MouseWarp {
     }
 
     func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(monitorOrder, forKey: .monitorOrder)
-        try container.encodeIfPresent(axis, forKey: .axis)
-        try container.encode(margin, forKey: .margin)
+        var container = encoder.container(keyedBy: SettingsTOMLDynamicKey.self)
+        try container.encode(monitorOrder, forKey: "monitorOrder")
+        try container.encodeIfPresent(axis, forKey: "axis")
+        try container.encode(margin, forKey: "margin")
         try container.encodeUnknownFields(unknownFields)
     }
 }
@@ -510,9 +510,9 @@ extension CanonicalTOMLConfig.Gaps {
     }
 
     func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(size, forKey: .size)
-        try container.encode(outer, forKey: .outer)
+        var container = encoder.container(keyedBy: SettingsTOMLDynamicKey.self)
+        try container.encode(size, forKey: "size")
+        try container.encode(outer, forKey: "outer")
         try container.encodeUnknownFields(unknownFields)
     }
 }
@@ -529,11 +529,11 @@ extension CanonicalTOMLConfig.Gaps.Outer {
     }
 
     func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(left, forKey: .left)
-        try container.encode(right, forKey: .right)
-        try container.encode(top, forKey: .top)
-        try container.encode(bottom, forKey: .bottom)
+        var container = encoder.container(keyedBy: SettingsTOMLDynamicKey.self)
+        try container.encode(left, forKey: "left")
+        try container.encode(right, forKey: "right")
+        try container.encode(top, forKey: "top")
+        try container.encode(bottom, forKey: "bottom")
         try container.encodeUnknownFields(unknownFields)
     }
 }
@@ -552,13 +552,13 @@ extension CanonicalTOMLConfig.Niri {
     }
 
     func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(balancedColumnCount, forKey: .balancedColumnCount)
-        try container.encode(infiniteLoop, forKey: .infiniteLoop)
-        try container.encode(revealPartial, forKey: .revealPartial)
-        try container.encodeIfPresent(loneWindowMaxWidth, forKey: .loneWindowMaxWidth)
-        try container.encodeIfPresent(columnWidthPresets, forKey: .columnWidthPresets)
-        try container.encodeIfPresent(defaultColumnWidth, forKey: .defaultColumnWidth)
+        var container = encoder.container(keyedBy: SettingsTOMLDynamicKey.self)
+        try container.encode(balancedColumnCount, forKey: "balancedColumnCount")
+        try container.encode(infiniteLoop, forKey: "infiniteLoop")
+        try container.encode(revealPartial, forKey: "revealPartial")
+        try container.encodeIfPresent(loneWindowMaxWidth, forKey: "loneWindowMaxWidth")
+        try container.encodeIfPresent(columnWidthPresets, forKey: "columnWidthPresets")
+        try container.encodeIfPresent(defaultColumnWidth, forKey: "defaultColumnWidth")
         try container.encodeUnknownFields(unknownFields)
     }
 }
@@ -574,10 +574,10 @@ extension CanonicalTOMLConfig.Borders {
     }
 
     func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(enabled, forKey: .enabled)
-        try container.encode(width, forKey: .width)
-        try container.encode(color, forKey: .color)
+        var container = encoder.container(keyedBy: SettingsTOMLDynamicKey.self)
+        try container.encode(enabled, forKey: "enabled")
+        try container.encode(width, forKey: "width")
+        try container.encode(color, forKey: "color")
         try container.encodeUnknownFields(unknownFields)
     }
 }
@@ -594,11 +594,11 @@ extension CanonicalTOMLConfig.Borders.Color {
     }
 
     func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(red, forKey: .red)
-        try container.encode(green, forKey: .green)
-        try container.encode(blue, forKey: .blue)
-        try container.encode(alpha, forKey: .alpha)
+        var container = encoder.container(keyedBy: SettingsTOMLDynamicKey.self)
+        try container.encode(red, forKey: "red")
+        try container.encode(green, forKey: "green")
+        try container.encode(blue, forKey: "blue")
+        try container.encode(alpha, forKey: "alpha")
         try container.encodeUnknownFields(unknownFields)
     }
 }
@@ -628,24 +628,24 @@ extension CanonicalTOMLConfig.WorkspaceBar {
     }
 
     func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(enabled, forKey: .enabled)
-        try container.encode(showLabels, forKey: .showLabels)
-        try container.encode(showFloatingWindows, forKey: .showFloatingWindows)
-        try container.encode(showTraceButton, forKey: .showTraceButton)
-        try container.encode(windowLevel, forKey: .windowLevel)
-        try container.encode(position, forKey: .position)
-        try container.encode(notchAware, forKey: .notchAware)
-        try container.encode(deduplicateAppIcons, forKey: .deduplicateAppIcons)
-        try container.encode(hideEmptyWorkspaces, forKey: .hideEmptyWorkspaces)
-        try container.encode(reserveLayoutSpace, forKey: .reserveLayoutSpace)
-        try container.encode(height, forKey: .height)
-        try container.encode(backgroundOpacity, forKey: .backgroundOpacity)
-        try container.encode(xOffset, forKey: .xOffset)
-        try container.encode(yOffset, forKey: .yOffset)
-        try container.encode(labelFontSize, forKey: .labelFontSize)
-        try container.encodeIfPresent(accentColor, forKey: .accentColor)
-        try container.encodeIfPresent(textColor, forKey: .textColor)
+        var container = encoder.container(keyedBy: SettingsTOMLDynamicKey.self)
+        try container.encode(enabled, forKey: "enabled")
+        try container.encode(showLabels, forKey: "showLabels")
+        try container.encode(showFloatingWindows, forKey: "showFloatingWindows")
+        try container.encode(showTraceButton, forKey: "showTraceButton")
+        try container.encode(windowLevel, forKey: "windowLevel")
+        try container.encode(position, forKey: "position")
+        try container.encode(notchAware, forKey: "notchAware")
+        try container.encode(deduplicateAppIcons, forKey: "deduplicateAppIcons")
+        try container.encode(hideEmptyWorkspaces, forKey: "hideEmptyWorkspaces")
+        try container.encode(reserveLayoutSpace, forKey: "reserveLayoutSpace")
+        try container.encode(height, forKey: "height")
+        try container.encode(backgroundOpacity, forKey: "backgroundOpacity")
+        try container.encode(xOffset, forKey: "xOffset")
+        try container.encode(yOffset, forKey: "yOffset")
+        try container.encode(labelFontSize, forKey: "labelFontSize")
+        try container.encodeIfPresent(accentColor, forKey: "accentColor")
+        try container.encodeIfPresent(textColor, forKey: "textColor")
         try container.encodeUnknownFields(unknownFields)
     }
 }
@@ -662,11 +662,11 @@ extension CanonicalTOMLConfig.WorkspaceBar.Color {
     }
 
     func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(red, forKey: .red)
-        try container.encode(green, forKey: .green)
-        try container.encode(blue, forKey: .blue)
-        try container.encode(alpha, forKey: .alpha)
+        var container = encoder.container(keyedBy: SettingsTOMLDynamicKey.self)
+        try container.encode(red, forKey: "red")
+        try container.encode(green, forKey: "green")
+        try container.encode(blue, forKey: "blue")
+        try container.encode(alpha, forKey: "alpha")
         try container.encodeUnknownFields(unknownFields)
     }
 }
@@ -685,13 +685,13 @@ extension CanonicalTOMLConfig.Gestures {
     }
 
     func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(scrollEnabled, forKey: .scrollEnabled)
-        try container.encode(scrollSensitivity, forKey: .scrollSensitivity)
-        try container.encode(scrollModifierKey, forKey: .scrollModifierKey)
-        try container.encode(mouseResizeModifierKey, forKey: .mouseResizeModifierKey)
-        try container.encode(fingerCount, forKey: .fingerCount)
-        try container.encode(invertDirection, forKey: .invertDirection)
+        var container = encoder.container(keyedBy: SettingsTOMLDynamicKey.self)
+        try container.encode(scrollEnabled, forKey: "scrollEnabled")
+        try container.encode(scrollSensitivity, forKey: "scrollSensitivity")
+        try container.encode(scrollModifierKey, forKey: "scrollModifierKey")
+        try container.encode(mouseResizeModifierKey, forKey: "mouseResizeModifierKey")
+        try container.encode(fingerCount, forKey: "fingerCount")
+        try container.encode(invertDirection, forKey: "invertDirection")
         try container.encodeUnknownFields(unknownFields)
     }
 }
@@ -707,10 +707,10 @@ extension CanonicalTOMLConfig.StatusBar {
     }
 
     func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(showWorkspaceName, forKey: .showWorkspaceName)
-        try container.encode(showAppNames, forKey: .showAppNames)
-        try container.encode(useWorkspaceId, forKey: .useWorkspaceId)
+        var container = encoder.container(keyedBy: SettingsTOMLDynamicKey.self)
+        try container.encode(showWorkspaceName, forKey: "showWorkspaceName")
+        try container.encode(showAppNames, forKey: "showAppNames")
+        try container.encode(useWorkspaceId, forKey: "useWorkspaceId")
         try container.encodeUnknownFields(unknownFields)
     }
 }
@@ -724,8 +724,8 @@ extension CanonicalTOMLConfig.Appearance {
     }
 
     func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(mode, forKey: .mode)
+        var container = encoder.container(keyedBy: SettingsTOMLDynamicKey.self)
+        try container.encode(mode, forKey: "mode")
         try container.encodeUnknownFields(unknownFields)
     }
 }

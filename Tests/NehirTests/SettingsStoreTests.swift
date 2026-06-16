@@ -865,20 +865,25 @@ struct SettingsSectionTests {
         #expect(decoded.gapSize == 23)
     }
 
-    @Test func corruptFileIsRenamedAsideAndReplacedWithDefaults() throws {
+    @Test func corruptFileIsLeftInPlaceAndDefaultsUsedInMemory() throws {
         let defaults = makeTestDefaults()
         let directory = configurationDirectoryForTests(defaults: defaults)
         let url = directory.appendingPathComponent("settings.toml", isDirectory: false)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        try Data("this is =!==== not valid toml".utf8).write(to: url)
+        let corruptContents = "this is =!==== not valid toml"
+        try Data(corruptContents.utf8).write(to: url)
 
         let persistence = SettingsFilePersistence(directory: directory, startWatching: false)
         let export = persistence.load()
         let corruptURL = directory.appendingPathComponent("settings.toml.corrupt", isDirectory: false)
 
+        // Invalid settings are handled by startup recovery, not a destructive load-time
+        // rewrite. The in-memory session falls back to defaults; the file is left untouched
+        // so the user (or recovery UI) can see the original content.
         #expect(export == SettingsExport.defaults())
         #expect(FileManager.default.fileExists(atPath: url.path))
-        #expect(FileManager.default.fileExists(atPath: corruptURL.path))
+        #expect(FileManager.default.fileExists(atPath: corruptURL.path) == false)
+        #expect(try String(data: Data(contentsOf: url), encoding: .utf8) == corruptContents)
     }
 }
 

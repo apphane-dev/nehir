@@ -115,7 +115,7 @@ enum SettingsTOMLUnknownValue: Codable, Equatable, Sendable {
     }
 }
 
-struct SettingsTOMLDynamicKey: CodingKey {
+struct SettingsTOMLDynamicKey: CodingKey, ExpressibleByStringLiteral {
     var stringValue: String
     var intValue: Int? { nil }
 
@@ -123,16 +123,19 @@ struct SettingsTOMLDynamicKey: CodingKey {
         self.stringValue = stringValue
     }
 
+    init(stringLiteral value: String) {
+        self.init(stringValue: value)
+    }
+
     init?(intValue: Int) {
         return nil
     }
 }
 
-extension KeyedEncodingContainer {
+extension KeyedEncodingContainer where Key == SettingsTOMLDynamicKey {
     mutating func encodeUnknownFields(_ fields: [String: SettingsTOMLUnknownValue]) throws {
         for (key, value) in fields {
-            guard let dynamicKey = Key(stringValue: key) else { continue }
-            try encode(value, forKey: dynamicKey)
+            try encode(value, forKey: .init(stringValue: key))
         }
     }
 }

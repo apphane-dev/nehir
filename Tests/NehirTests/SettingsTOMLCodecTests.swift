@@ -86,7 +86,7 @@ private extension String {
         #expect(output.contains("customFrame") == false)
     }
 
-    @Test func unknownNiriKeysAreIgnoredAndNotReencoded() throws {
+    @Test func unknownNiriKeysRoundTripThroughReencode() throws {
         var export = SettingsExport.defaults()
         export.niriBalancedColumnCount = 4
 
@@ -98,10 +98,33 @@ private extension String {
         )
 
         let decoded = try SettingsTOMLCodec.decode(Data(edited.utf8))
-        #expect(decoded == export)
+        // The known value is still read; the unknown key is captured and preserved, not dropped.
+        #expect(decoded.niriBalancedColumnCount == 4)
+        #expect(decoded.settingsTOMLUnknownFields["niri"]?[unknownKey] == .integer(7))
 
+        // Re-encoding preserves the unknown key alongside the modeled value.
         let reencoded = try #require(String(data: SettingsTOMLCodec.encode(decoded), encoding: .utf8))
-        #expect(reencoded.contains(unknownKey) == false)
+        #expect(reencoded.contains(unknownKey))
+        #expect(reencoded.contains("balancedColumnCount = 4"))
+    }
+
+    @Test func unknownKeysSurviveLoadMutateSaveAcrossTables() throws {
+        let output = try #require(String(data: SettingsTOMLCodec.encode(SettingsExport.defaults()), encoding: .utf8))
+
+        // Seed one unknown key under [general] and another under [niri].
+        let seeded = output
+            .replacingOccurrences(of: "hotkeysEnabled = true", with: "hotkeysEnabled = true\nfutureSetting = \"keep-me\"")
+            .replacingOccurrences(of: "balancedColumnCount = 2", with: "balancedColumnCount = 2\nfutureNiriSetting = true")
+
+        // Decode (unknown keys captured), mutate a known value, re-encode.
+        var decoded = try SettingsTOMLCodec.decode(Data(seeded.utf8))
+        decoded.gapSize = 23
+        let reencoded = try #require(String(data: SettingsTOMLCodec.encode(decoded), encoding: .utf8))
+
+        // Both unknown keys survive alongside the mutated known value.
+        #expect(reencoded.contains("futureSetting = \"keep-me\""))
+        #expect(reencoded.contains("futureNiriSetting = true"))
+        #expect(reencoded.contains("size = 23"))
     }
 
     @Test func roundTripsNestedColorQuartets() throws {
