@@ -8,6 +8,18 @@ mode**: the earlier Helium case is a `layoutTransient` hide for a Niri column th
 stably offscreen; this Telegram case is a `workspaceInactive` hide for a window whose
 workspace is not visible.
 
+This is also the bug reported upstream as **Hiro issue #235** ("Window bleeds into
+different workspace") — see `noop/20260616-hiro-235-window-bleed-different-workspace.md`
+for the user-facing symptom record: multiple reporter reports (flschulz, Guria,
+yougotwill), screenshots, the "~100px at the right side of the screen" signature,
+and the "disappears after some horizontal scroll" self-repair that matches the
+stably-hidden-column sibling. That capture here (Telegram live at `x=1050..2056`
+on active workspace 1 while `hidden=workspaceInactive`) is #235's symptom verbatim.
+#235 is filed as a **duplicate of this discovery** — it adds no new root cause and
+owns no separate repo action; the fix work lives in the Recommendations below.
+Upstream closed #235 `not_planned` as a v0.4.8+ stale-issue sweep while it still
+reproduced in v0.4.8.1, so its resolution state is not evidence of a fix.
+
 All runtime evidence below is inlined from the capture that exposed this. Trace files are
 machine-local and ephemeral; this document copies the concrete timestamps, tokens, frames,
 workspace ids, and state transitions needed to reason about the bug without reopening any
