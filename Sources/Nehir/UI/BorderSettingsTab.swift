@@ -27,7 +27,7 @@ struct BorderSettingsTab: View {
                         value: $settings.borderWidth,
                         range: 1 ... 12,
                         step: 0.5,
-                        valueText: String(format: "%.1f px", settings.borderWidth),
+                        formatter: { String(format: "%.1f px", $0) },
                         valueWidth: 56
                     )
                     .onChange(of: settings.borderWidth) { _, _ in
