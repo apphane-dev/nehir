@@ -331,9 +331,12 @@ struct DisplayDiagnosticsSettingsTab: View {
             }
 
             if let traceCopyStatus {
-                Label(traceCopyStatus, systemImage: "checkmark.circle.fill")
-                    .font(.caption)
-                    .foregroundStyle(.green)
+                Label(
+                    traceCopyStatus,
+                    systemImage: traceCopyFailed ? "xmark.circle.fill" : "checkmark.circle.fill"
+                )
+                .font(.caption)
+                .foregroundStyle(traceCopyFailed ? .red : .green)
             }
         }
     }
@@ -347,6 +350,13 @@ struct DisplayDiagnosticsSettingsTab: View {
             return "Auto-hide Dock and vertical display arrangement are the expected low-artifact configuration."
         }
         return "Nehir can still run, but parked offscreen windows may leave visible strips or bleed onto neighboring displays."
+    }
+
+    /// `traceCopyStatus` follows the convention that failure messages start
+    /// with "Couldn't"; everything else is a success. Used to switch the
+    /// status label's icon and color instead of always showing a green check.
+    private var traceCopyFailed: Bool {
+        traceCopyStatus?.hasPrefix("Couldn't") ?? false
     }
 
     private func resetRuntimeState() {
