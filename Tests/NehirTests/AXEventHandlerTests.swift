@@ -1348,6 +1348,9 @@ private func waitUntilAXEventTest(
             pid: targetPid,
             source: .workspaceDidActivateApplication
         )
+        await waitUntilAXEventTest(iterations: 300) {
+            controller.workspaceManager.confirmedManagedFocusToken == targetToken
+        }
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
 
         #expect(controller.interactionWorkspace()?.id == workspaceTwo)
@@ -1355,6 +1358,230 @@ private func waitUntilAXEventTest(
         #expect(controller.workspaceManager.activeFocusRequestToken == nil)
         #expect(controller.workspaceManager.rememberedTiledFocusToken(in: workspaceTwo) == targetToken)
         #expect(controller.workspaceManager.isNonManagedFocusActive == false)
+    }
+
+    @Test @MainActor func focusedWindowLossSuppressesUnrelatedInactiveWorkspaceActivation() async {
+        let controller = makeAXEventTestController()
+        controller.hasStartedServices = true
+        guard let workspaceOne = controller.workspaceManager.workspaceId(for: "1", createIfMissing: false),
+              let workspaceTwo = controller.workspaceManager.workspaceId(for: "2", createIfMissing: true),
+              let monitor = controller.workspaceManager.monitors.first
+        else {
+            Issue.record("Missing focused-window-loss recovery fixture")
+            return
+        }
+
+        let inactiveToken = controller.workspaceManager.addWindow(
+            AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: 9_761),
+            pid: 9_761,
+            windowId: 9_761,
+            to: workspaceOne
+        )
+        let focusedPid: pid_t = 9_762
+        let focusedToken = controller.workspaceManager.addWindow(
+            AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: 9_762),
+            pid: focusedPid,
+            windowId: 9_762,
+            to: workspaceTwo
+        )
+        #expect(controller.workspaceManager.setActiveWorkspace(workspaceTwo, on: monitor.id))
+        _ = controller.workspaceManager.setManagedFocus(
+            focusedToken,
+            in: workspaceTwo,
+            onMonitor: monitor.id
+        )
+        controller.axEventHandler.isFullscreenProvider = { _ in false }
+        controller.axEventHandler.focusedWindowRefProvider = { pid in
+            if pid == focusedPid { return nil }
+            if pid == inactiveToken.pid {
+                return AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: inactiveToken.windowId)
+            }
+            return nil
+        }
+
+        controller.axEventHandler.handleAppActivation(
+            pid: focusedPid,
+            source: .focusedWindowChanged
+        )
+
+        #expect(controller.focusPolicyEngine.activeLease?.owner == .windowCloseFocusRecovery)
+        #expect(controller.interactionWorkspace()?.id == workspaceTwo)
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == nil)
+        #expect(controller.workspaceManager.isNonManagedFocusActive)
+
+        controller.axEventHandler.handleAppActivation(
+            pid: inactiveToken.pid,
+            source: .workspaceDidActivateApplication
+        )
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+
+        #expect(controller.focusPolicyEngine.activeLease?.owner == .windowCloseFocusRecovery)
+        #expect(controller.interactionWorkspace()?.id == workspaceTwo)
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == nil)
+        #expect(controller.workspaceManager.isNonManagedFocusActive)
+    }
+
+    @Test @MainActor func untrackedSamePidDestroySuppressesUnrelatedInactiveWorkspaceActivation() async {
+        let controller = makeAXEventTestController()
+        controller.hasStartedServices = true
+        guard let workspaceOne = controller.workspaceManager.workspaceId(for: "1", createIfMissing: false),
+              let workspaceTwo = controller.workspaceManager.workspaceId(for: "2", createIfMissing: true),
+              let monitor = controller.workspaceManager.monitors.first
+        else {
+            Issue.record("Missing same-pid destroy recovery fixture")
+            return
+        }
+
+        let inactiveToken = controller.workspaceManager.addWindow(
+            AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: 9_763),
+            pid: 9_763,
+            windowId: 9_763,
+            to: workspaceOne
+        )
+        let focusedPid: pid_t = 9_764
+        let focusedToken = controller.workspaceManager.addWindow(
+            AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: 9_764),
+            pid: focusedPid,
+            windowId: 9_764,
+            to: workspaceTwo
+        )
+        #expect(controller.workspaceManager.setActiveWorkspace(workspaceTwo, on: monitor.id))
+        _ = controller.workspaceManager.setManagedFocus(
+            focusedToken,
+            in: workspaceTwo,
+            onMonitor: monitor.id
+        )
+        controller.axEventHandler.isFullscreenProvider = { _ in false }
+        controller.axEventHandler.focusedWindowRefProvider = { pid in
+            if pid == inactiveToken.pid {
+                return AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: inactiveToken.windowId)
+            }
+            return nil
+        }
+
+        controller.axEventHandler.handleRemoved(pid: focusedPid, winId: 101)
+
+        #expect(controller.focusPolicyEngine.activeLease?.owner == .windowCloseFocusRecovery)
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == focusedToken)
+        #expect(controller.interactionWorkspace()?.id == workspaceTwo)
+
+        controller.axEventHandler.handleAppActivation(
+            pid: inactiveToken.pid,
+            source: .workspaceDidActivateApplication
+        )
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+
+        #expect(controller.focusPolicyEngine.activeLease?.owner == .windowCloseFocusRecovery)
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == focusedToken)
+        #expect(controller.interactionWorkspace()?.id == workspaceTwo)
+    }
+
+    @Test @MainActor func focusedWindowChangedOnEmptyActiveWorkspaceSuppressesInactiveWorkspaceActivation() async {
+        let controller = makeAXEventTestController()
+        controller.hasStartedServices = true
+        guard let workspaceOne = controller.workspaceManager.workspaceId(for: "1", createIfMissing: false),
+              let workspaceTwo = controller.workspaceManager.workspaceId(for: "2", createIfMissing: true),
+              let monitor = controller.workspaceManager.monitors.first
+        else {
+            Issue.record("Missing empty-workspace suppression fixture")
+            return
+        }
+
+        let appPid: pid_t = 9_771
+        let inactiveToken = controller.workspaceManager.addWindow(
+            AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: 9_772),
+            pid: appPid,
+            windowId: 9_772,
+            to: workspaceOne
+        )
+        #expect(controller.workspaceManager.setActiveWorkspace(workspaceTwo, on: monitor.id))
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == nil)
+
+        controller.axEventHandler.isFullscreenProvider = { _ in false }
+        controller.axEventHandler.focusedWindowRefProvider = { pid in
+            guard pid == appPid else { return nil }
+            return AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: inactiveToken.windowId)
+        }
+
+        controller.axEventHandler.handleAppActivation(pid: appPid, source: .focusedWindowChanged)
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+
+        #expect(controller.interactionWorkspace()?.id == workspaceTwo)
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == nil)
+    }
+
+    @Test @MainActor func reconfirmedFocusViaFocusedWindowChangedPreservesViewport() async {
+        let controller = makeAXEventTestController()
+        guard let monitor = controller.workspaceManager.monitors.first,
+              let workspaceId = controller.workspaceManager.activeWorkspaceOrFirst(on: monitor.id)?.id
+        else {
+            Issue.record("Missing workspace for reconfirm-viewport test")
+            return
+        }
+
+        controller.enableNiriLayout()
+        controller.updateNiriConfig(balancedColumnCount: 1)
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+        controller.syncMonitorsToNiriEngine()
+        guard let engine = controller.niriEngine else {
+            Issue.record("Missing Niri engine")
+            return
+        }
+
+        let appPid: pid_t = 9_773
+        let focusedToken = controller.workspaceManager.addWindow(
+            AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: 9_774),
+            pid: appPid,
+            windowId: 9_774,
+            to: workspaceId
+        )
+        let otherToken = controller.workspaceManager.addWindow(
+            AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: 9_775),
+            pid: appPid,
+            windowId: 9_775,
+            to: workspaceId
+        )
+        guard let focusedEntry = controller.workspaceManager.entry(for: focusedToken),
+              let engine = controller.niriEngine
+        else {
+            Issue.record("Missing entry or engine for reconfirm-viewport test")
+            return
+        }
+
+        let focusedNode = engine.addWindow(token: focusedToken, to: workspaceId, afterSelection: nil, focusedToken: focusedToken)
+        _ = engine.addWindow(token: otherToken, to: workspaceId, afterSelection: focusedNode.id, focusedToken: focusedToken)
+        for column in engine.columns(in: workspaceId) {
+            column.cachedWidth = 900
+            column.cachedHeight = 800
+        }
+
+        _ = controller.workspaceManager.setManagedFocus(
+            focusedToken,
+            in: workspaceId,
+            onMonitor: monitor.id
+        )
+
+        // Scroll the viewport so the focused window (column 0) is parked offscreen.
+        let parkedOffset = Double(engine.columns(in: workspaceId)[0].cachedWidth + 16)
+        controller.workspaceManager.withNiriViewportState(for: workspaceId) { state in
+            state.selectedNodeId = engine.findNode(for: otherToken)?.id
+            state.activeColumnIndex = 1
+            state.viewOffsetPixels = .static(-parkedOffset)
+        }
+
+        controller.axEventHandler.handleManagedAppActivation(
+            entry: focusedEntry,
+            isWorkspaceActive: true,
+            appFullscreen: false,
+            source: .focusedWindowChanged
+        )
+
+        let updatedState = controller.workspaceManager.niriViewportState(for: workspaceId)
+        // Re-confirmation of an already-confirmed token via focusedWindowChanged
+        // must not scroll the viewport back to the parked column.
+        #expect(abs(updatedState.viewOffsetPixels.target() - (-parkedOffset)) < 0.5)
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == focusedToken)
+        #expect(updatedState.selectedNodeId == focusedNode.id)
     }
 
     @Test @MainActor func workspaceActivationForPendingManagedRequestDoesNotStartNativeAppSwitchLease() {
@@ -6705,7 +6932,7 @@ private func waitUntilAXEventTest(
     }
 
     @Test @MainActor
-    func createdWindowUsesFocusedMonitorBeforeStaleInteractionWhenNativeSpaceAndFrameAreUnavailable() async {
+    func createdWindowUsesInteractionMonitorBeforeStaleFocusedMonitorWhenNativeSpaceAndFrameAreUnavailable() async {
         await withAXFrameProviderIsolationForTests {
             let bundleId = "com.example.focused-monitor-placement"
             let controller = makeAXEventTestController(
@@ -6777,7 +7004,7 @@ private func waitUntilAXEventTest(
             }
 
             #expect(controller.workspaceManager.entry(forPid: pid, windowId: Int(createdWindowId))?
-                .workspaceId == secondaryWorkspaceId)
+                .workspaceId == primaryWorkspaceId)
         }
     }
 
@@ -6873,7 +7100,7 @@ private func waitUntilAXEventTest(
     }
 
     @Test @MainActor
-    func createdWindowUsesFocusedWorkspaceBeforePrimaryNativeSpaceAndFrame() async {
+    func createdWindowUsesPrimaryFrameAndInteractionBeforeStaleFocusedWorkspace() async {
         let bundleId = "com.example.focus-before-native"
         let controller = makeAXEventTestController(
             trackedBundleId: bundleId,
@@ -6953,11 +7180,11 @@ private func waitUntilAXEventTest(
         }
 
         #expect(controller.workspaceManager.entry(forPid: pid, windowId: Int(createdWindowId))?
-            .workspaceId == secondaryWorkspaceId)
+            .workspaceId == primaryWorkspaceId)
     }
 
     @Test @MainActor
-    func focusedSecondaryCreateAppliesTiledFrameOnSecondaryMonitor() async {
+    func focusedSecondaryCreateAppliesTiledFrameOnInteractionMonitor() async {
         await withAXFrameProviderIsolationForTests {
             let bundleId = "com.example.secondary-create-frame"
             let controller = makeAXEventTestController(
@@ -7073,9 +7300,9 @@ private func waitUntilAXEventTest(
                 return
             }
 
-            #expect(entry.workspaceId == secondaryWorkspaceId)
+            #expect(entry.workspaceId == primaryWorkspaceId)
             #expect(controller.workspaceManager.activeWorkspace(on: primaryMonitor.id)?.id == primaryWorkspaceId)
-            #expect(secondaryMonitor.visibleFrame.contains(appliedFrame.center))
+            #expect(primaryMonitor.visibleFrame.contains(appliedFrame.center))
         }
     }
 
@@ -9780,7 +10007,7 @@ private func waitUntilAXEventTest(
         await controller.axEventHandler.drainDeferredCreatedWindows()
 
         let trace = createFocusTraceEvents(on: controller)
-        #expect(controller.workspaceManager.entry(for: admittedToken)?.workspaceId == focusedWorkspaceId)
+        #expect(controller.workspaceManager.entry(for: admittedToken)?.workspaceId == laterWorkspaceId)
         #expect(controller.workspaceManager.confirmedManagedFocusToken == admittedToken)
         #expect(controller.axEventHandler.pendingCreatePlacementContext(for: Int(admittedWindowId)) == nil)
         #expect(trace.contains { event in
@@ -9793,14 +10020,207 @@ private func waitUntilAXEventTest(
                 contextFocusedMonitorId,
                 nativeSpaceMonitorId,
                 _,
+                _,
+                _,
+                _,
                 _
             ) = event.kind {
                 return token == admittedToken &&
-                    workspaceId == focusedWorkspaceId &&
+                    workspaceId == laterWorkspaceId &&
                     pendingWorkspaceId == nil &&
                     contextFocusedWorkspaceId == focusedWorkspaceId &&
                     contextFocusedMonitorId == monitor.id &&
                     nativeSpaceMonitorId == monitor.id
+            }
+            return false
+        })
+    }
+
+    @Test @MainActor func focusedUntrackedStandardWindowAdmissionSynthesizesCreatePlacementContextWhenCGSCreateHasNotArrived() async {
+        let controller = makeAXEventTestController()
+        guard let monitor = controller.monitorForInteraction(),
+              let focusedWorkspaceId = controller.workspaceManager.workspaceId(for: "1", createIfMissing: false),
+              let activeWorkspaceId = controller.workspaceManager.workspaceId(for: "2", createIfMissing: false)
+        else {
+            Issue.record("Missing workspace fixture")
+            return
+        }
+
+        let focusedToken = controller.workspaceManager.addWindow(
+            AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: 9_181),
+            pid: 9_181,
+            windowId: 9_181,
+            to: focusedWorkspaceId
+        )
+        let admittedPid: pid_t = 9_182
+        let admittedWindowId = 9_183
+        let admittedToken = WindowToken(pid: admittedPid, windowId: admittedWindowId)
+        let admittedInfo = makeAXEventWindowInfo(
+            id: UInt32(admittedWindowId),
+            pid: admittedPid,
+            title: "Focused admission before CGS create",
+            frame: CGRect(x: 120, y: 120, width: 900, height: 640)
+        )
+
+        controller.hasStartedServices = true
+        _ = controller.workspaceManager.setManagedFocus(
+            focusedToken,
+            in: focusedWorkspaceId,
+            onMonitor: monitor.id
+        )
+        #expect(controller.workspaceManager.setActiveWorkspace(activeWorkspaceId, on: monitor.id))
+        #expect(controller.interactionWorkspace()?.id == activeWorkspaceId)
+        #expect(controller.axEventHandler.pendingCreatePlacementContext(for: admittedWindowId) == nil)
+
+        controller.axEventHandler.windowInfoProvider = { windowId in
+            windowId == UInt32(admittedWindowId) ? admittedInfo : nil
+        }
+        controller.axEventHandler.focusedWindowRefProvider = { pid in
+            guard pid == admittedPid else { return nil }
+            return AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: admittedWindowId)
+        }
+        controller.axEventHandler.windowFactsProvider = { axRef, _ in
+            guard axRef.windowId == admittedWindowId else {
+                return makeAXEventWindowRuleFacts()
+            }
+            return makeAXEventWindowRuleFacts(
+                bundleId: "com.example.activation-placement-synthesized",
+                title: "Focused admission before CGS create",
+                windowServer: admittedInfo
+            )
+        }
+        controller.axEventHandler.isFullscreenProvider = { _ in false }
+        defer {
+            controller.axEventHandler.resetDebugStateForTests()
+            controller.layoutRefreshController.resetDebugState()
+        }
+
+        controller.axEventHandler.handleAppActivation(
+            pid: admittedPid,
+            source: .workspaceDidActivateApplication
+        )
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+
+        let trace = createFocusTraceEvents(on: controller)
+        #expect(controller.workspaceManager.entry(for: admittedToken)?.workspaceId == activeWorkspaceId)
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == admittedToken)
+        #expect(controller.axEventHandler.pendingCreatePlacementContext(for: admittedWindowId) == nil)
+        #expect(trace.contains { event in
+            if case let .createPlacementResolved(
+                token,
+                workspaceId,
+                pendingWorkspaceId,
+                _,
+                contextFocusedWorkspaceId,
+                contextFocusedMonitorId,
+                nativeSpaceMonitorId,
+                _,
+                contextInteractionMonitorId,
+                _,
+                _,
+                _
+            ) = event.kind {
+                return token == admittedToken &&
+                    workspaceId == activeWorkspaceId &&
+                    pendingWorkspaceId == nil &&
+                    contextFocusedWorkspaceId == focusedWorkspaceId &&
+                    contextFocusedMonitorId == monitor.id &&
+                    nativeSpaceMonitorId == nil &&
+                    contextInteractionMonitorId == monitor.id
+            }
+            return false
+        })
+    }
+
+    @Test @MainActor func focusedUntrackedStandardWindowAdmissionUsesRecentSamePidWorkspaceWhenFocusWasCleared() async {
+        let controller = makeAXEventTestController()
+        guard let monitor = controller.monitorForInteraction(),
+              let bouncedWorkspaceId = controller.workspaceManager.workspaceId(for: "1", createIfMissing: false),
+              let recentWorkspaceId = controller.workspaceManager.workspaceId(for: "2", createIfMissing: false)
+        else {
+            Issue.record("Missing recent same-pid workspace fixture")
+            return
+        }
+
+        let appPid: pid_t = 9_184
+        let oldToken = controller.workspaceManager.addWindow(
+            AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: 9_185),
+            pid: appPid,
+            windowId: 9_185,
+            to: recentWorkspaceId
+        )
+        let newWindowId = 9_186
+        let newToken = WindowToken(pid: appPid, windowId: newWindowId)
+        let newInfo = makeAXEventWindowInfo(
+            id: UInt32(newWindowId),
+            pid: appPid,
+            title: "Focused admission after app focus bounce",
+            frame: CGRect(x: 120, y: 120, width: 900, height: 640)
+        )
+
+        controller.hasStartedServices = true
+        #expect(controller.workspaceManager.setActiveWorkspace(recentWorkspaceId, on: monitor.id))
+        controller.axEventHandler.focusedWindowRefProvider = { pid in
+            guard pid == appPid else { return nil }
+            return AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: oldToken.windowId)
+        }
+        controller.axEventHandler.isFullscreenProvider = { _ in false }
+        controller.axEventHandler.handleAppActivation(pid: appPid, source: .focusedWindowChanged)
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == oldToken)
+
+        _ = controller.workspaceManager.removeWindow(pid: appPid, windowId: oldToken.windowId)
+        _ = controller.workspaceManager.enterNonManagedFocus(appFullscreen: false)
+        #expect(controller.workspaceManager.setActiveWorkspace(bouncedWorkspaceId, on: monitor.id))
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == nil)
+        #expect(controller.workspaceManager.isNonManagedFocusActive)
+
+        controller.axEventHandler.windowInfoProvider = { windowId in
+            windowId == UInt32(newWindowId) ? newInfo : nil
+        }
+        controller.axEventHandler.focusedWindowRefProvider = { pid in
+            guard pid == appPid else { return nil }
+            return AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: newWindowId)
+        }
+        controller.axEventHandler.windowFactsProvider = { axRef, _ in
+            guard axRef.windowId == newWindowId else {
+                return makeAXEventWindowRuleFacts()
+            }
+            return makeAXEventWindowRuleFacts(
+                bundleId: "com.example.activation-placement-recent-pid",
+                title: "Focused admission after app focus bounce",
+                windowServer: newInfo
+            )
+        }
+        defer {
+            controller.axEventHandler.resetDebugStateForTests()
+            controller.layoutRefreshController.resetDebugState()
+        }
+
+        controller.axEventHandler.handleAppActivation(pid: appPid, source: .focusedWindowChanged)
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+
+        let trace = createFocusTraceEvents(on: controller)
+        #expect(controller.workspaceManager.entry(for: newToken)?.workspaceId == bouncedWorkspaceId)
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == newToken)
+        #expect(trace.contains { event in
+            if case let .createPlacementResolved(
+                token,
+                workspaceId,
+                _,
+                _,
+                contextFocusedWorkspaceId,
+                contextFocusedMonitorId,
+                _,
+                _,
+                _,
+                _,
+                _,
+                _
+            ) = event.kind {
+                return token == newToken &&
+                    workspaceId == bouncedWorkspaceId &&
+                    contextFocusedWorkspaceId == recentWorkspaceId &&
+                    contextFocusedMonitorId == monitor.id
             }
             return false
         })

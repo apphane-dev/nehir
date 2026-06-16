@@ -521,8 +521,26 @@ final class WindowActionHandler {
         if let currentWorkspace = controller.interactionWorkspace() {
             controller.workspaceNavigationHandler.saveNiriViewportState(for: currentWorkspace.id)
         }
-
         guard let result = controller.workspaceManager.focusWorkspace(named: name) else { return false }
+        return focusWorkspaceFromBar(result: result, suppressMouseWarp: suppressMouseWarp)
+    }
+
+    @discardableResult
+    func focusWorkspaceFromBar(id workspaceId: WorkspaceDescriptor.ID, suppressMouseWarp: Bool = false) -> Bool {
+        guard let controller else { return false }
+        if let currentWorkspace = controller.interactionWorkspace() {
+            controller.workspaceNavigationHandler.saveNiriViewportState(for: currentWorkspace.id)
+        }
+        guard let result = controller.workspaceManager.focusWorkspace(id: workspaceId) else { return false }
+        return focusWorkspaceFromBar(result: result, suppressMouseWarp: suppressMouseWarp)
+    }
+
+    @discardableResult
+    private func focusWorkspaceFromBar(
+        result: (workspace: WorkspaceDescriptor, monitor: Monitor),
+        suppressMouseWarp: Bool
+    ) -> Bool {
+        guard let controller else { return false }
 
         let focusedToken = controller.resolveAndSetWorkspaceFocusToken(for: result.workspace.id)
         if suppressMouseWarp, let focusedToken {

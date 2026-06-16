@@ -394,6 +394,7 @@ private func waitUntilServiceLifecycleTest(
             guard incomingPid == survivingPid else { return nil }
             return AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: survivingToken.windowId)
         }
+        #expect(controller.workspaceManager.setActiveWorkspace(ws1, on: monitor.id))
 
         controller.axEventHandler.handleAppActivation(
             pid: survivingPid,

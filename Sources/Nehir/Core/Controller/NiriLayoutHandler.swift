@@ -462,6 +462,25 @@ enum NiriWindowMoveResult {
         preferredWorkspaceFocusToken: WindowToken?
     ) -> [WindowToken] {
         let currentSelection = state.selectedNodeId
+        let columnsBeforeSync = pass.engine.columns(in: pass.wsId)
+        let selectedWindowBefore = currentSelection.flatMap { pass.engine.findNode(by: $0) as? NiriWindow }
+        let selectedColumnBefore = selectedWindowBefore
+            .flatMap { pass.engine.column(of: $0) }
+            .flatMap { pass.engine.columnIndex(of: $0, in: pass.wsId) }
+        let focusedColumnBefore = preferredWorkspaceFocusToken
+            .flatMap { pass.engine.findNode(for: $0) }
+            .flatMap { pass.engine.column(of: $0) }
+            .flatMap { pass.engine.columnIndex(of: $0, in: pass.wsId) }
+        let insertionReference: (kind: String, columnIndex: Int?) = if focusedColumnBefore != nil {
+            ("focused_token", focusedColumnBefore)
+        } else if selectedColumnBefore != nil {
+            ("selected_node", selectedColumnBefore)
+        } else if !columnsBeforeSync.isEmpty {
+            ("last_column", columnsBeforeSync.count - 1)
+        } else {
+            ("empty_workspace", nil)
+        }
+
         _ = pass.engine.syncWindows(
             windowTokens,
             in: pass.wsId,
@@ -469,6 +488,27 @@ enum NiriWindowMoveResult {
             focusedToken: preferredWorkspaceFocusToken
         )
         let newTokens = windowTokens.filter { !removal.existingHandleIds.contains($0) }
+
+        for newToken in newTokens {
+            let node = pass.engine.findNode(for: newToken)
+            let column = node.flatMap { pass.engine.column(of: $0) }
+            let columnIndex = column.flatMap { pass.engine.columnIndex(of: $0, in: pass.wsId) }
+            let columnTokens = column?.windowNodes.map { String(describing: $0.token) }.joined(separator: ",") ?? "nil"
+            controller?.recordRuntimeInsertionTrace([
+                "workspace=\(pass.wsId.uuidString)",
+                "token=\(newToken)",
+                "beforeColumns=\(columnsBeforeSync.count)",
+                "selectedNodeBefore=\(currentSelection.map(String.init(describing:)) ?? "nil")",
+                "selectedTokenBefore=\(selectedWindowBefore.map { String(describing: $0.token) } ?? "nil")",
+                "selectedColumnBefore=\(selectedColumnBefore.map(String.init) ?? "nil")",
+                "focusedTokenBefore=\(preferredWorkspaceFocusToken.map(String.init(describing:)) ?? "nil")",
+                "focusedColumnBefore=\(focusedColumnBefore.map(String.init) ?? "nil")",
+                "reference=\(insertionReference.kind)",
+                "referenceColumn=\(insertionReference.columnIndex.map(String.init) ?? "nil")",
+                "landedColumn=\(columnIndex.map(String.init) ?? "nil")",
+                "landedColumnTokens=\(columnTokens)"
+            ].joined(separator: " "))
+        }
 
         for col in pass.engine.columns(in: pass.wsId) {
             if col.cachedWidth <= 0 {
@@ -778,8 +818,19 @@ enum NiriWindowMoveResult {
         }
 
         if let newWindowToken {
+            // Only activate (focus) a newly-inserted window when this workspace
+            // is the active one on its monitor. An affected-workspace refresh can
+            // re-sync a pre-existing managed window into an inactive workspace's
+            // empty Niri layout (columns==0); activating it there would teleport
+            // the user off their current workspace.
+            let isWorkspaceActive = controller?.workspaceManager
+                .activeWorkspace(on: pass.monitor.id)?.id == pass.wsId
+            let interactionMonitorId = controller?.workspaceManager.interactionMonitorId
+            let isInteractionMonitor = interactionMonitorId == nil || interactionMonitorId == pass.monitor.id
             directives.append(.startNiriScroll(workspaceId: pass.wsId))
-            directives.append(.activateWindow(token: newWindowToken))
+            if isWorkspaceActive && isInteractionMonitor {
+                directives.append(.activateWindow(token: newWindowToken))
+            }
         }
 
         if let removalSeed = snapshot.removalSeed, !removalSeed.oldFrames.isEmpty {

@@ -170,6 +170,20 @@ private func waitForRefreshWork(on controller: WMController) async {
 }
 
 @MainActor
+private func waitUntilRefreshTest(
+    iterations: Int = 500,
+    condition: () -> Bool
+) async {
+    for _ in 0 ..< iterations where !condition() {
+        try? await Task.sleep(for: .milliseconds(1))
+    }
+
+    if !condition() {
+        Issue.record("Timed out waiting for refresh test condition")
+    }
+}
+
+@MainActor
 private func waitForSettledRefreshWork(on controller: WMController) async {
     await controller.layoutRefreshController.waitForSettledRefreshWorkForTests()
     await controller.waitForWorkspaceBarRefreshForTests()
@@ -657,6 +671,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
                 6_202: "Launch Restore B",
                 6_203: "Launch Restore C"
             ]
+            var expectedRestoredColumnSpecs: [ProportionalSize] = []
 
             do {
                 let initialSettings = SettingsStore(defaults: defaults)
@@ -724,6 +739,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
                     affectedWorkspaceIds: [workspaceId]
                 )
                 await waitForSettledRefreshWork(on: initialController)
+                expectedRestoredColumnSpecs = engine.columns(in: workspaceId).map(\.width)
 
                 let persistedEntries = initialController.workspaceManager.persistedWindowRestoreCatalogForTests()
                     .entries
@@ -787,10 +803,11 @@ private func syncNiriWorkspaceStatesForRefreshTests(
             ])
 
             let restoredColumns = engine.columns(in: restoredWorkspaceId)
-            #expect(restoredColumns.count == 2)
-            if restoredColumns.count == 2 {
-                #expect(abs(restoredColumns[0].cachedWidth - 480) < 0.5)
-                #expect(abs(restoredColumns[1].cachedWidth - 720) < 0.5)
+            #expect(restoredColumns.count == expectedRestoredColumnSpecs.count)
+            if restoredColumns.count == expectedRestoredColumnSpecs.count {
+                for (restoredColumn, expectedWidthSpec) in zip(restoredColumns, expectedRestoredColumnSpecs) {
+                    #expect(restoredColumn.width == expectedWidthSpec)
+                }
             }
         }
     }
@@ -1680,6 +1697,9 @@ private func syncNiriWorkspaceStatesForRefreshTests(
             pid: targetPid,
             source: .workspaceDidActivateApplication
         )
+        await waitUntilRefreshTest {
+            controller.workspaceManager.confirmedManagedFocusToken == targetToken
+        }
         await waitForRefreshWork(on: controller)
 
         #expect(controller.interactionWorkspace()?.id == workspaceTwo)
@@ -1744,6 +1764,9 @@ private func syncNiriWorkspaceStatesForRefreshTests(
             pid: targetPid,
             source: .workspaceDidActivateApplication
         )
+        await waitUntilRefreshTest {
+            controller.workspaceManager.confirmedManagedFocusToken == targetToken
+        }
         await waitForRefreshWork(on: controller)
 
         #expect(controller.interactionWorkspace()?.id == workspaceTwo)
