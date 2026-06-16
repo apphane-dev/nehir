@@ -41,68 +41,11 @@ enum BuiltInSettingsDefaults {
         )
     ]
 
-    static let appRules: [AppRule] = [
-        AppRule(
-            bundleId: "com.openai.codex",
-            minWidth: 800,
-            minHeight: 600
-        ),
-        AppRule(
-            bundleId: "com.eltima.cmd1.pro.mas",
-            minWidth: 950,
-            minHeight: 550
-        ),
-        AppRule(
-            bundleId: "com.google.Chrome",
-            minWidth: 500,
-            minHeight: 375
-        ),
-        AppRule(
-            bundleId: "dev.zed.Zed",
-            minWidth: 360,
-            minHeight: 240
-        ),
-        AppRule(
-            bundleId: "com.apple.Safari",
-            minWidth: 574,
-            minHeight: 220
-        ),
-        AppRule(
-            bundleId: "app.zen-browser.zen",
-            minWidth: 500,
-            minHeight: 495
-        ),
-        AppRule(
-            bundleId: "org.mozilla.firefox",
-            minWidth: 500,
-            minHeight: 120
-        ),
-        AppRule(
-            bundleId: "company.thebrowser.dia",
-            minWidth: 500,
-            minHeight: 420
-        ),
-        AppRule(
-            bundleId: "com.spotify.client",
-            minWidth: 800,
-            minHeight: 600
-        ),
-        AppRule(
-            bundleId: "com.hnc.Discord",
-            minWidth: 800,
-            minHeight: 500
-        ),
-        AppRule(
-            bundleId: "com.microsoft.Outlook",
-            minWidth: 930,
-            minHeight: 650
-        ),
-        AppRule(
-            bundleId: "com.apple.MobileSMS",
-            minWidth: 660,
-            minHeight: 320
-        )
-    ]
+    // No bundled size rules: minimum window dimensions are now inferred at runtime
+    // by `LayoutRefreshController.inferredResizeMinimumSize` (see `LayoutRefreshController.swift`),
+    // which learns each window's actual resize floor when the app refuses a size write.
+    // Users can still add their own rules via Settings → App Rules or `apprules.d/`.
+    static let appRules: [AppRule] = []
 
     private static func uuid(_ value: String) -> UUID {
         guard let uuid = UUID(uuidString: value) else {
