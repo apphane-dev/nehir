@@ -637,6 +637,36 @@ enum NiriWindowMoveResult {
             }
         }
 
+        if !usesCenteredLoneWindow,
+           !isGestureOrAnimation,
+           snapshot.isActiveWorkspace
+        {
+            let columns = pass.engine.columns(in: pass.wsId)
+            if !columns.isEmpty {
+                let context = pass.engine.makeViewportSnapContext(
+                    columns: columns,
+                    state: state,
+                    workingFrame: pass.insetFrame,
+                    gaps: pass.gap
+                )
+                let viewStart = context.currentViewStart(in: state)
+                let pixel = 1.0 / max(pass.engine.displayScale(in: pass.wsId), 1.0)
+                if let centeredStart = context.centeredFillingViewportStart(at: viewStart, in: state, pixelTolerance: pixel),
+                   abs(centeredStart - viewStart) > pixel
+                {
+                    let activeIndex = state.activeColumnIndex.clamped(to: 0 ... max(0, columns.count - 1))
+                    state.viewOffsetPixels = .static(context.targetOffset(
+                        forViewportStart: centeredStart,
+                        activeColumnIndex: activeIndex,
+                        in: state
+                    ))
+                    if abs(state.viewOffsetPixels.current() - offsetBefore) > 1 {
+                        viewportNeedsRecalc = true
+                    }
+                }
+            }
+        }
+
         let ranEnsureVisible = !usesCenteredLoneWindow
             && !isGestureOrAnimation
             && snapshot.isActiveWorkspace

@@ -1555,6 +1555,58 @@ private func makeCenteredCrossMonitorFixture(
         #expect(secondFrame.height == monitor.visibleFrame.height)
     }
 
+    @Test func addingSecondWindowCentersProportionalSlack() {
+        let engine = NiriLayoutEngine(balancedColumnCount: 2)
+        let wsId = UUID()
+        let gap: CGFloat = 16
+        let firstWindow = engine.addWindow(handle: makeTestHandle(pid: 9_401), to: wsId, afterSelection: nil)
+        let secondWindow = engine.addWindow(handle: makeTestHandle(pid: 9_402), to: wsId, afterSelection: firstWindow.id)
+        let monitor = makeLayoutPlanTestMonitor(width: 2_056, height: 1_290)
+        let workingFrame = monitor.visibleFrame
+
+        for column in engine.columns(in: wsId) {
+            column.resolveAndCacheWidth(workingAreaWidth: workingFrame.width, gaps: gap)
+        }
+
+        var state = ViewportState()
+        state.selectedNodeId = firstWindow.id
+        state.activeColumnIndex = 0
+        state.viewOffsetPixels = .static(0)
+
+        engine.ensureSelectionVisible(
+            node: secondWindow,
+            in: wsId,
+            state: &state,
+            workingFrame: workingFrame,
+            gaps: gap
+        )
+
+        state.viewOffsetPixels = .static(state.viewOffsetPixels.target())
+
+        let columns = engine.columns(in: wsId)
+        let viewStart = viewportStart(for: state, columns: columns, gap: gap)
+        #expect(abs(viewStart + gap) < 0.6)
+
+        let layout = engine.calculateCombinedLayoutWithVisibility(
+            in: wsId,
+            monitor: monitor,
+            gaps: LayoutGaps(horizontal: gap, vertical: gap),
+            state: state
+        )
+
+        guard let firstFrame = layout.frames[firstWindow.token],
+              let secondFrame = layout.frames[secondWindow.token]
+        else {
+            Issue.record("Expected both two-column windows to render")
+            return
+        }
+
+        #expect(abs(firstFrame.width - 1_004) < 0.6)
+        #expect(abs(secondFrame.width - 1_004) < 0.6)
+        #expect(abs(firstFrame.minX - 16) < 0.6)
+        #expect(abs(secondFrame.minX - 1_036) < 0.6)
+    }
+
     @Test func additionalWindowUsesExplicitDefaultWidthWhenCreatingNewColumn() {
         let engine = NiriLayoutEngine(balancedColumnCount: 3)
         engine.presetColumnWidths = [.proportion(0.85), .proportion(1.0), .proportion(0.5)]

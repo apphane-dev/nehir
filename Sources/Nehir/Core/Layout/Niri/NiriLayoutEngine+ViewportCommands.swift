@@ -73,6 +73,7 @@ extension NiriLayoutEngine {
 
         let viewStart = context.currentViewStart(in: state)
         let visibility = context.visibility(of: columnIndex, viewportOffset: viewStart, in: state)
+        let pixel = 1.0 / max(scale, 1.0)
 
         func targetColumnSnapCandidates() -> [SnapPoint] {
             context.snapCandidates(for: columnIndex, in: state)
@@ -91,7 +92,17 @@ extension NiriLayoutEngine {
         let targetSnap: SnapPoint?
         switch visibility {
         case .fullyVisible:
-            if revealPartial != .default || context.fillsViewport(at: viewStart, in: state) {
+            if revealPartial != .default {
+                return false
+            }
+            if context.fillsViewport(at: viewStart, in: state) {
+                if let centeredStart = context.centeredFillingViewportStart(at: viewStart, in: state, pixelTolerance: pixel),
+                   abs(centeredStart - viewStart) > pixel
+                {
+                    let targetOffset = context.targetOffset(forViewportStart: centeredStart, activeColumnIndex: state.activeColumnIndex, in: state)
+                    state.animateToOffset(targetOffset, motion: motion, config: animationConfig, scale: scale)
+                    return true
+                }
                 return false
             }
             targetSnap = defaultSnap()
@@ -116,7 +127,6 @@ extension NiriLayoutEngine {
 
         guard let targetSnap else { return false }
         let targetOffset = context.targetOffset(for: targetSnap, in: state)
-        let pixel = 1.0 / max(scale, 1.0)
         guard abs(targetOffset - state.viewOffsetPixels.target()) > pixel else { return false }
 
         state.animateToOffset(targetOffset, motion: motion, config: animationConfig, scale: scale)
