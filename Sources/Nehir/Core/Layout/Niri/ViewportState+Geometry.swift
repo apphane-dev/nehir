@@ -134,7 +134,25 @@ struct ViewportSnapContext {
     }
 
     func fillsViewport(at viewportStart: CGFloat, in state: ViewportState, pixelTolerance: CGFloat = 0.5) -> Bool {
-        if intentionallyDoesNotFillViewport { return false }
+        fillingSpan(at: viewportStart, in: state, pixelTolerance: pixelTolerance) != nil
+    }
+
+    func centeredFillingViewportStart(at viewportStart: CGFloat, in state: ViewportState, pixelTolerance: CGFloat = 0.5) -> CGFloat? {
+        guard let span = fillingSpan(at: viewportStart, in: state, pixelTolerance: pixelTolerance) else { return nil }
+        let slack = viewportWidth - span.coveredWidth
+        let tolerance = max(pixelTolerance, 2 * gap + pixelTolerance)
+        guard slack > pixelTolerance, slack <= tolerance else { return nil }
+
+        return state.boundedViewportStart(
+            span.firstStart - slack / 2,
+            columns: columns,
+            gap: gap,
+            viewportWidth: viewportWidth
+        )
+    }
+
+    private func fillingSpan(at viewportStart: CGFloat, in state: ViewportState, pixelTolerance: CGFloat = 0.5) -> (firstStart: CGFloat, lastEnd: CGFloat, coveredWidth: CGFloat)? {
+        if intentionallyDoesNotFillViewport { return nil }
 
         let viewportEnd = viewportStart + viewportWidth
         var fullColumnIndices: [Int] = []
@@ -153,10 +171,10 @@ struct ViewportSnapContext {
 
         guard let first = fullColumnIndices.first,
               let last = fullColumnIndices.last
-        else { return false }
+        else { return nil }
 
         for index in first ... last where !fullColumnIndices.contains(index) {
-            return false
+            return nil
         }
 
         let firstStart = state.columnX(at: first, columns: columns, gap: gap)
@@ -165,7 +183,8 @@ struct ViewportSnapContext {
         let coveredWidth = max(0, lastEnd - firstStart)
         let tolerance = max(pixelTolerance, 2 * gap + pixelTolerance)
 
-        return abs(coveredWidth - viewportWidth) <= tolerance
+        guard abs(coveredWidth - viewportWidth) <= tolerance else { return nil }
+        return (firstStart, lastEnd, coveredWidth)
     }
 
     func visibility(of columnIndex: Int, viewportOffset: CGFloat, in state: ViewportState) -> ColumnVisibility {
