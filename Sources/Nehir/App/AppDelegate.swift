@@ -154,13 +154,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // comparison is against the running build's own version.
             if let appVersion = Bundle.main.appVersion,
                Self.isReleaseVersion(appVersion),
-               !WhatsNewContent.bullets.isEmpty,
+               !WhatsNewContent.isEmpty,
                let lastSeen = onboardingStore.lastSeenVersion,
                Self.isVersion(appVersion, newerThan: lastSeen) {
                 DispatchQueue.main.async {
                     OnboardingWindowController.shared.showWhatsNew(
                         version: appVersion,
-                        bullets: WhatsNewContent.bullets
+                        sections: WhatsNewContent.sections
                     )
                 }
             }

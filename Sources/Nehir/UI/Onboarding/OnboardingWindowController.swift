@@ -54,11 +54,11 @@ final class OnboardingWindowController {
         show(settings: settings, onboardingStore: onboardingStore)
     }
 
-    func showWhatsNew(version: String, bullets: [String]) {
+    func showWhatsNew(version: String, sections: [WhatsNewContent.Section]) {
         let store = onboardingStore ?? OnboardingStateStore()
         let view = WhatsNewView(
             version: version,
-            bullets: bullets,
+            sections: sections,
             onDismiss: { [weak self] in self?.whatsNewWindow?.close() },
             onRerunOnboarding: { [weak self] in
                 self?.whatsNewWindow?.close()
@@ -77,13 +77,13 @@ final class OnboardingWindowController {
     /// Shows What's New for the current release (used by the status-bar menu and the
     /// onboarding final screen).
     func showWhatsNewForCurrentVersion() {
-        guard !WhatsNewContent.bullets.isEmpty else { return }
-        showWhatsNew(version: Bundle.main.appVersion ?? "dev", bullets: WhatsNewContent.bullets)
+        guard !WhatsNewContent.isEmpty else { return }
+        showWhatsNew(version: Bundle.main.appVersion ?? "dev", sections: WhatsNewContent.sections)
     }
 
     /// Replaces the onboarding wizard window with What's New (Done-step "See What's New").
     func showWhatsNewReplacingOnboarding() {
-        guard !WhatsNewContent.bullets.isEmpty else { return }
+        guard !WhatsNewContent.isEmpty else { return }
         guard let window, let settings, let onboardingStore else {
             showWhatsNewForCurrentVersion()
             return
@@ -97,7 +97,7 @@ final class OnboardingWindowController {
         }
         let view = WhatsNewView(
             version: version,
-            bullets: WhatsNewContent.bullets,
+            sections: WhatsNewContent.sections,
             onDismiss: { [weak self] in
                 onboardingStore.record(version: version)
                 onboardingStore.flushNow()

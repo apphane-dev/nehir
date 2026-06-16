@@ -3,7 +3,7 @@ import SwiftUI
 
 struct WhatsNewView: View {
     let version: String
-    let bullets: [String]
+    let sections: [WhatsNewContent.Section]
     let onDismiss: () -> Void
     var onRerunOnboarding: (() -> Void)? = nil
     var onOpenDiagnostics: (() -> Void)? = nil
@@ -34,31 +34,9 @@ struct WhatsNewView: View {
                         settingsWarningsCard
                     }
 
-                    VStack(spacing: 0) {
-                        ForEach(Array(bullets.enumerated()), id: \.offset) { index, bullet in
-                            if index > 0 {
-                                Divider().opacity(0.5)
-                            }
-                            HStack(alignment: .top, spacing: 10) {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .font(.callout)
-                                    .foregroundStyle(.tint)
-                                    .padding(.top, 1)
-                                Text(bullet)
-                                    .font(.callout)
-                                    .foregroundStyle(.primary)
-                                    .fixedSize(horizontal: false, vertical: true)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                            }
-                            .padding(.vertical, 10)
-                        }
+                    ForEach(Array(sections.enumerated()), id: \.offset) { _, section in
+                        sectionCard(section)
                     }
-                    .padding(.horizontal, 16)
-                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .strokeBorder(Color.secondary.opacity(0.15), lineWidth: 1)
-                    )
                 }
                 .padding(.horizontal, 40)
             }
@@ -142,6 +120,47 @@ struct WhatsNewView: View {
             let suffix = unknownKeys.keyPaths.count == 1 ? "key" : "keys"
             return "\(unknownKeys.keyPaths.count) unrecognized settings \(suffix)"
         }
+    }
+
+    private func sectionCard(_ section: WhatsNewContent.Section) -> some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 8) {
+                Image(systemName: section.icon)
+                    .font(.callout)
+                    .foregroundStyle(.tint)
+                Text(section.title)
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+                Spacer(minLength: 0)
+            }
+            .padding(.bottom, 4)
+
+            ForEach(Array(section.bullets.enumerated()), id: \.offset) { index, bullet in
+                if index > 0 {
+                    Divider().opacity(0.5)
+                }
+                HStack(alignment: .top, spacing: 10) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.callout)
+                        .foregroundStyle(.tint)
+                        .padding(.top, 1)
+                    Text(bullet)
+                        .font(.callout)
+                        .foregroundStyle(.primary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .padding(.vertical, 10)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 14)
+        .padding(.bottom, 6)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(Color.secondary.opacity(0.15), lineWidth: 1)
+        )
     }
 
     private func refreshSettingsIssues() {
