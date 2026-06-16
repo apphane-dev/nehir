@@ -115,21 +115,19 @@ final class OnboardingWindowController {
         )
     }
 
-    func showMigration(
-        unknownKeys: [String],
-        backupURL: URL?,
-        backupError: String?,
-        cleanupError: String?,
+    func showConfigRecovery(
+        affectedFile: URL,
+        details: [String],
+        backupURL: URL? = nil,
         onClose: @escaping @MainActor () -> Void
     ) {
-        let view = MigrationView(
-            unknownKeys: unknownKeys,
+        let view = ConfigRecoveryView(
+            affectedFile: affectedFile,
+            details: details,
             backupURL: backupURL,
-            backupError: backupError,
-            cleanupError: cleanupError,
             onDismiss: { [weak self] in self?.migrationWindow?.close() }
         )
-        present(existing: migrationWindow, rootView: view, title: "Config Update", size: NSSize(width: 480, height: 580)) {
+        present(existing: migrationWindow, rootView: view, title: "Settings Recovery", size: NSSize(width: 500, height: 580)) {
             self.migrationWindow = $0
         } onClose: {
             onClose()

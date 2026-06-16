@@ -144,28 +144,21 @@ final class StatusBarMenuBuilder {
     private func addWarningSection(to menu: NSMenu) -> Bool {
         let diagIssues = DisplayEnvironmentDiagnostics.current().issues
         let axGranted = AccessibilityPermissionMonitor.shared.isGranted
-        guard !diagIssues.isEmpty || !axGranted else { return false }
+        let settingsIssues = SettingsDiagnosticsDetector.pendingIssues()
+        guard !diagIssues.isEmpty || !axGranted || !settingsIssues.isEmpty else { return false }
 
         menu.addItem(createSectionLabel("⚠️ ISSUES DETECTED"))
 
-        let summary: String
-        if !axGranted && !diagIssues.isEmpty {
-            summary = "Accessibility not granted + \(diagIssues.count) display issue(s)"
-        } else if !axGranted {
-            summary = "Accessibility permission not granted"
-        } else {
-            summary = "\(diagIssues.count) display configuration issue(s)"
-        }
-
+        let summary = warningSummary(
+            settingsIssueCount: settingsIssues.count,
+            displayIssueCount: diagIssues.count,
+            axGranted: axGranted
+        )
         let infoItem = NSMenuItem()
         infoItem.view = MenuInfoRowView(icon: "exclamationmark.triangle.fill", label: summary)
         menu.addItem(infoItem)
 
-        let diagRow = MenuActionRowView(
-            icon: "stethoscope",
-            label: "Open Diagnostics",
-            showChevron: true
-        ) { [weak self] in
+        let openDiagnostics = { [weak self] in
             guard let self, let controller = self.controller else { return }
             SettingsWindowController.shared.show(
                 settings: self.settings,
@@ -173,11 +166,57 @@ final class StatusBarMenuBuilder {
                 section: .diagnostics
             )
         }
-        let diagItem = NSMenuItem()
-        diagItem.view = diagRow
-        menu.addItem(diagItem)
+
+        if settingsIssues.isEmpty {
+            // Display/AX issues are summarized, not enumerated; keep a single entry point.
+            let diagRow = MenuActionRowView(
+                icon: "stethoscope",
+                label: "Open Diagnostics",
+                showChevron: true
+            ) { openDiagnostics() }
+            let diagItem = NSMenuItem()
+            diagItem.view = diagRow
+            menu.addItem(diagItem)
+        } else {
+            // Each settings warning is its own Diagnostics entry; no separate generic row.
+            for issue in settingsIssues {
+                let row = MenuActionRowView(
+                    icon: warningIcon(for: issue),
+                    label: warningLabel(for: issue),
+                    showChevron: true
+                ) { openDiagnostics() }
+                let item = NSMenuItem()
+                item.view = row
+                menu.addItem(item)
+            }
+        }
 
         return true
+    }
+
+    private func warningSummary(settingsIssueCount: Int, displayIssueCount: Int, axGranted: Bool) -> String {
+        var parts: [String] = []
+        if !axGranted { parts.append("Accessibility not granted") }
+        if displayIssueCount > 0 { parts.append("\(displayIssueCount) display issue(s)") }
+        if settingsIssueCount > 0 { parts.append("\(settingsIssueCount) settings warning(s)") }
+        return parts.joined(separator: " + ")
+    }
+
+    private func warningIcon(for issue: SettingsDiagnosticsIssue) -> String {
+        switch issue {
+        case .softMigration: return "arrow.triangle.2.circlepath"
+        case .unknownKeys: return "questionmark.circle"
+        }
+    }
+
+    private func warningLabel(for issue: SettingsDiagnosticsIssue) -> String {
+        switch issue {
+        case .softMigration(let migration):
+            return migration.descriptor.title
+        case .unknownKeys(let unknownKeys):
+            let suffix = unknownKeys.keyPaths.count == 1 ? "key" : "keys"
+            return "\(unknownKeys.keyPaths.count) unrecognized settings \(suffix)"
+        }
     }
 
     private func addSettingsSection(to menu: NSMenu) {

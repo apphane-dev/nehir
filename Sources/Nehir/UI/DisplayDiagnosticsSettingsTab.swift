@@ -5,9 +5,11 @@ struct DisplayDiagnosticsSettingsTab: View {
     @State private var diagnostics = DisplayEnvironmentDiagnostics.current()
     @State private var monitors = Monitor.current()
     @State private var axGranted = AccessibilityPermissionMonitor.shared.isGranted
-    @State private var applicableMigrations: [PendingSettingsMigration] = []
+    @State private var applicableSettingsIssues: [SettingsDiagnosticsIssue] = []
     @State private var migrationConfirmation: String?
     @State private var migrationError: String?
+    @State private var unknownKeysConfirmation: String?
+    @State private var unknownKeysError: String?
 
     private let configDirectory: URL
     private let migrationStateStore: SettingsMigrationStateStore
@@ -49,26 +51,47 @@ struct DisplayDiagnosticsSettingsTab: View {
                 }
             }
 
-            if !applicableMigrations.isEmpty || migrationConfirmation != nil || migrationError != nil {
-                Section("Settings Migrations") {
-                    ForEach(applicableMigrations) { migration in
-                        SettingsMigrationWarningView(
-                            migration: migration,
-                            isPostponed: isPostponed(migration),
-                            confirmation: migrationConfirmation,
-                            error: migrationError,
-                            onMigrate: { migrate(migration) },
-                            onPostpone: { postpone(migration) }
-                        )
+            if !applicableSettingsIssues.isEmpty || migrationConfirmation != nil || migrationError != nil || unknownKeysConfirmation != nil || unknownKeysError != nil {
+                Section("Settings Configuration") {
+                    ForEach(applicableSettingsIssues) { issue in
+                        switch issue {
+                        case .softMigration(let migration):
+                            SettingsMigrationWarningView(
+                                migration: migration,
+                                isPostponed: isPostponed(migration),
+                                confirmation: migrationConfirmation,
+                                error: migrationError,
+                                onMigrate: { migrate(migration) },
+                                onPostpone: { postpone(migration) }
+                            )
+                        case .unknownKeys(let issue):
+                            UnknownSettingsKeysWarningView(
+                                issue: issue,
+                                isPostponed: isUnknownKeysPostponed(issue),
+                                confirmation: unknownKeysConfirmation,
+                                error: unknownKeysError,
+                                onCopyPrompt: { copyUnknownKeysPrompt(issue) },
+                                onPostpone: { postponeUnknownKeys(issue) },
+                                onClean: { cleanUnknownKeys(issue) }
+                            )
+                        }
                     }
 
-                    if applicableMigrations.isEmpty {
+                    if applicableSettingsIssues.isEmpty {
                         if let migrationConfirmation {
                             Label(migrationConfirmation, systemImage: "checkmark.circle.fill")
                                 .foregroundStyle(.green)
                         }
                         if let migrationError {
                             Label(migrationError, systemImage: "xmark.circle.fill")
+                                .foregroundStyle(.red)
+                        }
+                        if let unknownKeysConfirmation {
+                            Label(unknownKeysConfirmation, systemImage: "checkmark.circle.fill")
+                                .foregroundStyle(.green)
+                        }
+                        if let unknownKeysError {
+                            Label(unknownKeysError, systemImage: "xmark.circle.fill")
                                 .foregroundStyle(.red)
                         }
                     }
@@ -125,7 +148,7 @@ struct DisplayDiagnosticsSettingsTab: View {
             refresh()
         }
         .onReceive(NotificationCenter.default.publisher(for: .settingsMigrationStateDidChange)) { _ in
-            refreshMigrations()
+            refreshSettingsIssues()
         }
     }
 
@@ -140,11 +163,11 @@ struct DisplayDiagnosticsSettingsTab: View {
         monitors = Monitor.current()
         diagnostics = DisplayEnvironmentDiagnostics.evaluate(monitors: monitors)
         axGranted = AccessibilityPermissionMonitor.shared.isGranted
-        refreshMigrations()
+        refreshSettingsIssues()
     }
 
-    private func refreshMigrations() {
-        applicableMigrations = SettingsMigrationDetector.applicableMigrations(
+    private func refreshSettingsIssues() {
+        applicableSettingsIssues = SettingsDiagnosticsDetector.applicableIssues(
             configDirectory: configDirectory
         )
     }
@@ -166,7 +189,7 @@ struct DisplayDiagnosticsSettingsTab: View {
             default:
                 migrationError = "No migration action is registered for \(migration.id)."
             }
-            refreshMigrations()
+            refreshSettingsIssues()
             NotificationCenter.default.post(name: .settingsMigrationStateDidChange, object: nil)
         } catch {
             migrationError = error.localizedDescription
@@ -180,10 +203,61 @@ struct DisplayDiagnosticsSettingsTab: View {
         do {
             try migrationStateStore.postpone(migrationID: migration.id, currentAppVersion: appVersion)
             migrationConfirmation = "Reminder hidden until the next Nehir update. You can still migrate now."
-            refreshMigrations()
+            refreshSettingsIssues()
             NotificationCenter.default.post(name: .settingsMigrationStateDidChange, object: nil)
         } catch {
             migrationError = error.localizedDescription
+        }
+    }
+
+    private func isUnknownKeysPostponed(_ issue: UnknownSettingsKeysIssue) -> Bool {
+        migrationStateStore.isPostponed(migrationID: issue.id, currentAppVersion: appVersion)
+    }
+
+    private func copyUnknownKeysPrompt(_ issue: UnknownSettingsKeysIssue) {
+        unknownKeysConfirmation = nil
+        unknownKeysError = nil
+
+        let prompt = ConfigAssistancePrompt.prompt(
+            kind: .unknownKeys,
+            appVersion: appVersion,
+            affectedFile: issue.fileURL,
+            details: issue.keyPaths
+        )
+        NSPasteboard.general.clearContents()
+        if NSPasteboard.general.setString(prompt, forType: .string) {
+            unknownKeysConfirmation = "Prompt copied to clipboard"
+        } else {
+            unknownKeysError = "Couldn't copy prompt to clipboard."
+        }
+    }
+
+    private func postponeUnknownKeys(_ issue: UnknownSettingsKeysIssue) {
+        unknownKeysConfirmation = nil
+        unknownKeysError = nil
+
+        do {
+            try migrationStateStore.postpone(migrationID: issue.id, currentAppVersion: appVersion)
+            unknownKeysConfirmation = "Reminder hidden until the next Nehir update."
+            refreshSettingsIssues()
+            NotificationCenter.default.post(name: .settingsMigrationStateDidChange, object: nil)
+        } catch {
+            unknownKeysError = error.localizedDescription
+        }
+    }
+
+    private func cleanUnknownKeys(_ issue: UnknownSettingsKeysIssue) {
+        unknownKeysConfirmation = nil
+        unknownKeysError = nil
+
+        do {
+            let backupURL = try cleanUnknownSettingsKeys(fileURL: issue.fileURL)
+            try migrationStateStore.clearPostpone(migrationID: issue.id)
+            unknownKeysConfirmation = "Removed unknown keys. Backup: \(backupURL.lastPathComponent)"
+            refreshSettingsIssues()
+            NotificationCenter.default.post(name: .settingsMigrationStateDidChange, object: nil)
+        } catch {
+            unknownKeysError = error.localizedDescription
         }
     }
 }
@@ -223,6 +297,81 @@ private struct SettingsMigrationWarningView: View {
                     onMigrate()
                 }
                 .buttonStyle(.borderedProminent)
+
+                if isPostponed {
+                    Button("Postponed") {}
+                        .buttonStyle(.bordered)
+                        .disabled(true)
+                } else {
+                    Button("Postpone Warning") {
+                        onPostpone()
+                    }
+                    .buttonStyle(.bordered)
+                }
+            }
+
+            if let confirmation {
+                Label(confirmation, systemImage: "checkmark.circle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.green)
+            }
+
+            if let error {
+                Label(error, systemImage: "xmark.circle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+private struct UnknownSettingsKeysWarningView: View {
+    let issue: UnknownSettingsKeysIssue
+    let isPostponed: Bool
+    let confirmation: String?
+    let error: String?
+    let onCopyPrompt: () -> Void
+    let onPostpone: () -> Void
+    let onClean: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("Unrecognized settings keys", systemImage: isPostponed ? "info.circle.fill" : "exclamationmark.triangle.fill")
+                .font(.headline)
+                .foregroundStyle(isPostponed ? Color.secondary : Color.yellow)
+
+            if isPostponed {
+                Text("Reminder hidden until the next Nehir update. The keys are still preserved in settings.toml.")
+                    .foregroundStyle(.secondary)
+            }
+
+            Text("settings.toml contains valid TOML keys that this Nehir version does not use. Nehir will keep them in the file when saving, but they do not affect current behavior.")
+                .foregroundStyle(.secondary)
+
+            Text("File: \(issue.fileURL.path)")
+                .font(.caption.monospaced())
+                .foregroundStyle(.secondary)
+                .textSelection(.enabled)
+
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(issue.keyPaths, id: \.self) { key in
+                    Label(key, systemImage: "questionmark.circle")
+                        .font(.caption.monospaced())
+                        .textSelection(.enabled)
+                }
+            }
+
+            HStack {
+                Button("Copy AI Prompt") {
+                    onCopyPrompt()
+                }
+                .buttonStyle(.borderedProminent)
+
+                Button("Remove Unknown Keys") {
+                    onClean()
+                }
+                .buttonStyle(.bordered)
 
                 if isPostponed {
                     Button("Postponed") {}

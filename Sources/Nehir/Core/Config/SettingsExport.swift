@@ -3,14 +3,14 @@ import NehirIPC
 
 // MARK: - SettingsExport
 
-struct SettingsColor: Codable, Equatable {
+struct SettingsColor: Codable, Equatable, Sendable {
     var red: Double
     var green: Double
     var blue: Double
     var alpha: Double
 }
 
-struct SettingsExport: Equatable {
+struct SettingsExport: Equatable, @unchecked Sendable {
     var hotkeysEnabled: Bool
     var focusFollowsMouse: Bool
     var moveMouseToFocusedWindow: Bool
@@ -83,6 +83,11 @@ struct SettingsExport: Equatable {
     var developerModeEnabled: Bool
 
     var capabilityOverrides: [WindowCapabilityProfileTOMLOverride] = []
+
+    /// Unknown keys decoded from settings.toml under known schema tables, grouped by table path.
+    /// This is not app state; it exists only so load→mutate→save does not destroy config
+    /// written by a newer version or by hand.
+    var settingsTOMLUnknownFields: SettingsTOMLUnknownFields = [:]
 }
 
 // MARK: - Defaults & Diffing

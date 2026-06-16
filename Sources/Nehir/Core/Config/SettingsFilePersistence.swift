@@ -113,10 +113,10 @@ final class SettingsFilePersistence {
             return snapshot.export
         } catch {
             report("Failed to load \(fileURL.path): \(error.localizedDescription)")
-            moveCorruptFileAsideIfPresent()
-            let defaults = SettingsExport.defaults()
-            save(defaults)
-            return defaults
+            // Invalid / unsupported settings are handled by startup recovery. Do not move,
+            // strip, or replace the user's file as a side effect of loading; fall back to
+            // in-memory defaults for the current session.
+            return SettingsExport.defaults()
         }
     }
 

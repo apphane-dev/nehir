@@ -50,21 +50,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func finishBootstrap(enableTracing: Bool = false) {
         let storagePaths = NehirStoragePaths.live
 
-        // Phase 0: config drift. This gate runs before SettingsStore, WMController,
-        // status bar, IPC, onboarding, hotkeys, or tiling are created/activated.
-        // Detection compares the raw file against the schema via round-trip decode→encode;
-        // any key the schema doesn't recognize triggers backup + cleanup before the screen.
-        // No manifest to maintain.
+        // Startup recovery is reserved for invalid / unsupported config that cannot be
+        // decoded safely. Valid but unrecognized keys are preserved and surfaced later in
+        // Diagnostics; they never block launch and are never stripped here.
         let settingsURL = storagePaths.configDirectory.appendingPathComponent("settings.toml", isDirectory: false)
-        let unknown = detectConfigMismatches(in: settingsURL)
-        if !unknown.isEmpty {
-            let backup = createTimestampedSettingsBackup(settingsURL: settingsURL)
-            let cleanupError = backup.url == nil ? nil : cleanSettingsFile(settingsURL: settingsURL)
-            OnboardingWindowController.shared.showMigration(
-                unknownKeys: unknown,
-                backupURL: backup.url,
-                backupError: backup.errorDescription,
-                cleanupError: cleanupError,
+        if let recoveryDetails = settingsLoadFailureDetails(settingsURL: settingsURL) {
+            OnboardingWindowController.shared.showConfigRecovery(
+                affectedFile: settingsURL,
+                details: recoveryDetails,
                 onClose: { [weak self] in
                     self?.continueBootstrap(storagePaths: storagePaths, enableTracing: enableTracing)
                 }
@@ -174,48 +167,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func createTimestampedSettingsBackup(settingsURL: URL) -> (url: URL?, errorDescription: String?) {
-        let fileManager = FileManager.default
-        let directory = settingsURL.deletingLastPathComponent()
-
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "yyyyMMdd-HHmmss"
-        let stamp = formatter.string(from: Date())
-
-        let baseName = settingsURL.deletingPathExtension().lastPathComponent
-        let fileExtension = settingsURL.pathExtension
-        let backupName = fileExtension.isEmpty
-            ? "\(baseName)-\(stamp).backup"
-            : "\(baseName)-\(stamp).\(fileExtension).backup"
-
-        var backupURL = directory.appendingPathComponent(backupName, isDirectory: false)
-        var suffix = 2
-        while fileManager.fileExists(atPath: backupURL.path) {
-            let suffixedName = fileExtension.isEmpty
-                ? "\(baseName)-\(stamp)-\(suffix).backup"
-                : "\(baseName)-\(stamp)-\(suffix).\(fileExtension).backup"
-            backupURL = directory.appendingPathComponent(suffixedName, isDirectory: false)
-            suffix += 1
+    private func settingsLoadFailureDetails(settingsURL: URL) -> [String]? {
+        guard FileManager.default.fileExists(atPath: settingsURL.path) else {
+            return nil
         }
 
         do {
-            try fileManager.copyItem(at: settingsURL, to: backupURL)
-            return (backupURL, nil)
-        } catch {
-            return (nil, error.localizedDescription)
-        }
-    }
-
-    private func cleanSettingsFile(settingsURL: URL) -> String? {
-        do {
-            let original = try Data(contentsOf: settingsURL)
-            let export = try SettingsTOMLCodec.decode(original)
-            let clean = try SettingsTOMLCodec.encode(export)
-            try clean.write(to: settingsURL, options: .atomic)
+            let data = try Data(contentsOf: settingsURL)
+            _ = try SettingsTOMLCodec.decode(data)
             return nil
         } catch {
-            return error.localizedDescription
+            return [error.localizedDescription]
         }
     }
 

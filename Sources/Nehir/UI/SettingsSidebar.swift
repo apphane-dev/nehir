@@ -58,7 +58,7 @@ struct SettingsSidebar: View {
     private func refreshDiagnostics() {
         let diagIssues = DisplayEnvironmentDiagnostics.current().issues.count
         let axIssue = AccessibilityPermissionMonitor.shared.isGranted ? 0 : 1
-        let migrationIssues = SettingsMigrationDetector.pendingMigrations().count
-        diagnosticsIssueCount = diagIssues + axIssue + migrationIssues
+        let settingsIssues = SettingsDiagnosticsDetector.pendingIssues().count
+        diagnosticsIssueCount = diagIssues + axIssue + settingsIssues
     }
 }

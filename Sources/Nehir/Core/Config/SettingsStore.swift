@@ -12,6 +12,7 @@ final class SettingsStore {
     private let runtimeState: RuntimeStateStore
     private let autosaveEnabled: Bool
     private var isApplyingExport = false
+    private var settingsTOMLUnknownFields: SettingsTOMLUnknownFields = [:]
 
     var onIPCEnabledChanged: (@MainActor (Bool) -> Void)?
     var onExternalSettingsReloaded: (@MainActor () -> Void)?
@@ -447,7 +448,8 @@ final class SettingsStore {
             statusBarUseWorkspaceId: statusBarUseWorkspaceId,
             appearanceMode: appearanceMode.rawValue,
             developerModeEnabled: developerModeEnabled,
-            capabilityOverrides: []
+            capabilityOverrides: [],
+            settingsTOMLUnknownFields: settingsTOMLUnknownFields
         )
     }
 
@@ -532,6 +534,7 @@ final class SettingsStore {
 
         appearanceMode = AppearanceMode(rawValue: export.appearanceMode) ?? .dark
         developerModeEnabled = export.developerModeEnabled
+        settingsTOMLUnknownFields = export.settingsTOMLUnknownFields
     }
 
     private func handleExternalReload(_ export: SettingsExport) {

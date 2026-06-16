@@ -24,17 +24,31 @@ struct CanonicalTOMLConfig: Codable, Equatable {
     var statusBar: StatusBar
     var appearance: Appearance
 
+    enum CodingKeys: String, CodingKey, CaseIterable {
+        case general, focus, mouseWarp, gaps, niri, borders, workspaceBar, gestures, statusBar, appearance
+    }
+
     struct General: Codable, Equatable {
         var hotkeysEnabled: Bool
         var preventSleepEnabled: Bool
         var ipcEnabled: Bool
         var developerModeEnabled: Bool
+        var unknownFields: [String: SettingsTOMLUnknownValue] = [:]
+
+        enum CodingKeys: String, CodingKey, CaseIterable {
+            case hotkeysEnabled, preventSleepEnabled, ipcEnabled, developerModeEnabled
+        }
     }
 
     struct Focus: Codable, Equatable {
         var followsMouse: Bool
         var moveMouseToFocusedWindow: Bool
         var followsWindowToMonitor: Bool
+        var unknownFields: [String: SettingsTOMLUnknownValue] = [:]
+
+        enum CodingKeys: String, CodingKey, CaseIterable {
+            case followsMouse, moveMouseToFocusedWindow, followsWindowToMonitor
+        }
     }
 
     struct MouseWarp: Codable, Equatable {
@@ -42,17 +56,32 @@ struct CanonicalTOMLConfig: Codable, Equatable {
         var monitorOrder: [String]
         var axis: String?
         var margin: Int
+        var unknownFields: [String: SettingsTOMLUnknownValue] = [:]
+
+        enum CodingKeys: String, CodingKey, CaseIterable {
+            case monitorOrder, axis, margin
+        }
     }
 
     struct Gaps: Codable, Equatable {
         var size: Double
         var outer: Outer
+        var unknownFields: [String: SettingsTOMLUnknownValue] = [:]
+
+        enum CodingKeys: String, CodingKey, CaseIterable {
+            case size, outer
+        }
 
         struct Outer: Codable, Equatable {
             var left: Double
             var right: Double
             var top: Double
             var bottom: Double
+            var unknownFields: [String: SettingsTOMLUnknownValue] = [:]
+
+            enum CodingKeys: String, CodingKey, CaseIterable {
+                case left, right, top, bottom
+            }
         }
     }
 
@@ -63,18 +92,41 @@ struct CanonicalTOMLConfig: Codable, Equatable {
         var loneWindowMaxWidth: Double?
         var columnWidthPresets: [Double]?
         var defaultColumnWidth: Double?
+        var unknownFields: [String: SettingsTOMLUnknownValue] = [:]
+
+        enum CodingKeys: String, CodingKey, CaseIterable {
+            case balancedColumnCount, infiniteLoop, revealPartial, loneWindowMaxWidth, columnWidthPresets, defaultColumnWidth
+        }
     }
 
     struct Borders: Codable, Equatable {
         var enabled: Bool
         var width: Double
         var color: Color
+        var unknownFields: [String: SettingsTOMLUnknownValue] = [:]
+
+        enum CodingKeys: String, CodingKey, CaseIterable {
+            case enabled, width, color
+        }
 
         struct Color: Codable, Equatable {
             var red: Double
             var green: Double
             var blue: Double
             var alpha: Double
+            var unknownFields: [String: SettingsTOMLUnknownValue] = [:]
+
+            enum CodingKeys: String, CodingKey, CaseIterable {
+                case red, green, blue, alpha
+            }
+
+            init(red: Double, green: Double, blue: Double, alpha: Double, unknownFields: [String: SettingsTOMLUnknownValue] = [:]) {
+                self.red = red
+                self.green = green
+                self.blue = blue
+                self.alpha = alpha
+                self.unknownFields = unknownFields
+            }
         }
     }
 
@@ -96,18 +148,29 @@ struct CanonicalTOMLConfig: Codable, Equatable {
         var labelFontSize: Double
         var accentColor: Color?
         var textColor: Color?
+        var unknownFields: [String: SettingsTOMLUnknownValue] = [:]
+
+        enum CodingKeys: String, CodingKey, CaseIterable {
+            case enabled, showLabels, showFloatingWindows, showTraceButton, windowLevel, position, notchAware, deduplicateAppIcons, hideEmptyWorkspaces, reserveLayoutSpace, height, backgroundOpacity, xOffset, yOffset, labelFontSize, accentColor, textColor
+        }
 
         struct Color: Codable, Equatable {
             var red: Double
             var green: Double
             var blue: Double
             var alpha: Double
+            var unknownFields: [String: SettingsTOMLUnknownValue] = [:]
 
-            init(red: Double, green: Double, blue: Double, alpha: Double) {
+            enum CodingKeys: String, CodingKey, CaseIterable {
+                case red, green, blue, alpha
+            }
+
+            init(red: Double, green: Double, blue: Double, alpha: Double, unknownFields: [String: SettingsTOMLUnknownValue] = [:]) {
                 self.red = red
                 self.green = green
                 self.blue = blue
                 self.alpha = alpha
+                self.unknownFields = unknownFields
             }
 
             init(_ color: SettingsColor) {
@@ -130,36 +193,55 @@ struct CanonicalTOMLConfig: Codable, Equatable {
         var mouseResizeModifierKey: String
         var fingerCount: Int
         var invertDirection: Bool
+        var unknownFields: [String: SettingsTOMLUnknownValue] = [:]
+
+        enum CodingKeys: String, CodingKey, CaseIterable {
+            case scrollEnabled, scrollSensitivity, scrollModifierKey, mouseResizeModifierKey, fingerCount, invertDirection
+        }
     }
 
     struct StatusBar: Codable, Equatable {
         var showWorkspaceName: Bool
         var showAppNames: Bool
         var useWorkspaceId: Bool
+        var unknownFields: [String: SettingsTOMLUnknownValue] = [:]
+
+        enum CodingKeys: String, CodingKey, CaseIterable {
+            case showWorkspaceName, showAppNames, useWorkspaceId
+        }
     }
 
     struct Appearance: Codable, Equatable {
         var mode: String
+        var unknownFields: [String: SettingsTOMLUnknownValue] = [:]
+
+        enum CodingKeys: String, CodingKey, CaseIterable {
+            case mode
+        }
     }
 }
 
 extension CanonicalTOMLConfig {
     init(export: SettingsExport) {
+        let unknown = export.settingsTOMLUnknownFields
         general = General(
             hotkeysEnabled: export.hotkeysEnabled,
             preventSleepEnabled: export.preventSleepEnabled,
             ipcEnabled: export.ipcEnabled,
-            developerModeEnabled: export.developerModeEnabled
+            developerModeEnabled: export.developerModeEnabled,
+            unknownFields: unknown["general"] ?? [:]
         )
         focus = Focus(
             followsMouse: export.focusFollowsMouse,
             moveMouseToFocusedWindow: export.moveMouseToFocusedWindow,
-            followsWindowToMonitor: export.focusFollowsWindowToMonitor
+            followsWindowToMonitor: export.focusFollowsWindowToMonitor,
+            unknownFields: unknown["focus"] ?? [:]
         )
         mouseWarp = MouseWarp(
             monitorOrder: export.mouseWarpMonitorOrder,
             axis: export.mouseWarpAxis,
-            margin: export.mouseWarpMargin
+            margin: export.mouseWarpMargin,
+            unknownFields: unknown["mouseWarp"] ?? [:]
         )
         gaps = Gaps(
             size: export.gapSize,
@@ -167,8 +249,10 @@ extension CanonicalTOMLConfig {
                 left: export.outerGapLeft,
                 right: export.outerGapRight,
                 top: export.outerGapTop,
-                bottom: export.outerGapBottom
-            )
+                bottom: export.outerGapBottom,
+                unknownFields: unknown["gaps.outer"] ?? [:]
+            ),
+            unknownFields: unknown["gaps"] ?? [:]
         )
         niri = Niri(
             balancedColumnCount: export.niriBalancedColumnCount,
@@ -176,7 +260,8 @@ extension CanonicalTOMLConfig {
             revealPartial: export.revealPartial,
             loneWindowMaxWidth: export.niriLoneWindowMaxWidth,
             columnWidthPresets: export.niriColumnWidthPresets,
-            defaultColumnWidth: export.niriDefaultColumnWidth
+            defaultColumnWidth: export.niriDefaultColumnWidth,
+            unknownFields: unknown["niri"] ?? [:]
         )
         borders = Borders(
             enabled: export.bordersEnabled,
@@ -185,8 +270,10 @@ extension CanonicalTOMLConfig {
                 red: export.borderColorRed,
                 green: export.borderColorGreen,
                 blue: export.borderColorBlue,
-                alpha: export.borderColorAlpha
-            )
+                alpha: export.borderColorAlpha,
+                unknownFields: unknown["borders.color"] ?? [:]
+            ),
+            unknownFields: unknown["borders"] ?? [:]
         )
         workspaceBar = WorkspaceBar(
             enabled: export.workspaceBarEnabled,
@@ -204,8 +291,17 @@ extension CanonicalTOMLConfig {
             xOffset: export.workspaceBarXOffset,
             yOffset: export.workspaceBarYOffset,
             labelFontSize: export.workspaceBarLabelFontSize,
-            accentColor: export.workspaceBarAccentColor.map(WorkspaceBar.Color.init),
-            textColor: export.workspaceBarTextColor.map(WorkspaceBar.Color.init)
+            accentColor: export.workspaceBarAccentColor.map { color in
+                var encoded = WorkspaceBar.Color(color)
+                encoded.unknownFields = unknown["workspaceBar.accentColor"] ?? [:]
+                return encoded
+            },
+            textColor: export.workspaceBarTextColor.map { color in
+                var encoded = WorkspaceBar.Color(color)
+                encoded.unknownFields = unknown["workspaceBar.textColor"] ?? [:]
+                return encoded
+            },
+            unknownFields: unknown["workspaceBar"] ?? [:]
         )
         gestures = Gestures(
             scrollEnabled: export.scrollGestureEnabled,
@@ -213,17 +309,38 @@ extension CanonicalTOMLConfig {
             scrollModifierKey: export.scrollModifierKey,
             mouseResizeModifierKey: export.mouseResizeModifierKey,
             fingerCount: export.gestureFingerCount,
-            invertDirection: export.gestureInvertDirection
+            invertDirection: export.gestureInvertDirection,
+            unknownFields: unknown["gestures"] ?? [:]
         )
         statusBar = StatusBar(
             showWorkspaceName: export.statusBarShowWorkspaceName,
             showAppNames: export.statusBarShowAppNames,
-            useWorkspaceId: export.statusBarUseWorkspaceId
+            useWorkspaceId: export.statusBarUseWorkspaceId,
+            unknownFields: unknown["statusBar"] ?? [:]
         )
-        appearance = Appearance(mode: export.appearanceMode)
+        appearance = Appearance(mode: export.appearanceMode, unknownFields: unknown["appearance"] ?? [:])
     }
 
     func toSettingsExport() -> SettingsExport {
+        var unknown: SettingsTOMLUnknownFields = [:]
+        func add(_ path: String, _ fields: [String: SettingsTOMLUnknownValue]) {
+            if !fields.isEmpty { unknown[path] = fields }
+        }
+        add("general", general.unknownFields)
+        add("focus", focus.unknownFields)
+        add("mouseWarp", mouseWarp.unknownFields)
+        add("gaps", gaps.unknownFields)
+        add("gaps.outer", gaps.outer.unknownFields)
+        add("niri", niri.unknownFields)
+        add("borders", borders.unknownFields)
+        add("borders.color", borders.color.unknownFields)
+        add("workspaceBar", workspaceBar.unknownFields)
+        if let accentColor = workspaceBar.accentColor { add("workspaceBar.accentColor", accentColor.unknownFields) }
+        if let textColor = workspaceBar.textColor { add("workspaceBar.textColor", textColor.unknownFields) }
+        add("gestures", gestures.unknownFields)
+        add("statusBar", statusBar.unknownFields)
+        add("appearance", appearance.unknownFields)
+
         return SettingsExport(
             hotkeysEnabled: general.hotkeysEnabled,
             focusFollowsMouse: focus.followsMouse,
@@ -285,7 +402,8 @@ extension CanonicalTOMLConfig {
             statusBarShowAppNames: statusBar.showAppNames,
             statusBarUseWorkspaceId: statusBar.useWorkspaceId,
             appearanceMode: appearance.mode,
-            developerModeEnabled: general.developerModeEnabled
+            developerModeEnabled: general.developerModeEnabled,
+            settingsTOMLUnknownFields: unknown
         )
     }
 }
@@ -307,6 +425,20 @@ extension CanonicalTOMLConfig {
         statusBar = try container.decodeWithDefault(StatusBar.self, forKey: .statusBar, default: d.statusBar)
         appearance = try container.decodeWithDefault(Appearance.self, forKey: .appearance, default: d.appearance)
     }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(general, forKey: .general)
+        try container.encode(focus, forKey: .focus)
+        try container.encode(mouseWarp, forKey: .mouseWarp)
+        try container.encode(gaps, forKey: .gaps)
+        try container.encode(niri, forKey: .niri)
+        try container.encode(borders, forKey: .borders)
+        try container.encode(workspaceBar, forKey: .workspaceBar)
+        try container.encode(gestures, forKey: .gestures)
+        try container.encode(statusBar, forKey: .statusBar)
+        try container.encode(appearance, forKey: .appearance)
+    }
 }
 
 extension CanonicalTOMLConfig.General {
@@ -317,6 +449,16 @@ extension CanonicalTOMLConfig.General {
         preventSleepEnabled = try container.decodeWithDefault(Bool.self, forKey: .preventSleepEnabled, default: d.preventSleepEnabled)
         ipcEnabled = try container.decodeWithDefault(Bool.self, forKey: .ipcEnabled, default: d.ipcEnabled)
         developerModeEnabled = try container.decodeWithDefault(Bool.self, forKey: .developerModeEnabled, default: d.developerModeEnabled)
+        unknownFields = try SettingsTOMLUnknownValue.decodeUnknownFields(from: decoder, excluding: CodingKeys.self)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(hotkeysEnabled, forKey: .hotkeysEnabled)
+        try container.encode(preventSleepEnabled, forKey: .preventSleepEnabled)
+        try container.encode(ipcEnabled, forKey: .ipcEnabled)
+        try container.encode(developerModeEnabled, forKey: .developerModeEnabled)
+        try container.encodeUnknownFields(unknownFields)
     }
 }
 
@@ -327,6 +469,15 @@ extension CanonicalTOMLConfig.Focus {
         followsMouse = try container.decodeWithDefault(Bool.self, forKey: .followsMouse, default: d.followsMouse)
         moveMouseToFocusedWindow = try container.decodeWithDefault(Bool.self, forKey: .moveMouseToFocusedWindow, default: d.moveMouseToFocusedWindow)
         followsWindowToMonitor = try container.decodeWithDefault(Bool.self, forKey: .followsWindowToMonitor, default: d.followsWindowToMonitor)
+        unknownFields = try SettingsTOMLUnknownValue.decodeUnknownFields(from: decoder, excluding: CodingKeys.self)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(followsMouse, forKey: .followsMouse)
+        try container.encode(moveMouseToFocusedWindow, forKey: .moveMouseToFocusedWindow)
+        try container.encode(followsWindowToMonitor, forKey: .followsWindowToMonitor)
+        try container.encodeUnknownFields(unknownFields)
     }
 }
 
@@ -337,6 +488,15 @@ extension CanonicalTOMLConfig.MouseWarp {
         monitorOrder = try container.decodeWithDefault([String].self, forKey: .monitorOrder, default: d.monitorOrder)
         axis = try container.decodeIfPresent(String.self, forKey: .axis)
         margin = try container.decodeWithDefault(Int.self, forKey: .margin, default: d.margin)
+        unknownFields = try SettingsTOMLUnknownValue.decodeUnknownFields(from: decoder, excluding: CodingKeys.self)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(monitorOrder, forKey: .monitorOrder)
+        try container.encodeIfPresent(axis, forKey: .axis)
+        try container.encode(margin, forKey: .margin)
+        try container.encodeUnknownFields(unknownFields)
     }
 }
 
@@ -346,6 +506,14 @@ extension CanonicalTOMLConfig.Gaps {
         let d = CanonicalTOMLConfig.defaults().gaps
         size = try container.decodeWithDefault(Double.self, forKey: .size, default: d.size)
         outer = try container.decodeWithDefault(Outer.self, forKey: .outer, default: d.outer)
+        unknownFields = try SettingsTOMLUnknownValue.decodeUnknownFields(from: decoder, excluding: CodingKeys.self)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(size, forKey: .size)
+        try container.encode(outer, forKey: .outer)
+        try container.encodeUnknownFields(unknownFields)
     }
 }
 
@@ -357,6 +525,16 @@ extension CanonicalTOMLConfig.Gaps.Outer {
         right = try container.decodeWithDefault(Double.self, forKey: .right, default: d.right)
         top = try container.decodeWithDefault(Double.self, forKey: .top, default: d.top)
         bottom = try container.decodeWithDefault(Double.self, forKey: .bottom, default: d.bottom)
+        unknownFields = try SettingsTOMLUnknownValue.decodeUnknownFields(from: decoder, excluding: CodingKeys.self)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(left, forKey: .left)
+        try container.encode(right, forKey: .right)
+        try container.encode(top, forKey: .top)
+        try container.encode(bottom, forKey: .bottom)
+        try container.encodeUnknownFields(unknownFields)
     }
 }
 
@@ -370,6 +548,18 @@ extension CanonicalTOMLConfig.Niri {
         loneWindowMaxWidth = try container.decodeIfPresent(Double.self, forKey: .loneWindowMaxWidth)
         columnWidthPresets = try container.decodeIfPresent([Double].self, forKey: .columnWidthPresets)
         defaultColumnWidth = try container.decodeIfPresent(Double.self, forKey: .defaultColumnWidth)
+        unknownFields = try SettingsTOMLUnknownValue.decodeUnknownFields(from: decoder, excluding: CodingKeys.self)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(balancedColumnCount, forKey: .balancedColumnCount)
+        try container.encode(infiniteLoop, forKey: .infiniteLoop)
+        try container.encode(revealPartial, forKey: .revealPartial)
+        try container.encodeIfPresent(loneWindowMaxWidth, forKey: .loneWindowMaxWidth)
+        try container.encodeIfPresent(columnWidthPresets, forKey: .columnWidthPresets)
+        try container.encodeIfPresent(defaultColumnWidth, forKey: .defaultColumnWidth)
+        try container.encodeUnknownFields(unknownFields)
     }
 }
 
@@ -380,6 +570,15 @@ extension CanonicalTOMLConfig.Borders {
         enabled = try container.decodeWithDefault(Bool.self, forKey: .enabled, default: d.enabled)
         width = try container.decodeWithDefault(Double.self, forKey: .width, default: d.width)
         color = try container.decodeWithDefault(Color.self, forKey: .color, default: d.color)
+        unknownFields = try SettingsTOMLUnknownValue.decodeUnknownFields(from: decoder, excluding: CodingKeys.self)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(enabled, forKey: .enabled)
+        try container.encode(width, forKey: .width)
+        try container.encode(color, forKey: .color)
+        try container.encodeUnknownFields(unknownFields)
     }
 }
 
@@ -391,6 +590,16 @@ extension CanonicalTOMLConfig.Borders.Color {
         green = try container.decodeWithDefault(Double.self, forKey: .green, default: d.green)
         blue = try container.decodeWithDefault(Double.self, forKey: .blue, default: d.blue)
         alpha = try container.decodeWithDefault(Double.self, forKey: .alpha, default: d.alpha)
+        unknownFields = try SettingsTOMLUnknownValue.decodeUnknownFields(from: decoder, excluding: CodingKeys.self)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(red, forKey: .red)
+        try container.encode(green, forKey: .green)
+        try container.encode(blue, forKey: .blue)
+        try container.encode(alpha, forKey: .alpha)
+        try container.encodeUnknownFields(unknownFields)
     }
 }
 
@@ -415,6 +624,50 @@ extension CanonicalTOMLConfig.WorkspaceBar {
         labelFontSize = try container.decodeWithDefault(Double.self, forKey: .labelFontSize, default: d.labelFontSize)
         accentColor = try container.decodeIfPresent(Color.self, forKey: .accentColor)
         textColor = try container.decodeIfPresent(Color.self, forKey: .textColor)
+        unknownFields = try SettingsTOMLUnknownValue.decodeUnknownFields(from: decoder, excluding: CodingKeys.self)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(enabled, forKey: .enabled)
+        try container.encode(showLabels, forKey: .showLabels)
+        try container.encode(showFloatingWindows, forKey: .showFloatingWindows)
+        try container.encode(showTraceButton, forKey: .showTraceButton)
+        try container.encode(windowLevel, forKey: .windowLevel)
+        try container.encode(position, forKey: .position)
+        try container.encode(notchAware, forKey: .notchAware)
+        try container.encode(deduplicateAppIcons, forKey: .deduplicateAppIcons)
+        try container.encode(hideEmptyWorkspaces, forKey: .hideEmptyWorkspaces)
+        try container.encode(reserveLayoutSpace, forKey: .reserveLayoutSpace)
+        try container.encode(height, forKey: .height)
+        try container.encode(backgroundOpacity, forKey: .backgroundOpacity)
+        try container.encode(xOffset, forKey: .xOffset)
+        try container.encode(yOffset, forKey: .yOffset)
+        try container.encode(labelFontSize, forKey: .labelFontSize)
+        try container.encodeIfPresent(accentColor, forKey: .accentColor)
+        try container.encodeIfPresent(textColor, forKey: .textColor)
+        try container.encodeUnknownFields(unknownFields)
+    }
+}
+
+extension CanonicalTOMLConfig.WorkspaceBar.Color {
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let d = CanonicalTOMLConfig.defaults().workspaceBar.accentColor ?? CanonicalTOMLConfig.WorkspaceBar.Color(red: 0, green: 0, blue: 0, alpha: 1)
+        red = try container.decodeWithDefault(Double.self, forKey: .red, default: d.red)
+        green = try container.decodeWithDefault(Double.self, forKey: .green, default: d.green)
+        blue = try container.decodeWithDefault(Double.self, forKey: .blue, default: d.blue)
+        alpha = try container.decodeWithDefault(Double.self, forKey: .alpha, default: d.alpha)
+        unknownFields = try SettingsTOMLUnknownValue.decodeUnknownFields(from: decoder, excluding: CodingKeys.self)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(red, forKey: .red)
+        try container.encode(green, forKey: .green)
+        try container.encode(blue, forKey: .blue)
+        try container.encode(alpha, forKey: .alpha)
+        try container.encodeUnknownFields(unknownFields)
     }
 }
 
@@ -428,6 +681,18 @@ extension CanonicalTOMLConfig.Gestures {
         mouseResizeModifierKey = try container.decodeWithDefault(String.self, forKey: .mouseResizeModifierKey, default: d.mouseResizeModifierKey)
         fingerCount = try container.decodeWithDefault(Int.self, forKey: .fingerCount, default: d.fingerCount)
         invertDirection = try container.decodeWithDefault(Bool.self, forKey: .invertDirection, default: d.invertDirection)
+        unknownFields = try SettingsTOMLUnknownValue.decodeUnknownFields(from: decoder, excluding: CodingKeys.self)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(scrollEnabled, forKey: .scrollEnabled)
+        try container.encode(scrollSensitivity, forKey: .scrollSensitivity)
+        try container.encode(scrollModifierKey, forKey: .scrollModifierKey)
+        try container.encode(mouseResizeModifierKey, forKey: .mouseResizeModifierKey)
+        try container.encode(fingerCount, forKey: .fingerCount)
+        try container.encode(invertDirection, forKey: .invertDirection)
+        try container.encodeUnknownFields(unknownFields)
     }
 }
 
@@ -438,6 +703,15 @@ extension CanonicalTOMLConfig.StatusBar {
         showWorkspaceName = try container.decodeWithDefault(Bool.self, forKey: .showWorkspaceName, default: d.showWorkspaceName)
         showAppNames = try container.decodeWithDefault(Bool.self, forKey: .showAppNames, default: d.showAppNames)
         useWorkspaceId = try container.decodeWithDefault(Bool.self, forKey: .useWorkspaceId, default: d.useWorkspaceId)
+        unknownFields = try SettingsTOMLUnknownValue.decodeUnknownFields(from: decoder, excluding: CodingKeys.self)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(showWorkspaceName, forKey: .showWorkspaceName)
+        try container.encode(showAppNames, forKey: .showAppNames)
+        try container.encode(useWorkspaceId, forKey: .useWorkspaceId)
+        try container.encodeUnknownFields(unknownFields)
     }
 }
 
@@ -446,5 +720,12 @@ extension CanonicalTOMLConfig.Appearance {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let d = CanonicalTOMLConfig.defaults().appearance
         mode = try container.decodeWithDefault(String.self, forKey: .mode, default: d.mode)
+        unknownFields = try SettingsTOMLUnknownValue.decodeUnknownFields(from: decoder, excluding: CodingKeys.self)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(mode, forKey: .mode)
+        try container.encodeUnknownFields(unknownFields)
     }
 }

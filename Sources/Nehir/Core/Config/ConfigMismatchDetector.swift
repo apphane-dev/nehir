@@ -4,39 +4,115 @@ import TOML
 /// Detects config keys present in `settings.toml` that the current config schema doesn't
 /// recognize.
 ///
-/// No migration manifest is maintained. The valid key set is derived from the schema itself
-/// via a round trip: the raw file is decoded into `CanonicalTOMLConfig` (Codable silently
-/// drops keys not in `CodingKeys`) and re-encoded. Any key present in the raw file but absent
-/// from the re-encoded output is a mismatch. When the schema changes (keys added or removed),
-/// the round trip reflects it automatically — nothing to update here.
+/// Unknown keys are diagnostics, not startup blockers. This detector compares the raw TOML
+/// tree to the schema key paths derived from `CanonicalTOMLConfig.CodingKeys`, so it remains
+/// preservation-aware: keys captured by the codec's unknown-field overflow are still reported
+/// here because they are not modeled app settings.
 ///
-/// Returns the unrecognized key paths in their original case. Empty when the file
-/// is missing or unparseable.
-func detectConfigMismatches(in settingsFileURL: URL) -> [String] {
+/// Returns the unrecognized key paths in their original case. Empty when the file is missing
+/// or unparseable; parse/decode failures are handled by startup recovery, not this list.
+func detectUnknownKeys(in settingsFileURL: URL) -> [String] {
     guard FileManager.default.fileExists(atPath: settingsFileURL.path),
           let data = try? Data(contentsOf: settingsFileURL)
     else {
         return []
     }
 
-    // All key paths present in the raw file (original case; de-duplicated).
+    guard let rawTree = try? TOMLDecoder().decode(AnyTOML.self, from: data) else {
+        return []
+    }
+
     var rawKeyPaths: [String] = []
     var rawKeyPathsLowered = Set<String>()
-    if let rawTree = try? TOMLDecoder().decode(AnyTOML.self, from: data) {
-        AnyTOML.collectKeyPaths(rawTree, into: &rawKeyPaths, lowercased: &rawKeyPathsLowered)
+    AnyTOML.collectKeyPaths(rawTree, into: &rawKeyPaths, lowercased: &rawKeyPathsLowered)
+
+    let known = CanonicalTOMLConfig.knownKeyPathsLowercased
+    return rawKeyPaths.filter { !known.contains($0.lowercased()) }
+}
+
+/// Deprecated compatibility wrapper. Unknown keys no longer represent a bootstrap mismatch;
+/// use `detectUnknownKeys(in:)` for non-blocking Diagnostics issues.
+func detectConfigMismatches(in settingsFileURL: URL) -> [String] {
+    detectUnknownKeys(in: settingsFileURL)
+}
+
+/// Removes unknown keys from a settings.toml file, preserving all modeled values. Creates a
+/// timestamped backup of the original first, then rewrites the file with the unknown keys
+/// dropped. The live `SettingsStore` clears its cached unknown fields when its file watcher
+/// reloads this rewrite. Throws on read/decode/write failure.
+@discardableResult
+func cleanUnknownSettingsKeys(fileURL: URL) throws -> URL {
+    let backupURL = try createTimestampedSettingsBackup(for: fileURL)
+    let data = try Data(contentsOf: fileURL)
+    var export = try SettingsTOMLCodec.decode(data)
+    export.settingsTOMLUnknownFields = [:]
+    let clean = try SettingsTOMLCodec.encode(export)
+    try clean.write(to: fileURL, options: .atomic)
+    return backupURL
+}
+
+private func createTimestampedSettingsBackup(for fileURL: URL) throws -> URL {
+    let fileManager = FileManager.default
+    let directory = fileURL.deletingLastPathComponent()
+
+    let formatter = DateFormatter()
+    formatter.locale = Locale(identifier: "en_US_POSIX")
+    formatter.dateFormat = "yyyyMMdd-HHmmss"
+    let stamp = formatter.string(from: Date())
+
+    let baseName = fileURL.deletingPathExtension().lastPathComponent
+    let fileExtension = fileURL.pathExtension
+    let backupName = fileExtension.isEmpty
+        ? "\(baseName)-\(stamp).backup"
+        : "\(baseName)-\(stamp).\(fileExtension).backup"
+
+    var backupURL = directory.appendingPathComponent(backupName, isDirectory: false)
+    var suffix = 2
+    while fileManager.fileExists(atPath: backupURL.path) {
+        let suffixedName = fileExtension.isEmpty
+            ? "\(baseName)-\(stamp)-\(suffix).backup"
+            : "\(baseName)-\(stamp)-\(suffix).\(fileExtension).backup"
+        backupURL = directory.appendingPathComponent(suffixedName, isDirectory: false)
+        suffix += 1
     }
 
-    // Round trip through the real schema: decode → re-encode → collect surviving key paths.
-    // Unknown keys are dropped during decode, so they won't appear in the re-encoded output.
-    var schemaKeyPathsLowered = Set<String>()
-    if let canonical = try? TOMLDecoder().decode(CanonicalTOMLConfig.self, from: data),
-       let reencoded = try? SettingsTOMLCodec.encode(canonical.toSettingsExport()),
-       let schemaTree = try? TOMLDecoder().decode(AnyTOML.self, from: reencoded) {
-        var throwaway: [String] = []
-        AnyTOML.collectKeyPaths(schemaTree, into: &throwaway, lowercased: &schemaKeyPathsLowered)
-    }
+    try fileManager.copyItem(at: fileURL, to: backupURL)
+    return backupURL
+}
 
-    return rawKeyPaths.filter { !schemaKeyPathsLowered.contains($0.lowercased()) }
+extension CanonicalTOMLConfig {
+    static var knownKeyPathsLowercased: Set<String> {
+        var paths = Set<String>()
+        func add(_ path: String) { paths.insert(path.lowercased()) }
+        func addTable<K: CodingKey & CaseIterable>(_ table: CodingKeys, _: K.Type) where K.AllCases: Sequence, K.AllCases.Element == K {
+            add(table.stringValue)
+            for key in K.allCases {
+                add("\(table.stringValue).\(key.stringValue)")
+            }
+        }
+        func addNested<K: CodingKey & CaseIterable>(_ parent: String, _: K.Type) where K.AllCases: Sequence, K.AllCases.Element == K {
+            add(parent)
+            for key in K.allCases {
+                add("\(parent).\(key.stringValue)")
+            }
+        }
+
+        addTable(.general, General.CodingKeys.self)
+        addTable(.focus, Focus.CodingKeys.self)
+        addTable(.mouseWarp, MouseWarp.CodingKeys.self)
+        addTable(.gaps, Gaps.CodingKeys.self)
+        addNested("gaps.outer", Gaps.Outer.CodingKeys.self)
+        addTable(.niri, Niri.CodingKeys.self)
+        addTable(.borders, Borders.CodingKeys.self)
+        addNested("borders.color", Borders.Color.CodingKeys.self)
+        addTable(.workspaceBar, WorkspaceBar.CodingKeys.self)
+        addNested("workspaceBar.accentColor", WorkspaceBar.Color.CodingKeys.self)
+        addNested("workspaceBar.textColor", WorkspaceBar.Color.CodingKeys.self)
+        addTable(.gestures, Gestures.CodingKeys.self)
+        addTable(.statusBar, StatusBar.CodingKeys.self)
+        addTable(.appearance, Appearance.CodingKeys.self)
+        return paths
+    }
 }
 
 /// Recursively decodable wrapper that reconstructs a TOML tree generically, used only to
@@ -47,7 +123,7 @@ private enum AnyTOML: Decodable {
     case other
 
     init(from decoder: Decoder) throws {
-        if let container = try? decoder.container(keyedBy: AnyTOMLKey.self) {
+        if let container = try? decoder.container(keyedBy: SettingsTOMLDynamicKey.self) {
             var dict: [String: AnyTOML] = [:]
             for key in container.allKeys {
                 dict[key.stringValue] = (try? container.decode(AnyTOML.self, forKey: key)) ?? .other
@@ -89,11 +165,4 @@ private enum AnyTOML: Decodable {
             break
         }
     }
-}
-
-private struct AnyTOMLKey: CodingKey {
-    var stringValue: String
-    var intValue: Int? { nil }
-    init(stringValue: String) { self.stringValue = stringValue }
-    init?(intValue: Int) { return nil }
 }
