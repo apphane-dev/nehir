@@ -5,6 +5,23 @@ struct DisplayDiagnosticsSettingsTab: View {
     @State private var diagnostics = DisplayEnvironmentDiagnostics.current()
     @State private var monitors = Monitor.current()
     @State private var axGranted = AccessibilityPermissionMonitor.shared.isGranted
+    @State private var applicableMigrations: [PendingSettingsMigration] = []
+    @State private var migrationConfirmation: String?
+    @State private var migrationError: String?
+
+    private let configDirectory: URL
+    private let migrationStateStore: SettingsMigrationStateStore
+    private let appVersion: String
+
+    init(
+        configDirectory: URL = SettingsFilePersistence.defaultDirectoryURL,
+        migrationStateStore: SettingsMigrationStateStore = SettingsMigrationStateStore(),
+        appVersion: String = Bundle.main.appVersion ?? "dev"
+    ) {
+        self.configDirectory = configDirectory
+        self.migrationStateStore = migrationStateStore
+        self.appVersion = appVersion
+    }
 
     var body: some View {
         Form {
@@ -27,6 +44,32 @@ struct DisplayDiagnosticsSettingsTab: View {
                     Button("Open System Settings") {
                         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
                             NSWorkspace.shared.open(url)
+                        }
+                    }
+                }
+            }
+
+            if !applicableMigrations.isEmpty || migrationConfirmation != nil || migrationError != nil {
+                Section("Settings Migrations") {
+                    ForEach(applicableMigrations) { migration in
+                        SettingsMigrationWarningView(
+                            migration: migration,
+                            isPostponed: isPostponed(migration),
+                            confirmation: migrationConfirmation,
+                            error: migrationError,
+                            onMigrate: { migrate(migration) },
+                            onPostpone: { postpone(migration) }
+                        )
+                    }
+
+                    if applicableMigrations.isEmpty {
+                        if let migrationConfirmation {
+                            Label(migrationConfirmation, systemImage: "checkmark.circle.fill")
+                                .foregroundStyle(.green)
+                        }
+                        if let migrationError {
+                            Label(migrationError, systemImage: "xmark.circle.fill")
+                                .foregroundStyle(.red)
                         }
                     }
                 }
@@ -81,6 +124,9 @@ struct DisplayDiagnosticsSettingsTab: View {
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didChangeScreenParametersNotification)) { _ in
             refresh()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .settingsMigrationStateDidChange)) { _ in
+            refreshMigrations()
+        }
     }
 
     private var statusMessage: String {
@@ -94,6 +140,115 @@ struct DisplayDiagnosticsSettingsTab: View {
         monitors = Monitor.current()
         diagnostics = DisplayEnvironmentDiagnostics.evaluate(monitors: monitors)
         axGranted = AccessibilityPermissionMonitor.shared.isGranted
+        refreshMigrations()
+    }
+
+    private func refreshMigrations() {
+        applicableMigrations = SettingsMigrationDetector.applicableMigrations(
+            configDirectory: configDirectory
+        )
+    }
+
+    private func isPostponed(_ migration: PendingSettingsMigration) -> Bool {
+        migrationStateStore.isPostponed(migrationID: migration.id, currentAppVersion: appVersion)
+    }
+
+    private func migrate(_ migration: PendingSettingsMigration) {
+        migrationConfirmation = nil
+        migrationError = nil
+
+        do {
+            switch migration.id {
+            case SettingsMigrationRegistry.workspacesArrayToKeyedTables.id:
+                let backupURL = try WorkspacesConfigMigration.migrate(fileURL: migration.fileURL)
+                try migrationStateStore.clearPostpone(migrationID: migration.id)
+                migrationConfirmation = "Migrated workspaces.toml. Backup: \(backupURL.lastPathComponent)"
+            default:
+                migrationError = "No migration action is registered for \(migration.id)."
+            }
+            refreshMigrations()
+            NotificationCenter.default.post(name: .settingsMigrationStateDidChange, object: nil)
+        } catch {
+            migrationError = error.localizedDescription
+        }
+    }
+
+    private func postpone(_ migration: PendingSettingsMigration) {
+        migrationConfirmation = nil
+        migrationError = nil
+
+        do {
+            try migrationStateStore.postpone(migrationID: migration.id, currentAppVersion: appVersion)
+            migrationConfirmation = "Reminder hidden until the next Nehir update. You can still migrate now."
+            refreshMigrations()
+            NotificationCenter.default.post(name: .settingsMigrationStateDidChange, object: nil)
+        } catch {
+            migrationError = error.localizedDescription
+        }
+    }
+}
+
+private struct SettingsMigrationWarningView: View {
+    let migration: PendingSettingsMigration
+    let isPostponed: Bool
+    let confirmation: String?
+    let error: String?
+    let onMigrate: () -> Void
+    let onPostpone: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label(migration.descriptor.title, systemImage: isPostponed ? "info.circle.fill" : "exclamationmark.triangle.fill")
+                .font(.headline)
+                .foregroundStyle(isPostponed ? Color.secondary : Color.yellow)
+
+            if isPostponed {
+                Text("Reminder hidden until the next Nehir update. You can still migrate now.")
+                    .foregroundStyle(.secondary)
+            }
+
+            Text(migration.descriptor.warningBody)
+                .foregroundStyle(.secondary)
+
+            Text(migration.descriptor.enforcementWarning)
+                .font(.callout.weight(.semibold))
+
+            Text("File: \(migration.fileURL.path)")
+                .font(.caption.monospaced())
+                .foregroundStyle(.secondary)
+                .textSelection(.enabled)
+
+            HStack {
+                Button("Migrate") {
+                    onMigrate()
+                }
+                .buttonStyle(.borderedProminent)
+
+                if isPostponed {
+                    Button("Postponed") {}
+                        .buttonStyle(.bordered)
+                        .disabled(true)
+                } else {
+                    Button("Postpone Warning") {
+                        onPostpone()
+                    }
+                    .buttonStyle(.bordered)
+                }
+            }
+
+            if let confirmation {
+                Label(confirmation, systemImage: "checkmark.circle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.green)
+            }
+
+            if let error {
+                Label(error, systemImage: "xmark.circle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+        }
+        .padding(.vertical, 4)
     }
 }
 

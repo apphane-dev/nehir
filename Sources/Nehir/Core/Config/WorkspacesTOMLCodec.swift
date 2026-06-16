@@ -1,24 +1,26 @@
 import Foundation
+import NehirIPC
 
 /// Human-readable workspace list in `workspaces.toml`.
 ///
+/// Canonical format:
 /// ```toml
-/// [[workspace]]
-/// name = "1"
+/// [1]
 /// monitor = "main"
 ///
-/// [[workspace]]
-/// name = "6"
+/// [6]
 /// displayName = "❤️"
 /// monitor = "secondary"
 /// ```
+///
+/// Legacy `[[workspace]]` arrays are still decoded during the migration window,
+/// but new writes use keyed tables.
 enum WorkspacesTOMLCodec {
     static func encode(_ workspaces: [WorkspaceConfiguration]) -> Data {
         var lines: [String] = []
         for workspace in workspaces.sorted(by: { $0.sortOrder < $1.sortOrder }) {
             if !lines.isEmpty { lines.append("") }
-            lines.append("[[workspace]]")
-            lines.append("name = \(quoted(workspace.name))")
+            lines.append("[\(tableKey(workspace.name))]")
             if let displayName = workspace.displayName, !displayName.isEmpty {
                 lines.append("displayName = \(quoted(displayName))")
             }
@@ -43,35 +45,16 @@ enum WorkspacesTOMLCodec {
     }
 
     static func decode(string: String) -> [WorkspaceConfiguration] {
-        var rows: [[String: String]] = []
-        var current: [String: String]?
-
-        for rawLine in string.components(separatedBy: "\n") {
-            let line = stripComment(rawLine).trimmingCharacters(in: .whitespaces)
-            if line.isEmpty { continue }
-            if line == "[[workspace]]" {
-                if let current { rows.append(current) }
-                current = [:]
-                continue
-            }
-            guard var row = current, let eq = line.firstIndex(of: "=") else { continue }
-            let key = String(line[..<eq]).trimmingCharacters(in: .whitespaces)
-            let value = String(line[line.index(after: eq)...]).trimmingCharacters(in: .whitespaces)
-            row[key] = value
-            current = row
-        }
-        if let current { rows.append(current) }
-
-        return rows.compactMap { row in
-            guard let name = extractString(row["name"]) else { return nil }
-            let monitor = extractString(row["monitor"]) ?? "main"
+        parseRows(string).compactMap { row in
+            guard let name = row.name else { return nil }
+            let monitor = extractString(row.values["monitor"]) ?? "main"
             let assignment: MonitorAssignment
             switch monitor {
             case "main": assignment = .main
             case "secondary": assignment = .secondary
             case "specific":
-                guard let monitorName = extractString(row["monitorName"]),
-                      let displayIdRaw = row["monitorDisplayId"],
+                guard let monitorName = extractString(row.values["monitorName"]),
+                      let displayIdRaw = row.values["monitorDisplayId"],
                       let displayId = UInt32(displayIdRaw.trimmingCharacters(in: .whitespaces))
                 else { assignment = .main; break }
                 assignment = .specificDisplay(OutputId(displayId: displayId, name: monitorName))
@@ -80,10 +63,109 @@ enum WorkspacesTOMLCodec {
             }
             return WorkspaceConfiguration(
                 name: name,
-                displayName: extractString(row["displayName"]),
+                displayName: extractString(row.values["displayName"]),
                 monitorAssignment: assignment
             )
         }
+    }
+
+    static func containsLegacyWorkspaceArray(string: String) -> Bool {
+        for rawLine in string.components(separatedBy: "\n") {
+            let line = stripComment(rawLine).trimmingCharacters(in: .whitespaces)
+            if line == "[[workspace]]" {
+                return true
+            }
+        }
+        return false
+    }
+
+    private struct Row {
+        var name: String?
+        var values: [String: String]
+    }
+
+    private enum SectionKind {
+        case none
+        case legacyWorkspace
+        case keyedWorkspace(name: String)
+        case ignored
+    }
+
+    private static func parseRows(_ string: String) -> [Row] {
+        var rows: [Row] = []
+        var currentValues: [String: String] = [:]
+        var currentKind: SectionKind = .none
+
+        func flushCurrent() {
+            switch currentKind {
+            case .legacyWorkspace:
+                rows.append(Row(name: extractString(currentValues["name"]), values: currentValues))
+            case let .keyedWorkspace(name):
+                rows.append(Row(name: name, values: currentValues))
+            case .none, .ignored:
+                break
+            }
+            currentValues = [:]
+        }
+
+        for rawLine in string.components(separatedBy: "\n") {
+            let line = stripComment(rawLine).trimmingCharacters(in: .whitespaces)
+            if line.isEmpty { continue }
+
+            if line.hasPrefix("[") && line.hasSuffix("]") {
+                flushCurrent()
+                currentKind = sectionKind(for: line)
+                continue
+            }
+
+            guard shouldCollectValues(in: currentKind), let eq = line.firstIndex(of: "=") else { continue }
+            let key = String(line[..<eq]).trimmingCharacters(in: .whitespaces)
+            let value = String(line[line.index(after: eq)...]).trimmingCharacters(in: .whitespaces)
+            currentValues[key] = value
+        }
+        flushCurrent()
+
+        return rows
+    }
+
+    private static func shouldCollectValues(in kind: SectionKind) -> Bool {
+        switch kind {
+        case .legacyWorkspace, .keyedWorkspace:
+            return true
+        case .none, .ignored:
+            return false
+        }
+    }
+
+    private static func sectionKind(for line: String) -> SectionKind {
+        if line == "[[workspace]]" {
+            return .legacyWorkspace
+        }
+
+        guard line.hasPrefix("["), line.hasSuffix("]"), !line.hasPrefix("[["), !line.hasSuffix("]]"), line.count >= 2 else {
+            return .ignored
+        }
+
+        let rawName = String(line.dropFirst().dropLast()).trimmingCharacters(in: .whitespaces)
+        guard let name = parseTableName(rawName), WorkspaceIDPolicy.normalizeRawID(name) != nil else {
+            return .ignored
+        }
+        return .keyedWorkspace(name: name)
+    }
+
+    private static func parseTableName(_ rawName: String) -> String? {
+        if rawName.hasPrefix("\"") && rawName.hasSuffix("\"") {
+            return extractString(rawName)
+        }
+        guard !rawName.contains(".") else { return nil }
+        return rawName.isEmpty ? nil : rawName
+    }
+
+    private static func tableKey(_ value: String) -> String {
+        guard value.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "_" || $0 == "-" }), !value.isEmpty else {
+            return quoted(value)
+        }
+        return value
     }
 
     private static func quoted(_ value: String) -> String {

@@ -32,6 +32,9 @@ struct SettingsSidebar: View {
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             refreshDiagnostics()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .settingsMigrationStateDidChange)) { _ in
+            refreshDiagnostics()
+        }
     }
 
     @ViewBuilder
@@ -55,6 +58,7 @@ struct SettingsSidebar: View {
     private func refreshDiagnostics() {
         let diagIssues = DisplayEnvironmentDiagnostics.current().issues.count
         let axIssue = AccessibilityPermissionMonitor.shared.isGranted ? 0 : 1
-        diagnosticsIssueCount = diagIssues + axIssue
+        let migrationIssues = SettingsMigrationDetector.pendingMigrations().count
+        diagnosticsIssueCount = diagIssues + axIssue + migrationIssues
     }
 }

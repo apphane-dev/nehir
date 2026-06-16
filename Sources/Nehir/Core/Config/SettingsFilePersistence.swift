@@ -145,8 +145,10 @@ final class SettingsFilePersistence {
         let hotkeysData = HotkeysTOMLCodec.encode(export.hotkeyBindings)
         try hotkeysData.write(to: hotkeysFileURL, options: .atomic)
 
-        let workspacesData = WorkspacesTOMLCodec.encode(export.workspaceConfigurations)
-        try workspacesData.write(to: workspacesFileURL, options: .atomic)
+        if !shouldPreserveLegacyWorkspacesFile(for: export) {
+            let workspacesData = WorkspacesTOMLCodec.encode(export.workspaceConfigurations)
+            try workspacesData.write(to: workspacesFileURL, options: .atomic)
+        }
 
         try AppRuleFileStore.write(export.appRules, to: appRulesDirectoryURL)
         try MonitorOverrideFileStore.write(
@@ -163,6 +165,17 @@ final class SettingsFilePersistence {
         lastPersistedExport = export
         refreshSettingsFileWatcher(for: fingerprint)
         refreshAuxiliaryFileWatchers()
+    }
+
+    private func shouldPreserveLegacyWorkspacesFile(for export: SettingsExport) -> Bool {
+        guard let lastPersistedExport,
+              export.workspaceConfigurations == lastPersistedExport.workspaceConfigurations,
+              FileManager.default.fileExists(atPath: workspacesFileURL.path)
+        else {
+            return false
+        }
+
+        return WorkspacesConfigMigration.needsMigration(fileURL: workspacesFileURL)
     }
 
     func scheduleSave(_ export: @autoclosure () -> SettingsExport) {

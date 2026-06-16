@@ -4,7 +4,7 @@ title: Configuration Principles
 
 # Configuration Principles
 
-Nehir's config layout is designed around three priorities: **human readability**, **dotfiles-manager friendliness**, and **zero migration**.
+Nehir's config layout is designed around three priorities: **human readability**, **dotfiles-manager friendliness**, and **explicit migration**.
 
 ## Directory Structure
 
@@ -39,7 +39,7 @@ The split layout works naturally with stow, chezmoi, yadm, or bare git repos:
 
 ### 3. Missing keys use defaults
 
-Missing keys are filled from built-in defaults as hand-edit tolerance. Nehir does not keep migration shims for removed or renamed config keys.
+Missing keys are filled from built-in defaults as hand-edit tolerance. Nehir avoids silent config rewrites during normal decode. When a format must change, it follows the gradual policy in [Settings Migrations](SETTINGS_MIGRATIONS.md): decode both formats during a compatibility window, warn in Diagnostics, and let users migrate explicitly or postpone for the current release.
 
 Inactive sample files use `.toml.sample` extension so they aren't parsed. Rename to `.toml` to activate.
 
@@ -236,7 +236,7 @@ App rules in `apprules.d/` carry an `order` field to preserve specificity orderi
 
 ### 8. No runtime state in config
 
-Runtime state (window restore catalog, command palette last mode) is stored separately in `~/.local/state/nehir/runtime-state.json` — never in the config directory. Your config stays clean and diffable.
+Runtime state (window restore catalog, command palette last mode) is stored separately under `~/.local/state/nehir/` — never in the config directory. Migration postpone decisions also live in state, not config. Your config stays clean and diffable.
 
 ## File Reference
 
