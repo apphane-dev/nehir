@@ -39,7 +39,13 @@ The split layout works naturally with stow, chezmoi, yadm, or bare git repos:
 
 ### 3. Missing keys use defaults
 
-Missing keys are filled from built-in defaults as hand-edit tolerance. Nehir avoids silent config rewrites during normal decode. When a format must change, it follows the gradual policy in [Settings Migrations](SETTINGS_MIGRATIONS.md): decode both formats during a compatibility window, warn in Diagnostics, and let users migrate explicitly or postpone for the current release.
+Missing keys are filled from built-in defaults as hand-edit tolerance. Nehir avoids silent config rewrites during normal decode.
+
+**Unknown keys are preserved.** If `settings.toml` contains keys the current schema doesn't model (for example from a newer Nehir version or a typo), they survive a load → edit → save cycle instead of being dropped. They are valid TOML, so Nehir keeps them and surfaces them as a non-blocking warning in **Settings → Diagnostics** (with a **Copy AI Prompt**, **Postpone Warning**, and **Remove Unknown Keys** action). They never block startup and the file is never rewritten automatically.
+
+Startup blocks only when the file genuinely cannot be loaded (TOML parse failure, a known key with the wrong type, or an enforced legacy format). In that case Nehir shows a **Couldn't load settings.toml** recovery window with a **Copy AI Prompt** and starts from defaults for the session — it does not rewrite your file.
+
+When a format must change, it follows the gradual policy in [Settings Migrations](SETTINGS_MIGRATIONS.md): decode both formats during a compatibility window, warn in Diagnostics, and let users migrate explicitly or postpone for the current release.
 
 Inactive sample files use `.toml.sample` extension so they aren't parsed. Rename to `.toml` to activate.
 

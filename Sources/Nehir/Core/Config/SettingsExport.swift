@@ -10,7 +10,7 @@ struct SettingsColor: Codable, Equatable, Sendable {
     var alpha: Double
 }
 
-struct SettingsExport: Equatable, @unchecked Sendable {
+struct SettingsExport: Equatable, Sendable {
     var hotkeysEnabled: Bool
     var focusFollowsMouse: Bool
     var moveMouseToFocusedWindow: Bool

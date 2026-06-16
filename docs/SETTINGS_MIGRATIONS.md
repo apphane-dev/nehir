@@ -17,6 +17,12 @@ Nehir prefers stable, human-readable config files, but config formats can still 
 - Reactivate postponed warnings on the next release.
 - Publish each migration's phase and enforcement plan.
 
+## Scope: migrations vs unknown keys
+
+Soft migrations (this document) are about **config format changes** — an old shape the schema once accepted being replaced by a new canonical shape (`[[workspace]]` → keyed tables). They are user-visible format upgrades with an introduced/deprecated/enforced lifecycle.
+
+**Unknown keys are a different concern.** A key the current schema simply doesn't model (from a newer Nehir version, a typo, or a hand edit) is *not* a migration: there is no old→new format change to perform. Unknown keys are valid TOML, are preserved on save (see [Configuration Principles](CONFIGURATION.md)), and surface as a non-blocking Diagnostics warning with **Copy AI Prompt**, **Postpone Warning**, and **Remove Unknown Keys**. They share the postpone state store and the Diagnostics/sidebar/menu/What's-New surfacing, but they have no registry entry and no lifecycle.
+
 ## Soft migration lifecycle
 
 Use this lifecycle for user-owned config format changes where the old format can still be decoded safely.
@@ -54,8 +60,8 @@ A later release may remove the old decoder and migration action after the regist
 
 1. The old format is no longer part of the supported config schema.
 2. The dedicated migration code and Diagnostics migration entry are removed.
-3. If stale config is detected or parsing fails, Nehir should stop applying that stale file and show the existing migration-assistance flow: a clear config update screen with an offer to copy an AI prompt for manual migration.
-4. The prompt should include the app version, affected file, relevant stale entries or parse error, release/changelog links, and backup path when a backup exists.
+3. If stale config is detected or parsing fails, Nehir stops applying that stale file and shows the blocking **Couldn't load settings.toml** recovery window (the category-4 startup recovery screen). It offers a **Copy AI Prompt** and continues from defaults for the session — it never rewrites the file automatically.
+4. The prompt (built by the shared `ConfigAssistancePrompt` helper) includes the app version, affected file, relevant stale entries or parse error, release/changelog links, and backup path when a backup exists.
 
 This is the enforcement point: Nehir no longer promises to decode the old format in-app. The user gets explicit assistance instead of silent fallback or lossy automatic rewrite.
 
@@ -66,6 +72,8 @@ Postpone decisions are runtime state, not config. Store them outside `~/.config/
 ```text
 ${XDG_STATE_HOME:-$HOME/.local/state}/nehir/settings-migration-state.json
 ```
+
+The same store backs both soft-migration warnings and unknown-key warnings, keyed by a stable id (`{migrationID}` for migrations, `unknown-settings-keys:{file path}` for unknown keys). This avoids id collisions while keeping one release-scoped postpone mechanism.
 
 Suggested shape:
 

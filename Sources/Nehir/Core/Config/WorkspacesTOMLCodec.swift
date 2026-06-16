@@ -162,7 +162,11 @@ enum WorkspacesTOMLCodec {
     }
 
     private static func tableKey(_ value: String) -> String {
-        guard value.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "_" || $0 == "-" }), !value.isEmpty else {
+        // TOML 1.0 bare keys allow only ASCII A-Z a-z 0-9 _ -. Unicode letters/numerals
+        // (é, α, superscripts, etc.) must be emitted quoted.
+        guard value.allSatisfy({
+            ("a"..."z").contains($0) || ("A"..."Z").contains($0) || ("0"..."9").contains($0) || $0 == "_" || $0 == "-"
+        }), !value.isEmpty else {
             return quoted(value)
         }
         return value
