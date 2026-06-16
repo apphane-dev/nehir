@@ -23,6 +23,8 @@ struct SettingsDetailView: View {
                 controller: controller,
                 cliManager: cliManager
             )
+        case .about:
+            AboutSettingsTab()
         case .behavior:
             BehaviorSettingsTab(settings: settings, controller: controller)
         case .layout:
