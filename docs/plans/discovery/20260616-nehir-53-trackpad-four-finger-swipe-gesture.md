@@ -5,10 +5,10 @@ Originally reported (as a discussion comment) by `@axburgess-godaddy` in
 <https://github.com/Guria/nehir/discussions/25#discussioncomment-17312660>,
 filed as an issue by the maintainer.
 
-Scope of this doc: determine **why** a 4-finger trackpad swipe fails to switch
-columns in nehir, while 2- and 3-finger gestures work; confirm it is not a
-config-parsing problem; and scope a fix. This is a discovery/analysis doc — no
-code is changed here.
+Scope of this doc: investigate a report that a 4-finger trackpad swipe fails to
+switch columns in nehir while 2- and 3-finger gestures work; confirm whether it
+is a config-parsing problem; and scope the next diagnostic/fix steps. This is a
+discovery/analysis doc — no code is changed here.
 
 All file/line references were verified against `worktree-calm-meadow-6229`
 at `b7ac7e5` ("Add more issues dicoveries"). Re-verify before implementing;
@@ -18,44 +18,70 @@ line numbers drift.
 
 ## TL;DR
 
+- **New trace result: maintainer could not reproduce.** A 10.353s runtime
+  capture on nehir `v17dafe` (2026-06-16 11:02:45–11:02:55Z) shows 4-finger
+  gestures working: 7 `touch_scroll_gesture_armed`, 5
+  `touch_scroll_gesture_committed`, 83 `touch_scroll_gesture_update`, 5
+  `touch_scroll_gesture_end`, and 0 `touch_scroll_gesture_abort` records.
+  The committed gestures all carry `requiredFingers=4 activeTouches=4` and
+  switch columns in both directions. This disproves the earlier stronger claim
+  that 4-finger mode cannot commit on a built-in trackpad.
 - **The config is parsed correctly.** `fingerCount = 4` round-trips through
   the TOML decoder, `SettingsStore.gestureFingerCount`
   (`SettingsStore.swift:281`), and lands as `requiredFingers = 4` inside the
   gesture handler (`MouseEventHandler.swift:1459`). The reporter's config is
-  valid; the problem is downstream of parsing. (Default is `.three`, so the
+  valid; any failure is downstream of parsing. (Default is `.three`, so the
   reporter deliberately chose 4 — `SettingsExport.swift:147`.)
-- **Root cause (code, deterministic): an exact-match finger-count gate.**
-  `averageGestureTouchPosition(requiredFingers:touches:)`
-  (`MouseEventHandler.swift:2146`) qualifies a frame only when the **currently
-  active** (non-ended, non-cancelled) touch count equals `requiredFingers`
-  *exactly*, and hard-bails as soon as the count exceeds it
-  (`:2163` `if touchCount > requiredFingers { return nil }`; `:2176`
-  `guard touchCount == requiredFingers, ... else { return nil }`).
-- **Why 4 specifically:** a 4-finger multitouch stream on a large built-in
-  trackpad is inherently noisy — transient palm/thumb contacts push the count
-  to 5, and fingers lifting a frame early (or macOS's *own* recognition of a
-  system 4-finger gesture) drop it to 3. Either deviation makes the matcher
-  return `nil`. While the gesture is still in the `.armed` phase (before it
-  has crossed the horizontal commit threshold), a single `nil` frame calls
-  `abortActiveGestureIfNeeded()` (`:1491`–`:1509`), killing the gesture
-  before it ever commits. 2- and 3-finger gestures work because fewer fingers
-  mean far fewer incidental over-counts **and** 2–3 finger trackpad gestures
-  are not system-reserved, so their streams stay clean.
-- **Corroborating evidence (macOS behavior):** the equivalent bug in another
-  macOS gesture-driven app, AltTab (`lwouis/alt-tab-macos#4278`), documents
-  that its **3-finger** recognizer mis-fires *during* a 4-finger system swipe.
-  That proves macOS still delivers 4-finger touch data to apps (the events are
-  not swallowed) — the touch set is simply unstable mid-gesture, which is
-  precisely what defeats nehir's exact matcher.
-- **Secondary (environmental):** macOS reserves 4-finger gestures by default
-  (System Settings → Trackpad → More Gestures: Mission Control / App Exposé /
-  switching Spaces). Even with a perfect matcher, the OS would simultaneously
-  fire its own action unless the user disables those.
-- **Diagnostic gap:** `abortActiveGestureIfNeeded()` / `resetGestureState()`
-  (`:1887`, `:1924`) emit **no** trace. The only gesture traces are on
-  *success* (`touch_scroll_gesture_armed`, `touch_scroll_gesture_committed`).
-  So today there is no in-app evidence of *why* a gesture failed — the
-  arming trace simply never appears. Fixing this is independently worthwhile.
+- **Exact-count matching is still the main code-level fragility, not yet a
+  proven root cause for #53.** `averageGestureTouchPosition(requiredFingers:touches:)`
+  (`MouseEventHandler.swift:2146`) accepts only frames whose active touch count
+  equals `requiredFingers` exactly, with an early over-count bail at `:2163` and
+  exact equality at `:2176`. The successful trace shows this works when macOS
+  delivers a clean exact-four stream; it could still fail for a reporter whose
+  stream intermittently reports 3 or 5 active touches.
+- **Likely scope after non-repro:** the issue is environment- or input-stream
+  dependent (macOS 4-finger gesture settings, trackpad model, hand posture,
+  incidental contacts, or OS gesture competition), rather than a universal
+  4-finger implementation defect.
+- **Diagnostic gap remains the safest next fix.** `abortActiveGestureIfNeeded()`
+  / `resetGestureState()` (`:1887`, `:1924`) emit no failure trace. The current
+  non-repro trace is rich on the success path, but a reporter's failing trace
+  would still show only absence unless abort/skip reasons are logged.
+
+---
+
+## 2026-06-16 maintainer non-reproduction trace
+
+A 10.353s maintainer runtime capture on nehir `v17dafe` was recorded from
+2026-06-16 11:02:45Z to 11:02:55Z. The relevant evidence is inlined below so
+this document does not depend on any machine-local trace file.
+
+Evidence from the trace:
+
+- `touch_scroll_gesture_armed`: 7 records.
+- `touch_scroll_gesture_committed`: 5 records.
+- `touch_scroll_gesture_update`: 83 records.
+- `touch_scroll_gesture_end`: 5 records.
+- `touch_scroll_gesture_abort`: 0 records.
+- Every commit event includes `requiredFingers=4 activeTouches=4`, e.g.
+  `11:02:50Z cumulativeX=17.405 cumulativeY=0.084`,
+  `11:02:51Z cumulativeX=-17.300 cumulativeY=1.406`,
+  `11:02:53Z cumulativeX=16.331 cumulativeY=-2.398`, and
+  `11:02:53Z cumulativeX=-17.199 cumulativeY=-3.307`.
+- Gesture end records show actual column-navigation outcomes, including
+  `previousActiveColumnIndex=1 endedActiveColumnIndex=0`,
+  `0 → 1`, and `1 → 0` transitions.
+
+Interpretation:
+
+- nehir is receiving 4-finger trackpad gesture events on this machine.
+- The strict `requiredFingers == activeTouches == 4` path can arm, commit,
+  update, and end successfully.
+- Therefore the earlier deterministic diagnosis should be narrowed: exact-count
+  matching is a plausible failure mechanism for noisy streams, but not proof
+  that 4-finger mode is globally broken.
+- The next useful artifact is a **failing** trace from the reporter after abort
+  reasons are logged, plus their macOS Trackpad → More Gestures settings.
 
 ---
 
@@ -103,8 +129,8 @@ Each key reaches the handler:
 The `.four` case exists and is valid (`GestureFingerCount.swift:4` →
 `case four = 4`). `GestureFingerCount(rawValue: 4) ?? .three`
 (`SettingsStore.swift:527`) succeeds without falling back. **Nothing here
-rejects 4.** The defect is in how `requiredFingers` is *enforced*, not how it
-is *read*.
+rejects 4.** If the reporter-side failure reproduces, it is downstream of how
+`requiredFingers` is *used/enforced*, not how it is *read*.
 
 ---
 
@@ -236,22 +262,23 @@ the top of `MouseEventHandler.swift:4` / `:8`.)
 **The consequence:** to commit a 4-finger swipe, the matcher must return a
 non-`nil` centroid on **every** frame across the several frames needed to cross
 the horizontal threshold — and every one of those frames must report *exactly*
-four active touches. For a noisy 4-finger stream that window is vanishingly
-small, so the gesture almost always aborts at `:1502` before committing.
+four active touches. The maintainer trace shows this can happen successfully;
+for a noisy reporter-side stream, however, this window may be too small, so the
+gesture can abort at `:1502` before committing.
 
 ---
 
-## Why 4 fails and 2/3 succeed
+## Why 4 may fail for the reporter while it works in the maintainer trace
 
 ### A. Exact-match semantics are hostile to high finger counts
 
 Every additional finger raises the probability that some frame's active count
 is not exactly N:
 
-- **Over-count (count → N+1):** a large built-in MacBook trackpad almost
-  always has a resting palm/thumb within sensing range; a 4-finger swipe spans
-  most of the pad and routinely surfaces a momentary 5th contact. The `:2163`
-  bail rejects the frame.
+- **Over-count (count → N+1):** a large built-in MacBook trackpad can have a
+  resting palm/thumb within sensing range; a 4-finger swipe spans much of the
+  pad and may surface a momentary 5th contact. The `:2163` bail rejects the
+  frame.
 - **Under-count (count → N−1):** fingers rarely land and lift in perfect
   lockstep. One finger leaving a frame early drops the count to 3; the `:2176`
   guard rejects the frame.
@@ -276,13 +303,14 @@ macOS app. AltTab (`lwouis/alt-tab-macos#4278`) reports that its **3-finger**
 horizontal-swipe recognizer *mis-fires during a 4-finger system swipe* used to
 switch Spaces. That is only possible if macOS is still delivering 4-finger
 touch data to apps (so nehir's tap is receiving events — they are not
-swallowed) **and** the delivered touch set is momentarily indistinguishable
+swallowed) **and** the delivered touch set can be momentarily indistinguishable
 from a 3-finger gesture. For nehir, that exact "momentarily looks like 3
-touches" condition is fatal: the strict-4 matcher returns `nil`, the `.armed`
-gesture aborts, and the swipe never commits.
+touches" condition would be fatal before commit: the strict-4 matcher returns
+`nil`, the `.armed` gesture aborts, and the swipe does not commit.
 
-This is why the reporter observes "4-finger does nothing in nehir" while the
-same trackpad works fine at 2/3 fingers.
+This remains a plausible explanation for the reporter's "4-finger does nothing"
+observation, but the maintainer trace above proves it is not universal: a clean
+exact-four stream can commit and switch columns successfully.
 
 ---
 
@@ -306,60 +334,54 @@ made #53 self-evident.
 
 ## Recommendation
 
-Ranked by impact. (1) is the actual fix; (2) is a correctness cleanup that
-enables (1); (3) is the diagnostic improvement; (4) is the immediate user
-workaround / documentation.
+Ranked by confidence after the non-reproduction trace. The successful 4-finger
+trace means we should avoid landing a behavior-changing hysteresis fix as "the"
+fix until we have a failing trace that shows the failure mode.
 
-### 1. Tolerate transient count deviations once a gesture is armed (primary fix)
-
-Keep **exact** matching for *qualification* (so a 3-finger config and a
-4-finger config don't both fire — the strictness is an intentional anti-cross-
-talk measure, and the AltTab bug shows what happens without it), but add
-*hysteresis* for *maintenance*: once a gesture is `.armed` or `.committed` at
-`requiredFingers`, do not abort on a single frame whose active count is
-`requiredFingers ± 1`. Concretely, in the `nil` branch at `:1491`:
-
-- If `state.gesturePhase` is `.armed`/`.committed` and the active count is
-  within `[requiredFingers - 1, requiredFingers + tolerance]` (tolerance ≥ 1,
-  configurable or fixed), hold the gesture using the last good centroid
-  (`state.gestureLastAverageX/Y`) instead of aborting; require **N consecutive**
-  miss-frames before aborting.
-- Reuse the existing commit threshold so a held-but-not-yet-committed gesture
-  still must prove horizontal intent before it affects the viewport.
-
-This directly absorbs the over-/under-count transients that the AltTab analog
-proves occur, without loosening which gesture qualifies.
-
-### 2. Remove the premature over-count bail at `:2163`
-
-`if touchCount > requiredFingers { return nil }` is an optimization (early
-exit) that is also the most common reason 4-finger frames die. Let the loop
-complete and let the caller (with the hysteresis from (1)) decide based on the
-actual active count. This is a small change but it must ship *with* (1) so the
-strict qualification is still enforced by the caller rather than silently
-dropped.
-
-### 3. Trace the abort path
+### 1. Trace the abort / skip path first (highest confidence)
 
 Emit a `touch_scroll_gesture_abort` (or reuse `gesture.skip` as already used
 for overlay suppression at `:1444`) with `requiredFingers`, `activeTouches`,
 phase, and a short `reason` (`overCount` / `underCount` / `noScrollContext` /
-`overlay` / `disabled`). Cheap, broadly useful, and would have made #53
-self-diagnosing. Add a regression test asserting the reason string for the
-over-count and under-count cases alongside the existing gesture tests in
+`overlay` / `disabled` / `nonHorizontal`). Cheap, broadly useful, and now the
+best next step because the maintainer trace only proves the success path.
+
+Add regression tests asserting the reason string for over-count and under-count
+cases alongside the existing gesture tests in
 `Tests/NehirTests/MouseEventHandlerTests.swift` (e.g. near
 `trackpadGestureStartsFromCurrentAnimationOffset`).
 
+### 2. Ask for a reporter-side failing trace
+
+After (1), ask the reporter to capture a trace while attempting the failing
+4-finger gesture and include macOS Trackpad → More Gestures settings. A useful
+trace should answer:
+
+- Are any `.gesture` events reaching nehir?
+- Does `activeTouches` ever reach 4?
+- Is the failure an over-count, under-count, vertical/non-horizontal reset,
+  overlay/no-scroll-context skip, or OS gesture competition?
+- Does the reporter's stream ever commit and then snap back, or does it never
+  arm/commit?
+
+### 3. Consider hysteresis only if the failing trace shows count instability
+
+If the failing trace shows an armed gesture aborting on transient 3/5-touch
+frames, then keep **exact** matching for initial qualification, but add
+*hysteresis* for maintenance: once a gesture is `.armed` or `.committed` at
+`requiredFingers`, tolerate `requiredFingers ± 1` for a small number of
+consecutive miss-frames, using the last good centroid, before aborting.
+
+This would preserve the anti-cross-talk property while absorbing noisy streams,
+but the current maintainer trace does not prove it is necessary.
+
 ### 4. User-facing workaround / docs (immediate)
 
-Until (1)–(2) ship, document that 4-finger mode requires disabling macOS's
-default 4-finger system gestures, otherwise the OS competes and (per the
-evidence above) destabilizes the delivered touch set: System Settings →
-Trackpad → More Gestures → set **Mission Control**, **App Exposé**, and
-**Switch Between Spaces** to 3-finger (or off). This does not fully fix the
-strict-matcher abort on built-in trackpads (palm over-counts remain), but it
-removes the OS-level competition and is the only thing the reporter can do
-today.
+Document that 4-finger mode can conflict with macOS's default 4-finger system
+gestures: System Settings → Trackpad → More Gestures → set **Mission Control**,
+**App Exposé**, and **Switch Between Spaces** to 3-finger (or off). This is no
+longer presented as a guaranteed fix, but it is a low-risk workaround to remove
+OS-level competition while collecting better diagnostics.
 
 ---
 
@@ -368,7 +390,7 @@ today.
 Re-verify the matcher and abort behavior before any change:
 
 ```bash
-# The strict matcher (the defect site)
+# The strict matcher (the potential fragility site)
 rg -n 'func averageGestureTouchPosition|requiredFingers|touchCount > requiredFingers|touchCount == requiredFingers' \
    Sources/Nehir/Core/Controller/MouseEventHandler.swift
 
@@ -388,10 +410,9 @@ rg -n 'case four|gestureFingerCount|fingerCount' \
 rg -n 'trackpadGesture' Tests/NehirTests/MouseEventHandlerTests.swift
 ```
 
-The defining evidence: `averageGestureTouchPosition` returns `nil` unless the
-active touch count equals `requiredFingers` *exactly*, and `:2163` bails on any
-over-count; combined with the abort at `:1502` for an `.armed` gesture, a noisy
-4-finger stream cannot survive the multi-frame commit window. As long as that
-holds — and the AltTab analog confirms macOS does deliver noisy 4-finger data
-to apps — 4-finger mode cannot commit on a built-in trackpad without
-hysteresis.
+The defining code evidence remains that `averageGestureTouchPosition` returns
+`nil` unless the active touch count equals `requiredFingers` *exactly*, and
+`:2163` bails on any over-count. The new runtime evidence shows that this path
+can still commit when the stream stays exactly four touches. Treat exact-count
+fragility as a hypothesis to verify with a failing trace, not as a closed root
+cause.
