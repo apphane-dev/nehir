@@ -33,6 +33,40 @@ final class StatusBarController: NSObject {
     }
 
     static let maxStatusBarAppNameLength = 15
+    private static let statusBarIconSize = NSSize(width: 18, height: 18)
+
+    private static func statusBarIcon() -> NSImage {
+        let image = NSImage(size: statusBarIconSize, flipped: false) { rect in
+            NSColor.black.setStroke()
+
+            let mark = NSBezierPath()
+            mark.lineCapStyle = .round
+            mark.lineJoinStyle = .round
+            mark.lineWidth = 2.4
+
+            mark.move(to: NSPoint(x: rect.minX + 3.3, y: rect.minY + 4.2))
+            mark.curve(
+                to: NSPoint(x: rect.minX + 6.4, y: rect.maxY - 4.1),
+                controlPoint1: NSPoint(x: rect.minX + 3.6, y: rect.minY + 8.4),
+                controlPoint2: NSPoint(x: rect.minX + 4.8, y: rect.maxY - 3.6)
+            )
+            mark.curve(
+                to: NSPoint(x: rect.minX + 10.4, y: rect.minY + 5.2),
+                controlPoint1: NSPoint(x: rect.minX + 7.9, y: rect.maxY - 4.6),
+                controlPoint2: NSPoint(x: rect.minX + 8.5, y: rect.minY + 5.1)
+            )
+            mark.curve(
+                to: NSPoint(x: rect.maxX - 4.0, y: rect.maxY - 4.0),
+                controlPoint1: NSPoint(x: rect.minX + 12.2, y: rect.minY + 5.4),
+                controlPoint2: NSPoint(x: rect.maxX - 5.4, y: rect.maxY - 4.0)
+            )
+            mark.stroke()
+
+            return true
+        }
+        image.isTemplate = true
+        return image
+    }
 
     private func installOwnedStatusItems() {
         guard statusItem == nil, let controller else { return }
@@ -42,8 +76,7 @@ final class StatusBarController: NSObject {
         statusItem = ownedStatusItem
 
         guard let button = statusItem?.button else { return }
-        button.image = NSImage(systemSymbolName: "o.circle", accessibilityDescription: "Nehir")
-        button.image?.isTemplate = true
+        button.image = Self.statusBarIcon()
         button.target = self
         button.action = #selector(handleClick(_:))
         button.sendAction(on: [.leftMouseUp, .rightMouseUp])
@@ -104,8 +137,7 @@ final class StatusBarController: NSObject {
         guard let button = statusItem?.button else { return }
 
         if button.image == nil {
-            button.image = NSImage(systemSymbolName: "o.circle", accessibilityDescription: "Nehir")
-            button.image?.isTemplate = true
+            button.image = Self.statusBarIcon()
         }
 
         guard settings.statusBarShowWorkspaceName,
