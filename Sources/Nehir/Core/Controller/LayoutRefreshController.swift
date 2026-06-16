@@ -2153,7 +2153,15 @@ import QuartzCore
             controller.axManager.markWindowInactive(entry.windowId)
             // Skip moving windows already hidden offscreen by the layout engine.
             // They're already parked — no need to shuffle them to the other side.
-            if controller.workspaceManager.hiddenState(for: entry.token) != nil {
+            if let hiddenState = controller.workspaceManager.hiddenState(for: entry.token) {
+                traceWorkspaceInactiveVisibleDriftIfNeeded(
+                    entry,
+                    monitor: monitor,
+                    preferredSide: preferredSide,
+                    hiddenState: hiddenState,
+                    hiddenPlacementMonitors: hiddenPlacementMonitors,
+                    trigger: "hideWorkspace.skipAlreadyHidden"
+                )
                 continue
             }
             hideWindow(
@@ -2164,6 +2172,130 @@ import QuartzCore
                 hiddenPlacementMonitors: hiddenPlacementMonitors
             )
         }
+    }
+
+    private func traceWorkspaceInactiveVisibleDriftIfNeeded(
+        _ entry: WindowModel.Entry,
+        monitor: Monitor,
+        preferredSide: HideSide,
+        hiddenState: WindowModel.HiddenState,
+        hiddenPlacementMonitors: [HiddenPlacementMonitorContext]? = nil,
+        trigger: String
+    ) {
+        guard let controller, controller.isRuntimeTraceCaptureActive else { return }
+        guard let line = workspaceInactiveVisibleDriftLine(
+            entry,
+            monitor: monitor,
+            preferredSide: preferredSide,
+            hiddenState: hiddenState,
+            hiddenPlacementMonitors: hiddenPlacementMonitors,
+            trigger: trigger
+        ) else { return }
+
+        controller.axManager.recordFrameApplyTrace(line)
+        controller.recordRuntimeViewportTrace(
+            workspaceId: entry.workspaceId,
+            reason: "workspaceInactiveVisibleDrift",
+            details: [line]
+        )
+    }
+
+    func workspaceInactiveVisibleDriftDebugDump() -> String {
+        guard let controller else { return "controller unavailable" }
+        let entries = controller.workspaceManager.allEntries()
+        let lines = entries.compactMap { entry -> String? in
+            guard let hiddenState = controller.workspaceManager.hiddenState(for: entry.token),
+                  hiddenState.workspaceInactive
+            else { return nil }
+            let monitor = controller.workspaceManager.monitor(for: entry.workspaceId)
+                ?? hiddenState.referenceMonitorId.flatMap { controller.workspaceManager.monitor(byId: $0) }
+                ?? controller.workspaceManager.monitors.first
+            guard let monitor else { return nil }
+
+            let rightLine = workspaceInactiveVisibleDriftLine(
+                entry,
+                monitor: monitor,
+                preferredSide: .right,
+                hiddenState: hiddenState,
+                trigger: "runtimeDump.scan(right)",
+                requireTraceCapture: false
+            )
+            let leftLine = workspaceInactiveVisibleDriftLine(
+                entry,
+                monitor: monitor,
+                preferredSide: .left,
+                hiddenState: hiddenState,
+                trigger: "runtimeDump.scan(left)",
+                requireTraceCapture: false
+            )
+            // The dump scan does not know which side the inactive-workspace hide
+            // chose. Treat either physical-edge park as valid and report only if
+            // the live frame is not near either side.
+            guard rightLine != nil, leftLine != nil else { return nil }
+            return rightLine
+        }
+        return lines.isEmpty ? "none" : lines.joined(separator: "\n")
+    }
+
+    private func workspaceInactiveVisibleDriftLine(
+        _ entry: WindowModel.Entry,
+        monitor: Monitor,
+        preferredSide: HideSide,
+        hiddenState: WindowModel.HiddenState,
+        hiddenPlacementMonitors: [HiddenPlacementMonitorContext]? = nil,
+        trigger: String,
+        requireTraceCapture: Bool = true
+    ) -> String? {
+        guard let controller else { return nil }
+        if requireTraceCapture {
+            guard controller.isRuntimeTraceCaptureActive else { return nil }
+        }
+        guard hiddenState.workspaceInactive else { return nil }
+        guard let liveFrame = AXWindowService.framePreferFast(entry.axRef)
+            ?? (try? AXWindowService.frame(entry.axRef))
+        else { return nil }
+        guard let activeWorkspaceId = controller.interactionWorkspace()?.id,
+              let activeMonitor = controller.workspaceManager.monitor(for: activeWorkspaceId)
+        else { return nil }
+        guard liveFrame.intersects(activeMonitor.frame) else { return nil }
+
+        let hiddenPlacementMonitor = HiddenPlacementMonitorContext(monitor)
+        let resolvedHiddenPlacementMonitors = hiddenPlacementMonitors
+            ?? controller.workspaceManager.monitors.map(HiddenPlacementMonitorContext.init)
+        let expectedOrigin = HiddenWindowPlacementResolver.physicalScreenEdgeOrigin(
+            for: liveFrame.size,
+            requestedSide: preferredSide,
+            targetY: liveFrame.origin.y,
+            baseReveal: Self.hiddenWindowEdgeRevealEpsilon,
+            scale: backingScale(for: monitor),
+            monitor: hiddenPlacementMonitor,
+            monitors: resolvedHiddenPlacementMonitors
+        )
+        let dx = abs(liveFrame.origin.x - expectedOrigin.x)
+        let dy = abs(liveFrame.origin.y - expectedOrigin.y)
+        let parkTolerance: CGFloat = 2.0
+        guard dx > parkTolerance || dy > parkTolerance else { return nil }
+
+        let lastApplied = controller.axManager.lastAppliedFrame(for: entry.windowId)
+        let replacement = entry.managedReplacementMetadata?.frame
+        return [
+            "workspaceInactiveVisibleDrift",
+            "trigger=\(trigger)",
+            "token=\(entry.token)",
+            "workspace=\(entry.workspaceId.uuidString)",
+            "interactionWorkspace=\(activeWorkspaceId.uuidString)",
+            "windowId=\(entry.windowId)",
+            "hiddenReason=workspaceInactive",
+            "side=\(preferredSide)",
+            "live=\(LayoutTrace.rect(liveFrame))",
+            "expectedPark=\(LayoutTrace.point(expectedOrigin))",
+            "dx=\(String(format: "%.1f", dx))",
+            "dy=\(String(format: "%.1f", dy))",
+            "lastApplied=\(lastApplied.map(LayoutTrace.rect) ?? "nil")",
+            "replacement=\(replacement.map(LayoutTrace.rect) ?? "nil")",
+            "activeMonitor=\(LayoutTrace.rect(activeMonitor.frame))",
+            "targetMonitor=\(LayoutTrace.rect(monitor.frame))"
+        ].joined(separator: " ")
     }
 
     fileprivate struct WindowPositionPlan {

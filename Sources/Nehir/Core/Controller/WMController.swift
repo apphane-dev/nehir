@@ -2634,6 +2634,8 @@ final class WMController {
             visibleUnmanagedWindowServerDebugDump(),
             "-- AX Window State --",
             axManager.windowStateDebugDump(windowIds: workspaceManager.trackedWindowIdsForDebug()),
+            "-- Workspace-Inactive Visible Drift Scan --",
+            layoutRefreshController.workspaceInactiveVisibleDriftDebugDump(),
             "-- Niri Viewports --",
             niriViewportDebugDump(),
             "-- Niri Layout Decisions --",
