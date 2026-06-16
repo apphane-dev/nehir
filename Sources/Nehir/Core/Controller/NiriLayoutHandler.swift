@@ -583,7 +583,9 @@ enum NiriWindowMoveResult {
 
         let usesCenteredLoneWindow = pass.engine.singleWindowLayoutContext(in: pass.wsId) != nil
         let isGestureOrAnimation = state.viewOffsetPixels.isGesture || state.viewOffsetPixels.isAnimating
-        if usesCenteredLoneWindow, !isGestureOrAnimation {
+        let didRemoveWindow = !removal.removalResult.removedTokens.isEmpty
+        let shouldResolveLoneWindowViewport = !isGestureOrAnimation || didRemoveWindow
+        if usesCenteredLoneWindow, shouldResolveLoneWindowViewport {
             // Capture the lone window's previously resolved width before re-preparing so we
             // can detect a policy/size/monitor change (not just an initial setup).
             let previousSingleWindowWidth = pass.engine.singleWindowLayoutContext(in: pass.wsId)?.container.cachedWidth ?? 0

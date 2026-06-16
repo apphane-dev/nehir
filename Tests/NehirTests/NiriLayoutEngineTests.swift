@@ -1607,6 +1607,71 @@ private func makeCenteredCrossMonitorFixture(
         #expect(abs(secondFrame.minX - 1_036) < 0.6)
     }
 
+    @Test @MainActor func removingSecondWindowResetsFillLoneViewportDuringRemovalAnimation() async throws {
+        let monitor = makeLayoutPlanTestMonitor(width: 2_056, height: 1_290)
+        let controller = makeLayoutPlanTestController(monitors: [monitor])
+        guard let workspaceId = controller.workspaceManager.activeWorkspaceOrFirst(on: monitor.id)?.id else {
+            Issue.record("Missing active workspace for lone-window removal viewport regression test")
+            return
+        }
+
+        controller.enableNiriLayout()
+        await waitForLayoutPlanRefreshWork(on: controller)
+        controller.syncMonitorsToNiriEngine()
+        controller.niriEngine?.presetColumnWidths = [.proportion(0.5), .proportion(0.5)]
+        controller.niriEngine?.defaultColumnWidth = 0.5
+
+        let survivingToken = addLayoutPlanTestWindow(on: controller, workspaceId: workspaceId, windowId: 1_641)
+        let removedToken = addLayoutPlanTestWindow(on: controller, workspaceId: workspaceId, windowId: 1_642)
+        _ = controller.workspaceManager.setManagedFocus(removedToken, in: workspaceId, onMonitor: monitor.id)
+
+        let initialPlans = try await controller.niriLayoutHandler.layoutWithNiriEngine(
+            activeWorkspaces: [workspaceId]
+        )
+        controller.layoutRefreshController.executeLayoutPlans(initialPlans)
+
+        guard let engine = controller.niriEngine,
+              let removedNode = engine.findNode(for: removedToken),
+              let survivingNode = engine.findNode(for: survivingToken)
+        else {
+            Issue.record("Expected Niri nodes for lone-window removal viewport regression test")
+            return
+        }
+
+        let gap = controller.gapSize(for: monitor)
+        let rightColumnX = controller.workspaceManager.niriViewportState(for: workspaceId).columnX(
+            at: 1,
+            columns: engine.columns(in: workspaceId),
+            gap: gap
+        )
+        controller.workspaceManager.withNiriViewportState(for: workspaceId) { state in
+            state.selectedNodeId = removedNode.id
+            state.activeColumnIndex = 1
+            state.viewOffsetPixels = .static(-gap - rightColumnX)
+        }
+
+        _ = controller.workspaceManager.removeWindow(pid: removedToken.pid, windowId: removedToken.windowId)
+
+        let removalPlans = try await controller.niriLayoutHandler.layoutWithNiriEngine(
+            activeWorkspaces: [workspaceId]
+        )
+        guard let plan = removalPlans.first,
+              let viewportState = plan.sessionPatch.viewportState
+        else {
+            Issue.record("Expected Niri removal plan with viewport patch")
+            return
+        }
+
+        #expect(viewportState.selectedNodeId == survivingNode.id)
+        #expect(viewportState.activeColumnIndex == 0)
+        #expect(abs(viewportState.viewOffsetPixels.target()) < 0.6)
+        #expect(plan.diff.frameChanges.contains { change in
+            change.token == survivingToken
+                && abs(change.frame.minX - monitor.visibleFrame.minX) < 0.6
+                && abs(change.frame.width - monitor.visibleFrame.width) < 0.6
+        })
+    }
+
     @Test func additionalWindowUsesExplicitDefaultWidthWhenCreatingNewColumn() {
         let engine = NiriLayoutEngine(balancedColumnCount: 3)
         engine.presetColumnWidths = [.proportion(0.85), .proportion(1.0), .proportion(0.5)]
