@@ -76,23 +76,39 @@ nehirctl --help
 
 ## Debugging & Tracing
 
-Nehir includes runtime debugging and trace-capture commands. They are exposed consistently through IPC/CLI, the command palette, and hotkey handling, and appear in the **Debugging & Tracing** category:
+Trace capture and the other debug commands are gated behind **Developer Mode**. Enable it in the **Diagnostics** tab of Settings — this unlocks the `Debug: …` commands in the command palette and hotkey settings, enables the IPC debug endpoints, and reveals the **Runtime State** and **Recent Traces** panels in that same tab.
+
+With Developer Mode on, you can start a trace capture from anywhere:
+
+- **Command palette** — *Debug: Toggle Trace Capture* (default hotkey `Ctrl+Option+Cmd+T`)
+- **Custom shortcut** — bind it under Settings → Hotkeys
+- **Workspace bar** — turn on **Show Trace Capture Button** (in the Diagnostics or Workspace Bar settings) for a one-click record button in the bar
+- **CLI / IPC** — `nehirctl command debug trace toggle`; accepts an optional `desiredState` argument (`active`/`inactive`) for idempotent scripting, e.g. `nehirctl command debug trace toggle active`
+
+### Capturing a reproduction
+
+A clean trace covers only the misbehavior, with Nehir's own UI out of the way:
+
+1. Enable **Developer Mode** once, in Settings → Diagnostics.
+2. **Start** trace capture. A custom hotkey or the workspace-bar button (**Show Trace Capture Button**) is ideal here — they fire without the Settings window open.
+3. **Close the Settings window.** Nehir-owned windows (Settings, Command Palette, App Rules) change focus and layout behavior, so reproducing with them closed matches how issues actually happen in normal use.
+4. **Reproduce the issue** as you normally would.
+5. **Stop** trace capture. A log bundle is written to:
+
+   ```text
+   ${XDG_STATE_HOME:-$HOME/.local/state}/nehir/traces/
+   ```
+
+   and its path is copied to your clipboard.
+6. Share the trace **file**, not the path — a local path is only meaningful on your machine. Use **Copy File** in the Recent Traces list, or drag it out of the traces folder. The **Recent Traces** list in the Diagnostics tab keeps the last ten captures and lets you copy the path (handy for pasting into a terminal), copy the file, or reveal the folder.
+
+Tip: start capture *before* you trigger the misbehavior and stop it *immediately after*, so the log isn't padded with unrelated activity.
+
+The other debug commands in the same category:
 
 - **Debug: Dump Runtime State** — copies the current runtime debug dump to the clipboard and writes it to the unified log
 - **Debug: Reset Runtime State** — clears runtime debugging state and reboots tracking from a startup-style rescan
-- **Debug: Restart Clearing Runtime State** — clears runtime debugging state and relaunches the app
-- **Debug: Toggle Trace Capture** — default hotkey: `Ctrl+Option+Cmd+T`
-  - IPC/CLI accepts an optional `desiredState` argument (`active` or `inactive`) for idempotent scripting: `nehirctl command debug trace toggle active`
-
-Stopping a trace capture writes a log bundle to:
-
-```text
-${XDG_STATE_HOME:-$HOME/.local/state}/nehir/traces/
-```
-
-and copies the dumped file path to the clipboard.
-
-For feedback/debug reports: toggle tracing on, reproduce the issue, toggle tracing off, then share the copied trace-bundle path or file. An optional **Show Trace Capture Button** workspace-bar setting provides the same toggle in the bar for advanced users and developers.
+- **Debug: Restart Clearing Runtime State** — clears runtime debugging state and relaunches the app (the confirmation dialog has an *Enable Tracing* checkbox that starts capture as early as possible during bootstrap)
 
 For IPC/CLI usage, see [docs/IPC-CLI.md](docs/IPC-CLI.md).
 
