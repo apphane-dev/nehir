@@ -30,6 +30,7 @@ private struct RestoreMatchingResult {
 func resolveWorkspaceRestoreAssignments(
     snapshots: [WorkspaceRestoreSnapshot],
     monitors: [Monitor],
+    ignoreIdentity: Bool = false,
     workspaceExists: (WorkspaceDescriptor.ID) -> Bool
 ) -> [Monitor.ID: WorkspaceDescriptor.ID] {
     guard !snapshots.isEmpty, !monitors.isEmpty else { return [:] }
@@ -69,7 +70,8 @@ func resolveWorkspaceRestoreAssignments(
     let remainingMonitors = sortedMonitors.filter { !usedMonitorIds.contains($0.id) }
     let remainingAssignments = resolveBestRestoreMatches(
         snapshots: remainingSnapshots,
-        monitors: remainingMonitors
+        monitors: remainingMonitors,
+        ignoreIdentity: ignoreIdentity
     )
     for (snapshotIndex, monitorId) in remainingAssignments {
         assignments[monitorId] = remainingSnapshots[snapshotIndex].workspaceId
@@ -80,7 +82,8 @@ func resolveWorkspaceRestoreAssignments(
 
 private func resolveBestRestoreMatches(
     snapshots: [WorkspaceRestoreSnapshot],
-    monitors: [Monitor]
+    monitors: [Monitor],
+    ignoreIdentity: Bool
 ) -> [Int: Monitor.ID] {
     guard !snapshots.isEmpty, !monitors.isEmpty else { return [:] }
 
@@ -139,7 +142,11 @@ private func resolveBestRestoreMatches(
             var nextMonitors = availableMonitors
             nextMonitors.remove(at: monitorIndex)
 
-            let score = restoreMatchScore(snapshot: currentSnapshot.monitor, monitor: monitor)
+            let score = restoreMatchScore(
+                snapshot: currentSnapshot.monitor,
+                monitor: monitor,
+                ignoreIdentity: ignoreIdentity
+            )
             var candidate = search(
                 snapshotIndex: snapshotIndex + 1,
                 availableMonitors: nextMonitors
@@ -162,9 +169,14 @@ private func resolveBestRestoreMatches(
 
 private func restoreMatchScore(
     snapshot: MonitorRestoreKey,
-    monitor: Monitor
+    monitor: Monitor,
+    ignoreIdentity: Bool
 ) -> (namePenalty: Int, geometryDelta: CGFloat) {
-    let namePenalty = snapshot.name.localizedCaseInsensitiveCompare(monitor.name) == .orderedSame ? 0 : 1
+    // When ignoring monitor identity, rank purely by layout position so the same workspace
+    // returns to the same physical monitor even if its model/name changed.
+    let namePenalty = ignoreIdentity
+        ? 0
+        : (snapshot.name.localizedCaseInsensitiveCompare(monitor.name) == .orderedSame ? 0 : 1)
     let anchorDistance = snapshot.anchorPoint.distanceSquared(to: monitor.workspaceAnchorPoint)
     let widthDelta = abs(snapshot.frameSize.width - monitor.frame.width)
     let heightDelta = abs(snapshot.frameSize.height - monitor.frame.height)

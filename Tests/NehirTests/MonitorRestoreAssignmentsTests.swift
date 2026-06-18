@@ -69,6 +69,32 @@ private func makeMonitor(
         #expect(assignments[newRight.id] == wsRight)
     }
 
+    @Test func ignoringMonitorIdentityRestoresWorkspacesByPosition() {
+        // Old setup: workspace pinned to the right monitor "HomeRight".
+        let oldLeft = makeMonitor(displayId: 10, name: "HomeLeft", x: 0, y: 0)
+        let oldRight = makeMonitor(displayId: 20, name: "HomeRight", x: 1920, y: 0)
+        // New (office) setup: completely different names + displayIds, same positions.
+        let newLeft = makeMonitor(displayId: 30, name: "OfficeLeft", x: 0, y: 0)
+        let newRight = makeMonitor(displayId: 40, name: "OfficeRight", x: 1920, y: 0)
+
+        let wsLeft = WorkspaceDescriptor.ID()
+        let wsRight = WorkspaceDescriptor.ID()
+        let snapshots = [
+            WorkspaceRestoreSnapshot(monitor: .init(monitor: oldLeft), workspaceId: wsLeft),
+            WorkspaceRestoreSnapshot(monitor: .init(monitor: oldRight), workspaceId: wsRight)
+        ]
+
+        let assignments = resolveWorkspaceRestoreAssignments(
+            snapshots: snapshots,
+            monitors: [newLeft, newRight],
+            ignoreIdentity: true,
+            workspaceExists: { _ in true }
+        )
+
+        #expect(assignments[newLeft.id] == wsLeft)
+        #expect(assignments[newRight.id] == wsRight)
+    }
+
     @Test func filtersUnknownWorkspacesAndDuplicateWorkspaceSnapshots() {
         let left = makeMonitor(displayId: 500, name: "Left", x: 0, y: 0)
         let right = makeMonitor(displayId: 600, name: "Right", x: 1920, y: 0)

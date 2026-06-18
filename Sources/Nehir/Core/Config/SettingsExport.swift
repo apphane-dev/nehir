@@ -82,6 +82,12 @@ struct SettingsExport: Equatable, Sendable {
 
     var developerModeEnabled: Bool
 
+    /// When enabled, monitor matching during restore ignores the monitor model/name and
+    /// resolves displays by layout position (anchor-point geometry) instead, so apps,
+    /// workspaces, and per-monitor settings stay on the same monitor across reconnects of
+    /// different monitor sets (e.g. home vs office).
+    var ignoreMonitorIdentity: Bool
+
     var capabilityOverrides: [WindowCapabilityProfileTOMLOverride] = []
 
     /// Unknown keys decoded from settings.toml under known schema tables, grouped by table path.
@@ -156,6 +162,7 @@ extension SettingsExport {
             statusBarUseWorkspaceId: false,
             appearanceMode: AppearanceMode.dark.rawValue,
             developerModeEnabled: false,
+            ignoreMonitorIdentity: false,
             capabilityOverrides: []
         )
     }

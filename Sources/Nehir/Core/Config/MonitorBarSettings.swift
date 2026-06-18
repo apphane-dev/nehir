@@ -5,6 +5,7 @@ struct MonitorBarSettings: MonitorSettingsType {
     let id: UUID
     var monitorName: String
     var monitorDisplayId: CGDirectDisplayID?
+    var monitorAnchorPoint: CGPoint?
 
     var enabled: Bool?
     var showLabels: Bool?
@@ -25,6 +26,7 @@ struct MonitorBarSettings: MonitorSettingsType {
         id: UUID = UUID(),
         monitorName: String,
         monitorDisplayId: CGDirectDisplayID? = nil,
+        monitorAnchorPoint: CGPoint? = nil,
         enabled: Bool? = nil,
         showLabels: Bool? = nil,
         showFloatingWindows: Bool? = nil,
@@ -43,6 +45,7 @@ struct MonitorBarSettings: MonitorSettingsType {
         self.id = id
         self.monitorName = monitorName
         self.monitorDisplayId = monitorDisplayId
+        self.monitorAnchorPoint = monitorAnchorPoint
         self.enabled = enabled
         self.showLabels = showLabels
         self.showFloatingWindows = showFloatingWindows
@@ -60,7 +63,8 @@ struct MonitorBarSettings: MonitorSettingsType {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, monitorName, monitorDisplayId, enabled, showLabels, showFloatingWindows, deduplicateAppIcons
+        case id, monitorName, monitorDisplayId, monitorAnchorPoint
+        case enabled, showLabels, showFloatingWindows, deduplicateAppIcons
         case hideEmptyWorkspaces, reserveLayoutSpace, notchAware, showTraceButton, position, windowLevel
         case height, backgroundOpacity, xOffset, yOffset
     }
@@ -70,6 +74,7 @@ struct MonitorBarSettings: MonitorSettingsType {
         id = try container.decode(UUID.self, forKey: .id)
         monitorName = try container.decode(String.self, forKey: .monitorName)
         monitorDisplayId = try container.decodeIfPresent(CGDirectDisplayID.self, forKey: .monitorDisplayId)
+        monitorAnchorPoint = try container.decodeIfPresent(CGPoint.self, forKey: .monitorAnchorPoint)
         enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled)
         showLabels = try container.decodeIfPresent(Bool.self, forKey: .showLabels)
         showFloatingWindows = try container.decodeIfPresent(Bool.self, forKey: .showFloatingWindows)
@@ -93,6 +98,7 @@ struct MonitorBarSettings: MonitorSettingsType {
         try container.encode(id, forKey: .id)
         try container.encode(monitorName, forKey: .monitorName)
         try container.encodeIfPresent(monitorDisplayId, forKey: .monitorDisplayId)
+        try container.encodeIfPresent(monitorAnchorPoint, forKey: .monitorAnchorPoint)
         try container.encodeIfPresent(enabled, forKey: .enabled)
         try container.encodeIfPresent(showLabels, forKey: .showLabels)
         try container.encodeIfPresent(showFloatingWindows, forKey: .showFloatingWindows)

@@ -668,6 +668,7 @@ struct HotkeySurfaceTests {
         settings.statusBarUseWorkspaceId = true
         settings.scrollGestureEnabled = true
         settings.scrollSensitivity = 33
+        settings.ignoreMonitorIdentity = true
         settings.flushNow()
 
         let reloaded = SettingsStore(defaults: defaults)
@@ -680,6 +681,7 @@ struct HotkeySurfaceTests {
         #expect(reloaded.statusBarUseWorkspaceId == true)
         #expect(reloaded.scrollGestureEnabled == true)
         #expect(reloaded.scrollSensitivity == 33)
+        #expect(reloaded.ignoreMonitorIdentity == true)
     }
 
     @Test func tomlApplyClearsStaleMonitorDisplayIdWhenNameCannotBeResolved() {

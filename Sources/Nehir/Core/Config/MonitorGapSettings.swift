@@ -5,6 +5,7 @@ struct MonitorGapSettings: MonitorSettingsType {
     let id: UUID
     var monitorName: String
     var monitorDisplayId: CGDirectDisplayID?
+    var monitorAnchorPoint: CGPoint?
 
     var gapSize: Double?
     var outerGapLeft: Double?
@@ -20,6 +21,7 @@ struct MonitorGapSettings: MonitorSettingsType {
         id: UUID = UUID(),
         monitorName: String,
         monitorDisplayId: CGDirectDisplayID? = nil,
+        monitorAnchorPoint: CGPoint? = nil,
         gapSize: Double? = nil,
         outerGapLeft: Double? = nil,
         outerGapRight: Double? = nil,
@@ -29,6 +31,7 @@ struct MonitorGapSettings: MonitorSettingsType {
         self.id = id
         self.monitorName = monitorName
         self.monitorDisplayId = monitorDisplayId
+        self.monitorAnchorPoint = monitorAnchorPoint
         self.gapSize = gapSize
         self.outerGapLeft = outerGapLeft
         self.outerGapRight = outerGapRight

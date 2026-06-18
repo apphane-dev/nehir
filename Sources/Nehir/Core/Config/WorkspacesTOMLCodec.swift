@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 import NehirIPC
 
@@ -33,6 +34,10 @@ enum WorkspacesTOMLCodec {
                 lines.append("monitor = \"specific\"")
                 lines.append("monitorName = \(quoted(output.name))")
                 lines.append("monitorDisplayId = \(output.displayId)")
+                if let anchor = output.anchorPoint {
+                    lines.append("monitorAnchorX = \(anchor.x)")
+                    lines.append("monitorAnchorY = \(anchor.y)")
+                }
             }
         }
         return Data((lines.joined(separator: "\n") + "\n").utf8)
@@ -57,7 +62,13 @@ enum WorkspacesTOMLCodec {
                       let displayIdRaw = row.values["monitorDisplayId"],
                       let displayId = UInt32(displayIdRaw.trimmingCharacters(in: .whitespaces))
                 else { assignment = .main; break }
-                assignment = .specificDisplay(OutputId(displayId: displayId, name: monitorName))
+                let anchorPoint = parseAnchorPoint(
+                    x: row.values["monitorAnchorX"],
+                    y: row.values["monitorAnchorY"]
+                )
+                assignment = .specificDisplay(
+                    OutputId(displayId: displayId, name: monitorName, anchorPoint: anchorPoint)
+                )
             default:
                 assignment = .main
             }
@@ -191,6 +202,14 @@ enum WorkspacesTOMLCodec {
             }
         }
         return line
+    }
+
+    private static func parseAnchorPoint(x: String?, y: String?) -> CGPoint? {
+        guard let x, let y,
+              let anchorX = Double(x.trimmingCharacters(in: .whitespaces)),
+              let anchorY = Double(y.trimmingCharacters(in: .whitespaces))
+        else { return nil }
+        return CGPoint(x: anchorX, y: anchorY)
     }
 
     private static func extractString(_ raw: String?) -> String? {

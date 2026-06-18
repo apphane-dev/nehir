@@ -259,6 +259,10 @@ final class SettingsStore {
         didSet { scheduleSave() }
     }
 
+    var ignoreMonitorIdentity = SettingsStore.defaultExport.ignoreMonitorIdentity {
+        didSet { scheduleSave() }
+    }
+
     var scrollGestureEnabled = SettingsStore.defaultExport.scrollGestureEnabled {
         didSet { scheduleSave() }
     }
@@ -448,6 +452,7 @@ final class SettingsStore {
             statusBarUseWorkspaceId: statusBarUseWorkspaceId,
             appearanceMode: appearanceMode.rawValue,
             developerModeEnabled: developerModeEnabled,
+            ignoreMonitorIdentity: ignoreMonitorIdentity,
             capabilityOverrides: [],
             settingsTOMLUnknownFields: settingsTOMLUnknownFields
         )
@@ -534,6 +539,7 @@ final class SettingsStore {
 
         appearanceMode = AppearanceMode(rawValue: export.appearanceMode) ?? .dark
         developerModeEnabled = export.developerModeEnabled
+        ignoreMonitorIdentity = export.ignoreMonitorIdentity
         settingsTOMLUnknownFields = export.settingsTOMLUnknownFields
     }
 
@@ -654,11 +660,20 @@ final class SettingsStore {
     ) -> [T] {
         settings.map { setting in
             var rebound = setting
-            rebound.monitorDisplayId = reboundMonitorDisplayId(
+            let resolvedDisplayId = reboundMonitorDisplayId(
                 rebound.monitorDisplayId,
                 monitorName: rebound.monitorName,
                 monitors: monitors
             )
+            rebound.monitorDisplayId = resolvedDisplayId
+            // Refresh the saved anchor whenever the monitor is currently connected, so a later
+            // reconnect can match this override by layout position. When the monitor is absent,
+            // keep the previously stored anchor.
+            if let resolvedDisplayId,
+               let monitor = monitors.first(where: { $0.displayId == resolvedDisplayId })
+            {
+                rebound.monitorAnchorPoint = monitor.workspaceAnchorPoint
+            }
             return rebound
         }
     }
@@ -680,7 +695,7 @@ final class SettingsStore {
     }
 
     func barSettings(for monitor: Monitor) -> MonitorBarSettings? {
-        MonitorSettingsStore.get(for: monitor, in: monitorBarSettings)
+        MonitorSettingsStore.get(for: monitor, in: monitorBarSettings, ignoreIdentity: ignoreMonitorIdentity)
     }
 
     func barSettings(for monitorName: String) -> MonitorBarSettings? {
@@ -733,7 +748,7 @@ final class SettingsStore {
     }
 
     func gapSettings(for monitor: Monitor) -> MonitorGapSettings? {
-        MonitorSettingsStore.get(for: monitor, in: monitorGapSettings)
+        MonitorSettingsStore.get(for: monitor, in: monitorGapSettings, ignoreIdentity: ignoreMonitorIdentity)
     }
 
     func gapSettings(for monitorName: String) -> MonitorGapSettings? {
@@ -764,7 +779,7 @@ final class SettingsStore {
     }
 
     func orientationSettings(for monitor: Monitor) -> MonitorOrientationSettings? {
-        MonitorSettingsStore.get(for: monitor, in: monitorOrientationSettings)
+        MonitorSettingsStore.get(for: monitor, in: monitorOrientationSettings, ignoreIdentity: ignoreMonitorIdentity)
     }
 
     func orientationSettings(for monitorName: String) -> MonitorOrientationSettings? {
@@ -793,7 +808,7 @@ final class SettingsStore {
     }
 
     func niriSettings(for monitor: Monitor) -> MonitorNiriSettings? {
-        MonitorSettingsStore.get(for: monitor, in: monitorNiriSettings)
+        MonitorSettingsStore.get(for: monitor, in: monitorNiriSettings, ignoreIdentity: ignoreMonitorIdentity)
     }
 
     func niriSettings(for monitorName: String) -> MonitorNiriSettings? {

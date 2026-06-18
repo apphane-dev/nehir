@@ -41,6 +41,18 @@ struct MonitorSettingsTab: View {
         SettingsPage(
             subtitle: "Configure mouse warp order and per-monitor orientation without changing macOS display arrangement."
         ) {
+            Section("Display Matching") {
+                Toggle("Keep apps on the same monitor across reconnects", isOn: $settings.ignoreMonitorIdentity)
+                    .onChange(of: settings.ignoreMonitorIdentity) { _, _ in
+                        controller.updateWorkspaceBarSettings()
+                        controller.updateMonitorGapSettings()
+                        controller.updateMonitorNiriSettings()
+                    }
+                SettingsCaption(
+                    "Match saved windows, workspaces, and per-monitor settings by screen position instead of monitor model — so apps return to the same monitor (Main or Secondary) when moving between different monitor sets, such as home and office."
+                )
+            }
+
             Section("Mouse Warp") {
                 SettingsCaption("Moves the cursor to the opposite monitor when it reaches a screen edge.")
 
