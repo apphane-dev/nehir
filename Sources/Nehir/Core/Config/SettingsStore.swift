@@ -487,7 +487,8 @@ final class SettingsStore {
 
         workspaceConfigurations = SettingsStore.normalizedWorkspaceConfigurations(
             export.workspaceConfigurations,
-            monitors: monitors
+            monitors: monitors,
+            ignoreIdentity: export.ignoreMonitorIdentity
         )
 
         bordersEnabled = export.bordersEnabled
@@ -515,15 +516,28 @@ final class SettingsStore {
         workspaceBarYOffset = export.workspaceBarYOffset
         workspaceBarAccentColor = export.workspaceBarAccentColor
         workspaceBarTextColor = export.workspaceBarTextColor
-        monitorBarSettings = SettingsStore.reboundMonitorSettings(export.monitorBarSettings, monitors: monitors)
+        monitorBarSettings = SettingsStore.reboundMonitorSettings(
+            export.monitorBarSettings,
+            monitors: monitors,
+            ignoreIdentity: export.ignoreMonitorIdentity
+        )
 
         appRules = export.appRules
-        monitorGapSettings = SettingsStore.reboundMonitorSettings(export.monitorGapSettings, monitors: monitors)
+        monitorGapSettings = SettingsStore.reboundMonitorSettings(
+            export.monitorGapSettings,
+            monitors: monitors,
+            ignoreIdentity: export.ignoreMonitorIdentity
+        )
         monitorOrientationSettings = SettingsStore.reboundMonitorSettings(
             export.monitorOrientationSettings,
-            monitors: monitors
+            monitors: monitors,
+            ignoreIdentity: export.ignoreMonitorIdentity
         )
-        monitorNiriSettings = SettingsStore.reboundMonitorSettings(export.monitorNiriSettings, monitors: monitors)
+        monitorNiriSettings = SettingsStore.reboundMonitorSettings(
+            export.monitorNiriSettings,
+            monitors: monitors,
+            ignoreIdentity: export.ignoreMonitorIdentity
+        )
 
         preventSleepEnabled = export.preventSleepEnabled
         ipcEnabled = export.ipcEnabled
@@ -627,12 +641,13 @@ final class SettingsStore {
 
     static func normalizedWorkspaceConfigurations(
         _ configs: [WorkspaceConfiguration],
-        monitors: [Monitor] = []
+        monitors: [Monitor] = [],
+        ignoreIdentity: Bool = false
     ) -> [WorkspaceConfiguration] {
         var seen: Set<String> = []
         let rebound = configs.map { config in
             guard case let .specificDisplay(output) = config.monitorAssignment,
-                  let resolvedMonitor = output.resolveMonitor(in: monitors)
+                  let resolvedMonitor = output.resolveMonitor(in: monitors, ignoreIdentity: ignoreIdentity)
             else {
                 return config
             }
@@ -656,25 +671,88 @@ final class SettingsStore {
 
     private static func reboundMonitorSettings<T: MonitorSettingsType>(
         _ settings: [T],
+        monitors: [Monitor],
+        ignoreIdentity: Bool = false
+    ) -> [T] {
+        if ignoreIdentity {
+            return reboundMonitorSettingsByPosition(settings, monitors: monitors)
+        }
+
+        return settings.map { setting in
+            var rebound = setting
+            let resolvedMonitor = reboundMonitor(
+                displayId: rebound.monitorDisplayId,
+                monitorName: rebound.monitorName,
+                anchorPoint: nil,
+                monitors: monitors,
+                ignoreIdentity: false
+            )
+            applyResolvedMonitor(resolvedMonitor, to: &rebound)
+            return rebound
+        }
+    }
+
+    private static func reboundMonitorSettingsByPosition<T: MonitorSettingsType>(
+        _ settings: [T],
         monitors: [Monitor]
     ) -> [T] {
-        settings.map { setting in
-            var rebound = setting
-            let resolvedDisplayId = reboundMonitorDisplayId(
-                rebound.monitorDisplayId,
-                monitorName: rebound.monitorName,
-                monitors: monitors
-            )
-            rebound.monitorDisplayId = resolvedDisplayId
-            // Refresh the saved anchor whenever the monitor is currently connected, so a later
-            // reconnect can match this override by layout position. When the monitor is absent,
-            // keep the previously stored anchor.
-            if let resolvedDisplayId,
-               let monitor = monitors.first(where: { $0.displayId == resolvedDisplayId })
-            {
-                rebound.monitorAnchorPoint = monitor.workspaceAnchorPoint
+        var rebound = settings
+        var resolvedMonitorByIndex: [Int: Monitor] = [:]
+        var usedMonitorIds = Set<Monitor.ID>()
+
+        for index in rebound.indices {
+            guard let displayId = rebound[index].monitorDisplayId,
+                  let exact = monitors.first(where: { $0.displayId == displayId }),
+                  usedMonitorIds.insert(exact.id).inserted
+            else { continue }
+            resolvedMonitorByIndex[index] = exact
+        }
+
+        let anchorMatches = rebound.indices.flatMap { index -> [(index: Int, monitor: Monitor, distance: CGFloat)] in
+            guard resolvedMonitorByIndex[index] == nil,
+                  let anchor = rebound[index].monitorAnchorPoint
+            else { return [] }
+            return monitors
+                .filter { !usedMonitorIds.contains($0.id) }
+                .map { (index: index, monitor: $0, distance: anchor.distanceSquared(to: $0.workspaceAnchorPoint)) }
+        }
+        .sorted { lhs, rhs in
+            if lhs.distance != rhs.distance { return lhs.distance < rhs.distance }
+            if lhs.index != rhs.index { return lhs.index < rhs.index }
+            return monitorSortKey(lhs.monitor) < monitorSortKey(rhs.monitor)
+        }
+
+        var usedSettingIndices = Set(resolvedMonitorByIndex.keys)
+        for match in anchorMatches {
+            guard !usedSettingIndices.contains(match.index),
+                  usedMonitorIds.insert(match.monitor.id).inserted
+            else { continue }
+            resolvedMonitorByIndex[match.index] = match.monitor
+            usedSettingIndices.insert(match.index)
+        }
+
+        for index in rebound.indices where resolvedMonitorByIndex[index] == nil {
+            let matches = monitors.filter {
+                !usedMonitorIds.contains($0.id) && $0.name.caseInsensitiveCompare(rebound[index].monitorName) == .orderedSame
             }
-            return rebound
+            guard matches.count == 1, let match = matches.first else { continue }
+            resolvedMonitorByIndex[index] = match
+            usedMonitorIds.insert(match.id)
+        }
+
+        for index in rebound.indices {
+            applyResolvedMonitor(resolvedMonitorByIndex[index], to: &rebound[index])
+        }
+        return rebound
+    }
+
+    private static func applyResolvedMonitor<T: MonitorSettingsType>(_ monitor: Monitor?, to setting: inout T) {
+        setting.monitorDisplayId = monitor?.displayId
+        // Refresh the saved anchor whenever the monitor is currently connected, so a later
+        // reconnect can match this override by layout position. When the monitor is absent,
+        // keep the previously stored anchor.
+        if let monitor {
+            setting.monitorAnchorPoint = monitor.workspaceAnchorPoint
         }
     }
 
@@ -683,19 +761,38 @@ final class SettingsStore {
         monitorName: String,
         monitors: [Monitor]
     ) -> CGDirectDisplayID? {
-        if let displayId,
-           monitors.contains(where: { $0.displayId == displayId })
-        {
-            return displayId
-        }
+        reboundMonitor(
+            displayId: displayId,
+            monitorName: monitorName,
+            anchorPoint: nil,
+            monitors: monitors,
+            ignoreIdentity: false
+        )?.displayId
+    }
 
+    private static func reboundMonitor(
+        displayId: CGDirectDisplayID?,
+        monitorName: String,
+        anchorPoint: CGPoint?,
+        monitors: [Monitor],
+        ignoreIdentity: Bool
+    ) -> Monitor? {
+        if let displayId, let exact = monitors.first(where: { $0.displayId == displayId }) {
+            return exact
+        }
+        if ignoreIdentity, let anchorPoint {
+            return monitors.min {
+                $0.workspaceAnchorPoint.distanceSquared(to: anchorPoint)
+                    < $1.workspaceAnchorPoint.distanceSquared(to: anchorPoint)
+            }
+        }
         let matches = monitors.filter { $0.name.caseInsensitiveCompare(monitorName) == .orderedSame }
         guard matches.count == 1 else { return nil }
-        return matches[0].displayId
+        return matches[0]
     }
 
     func barSettings(for monitor: Monitor) -> MonitorBarSettings? {
-        MonitorSettingsStore.get(for: monitor, in: monitorBarSettings, ignoreIdentity: ignoreMonitorIdentity)
+        MonitorSettingsStore.get(for: monitor, in: monitorBarSettings)
     }
 
     func barSettings(for monitorName: String) -> MonitorBarSettings? {
@@ -748,7 +845,7 @@ final class SettingsStore {
     }
 
     func gapSettings(for monitor: Monitor) -> MonitorGapSettings? {
-        MonitorSettingsStore.get(for: monitor, in: monitorGapSettings, ignoreIdentity: ignoreMonitorIdentity)
+        MonitorSettingsStore.get(for: monitor, in: monitorGapSettings)
     }
 
     func gapSettings(for monitorName: String) -> MonitorGapSettings? {
@@ -779,7 +876,7 @@ final class SettingsStore {
     }
 
     func orientationSettings(for monitor: Monitor) -> MonitorOrientationSettings? {
-        MonitorSettingsStore.get(for: monitor, in: monitorOrientationSettings, ignoreIdentity: ignoreMonitorIdentity)
+        MonitorSettingsStore.get(for: monitor, in: monitorOrientationSettings)
     }
 
     func orientationSettings(for monitorName: String) -> MonitorOrientationSettings? {
@@ -808,7 +905,7 @@ final class SettingsStore {
     }
 
     func niriSettings(for monitor: Monitor) -> MonitorNiriSettings? {
-        MonitorSettingsStore.get(for: monitor, in: monitorNiriSettings, ignoreIdentity: ignoreMonitorIdentity)
+        MonitorSettingsStore.get(for: monitor, in: monitorNiriSettings)
     }
 
     func niriSettings(for monitorName: String) -> MonitorNiriSettings? {
@@ -880,5 +977,17 @@ final class SettingsStore {
     static func validatedLoneWindowMaxWidth(_ width: Double?) -> Double? {
         guard let width else { return nil }
         return min(1.0, max(0.10, width))
+    }
+
+    private static func monitorSortKey(_ monitor: Monitor) -> (CGFloat, CGFloat, UInt32) {
+        (monitor.frame.minX, -monitor.frame.maxY, monitor.displayId)
+    }
+}
+
+private extension CGPoint {
+    func distanceSquared(to point: CGPoint) -> CGFloat {
+        let dx = x - point.x
+        let dy = y - point.y
+        return dx * dx + dy * dy
     }
 }

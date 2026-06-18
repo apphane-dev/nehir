@@ -57,13 +57,15 @@ func resolveWorkspaceRestoreAssignments(
     var usedMonitorIds: Set<Monitor.ID> = []
     var assignedWorkspaceIds: Set<WorkspaceDescriptor.ID> = []
 
-    for snapshot in filteredSnapshots {
-        guard let exactMonitor = sortedMonitors.first(where: { $0.displayId == snapshot.monitor.displayId }) else {
-            continue
+    if !ignoreIdentity {
+        for snapshot in filteredSnapshots {
+            guard let exactMonitor = sortedMonitors.first(where: { $0.displayId == snapshot.monitor.displayId }) else {
+                continue
+            }
+            guard usedMonitorIds.insert(exactMonitor.id).inserted else { continue }
+            assignments[exactMonitor.id] = snapshot.workspaceId
+            assignedWorkspaceIds.insert(snapshot.workspaceId)
         }
-        guard usedMonitorIds.insert(exactMonitor.id).inserted else { continue }
-        assignments[exactMonitor.id] = snapshot.workspaceId
-        assignedWorkspaceIds.insert(snapshot.workspaceId)
     }
 
     let remainingSnapshots = filteredSnapshots.filter { !assignedWorkspaceIds.contains($0.workspaceId) }

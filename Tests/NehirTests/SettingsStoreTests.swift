@@ -698,6 +698,44 @@ struct HotkeySurfaceTests {
         #expect(settings.barSettings(for: currentMonitor) == nil)
     }
 
+    @Test func tomlApplyRebindsMonitorSettingsByPositionWhenIdentityIgnored() {
+        let settings = SettingsStore(defaults: makeTestDefaults())
+        let leftMonitor = makeSettingsTestMonitor(displayId: 201, name: "Left Office", x: 0)
+        let rightMonitor = makeSettingsTestMonitor(displayId: 202, name: "Right Office", x: 1920)
+        var export = SettingsExport.defaults()
+        export.ignoreMonitorIdentity = true
+        export.monitorBarSettings = [
+            MonitorBarSettings(
+                monitorName: "Home",
+                monitorDisplayId: 101,
+                monitorAnchorPoint: CGPoint(x: 1910, y: 1080),
+                enabled: false
+            )
+        ]
+
+        settings.applyExport(export, monitors: [leftMonitor, rightMonitor])
+
+        #expect(settings.monitorBarSettings.first?.monitorDisplayId == rightMonitor.displayId)
+        #expect(settings.monitorBarSettings.first?.monitorAnchorPoint == rightMonitor.workspaceAnchorPoint)
+    }
+
+    @Test func tomlApplyRebindsMonitorSettingsByPositionOneToOne() {
+        let settings = SettingsStore(defaults: makeTestDefaults())
+        let leftMonitor = makeSettingsTestMonitor(displayId: 201, name: "Left Office", x: 0)
+        let rightMonitor = makeSettingsTestMonitor(displayId: 202, name: "Right Office", x: 1920)
+        var export = SettingsExport.defaults()
+        export.ignoreMonitorIdentity = true
+        export.monitorBarSettings = [
+            MonitorBarSettings(monitorName: "Home Left", monitorAnchorPoint: CGPoint(x: 0, y: 1080), enabled: true),
+            MonitorBarSettings(monitorName: "Home Right", monitorAnchorPoint: CGPoint(x: 1920, y: 1080), enabled: false)
+        ]
+
+        settings.applyExport(export, monitors: [leftMonitor, rightMonitor])
+
+        let displayIds = settings.monitorBarSettings.compactMap(\.monitorDisplayId)
+        #expect(Set(displayIds) == [leftMonitor.displayId, rightMonitor.displayId])
+    }
+
 }
 
 @Suite(.serialized) @MainActor struct SettingsStoreAppearanceApplyTests {

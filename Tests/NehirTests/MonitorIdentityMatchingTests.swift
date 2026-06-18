@@ -57,28 +57,43 @@ private func makeIdentityTestMonitor(
         #expect(resolved?.id == exact.id)
     }
 
+    @Test @MainActor func workspaceConfigurationsRebindByPositionWhenIdentityIgnored() {
+        let savedOutput = OutputId(from: makeIdentityTestMonitor(displayId: 100, name: "Shared", x: 1920))
+        let config = WorkspaceConfiguration(name: "1", monitorAssignment: .specificDisplay(savedOutput))
+        let leftSameName = makeIdentityTestMonitor(displayId: 1, name: "Shared", x: 0)
+        let rightDifferentName = makeIdentityTestMonitor(displayId: 200, name: "Office", x: 1920)
+
+        let rebound = SettingsStore.normalizedWorkspaceConfigurations(
+            [config],
+            monitors: [leftSameName, rightDifferentName],
+            ignoreIdentity: true
+        )
+
+        guard case let .specificDisplay(output) = rebound.first?.monitorAssignment else {
+            Issue.record("Expected a specificDisplay assignment")
+            return
+        }
+        #expect(output.displayId == rightDifferentName.displayId)
+    }
+
     // MARK: - MonitorSettingsStore
 
-    @Test func monitorSettingsResolveByPositionWhenIdentityIgnored() {
-        let leftSetting = MonitorBarSettings(
-            monitorName: "Left",
-            monitorAnchorPoint: CGPoint(x: 0, y: 1080),
-            enabled: true
-        )
-        let rightSetting = MonitorBarSettings(
+    @Test func monitorSettingsStoreUsesReboundDisplayIdentityOnly() {
+        let setting = MonitorBarSettings(
             monitorName: "Right",
             monitorAnchorPoint: CGPoint(x: 1920, y: 1080),
             enabled: false
         )
-        let settings = [leftSetting, rightSetting]
-
         let rightMonitor = makeIdentityTestMonitor(displayId: 900, name: "BrandNew", x: 1920)
-        let leftMonitor = makeIdentityTestMonitor(displayId: 901, name: "AlsoNew", x: 0)
+        let rebound = MonitorBarSettings(
+            monitorName: setting.monitorName,
+            monitorDisplayId: rightMonitor.displayId,
+            monitorAnchorPoint: setting.monitorAnchorPoint,
+            enabled: setting.enabled
+        )
 
-        #expect(MonitorSettingsStore.get(for: rightMonitor, in: settings, ignoreIdentity: true)?.id == rightSetting.id)
-        #expect(MonitorSettingsStore.get(for: leftMonitor, in: settings, ignoreIdentity: true)?.id == leftSetting.id)
-        // Without ignoring identity, an unrelated name/displayId does not match.
-        #expect(MonitorSettingsStore.get(for: rightMonitor, in: settings) == nil)
+        #expect(MonitorSettingsStore.get(for: rightMonitor, in: [setting]) == nil)
+        #expect(MonitorSettingsStore.get(for: rightMonitor, in: [rebound])?.id == rebound.id)
     }
 
     // MARK: - WorkspacesTOMLCodec anchor persistence
