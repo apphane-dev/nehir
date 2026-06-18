@@ -7,7 +7,7 @@ import Foundation
 /// This recorder captures each write directly (old→new + call-site reason) so
 /// runtime traces can distinguish a real state write from a missing/stale
 /// placement context. See
-/// `docs/plans/completed/20260615-new-window-placement-investigation.md`.
+/// the `plans` branch: `completed/20260615-new-window-placement-investigation.md`.
 struct InteractionMonitorWriteRecord: Equatable {
     let sequence: UInt64
     let timestamp: Date

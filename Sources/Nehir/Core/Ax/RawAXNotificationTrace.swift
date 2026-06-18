@@ -6,7 +6,7 @@ import Foundation
 /// `destroyed`/`miniaturized` filter discards anything. Exists to diagnose
 /// close/hide/order-out sequences where the triggering event is otherwise
 /// invisible — see
-/// `docs/plans/completed/20260615-quick-terminal-close-switches-workspace.md`.
+/// the `plans` branch: `completed/20260615-quick-terminal-close-switches-workspace.md`.
 struct RawAXNotificationRecord: Equatable {
     let sequence: UInt64
     let timestamp: Date

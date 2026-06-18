@@ -20,6 +20,6 @@ struct ReconcileTxn: Equatable {
     /// `snapshot.interactionMonitorId` is post-apply, so without this the trace
     /// cannot observe a transient nil that reconcile immediately recovers —
     /// which is exactly the signal needed to locate the new-window placement
-    /// nil-writer. See `docs/plans/completed/20260615-new-window-placement-investigation.md`.
+    /// nil-writer. See the `plans` branch: `completed/20260615-new-window-placement-investigation.md`.
     let preInteractionMonitorId: Monitor.ID?
 }

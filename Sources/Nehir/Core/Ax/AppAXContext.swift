@@ -901,7 +901,7 @@ private func axWindowNotificationCallback(
 
     // Record every window-observer notification (with windowId from refcon)
     // BEFORE the destroy/miniaturize filter — diagnostic trace for hide/close
-    // sequences. See docs/plans/completed/20260615-quick-terminal-close-switches-workspace.md.
+    // sequences. See the `plans` branch: completed/20260615-quick-terminal-close-switches-workspace.md.
     let recordedWindowId = AppAXContext.destroyNotificationWindowId(from: refcon)
     AppAXContext.recordRawNotification(name: notificationName, pid: pid, windowId: recordedWindowId)
 
