@@ -3534,6 +3534,11 @@ final class WMController {
     }
 
     @discardableResult
+    func restoreHiddenWindowsForGracefulTermination() -> Int {
+        layoutRefreshController.restoreHiddenWindowsForGracefulTermination()
+    }
+
+    @discardableResult
     func rescueOffscreenWindows() -> Int {
         guard !isLockScreenActive else { return 0 }
 

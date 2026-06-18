@@ -2080,6 +2080,58 @@ import QuartzCore
         return frameUpdates.count
     }
 
+    @discardableResult
+    func restoreHiddenWindowsForGracefulTermination() -> Int {
+        guard let controller, !controller.isLockScreenActive else { return 0 }
+
+        var positionPlans: [WindowPositionPlan] = []
+        var frameEntries: [(pid: pid_t, windowId: Int)] = []
+        var tokensToClear: [WindowToken] = []
+
+        for entry in controller.workspaceManager.allEntries() {
+            guard entry.layoutReason != .nativeFullscreen else { continue }
+            let hiddenState = controller.workspaceManager.hiddenState(for: entry.token)
+            guard let monitor = terminationRestoreMonitor(for: entry, hiddenState: hiddenState) else { continue }
+
+            if let hiddenState {
+                frameEntries.append((entry.pid, entry.windowId))
+                tokensToClear.append(entry.token)
+                controller.axManager.markWindowActive(entry.windowId)
+
+                if let plan = makeGracefulTerminationRestorePositionPlan(
+                    for: entry,
+                    monitor: monitor,
+                    hiddenState: hiddenState
+                ) {
+                    positionPlans.append(plan)
+                }
+                continue
+            }
+
+            guard let plan = makeGracefulTerminationVisibleClampPositionPlan(
+                for: entry,
+                monitor: monitor
+            ) else {
+                continue
+            }
+            frameEntries.append((entry.pid, entry.windowId))
+            controller.axManager.markWindowActive(entry.windowId)
+            positionPlans.append(plan)
+        }
+
+        guard !frameEntries.isEmpty else { return 0 }
+
+        controller.axManager.cancelPendingFrameJobs(frameEntries)
+        controller.axManager.unsuppressFrameWrites(frameEntries)
+        applyPositionPlans(positionPlans)
+
+        for token in tokensToClear {
+            controller.workspaceManager.setHiddenState(nil, for: token)
+        }
+
+        return frameEntries.count
+    }
+
     private func workspaceInactiveFloatingRestoreFrame(
         for entry: WindowModel.Entry,
         monitor: Monitor
@@ -3061,6 +3113,108 @@ import QuartzCore
             frameSize: frame.size,
             displayId: monitor.displayId
         )
+    }
+
+    private func terminationRestoreMonitor(
+        for entry: WindowModel.Entry,
+        hiddenState: WindowModel.HiddenState?
+    ) -> Monitor? {
+        guard let controller else { return nil }
+        return controller.workspaceManager.monitor(for: entry.workspaceId)
+            ?? hiddenState?.referenceMonitorId.flatMap { controller.workspaceManager.monitor(byId: $0) }
+            ?? controller.monitorForInteraction()
+            ?? controller.workspaceManager.monitors.first
+    }
+
+    private func makeGracefulTerminationRestorePositionPlan(
+        for entry: WindowModel.Entry,
+        monitor: Monitor,
+        hiddenState: WindowModel.HiddenState
+    ) -> WindowPositionPlan? {
+        guard let controller else { return nil }
+        guard let frame = fastFrame(for: entry.token, axRef: entry.axRef)
+            ?? controller.axManager.lastAppliedFrame(for: entry.windowId)
+            ?? (try? AXWindowService.frame(entry.axRef))
+        else {
+            return nil
+        }
+
+        let fallbackMonitor = hiddenState.referenceMonitorId
+            .flatMap { controller.workspaceManager.monitor(byId: $0) }
+        let safeRestore = safeTerminationRestoreFrame(
+            monitor: monitor,
+            fallbackMonitor: fallbackMonitor
+        )
+        let topLeft = topLeftPoint(from: hiddenState.proportionalPosition, in: safeRestore.frame)
+        let restoredOrigin = clampedOrigin(forTopLeft: topLeft, windowSize: frame.size, in: safeRestore.frame)
+        let moveEpsilon: CGFloat = 0.01
+        if abs(frame.origin.x - restoredOrigin.x) < moveEpsilon,
+           abs(frame.origin.y - restoredOrigin.y) < moveEpsilon
+        {
+            return nil
+        }
+
+        return WindowPositionPlan(
+            entry: entry,
+            origin: restoredOrigin,
+            frameSize: frame.size,
+            displayId: safeRestore.sourceMonitor.displayId
+        )
+    }
+
+    private func makeGracefulTerminationVisibleClampPositionPlan(
+        for entry: WindowModel.Entry,
+        monitor: Monitor
+    ) -> WindowPositionPlan? {
+        guard let controller else { return nil }
+        guard let frame = fastFrame(for: entry.token, axRef: entry.axRef)
+            ?? controller.axManager.lastAppliedFrame(for: entry.windowId)
+            ?? (try? AXWindowService.frame(entry.axRef))
+        else {
+            return nil
+        }
+
+        let safeRestore = safeTerminationRestoreFrame(monitor: monitor, fallbackMonitor: nil)
+        let restoredOrigin = clampedOrigin(
+            forTopLeft: frame.topLeftCorner,
+            windowSize: frame.size,
+            in: safeRestore.frame
+        )
+        let moveEpsilon: CGFloat = 0.01
+        if abs(frame.origin.x - restoredOrigin.x) < moveEpsilon,
+           abs(frame.origin.y - restoredOrigin.y) < moveEpsilon
+        {
+            return nil
+        }
+
+        return WindowPositionPlan(
+            entry: entry,
+            origin: restoredOrigin,
+            frameSize: frame.size,
+            displayId: safeRestore.sourceMonitor.displayId
+        )
+    }
+
+    private func safeTerminationRestoreFrame(
+        monitor: Monitor,
+        fallbackMonitor: Monitor?
+    ) -> (frame: CGRect, sourceMonitor: Monitor) {
+        if monitor.visibleFrame.width > 1, monitor.visibleFrame.height > 1 {
+            return (monitor.visibleFrame, monitor)
+        }
+        if let fallbackMonitor,
+           fallbackMonitor.visibleFrame.width > 1,
+           fallbackMonitor.visibleFrame.height > 1
+        {
+            return (fallbackMonitor.visibleFrame, fallbackMonitor)
+        }
+        if monitor.frame.width > 1, monitor.frame.height > 1 {
+            return (monitor.frame, monitor)
+        }
+        // Preserve the original last-resort frame selection while tracking which
+        // monitor that frame came from, so the caller reports the correct displayId.
+        let fallbackFrame = fallbackMonitor?.frame ?? monitor.frame
+        return (fallbackFrame, fallbackMonitor ?? monitor)
     }
 
     private func topLeftPoint(from proportionalPosition: CGPoint, in frame: CGRect) -> CGPoint {
