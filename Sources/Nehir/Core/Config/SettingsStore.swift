@@ -864,6 +864,6 @@ final class SettingsStore {
 
     static func validatedLoneWindowMaxWidth(_ width: Double?) -> Double? {
         guard let width else { return nil }
-        return min(0.95, max(0.10, width))
+        return min(1.0, max(0.10, width))
     }
 }

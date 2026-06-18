@@ -309,6 +309,54 @@ private struct StableSettingsControlRow<Content: View>: View {
     }
 }
 
+private struct PercentTextField: View {
+    let title: String
+    let value: Int
+    let range: ClosedRange<Int>
+    let onCommit: (Int) -> Void
+
+    @State private var draft = ""
+    @FocusState private var isFocused: Bool
+
+    private var clampedValue: Int { value.clamped(to: range) }
+
+    var body: some View {
+        HStack {
+            TextField(title, text: $draft)
+                .labelsHidden()
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 48)
+                .multilineTextAlignment(.trailing)
+                .focused($isFocused)
+                .onSubmit(commitDraft)
+                .onAppear { restoreDraftFromValue() }
+                .onChange(of: value) { _, _ in
+                    if !isFocused { restoreDraftFromValue() }
+                }
+                .onChange(of: isFocused) { _, focused in
+                    if focused {
+                        restoreDraftFromValue()
+                    } else {
+                        commitDraft()
+                    }
+                }
+            Text("%")
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func restoreDraftFromValue() {
+        draft = String(clampedValue)
+    }
+
+    private func commitDraft() {
+        let parsed = Int(draft.trimmingCharacters(in: .whitespacesAndNewlines)) ?? clampedValue
+        let committed = parsed.clamped(to: range)
+        draft = String(committed)
+        onCommit(committed)
+    }
+}
+
 struct GlobalNiriSettingsSection: View {
     @Bindable var settings: SettingsStore
     @Bindable var controller: WMController
@@ -345,7 +393,7 @@ struct GlobalNiriSettingsSection: View {
         let loneWindowMaxWidthPercent = Binding(
             get: { Int((settings.niriLoneWindowMaxWidth ?? 0.6) * 100) },
             set: { newPercent in
-                settings.niriLoneWindowMaxWidth = Double(min(95, max(10, newPercent))) / 100.0
+                settings.niriLoneWindowMaxWidth = Double(newPercent.clamped(to: 10 ... 100)) / 100.0
                 controller.updateNiriConfig(loneWindowPolicy: settings.loneWindowPolicy)
             }
         )
@@ -368,15 +416,12 @@ struct GlobalNiriSettingsSection: View {
                 }
             } else {
                 StableSettingsControlRow("Width") {
-                    HStack {
-                        TextField("Width", value: defaultColumnWidthPercent, format: .number)
-                            .labelsHidden()
-                            .textFieldStyle(.roundedBorder)
-                            .frame(width: 48)
-                            .multilineTextAlignment(.trailing)
-                        Text("%")
-                            .foregroundStyle(.secondary)
-                    }
+                    PercentTextField(
+                        title: "Width",
+                        value: defaultColumnWidthPercent.wrappedValue,
+                        range: 5 ... 100,
+                        onCommit: { defaultColumnWidthPercent.wrappedValue = $0 }
+                    )
                 }
             }
 
@@ -396,15 +441,12 @@ struct GlobalNiriSettingsSection: View {
 
             if settings.niriLoneWindowMaxWidth != nil {
                 StableSettingsControlRow("Centered Width") {
-                    HStack {
-                        TextField("Centered Width", value: loneWindowMaxWidthPercent, format: .number)
-                            .labelsHidden()
-                            .textFieldStyle(.roundedBorder)
-                            .frame(width: 48)
-                            .multilineTextAlignment(.trailing)
-                        Text("%")
-                            .foregroundStyle(.secondary)
-                    }
+                    PercentTextField(
+                        title: "Centered Width",
+                        value: loneWindowMaxWidthPercent.wrappedValue,
+                        range: 10 ... 100,
+                        onCommit: { loneWindowMaxWidthPercent.wrappedValue = $0 }
+                    )
                 }
             }
 
@@ -415,22 +457,18 @@ struct GlobalNiriSettingsSection: View {
             ForEach(presets.indices, id: \.self) { index in
                 LabeledContent("Preset \(index + 1)") {
                     HStack {
-                        TextField("Preset \(index + 1)", value: Binding(
-                            get: { Int(presets[index] * 100) },
-                            set: { newPercent in
+                        PercentTextField(
+                            title: "Preset \(index + 1)",
+                            value: Int(presets[index] * 100),
+                            range: 5 ... 100,
+                            onCommit: { newPercent in
                                 var current = settings.niriColumnWidthPresets
-                                current[index] = Double(min(100, max(5, newPercent))) / 100.0
+                                current[index] = Double(newPercent) / 100.0
                                 settings.niriColumnWidthPresets = current
                                 controller.updateNiriConfig(columnWidthPresets: settings.niriColumnWidthPresets)
                             }
-                        ), format: .number)
-                            .labelsHidden()
-                            .textFieldStyle(.roundedBorder)
-                            .frame(width: 48)
-                            .multilineTextAlignment(.trailing)
-                            .accessibilityLabel("Preset \(index + 1) width")
-                        Text("%")
-                            .foregroundStyle(.secondary)
+                        )
+                        .accessibilityLabel("Preset \(index + 1) width")
                         Button(role: .destructive) {
                             var presets = settings.niriColumnWidthPresets
                             presets.remove(at: index)
@@ -532,7 +570,7 @@ struct MonitorNiriSettingsSection: View {
             },
             set: { newPercent in
                 updateSetting {
-                    $0.loneWindowPolicy = .centered(maxWidthFraction: Double(min(95, max(10, newPercent))) / 100.0)
+                    $0.loneWindowPolicy = .centered(maxWidthFraction: Double(newPercent.clamped(to: 10 ... 100)) / 100.0)
                 }
             }
         )
@@ -573,15 +611,12 @@ struct MonitorNiriSettingsSection: View {
 
             if case .centered = ms.loneWindowPolicy {
                 StableSettingsControlRow("Centered Width") {
-                    HStack {
-                        TextField("Centered Width", value: loneWindowMaxWidthPercent, format: .number)
-                            .labelsHidden()
-                            .textFieldStyle(.roundedBorder)
-                            .frame(width: 48)
-                            .multilineTextAlignment(.trailing)
-                        Text("%")
-                            .foregroundStyle(.secondary)
-                    }
+                    PercentTextField(
+                        title: "Centered Width",
+                        value: loneWindowMaxWidthPercent.wrappedValue,
+                        range: 10 ... 100,
+                        onCommit: { loneWindowMaxWidthPercent.wrappedValue = $0 }
+                    )
                 }
             }
 
