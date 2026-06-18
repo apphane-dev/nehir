@@ -12,25 +12,10 @@ protocol MonitorSettingsType: Codable, Identifiable, Equatable {
 enum MonitorSettingsStore {
     static func get<T: MonitorSettingsType>(
         for monitor: Monitor,
-        in settings: [T],
-        ignoreIdentity: Bool = false
+        in settings: [T]
     ) -> T? {
         if let exact = settings.first(where: { $0.monitorDisplayId == monitor.displayId }) {
             return exact
-        }
-
-        // When ignoring monitor identity, pick the override whose saved position is closest to
-        // this monitor so per-monitor settings follow layout position rather than model/name.
-        if ignoreIdentity {
-            let nearest = settings
-                .compactMap { setting -> (setting: T, distance: CGFloat)? in
-                    guard let anchor = setting.monitorAnchorPoint else { return nil }
-                    return (setting, anchor.distanceSquared(to: monitor.workspaceAnchorPoint))
-                }
-                .min { $0.distance < $1.distance }
-            if let nearest {
-                return nearest.setting
-            }
         }
 
         return settings.first {
@@ -83,10 +68,3 @@ enum MonitorSettingsStore {
     }
 }
 
-private extension CGPoint {
-    func distanceSquared(to point: CGPoint) -> CGFloat {
-        let dx = x - point.x
-        let dy = y - point.y
-        return dx * dx + dy * dy
-    }
-}

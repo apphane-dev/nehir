@@ -42,14 +42,17 @@ struct MonitorSettingsTab: View {
             subtitle: "Configure mouse warp order and per-monitor orientation without changing macOS display arrangement."
         ) {
             Section("Display Matching") {
-                Toggle("Keep apps on the same monitor across reconnects", isOn: $settings.ignoreMonitorIdentity)
+                Toggle("Keep apps on the same screen position", isOn: $settings.ignoreMonitorIdentity)
                     .onChange(of: settings.ignoreMonitorIdentity) { _, _ in
                         controller.updateWorkspaceBarSettings()
                         controller.updateMonitorGapSettings()
                         controller.updateMonitorNiriSettings()
                     }
                 SettingsCaption(
-                    "Match saved windows, workspaces, and per-monitor settings by screen position instead of monitor model — so apps return to the same monitor (Main or Secondary) when moving between different monitor sets, such as home and office."
+                    "Use when moving between desks with different monitor models. Nehir restores saved windows, workspace display assignments, and per-monitor settings by layout position instead of display name."
+                )
+                SettingsCaption(
+                    "Leave off when settings should stay tied to a specific physical monitor."
                 )
             }
 

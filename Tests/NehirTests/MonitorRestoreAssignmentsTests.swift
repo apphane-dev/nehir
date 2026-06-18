@@ -95,6 +95,23 @@ private func makeMonitor(
         #expect(assignments[newRight.id] == wsRight)
     }
 
+    @Test func ignoringMonitorIdentitySkipsDisplayIdShortCircuit() {
+        let oldRight = makeMonitor(displayId: 20, name: "HomeRight", x: 1920, y: 0)
+        let newLeftWithOldId = makeMonitor(displayId: 20, name: "OfficeLeft", x: 0, y: 0)
+        let newRight = makeMonitor(displayId: 40, name: "OfficeRight", x: 1920, y: 0)
+        let workspaceId = WorkspaceDescriptor.ID()
+
+        let assignments = resolveWorkspaceRestoreAssignments(
+            snapshots: [WorkspaceRestoreSnapshot(monitor: .init(monitor: oldRight), workspaceId: workspaceId)],
+            monitors: [newLeftWithOldId, newRight],
+            ignoreIdentity: true,
+            workspaceExists: { _ in true }
+        )
+
+        #expect(assignments[newRight.id] == workspaceId)
+        #expect(assignments[newLeftWithOldId.id] == nil)
+    }
+
     @Test func filtersUnknownWorkspacesAndDuplicateWorkspaceSnapshots() {
         let left = makeMonitor(displayId: 500, name: "Left", x: 0, y: 0)
         let right = makeMonitor(displayId: 600, name: "Right", x: 1920, y: 0)
