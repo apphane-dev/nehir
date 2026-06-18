@@ -101,6 +101,69 @@ struct SettingsSliderRow: View {
     }
 }
 
+private struct DraftNumberTextField: View {
+    let label: String
+    let value: Double
+    let range: ClosedRange<Double>
+    let width: CGFloat
+    let onCommit: (Double) -> Void
+
+    @State private var draft = ""
+    @FocusState private var isFocused: Bool
+
+    private var clampedValue: Double {
+        min(max(value, range.lowerBound), range.upperBound)
+    }
+
+    var body: some View {
+        TextField(label, text: $draft)
+            .labelsHidden()
+            .textFieldStyle(.roundedBorder)
+            .frame(width: width)
+            .multilineTextAlignment(.trailing)
+            .focused($isFocused)
+            .onSubmit(commitDraft)
+            .onAppear { restoreDraftFromValue() }
+            .onChange(of: value) { _, _ in
+                if !isFocused { restoreDraftFromValue() }
+            }
+            .onChange(of: isFocused) { _, focused in
+                if focused {
+                    restoreDraftFromValue()
+                } else {
+                    commitDraft()
+                }
+            }
+            .accessibilityLabel(label)
+    }
+
+    private func restoreDraftFromValue() {
+        draft = formatted(clampedValue)
+    }
+
+    private func commitDraft() {
+        let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        let parsed = numberFormatter.number(from: trimmed)?.doubleValue ?? clampedValue
+        let committed = min(max(parsed, range.lowerBound), range.upperBound)
+        draft = formatted(committed)
+        onCommit(committed)
+    }
+
+    private func formatted(_ value: Double) -> String {
+        numberFormatter.string(from: NSNumber(value: value)) ?? ""
+    }
+
+    private var numberFormatter: NumberFormatter {
+        let formatter = NumberFormatter()
+        formatter.locale = .current
+        formatter.numberStyle = .decimal
+        formatter.usesGroupingSeparator = false
+        formatter.minimumFractionDigits = 0
+        formatter.maximumFractionDigits = 6
+        return formatter
+    }
+}
+
 struct SettingsNumberStepperRow: View {
     let label: String
     @Binding var value: Double
@@ -118,21 +181,15 @@ struct SettingsNumberStepperRow: View {
                 .accessibilityLabel(label)
                 .accessibilityValue(valueText)
 
-                TextField(label, value: boundedValue, format: .number)
-                    .labelsHidden()
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 64)
-                    .multilineTextAlignment(.trailing)
-                    .accessibilityLabel(label)
+                DraftNumberTextField(
+                    label: label,
+                    value: value,
+                    range: range,
+                    width: 64,
+                    onCommit: { value = $0 }
+                )
             }
         }
-    }
-
-    private var boundedValue: Binding<Double> {
-        Binding(
-            get: { value },
-            set: { value = min(max($0, range.lowerBound), range.upperBound) }
-        )
     }
 }
 
@@ -404,23 +461,17 @@ struct OverridableStepper: View {
                 .accessibilityLabel(label)
                 .accessibilityValue(displayValue)
 
-                TextField(label, value: boundedValue, format: .number)
-                    .labelsHidden()
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 64)
-                    .multilineTextAlignment(.trailing)
-                    .accessibilityLabel(label)
+                DraftNumberTextField(
+                    label: label,
+                    value: effectiveValue,
+                    range: range,
+                    width: 64,
+                    onCommit: { onChange($0) }
+                )
 
                 overrideStatus
             }
         }
-    }
-
-    private var boundedValue: Binding<Double> {
-        Binding(
-            get: { effectiveValue },
-            set: { onChange(min(max($0, range.lowerBound), range.upperBound)) }
-        )
     }
 
     private var overrideStatus: some View {
