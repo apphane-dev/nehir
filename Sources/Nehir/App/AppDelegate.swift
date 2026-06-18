@@ -147,16 +147,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 OnboardingWindowController.shared.show(settings: settings, onboardingStore: onboardingStore)
             }
         } else {
-            // Auto-show What's New once per release. The running build must be a release
-            // version (dev's `0.0.0` placeholder and prereleases like `0.5.0-rc.1` stay
-            // silent), newer than the version the user last acknowledged, and there must
-            // be content to show. No hardcoded version constant to keep in sync — the
-            // comparison is against the running build's own version.
+            // Auto-show What's New once per major/minor release. The running build must
+            // be a release version (dev's `0.0.0` placeholder and prereleases like
+            // `0.5.0-rc.1` stay silent), newer in major/minor than the version the user
+            // last acknowledged, and there must be content to show. Patch releases reuse
+            // current content but do not auto-show it again.
             if let appVersion = Bundle.main.appVersion,
-               Self.isReleaseVersion(appVersion),
-               !WhatsNewContent.isEmpty,
-               let lastSeen = onboardingStore.lastSeenVersion,
-               Self.isVersion(appVersion, newerThan: lastSeen) {
+               Self.shouldAutoShowWhatsNew(
+                   appVersion: appVersion,
+                   lastSeenVersion: onboardingStore.lastSeenVersion,
+                   hasContent: !WhatsNewContent.isEmpty
+               ) {
                 DispatchQueue.main.async {
                     OnboardingWindowController.shared.showWhatsNew(
                         version: appVersion,
@@ -189,18 +190,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return parts.count == 3 && parts != [0, 0, 0]
     }
 
-    /// Numeric `MAJOR.MINOR.PATCH` ordering, ignoring any prerelease suffix. Unparseable
-    /// components sort as `-1` so junk recorded on disk can never block an upgrade showing.
-    private static func isVersion(_ a: String, newerThan b: String) -> Bool {
-        func tuple(_ v: String) -> (Int, Int, Int) {
-            let core = v.split(separator: "-").first.map(String.init) ?? v
-            let parts = core.split(separator: ".").compactMap { Int($0) }
-            return parts.count == 3 ? (parts[0], parts[1], parts[2]) : (-1, -1, -1)
+    static func shouldAutoShowWhatsNew(
+        appVersion: String,
+        lastSeenVersion: String?,
+        hasContent: Bool
+    ) -> Bool {
+        guard isReleaseVersion(appVersion),
+              hasContent,
+              let lastSeenVersion
+        else {
+            return false
         }
-        let (x, y) = (tuple(a), tuple(b))
-        if x.0 != y.0 { return x.0 > y.0 }
-        if x.1 != y.1 { return x.1 > y.1 }
-        return x.2 > y.2
+        return isMajorMinorVersion(appVersion, newerThan: lastSeenVersion)
+    }
+
+    /// Numeric `MAJOR.MINOR` ordering. Patch releases reuse the current What's New
+    /// content but do not auto-show it again for users who already acknowledged the
+    /// same major/minor release.
+    private static func isMajorMinorVersion(_ currentVersion: String, newerThan previousVersion: String) -> Bool {
+        func tuple(_ versionString: String) -> (Int, Int) {
+            let core = versionString.split(separator: "-").first.map(String.init) ?? versionString
+            let parts = core.split(separator: ".").compactMap { Int($0) }
+            return parts.count == 3 ? (parts[0], parts[1]) : (-1, -1)
+        }
+        let (current, previous) = (tuple(currentVersion), tuple(previousVersion))
+        if current.0 != previous.0 { return current.0 > previous.0 }
+        return current.1 > previous.1
     }
 
     func startIPCServer(controller: WMController) throws {

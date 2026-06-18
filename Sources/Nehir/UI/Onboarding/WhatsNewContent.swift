@@ -8,8 +8,9 @@ import Foundation
 ///
 /// Which release these describe is inferred from the running app version — there is no
 /// hardcoded version constant to keep in sync. Auto-show fires once when the running build
-/// is a release version newer than the one the user last acknowledged (see
-/// `AppDelegate.continueBootstrap`); dev builds (`0.0.0`) and prereleases never auto-show.
+/// is a release version with a newer major/minor than the one the user last acknowledged
+/// (see `AppDelegate.continueBootstrap`); dev builds (`0.0.0`), prereleases, and patch-only
+/// upgrades within an already-seen major/minor never auto-show.
 /// Keep `sections` current as part of release prep — empty `sections` disables the screen
 /// (auto-show is skipped and the on-demand entries no-op).
 enum WhatsNewContent {
