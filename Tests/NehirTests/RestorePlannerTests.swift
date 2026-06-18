@@ -163,6 +163,49 @@ struct RestorePlannerTests {
         #expect(plan.consumedEntry == PersistedWindowRestoreConsumptionKey(entry: secondEntry))
     }
 
+    @Test func ignoringMonitorIdentityRestoresWindowByPositionNotName() throws {
+        let planner = RestorePlanner()
+        // Saved on the right-hand monitor named "Shared".
+        let savedMonitor = makeLayoutPlanTestMonitor(displayId: 100, name: "Shared", x: 1920, y: 0)
+        // A different monitor now occupies the saved name on the LEFT, while the RIGHT position
+        // is held by a differently-named display — the window must follow the position.
+        let leftSameName = makeLayoutPlanTestMonitor(displayId: 1, name: "Shared", x: 0, y: 0)
+        let rightDifferentName = makeLayoutPlanTestMonitor(displayId: 200, name: "Office", x: 1920, y: 0)
+        let currentMonitors = [leftSameName, rightDifferentName]
+
+        let workspaceId = WorkspaceDescriptor.ID()
+        let token = WindowToken(pid: 900, windowId: 90)
+        let metadata = makeRestorePlannerMetadata(workspaceId: workspaceId, title: "Doc")
+        let entry = makeRestorePlannerCatalogEntry(
+            token: token,
+            metadata: metadata,
+            workspaceName: "1",
+            monitor: savedMonitor
+        )
+
+        func planMonitor(ignoreIdentity: Bool) throws -> Monitor.ID? {
+            let plan = try #require(
+                planner.planPersistedHydration(
+                    .init(
+                        token: token,
+                        metadata: metadata,
+                        catalog: PersistedWindowRestoreCatalog(entries: [entry]),
+                        consumedEntries: [],
+                        monitors: currentMonitors,
+                        ignoreMonitorIdentity: ignoreIdentity,
+                        workspaceIdForName: { _ in workspaceId }
+                    )
+                )
+            )
+            return plan.preferredMonitorId
+        }
+
+        // Identity on: name match wins, sending the window to the wrong (left) monitor.
+        #expect(try planMonitor(ignoreIdentity: false) == leftSameName.id)
+        // Identity ignored: layout position wins, keeping the window on the right monitor.
+        #expect(try planMonitor(ignoreIdentity: true) == rightDifferentName.id)
+    }
+
     @Test func semanticHydrationReturnsNilWhenFallbackIsAmbiguous() {
         let planner = RestorePlanner()
         let monitor = makeLayoutPlanTestMonitor(displayId: 701, name: "Main")

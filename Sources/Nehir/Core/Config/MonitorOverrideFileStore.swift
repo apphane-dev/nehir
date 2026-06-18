@@ -82,6 +82,10 @@ enum MonitorOverrideFileStore {
         lines.append("[match]")
         lines.append("name = \(quoted(key.name))")
         if let displayId = key.displayId { lines.append("displayId = \(displayId)") }
+        if let anchor = matchAnchorPoint(for: document) {
+            lines.append("anchorX = \(formatNumber(anchor.x))")
+            lines.append("anchorY = \(formatNumber(anchor.y))")
+        }
 
         if let gaps = document.gaps, gaps.hasOverrides {
             lines.append("")
@@ -153,12 +157,14 @@ enum MonitorOverrideFileStore {
 
         guard let match = fields["match"], let name = extractString(match["name"]) else { return nil }
         let displayId = match["displayId"].flatMap { CGDirectDisplayID($0.trimmingCharacters(in: .whitespaces)) }
+        let anchorPoint = extractAnchorPoint(x: match["anchorX"], y: match["anchorY"])
         var document = MonitorDocument()
 
         if let gaps = fields["gaps"] {
             document.gaps = MonitorGapSettings(
                 monitorName: name,
                 monitorDisplayId: displayId,
+                monitorAnchorPoint: anchorPoint,
                 gapSize: gaps["size"].flatMap(extractDouble),
                 outerGapLeft: gaps["outerLeft"].flatMap(extractDouble),
                 outerGapRight: gaps["outerRight"].flatMap(extractDouble),
@@ -182,6 +188,7 @@ enum MonitorOverrideFileStore {
             document.niri = MonitorNiriSettings(
                 monitorName: name,
                 monitorDisplayId: displayId,
+                monitorAnchorPoint: anchorPoint,
                 balancedColumnCount: niri["balancedColumnCount"].flatMap { Int($0.trimmingCharacters(in: .whitespaces)) },
                 loneWindowPolicy: loneWindowPolicy
             )
@@ -191,6 +198,7 @@ enum MonitorOverrideFileStore {
             document.bar = MonitorBarSettings(
                 monitorName: name,
                 monitorDisplayId: displayId,
+                monitorAnchorPoint: anchorPoint,
                 enabled: bar["enabled"].flatMap(extractBool),
                 showLabels: bar["showLabels"].flatMap(extractBool),
                 showFloatingWindows: bar["showFloatingWindows"].flatMap(extractBool),
@@ -211,6 +219,7 @@ enum MonitorOverrideFileStore {
             document.orientation = MonitorOrientationSettings(
                 monitorName: name,
                 monitorDisplayId: displayId,
+                monitorAnchorPoint: anchorPoint,
                 orientation: orientation["orientation"].flatMap(extractString).flatMap(Monitor.Orientation.init(rawValue:))
             )
         }
@@ -263,5 +272,19 @@ enum MonitorOverrideFileStore {
 
     private static func extractDouble(_ raw: String) -> Double? {
         Double(raw.trimmingCharacters(in: .whitespaces))
+    }
+
+    private static func matchAnchorPoint(for document: MonitorDocument) -> CGPoint? {
+        document.bar?.monitorAnchorPoint
+            ?? document.gaps?.monitorAnchorPoint
+            ?? document.orientation?.monitorAnchorPoint
+            ?? document.niri?.monitorAnchorPoint
+    }
+
+    private static func extractAnchorPoint(x: String?, y: String?) -> CGPoint? {
+        guard let anchorX = x.flatMap(extractDouble), let anchorY = y.flatMap(extractDouble) else {
+            return nil
+        }
+        return CGPoint(x: anchorX, y: anchorY)
     }
 }

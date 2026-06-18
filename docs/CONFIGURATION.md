@@ -244,6 +244,20 @@ App rules in `apprules.d/` carry an `order` field to preserve specificity orderi
 
 Runtime state (window restore catalog, command palette last mode) is stored separately under `~/.local/state/nehir/` — never in the config directory. Migration postpone decisions also live in state, not config. Your config stays clean and diffable.
 
+### 9. Monitor-independent restore
+
+By default Nehir reattaches saved monitor bindings (workspace→display assignments, per-monitor overrides, and per-window restore) by **monitor identity** — the macOS display id plus the display name (e.g. `HP E27m G4`). When you move the same Mac between different monitor sets — for example a dual-monitor desk at home and a different dual-monitor desk at the office — both the display id and the name change, so the saved bindings no longer match and apps land on the wrong monitor.
+
+Enable **Settings → Monitors → "Keep apps on the same monitor across reconnects"** (`[general] ignoreMonitorIdentity = true`) to match displays by **layout position** instead of model/name. Apps, workspaces, and per-monitor settings then return to the same monitor — Main or Secondary — regardless of which physical display now occupies that position.
+
+```toml
+# settings.toml
+[general]
+ignoreMonitorIdentity = true
+```
+
+Position matching uses each saved monitor's top-left anchor point, which Nehir records alongside the identity. `workspaces.toml` gains optional `monitorAnchorX` / `monitorAnchorY` keys for `specific` assignments, and `monitors.d/*.toml` `[match]` sections gain optional `anchorX` / `anchorY`. These are written automatically while the monitor is connected; configs without them keep the previous identity-only behavior, so the change is fully backward compatible. An exact display-id match always wins first, so reconnecting the *same* monitor behaves as before.
+
 ## File Reference
 
 | File | Required | Description |

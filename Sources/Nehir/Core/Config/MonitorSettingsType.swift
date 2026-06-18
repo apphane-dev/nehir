@@ -4,13 +4,35 @@ import Foundation
 protocol MonitorSettingsType: Codable, Identifiable, Equatable {
     var monitorName: String { get set }
     var monitorDisplayId: CGDirectDisplayID? { get set }
+    /// Top-left anchor of the monitor when the override was saved. Used as a position fallback
+    /// when matching ignores monitor identity. Optional for backward compatibility.
+    var monitorAnchorPoint: CGPoint? { get set }
 }
 
 enum MonitorSettingsStore {
-    static func get<T: MonitorSettingsType>(for monitor: Monitor, in settings: [T]) -> T? {
+    static func get<T: MonitorSettingsType>(
+        for monitor: Monitor,
+        in settings: [T],
+        ignoreIdentity: Bool = false
+    ) -> T? {
         if let exact = settings.first(where: { $0.monitorDisplayId == monitor.displayId }) {
             return exact
         }
+
+        // When ignoring monitor identity, pick the override whose saved position is closest to
+        // this monitor so per-monitor settings follow layout position rather than model/name.
+        if ignoreIdentity {
+            let nearest = settings
+                .compactMap { setting -> (setting: T, distance: CGFloat)? in
+                    guard let anchor = setting.monitorAnchorPoint else { return nil }
+                    return (setting, anchor.distanceSquared(to: monitor.workspaceAnchorPoint))
+                }
+                .min { $0.distance < $1.distance }
+            if let nearest {
+                return nearest.setting
+            }
+        }
+
         return settings.first {
             $0.monitorDisplayId == nil && $0.monitorName == monitor.name
         }
@@ -58,5 +80,13 @@ enum MonitorSettingsStore {
 
     static func remove<T: MonitorSettingsType>(for monitorName: String, from settings: inout [T]) {
         settings.removeAll { $0.monitorName == monitorName }
+    }
+}
+
+private extension CGPoint {
+    func distanceSquared(to point: CGPoint) -> CGFloat {
+        let dx = x - point.x
+        let dy = y - point.y
+        return dx * dx + dy * dy
     }
 }

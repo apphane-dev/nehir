@@ -23,6 +23,7 @@ struct RestorePlanner {
         let disconnectedVisibleWorkspaceCache: [MonitorRestoreKey: WorkspaceDescriptor.ID]
         let interactionMonitorId: Monitor.ID?
         let previousInteractionMonitorId: Monitor.ID?
+        var ignoreMonitorIdentity: Bool = false
         let workspaceExists: (WorkspaceDescriptor.ID) -> Bool
         let homeMonitorId: (WorkspaceDescriptor.ID, [Monitor]) -> Monitor.ID?
         let effectiveMonitorId: (WorkspaceDescriptor.ID, [Monitor]) -> Monitor.ID?
@@ -45,6 +46,7 @@ struct RestorePlanner {
         let catalog: PersistedWindowRestoreCatalog
         let consumedEntries: Set<PersistedWindowRestoreConsumptionKey>
         let monitors: [Monitor]
+        var ignoreMonitorIdentity: Bool = false
         let workspaceIdForName: (String) -> WorkspaceDescriptor.ID?
     }
 
@@ -152,6 +154,7 @@ struct RestorePlanner {
         let restoredAssignments = resolveWorkspaceRestoreAssignments(
             snapshots: visibleSnapshots,
             monitors: input.newMonitors,
+            ignoreIdentity: input.ignoreMonitorIdentity,
             workspaceExists: input.workspaceExists
         )
 
@@ -270,7 +273,8 @@ struct RestorePlanner {
         let preferredMonitor = resolvePersistedPreferredMonitor(
             persistedEntry.restoreIntent.preferredMonitor,
             fallbackWorkspaceId: workspaceId,
-            monitors: input.monitors
+            monitors: input.monitors,
+            ignoreIdentity: input.ignoreMonitorIdentity
         )
 
         let targetMode: TrackedWindowMode = persistedEntry.restoreIntent.restoreToFloating ? .floating : input.metadata
@@ -351,7 +355,8 @@ struct RestorePlanner {
     private func resolvePersistedPreferredMonitor(
         _ preferredMonitor: DisplayFingerprint?,
         fallbackWorkspaceId _: WorkspaceDescriptor.ID,
-        monitors: [Monitor]
+        monitors: [Monitor],
+        ignoreIdentity: Bool
     ) -> Monitor? {
         guard let preferredMonitor else {
             return monitors.first
@@ -370,11 +375,13 @@ struct RestorePlanner {
         let bestFallback = monitors.min { lhs, rhs in
             let lhsScore = persistedMonitorMatchScore(
                 fingerprint: preferredMonitor,
-                monitor: lhs
+                monitor: lhs,
+                ignoreIdentity: ignoreIdentity
             )
             let rhsScore = persistedMonitorMatchScore(
                 fingerprint: preferredMonitor,
-                monitor: rhs
+                monitor: rhs,
+                ignoreIdentity: ignoreIdentity
             )
             if lhsScore.namePenalty != rhsScore.namePenalty {
                 return lhsScore.namePenalty < rhsScore.namePenalty
@@ -390,9 +397,14 @@ struct RestorePlanner {
 
     private func persistedMonitorMatchScore(
         fingerprint: DisplayFingerprint,
-        monitor: Monitor
+        monitor: Monitor,
+        ignoreIdentity: Bool
     ) -> (namePenalty: Int, geometryDelta: CGFloat) {
-        let namePenalty = fingerprint.name.localizedCaseInsensitiveCompare(monitor.name) == .orderedSame ? 0 : 1
+        // When ignoring monitor identity, rank purely by layout position so each window
+        // returns to the same physical monitor regardless of a changed model/name.
+        let namePenalty = ignoreIdentity
+            ? 0
+            : (fingerprint.name.localizedCaseInsensitiveCompare(monitor.name) == .orderedSame ? 0 : 1)
         let anchorDistance = fingerprint.anchorPoint.distanceSquared(to: monitor.workspaceAnchorPoint)
         let widthDelta = abs(fingerprint.frameSize.width - monitor.frame.width)
         let heightDelta = abs(fingerprint.frameSize.height - monitor.frame.height)

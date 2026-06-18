@@ -535,6 +535,7 @@ final class WorkspaceManager {
                 disconnectedVisibleWorkspaceCache: disconnectedVisibleWorkspaceCache,
                 interactionMonitorId: sessionState.interactionMonitorId,
                 previousInteractionMonitorId: sessionState.previousInteractionMonitorId,
+                ignoreMonitorIdentity: settings.ignoreMonitorIdentity,
                 workspaceExists: { [weak self] workspaceId in
                     self?.descriptor(for: workspaceId) != nil
                 },
@@ -761,6 +762,7 @@ final class WorkspaceManager {
                       catalog: bootPersistedWindowRestoreCatalog,
                       consumedEntries: consumedBootPersistedWindowRestoreEntries,
                       monitors: monitors,
+                      ignoreMonitorIdentity: settings.ignoreMonitorIdentity,
                       workspaceIdForName: { [weak self] workspaceName in
                           self?.workspaceId(for: workspaceName, createIfMissing: false)
                       }
@@ -3586,6 +3588,7 @@ final class WorkspaceManager {
         let assignments = resolveWorkspaceRestoreAssignments(
             snapshots: snapshots,
             monitors: monitors,
+            ignoreIdentity: settings.ignoreMonitorIdentity,
             workspaceExists: { descriptor(for: $0) != nil }
         )
         guard !assignments.isEmpty else { return }
@@ -3656,6 +3659,7 @@ final class WorkspaceManager {
         let restoredAssignments = resolveWorkspaceRestoreAssignments(
             snapshots: visibleSnapshots,
             monitors: monitors,
+            ignoreIdentity: settings.ignoreMonitorIdentity,
             workspaceExists: { descriptor(for: $0) != nil }
         )
 
@@ -3767,7 +3771,10 @@ final class WorkspaceManager {
     ) -> Monitor? {
         guard let workspace = descriptor(for: workspaceId) else { return nil }
         guard let description = configuredMonitorDescription(for: workspace.name, context: context) else { return nil }
-        return description.resolveMonitor(sortedMonitors: context.sortedMonitors)
+        return description.resolveMonitor(
+            sortedMonitors: context.sortedMonitors,
+            ignoreIdentity: settings.ignoreMonitorIdentity
+        )
     }
 
     private func homeMonitorId(for workspaceId: WorkspaceDescriptor.ID) -> Monitor.ID? {

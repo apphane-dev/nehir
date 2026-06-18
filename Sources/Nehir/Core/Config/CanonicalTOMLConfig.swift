@@ -33,10 +33,11 @@ struct CanonicalTOMLConfig: Codable, Equatable {
         var preventSleepEnabled: Bool
         var ipcEnabled: Bool
         var developerModeEnabled: Bool
+        var ignoreMonitorIdentity: Bool
         var unknownFields: [String: SettingsTOMLUnknownValue] = [:]
 
         enum CodingKeys: String, CodingKey, CaseIterable {
-            case hotkeysEnabled, preventSleepEnabled, ipcEnabled, developerModeEnabled
+            case hotkeysEnabled, preventSleepEnabled, ipcEnabled, developerModeEnabled, ignoreMonitorIdentity
         }
     }
 
@@ -229,6 +230,7 @@ extension CanonicalTOMLConfig {
             preventSleepEnabled: export.preventSleepEnabled,
             ipcEnabled: export.ipcEnabled,
             developerModeEnabled: export.developerModeEnabled,
+            ignoreMonitorIdentity: export.ignoreMonitorIdentity,
             unknownFields: unknown["general"] ?? [:]
         )
         focus = Focus(
@@ -403,6 +405,7 @@ extension CanonicalTOMLConfig {
             statusBarUseWorkspaceId: statusBar.useWorkspaceId,
             appearanceMode: appearance.mode,
             developerModeEnabled: general.developerModeEnabled,
+            ignoreMonitorIdentity: general.ignoreMonitorIdentity,
             settingsTOMLUnknownFields: unknown
         )
     }
@@ -449,6 +452,7 @@ extension CanonicalTOMLConfig.General {
         preventSleepEnabled = try container.decodeWithDefault(Bool.self, forKey: .preventSleepEnabled, default: d.preventSleepEnabled)
         ipcEnabled = try container.decodeWithDefault(Bool.self, forKey: .ipcEnabled, default: d.ipcEnabled)
         developerModeEnabled = try container.decodeWithDefault(Bool.self, forKey: .developerModeEnabled, default: d.developerModeEnabled)
+        ignoreMonitorIdentity = try container.decodeWithDefault(Bool.self, forKey: .ignoreMonitorIdentity, default: d.ignoreMonitorIdentity)
         unknownFields = try SettingsTOMLUnknownValue.decodeUnknownFields(from: decoder, excluding: CodingKeys.self)
     }
 
@@ -458,6 +462,7 @@ extension CanonicalTOMLConfig.General {
         try container.encode(preventSleepEnabled, forKey: "preventSleepEnabled")
         try container.encode(ipcEnabled, forKey: "ipcEnabled")
         try container.encode(developerModeEnabled, forKey: "developerModeEnabled")
+        try container.encode(ignoreMonitorIdentity, forKey: "ignoreMonitorIdentity")
         try container.encodeUnknownFields(unknownFields)
     }
 }

@@ -5,7 +5,7 @@ enum MonitorDescription: Equatable {
     case secondary
     case output(OutputId)
 
-    func resolveMonitor(sortedMonitors: [Monitor]) -> Monitor? {
+    func resolveMonitor(sortedMonitors: [Monitor], ignoreIdentity: Bool = false) -> Monitor? {
         switch self {
         case .main:
             return sortedMonitors.first(where: { $0.isMain }) ?? sortedMonitors.first
@@ -18,7 +18,7 @@ enum MonitorDescription: Equatable {
             }
             return sortedMonitors.dropFirst().first
         case let .output(output):
-            return output.resolveMonitor(in: sortedMonitors)
+            return output.resolveMonitor(in: sortedMonitors, ignoreIdentity: ignoreIdentity)
         }
     }
 }
