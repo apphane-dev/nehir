@@ -182,6 +182,8 @@ mise run test
 mise run clean
 ```
 
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup details, changesets, the release flow, and Nehir's maintenance principles.
+
 ## Lineage
 
 Nehir is the macOS embodiment of an idea with a clear family tree.
@@ -194,7 +196,7 @@ Nehir's interaction model — windows in horizontally scrolling columns — is a
 
 Nehir is an opinionated fork of [OmniWM], a general-purpose macOS tiling window manager by BarutSRB. We borrowed its macOS window-management engine and narrowed it to a single layout engine, dropping backward-compatibility baggage to do one thing well. Deeply grateful to the original author for the foundation — see [NOTICE.md](NOTICE.md) for full attribution.
 
-> The upstream repo has been renamed to [Hiro](https://github.com/BarutSRB/Hiro), with a rewrite under that name announced for a future release. The code Nehir forks from is OmniWM.
+> Upstream was briefly renamed to Hiro with a rewrite announced under that name, then returned to the OmniWM name. The Hiro announcement is no longer public upstream; an archived copy is preserved at [web.archive.org](https://web.archive.org/web/20260610213855/https://github.com/BarutSRB/Hiro/discussions/399). See [NOTICE.md](NOTICE.md) for the current attribution and fork-history details.
 
 <details>
 <summary><strong>Notable changes from OmniWM</strong></summary>

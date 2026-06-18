@@ -2,6 +2,58 @@
 
 Bug fixes, performance improvements, and focused cleanups welcome.
 
+## Direction & maintenance principles
+
+Nehir is an independent, opinionated fork with a deliberately narrow scope
+(Niri-style scrolling columns). It is not affiliated with or endorsed by the
+upstream OmniWM author; see [NOTICE.md](NOTICE.md) for origin and attribution.
+
+### What to expect
+
+- **Issues and PRs should receive an explicit response.** Not every feature
+  request is accepted and not every PR is merged, but the goal is to make
+  decisions clear rather than leave them hanging.
+- **Attribution stays.** Nehir always credits the prior art and its author — the
+  fork exists because that work was shared as open source.
+- **Opinionated, but open to influence.** Contributors can affect the direction;
+  the final call stays with the maintainer and is stated clearly.
+- **Clear release channels.** Stable, RC, and experimental work are not mixed
+  without warning.
+- **Configuration changes are documented before release where possible.**
+- **Issues are not closed just because internals changed.** User-facing behavior
+  is checked against a current build where feasible before a report is treated
+  as no longer relevant.
+- **Low-effort or obviously AI-generated contributions** may be reviewed with
+  automation or closed quickly. Using LLMs is fine; submitting unreviewed,
+  low-quality output is not.
+
+### What not to expect
+
+- No sudden core rewrites in patch releases.
+- No surprise project renaming, ownership transfers, or ground-up rewrites in
+  another language.
+- No mass issue cleanup without validating whether the reported behavior still
+  reproduces on the latest release.
+- No guarantee that every requested feature is accepted — a smaller scope is
+  part of the design.
+
+Plans can change, but if they do, it is said clearly and early.
+
+### Open source is not ownership
+
+Ideas and fixes are not personal property. If something introduced here later
+shows up upstream or elsewhere, that is a good outcome — better software for
+users is a win. The door works both ways: Nehir may also adopt ideas that land
+upstream when they fit this fork's scope. It is independent, but not isolated.
+
+## Reporting issues
+
+A well-described issue or plan is often more valuable than a direct code change.
+**Share the pain** — workflow, reproduction steps, setup, and expected behavior —
+before jumping to an assumed solution. Testing, traces, and clear reports matter
+as much as code. See the README's *Debugging & Tracing* section for how to
+capture a clean trace.
+
 ## Setup
 
 ```bash
