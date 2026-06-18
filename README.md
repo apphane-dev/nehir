@@ -1,7 +1,7 @@
 # Nehir plans
 
 This orphan branch contains Nehir planning documents only. It is intentionally
-detached from the main source tree so `main` can drop `` without losing
+detached from the main source tree so `main` can drop `docs/plans/` without losing
 planning history or implementation context.
 
 ## Layout
@@ -19,5 +19,5 @@ planning history or implementation context.
   `Sources/Nehir/...`, `Tests/NehirTests/...`, or `docs/...`) refer to paths in the
   main Nehir repository, not to files on this branch.
 - Internal planning links use the root-level folders above rather than
-  `...`.
+  `docs/plans/...`.
 - This branch is documentation-only by design; no source code is expected here.
