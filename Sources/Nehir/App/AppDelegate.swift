@@ -29,6 +29,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_: Notification) {
         if let controller = AppDelegate.sharedBootstrap?.controller {
+            controller.restoreHiddenWindowsForGracefulTermination()
             controller.serviceLifecycleManager.stop()
             controller.workspaceManager.flushPersistedWindowRestoreCatalogNow()
         }

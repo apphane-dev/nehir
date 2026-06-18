@@ -74,6 +74,17 @@ nehirctl command switch-workspace 2
 nehirctl --help
 ```
 
+### Recover windows after a crash or force quit
+
+Nehir restores parked/offscreen windows during a normal graceful quit. A force quit, crash, or `kill -9` bypasses shutdown cleanup, so macOS may leave previously parked windows at the screen edge.
+
+If that happens, use macOS's built-in window shortcuts to bring the selected Mission Control window back onscreen:
+
+- **Fill** — `Control` + `Globe/Fn` + `F`
+- **Centre/Center** — `Control` + `Globe/Fn` + `C`
+
+You can also find these actions in the macOS **Window** menu. In Mission Control, selecting the stuck window and applying **Fill** or **Centre/Center** usually restores it to the visible desktop.
+
 ## Debugging & Tracing
 
 Trace capture and the other debug commands are gated behind **Developer Mode**. Enable it in the **Diagnostics** tab of Settings — this unlocks the `Debug: …` commands in the command palette and hotkey settings, enables the IPC debug endpoints, and reveals the **Runtime State** and **Recent Traces** panels in that same tab.
