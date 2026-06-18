@@ -1,21 +1,14 @@
-# Upstream port fanout synthesis — implementation sequencing
+# Upstream port fanout synthesis — historical log
+
+> ⚠️ **SUPERSEDED for priority/sequencing.** The canonical tier/verdict/deliverability/dependency/status table and the sequencing DAG now live in [`20260618-upstream-port-roadmap.md`](20260618-upstream-port-roadmap.md). This doc is kept as the historical record of the 2026-06-18 read-only planner fanout: what the planners corrected, and the per-ID writer prompts they produced.
 
 Date: 2026-06-18.
 
-Inputs: read-only planner fanout outputs saved under `/tmp/nehir-upstream-port-fanout/`:
+Inputs: read-only planner fanout outputs produced 2026-06-18 under a machine-local temp dir (`/tmp/nehir-upstream-port-fanout/`, since expired). Those outputs were distilled into the per-cluster discovery docs (P1–P4, M1, M3, M4-S1, M4-S2, M5, M6, A1) and the corrections below; they are no longer needed as inputs.
 
-- `P1-P2-rescan-refresh.md`
-- `P3-orientation-overrides.md`
-- `P4-frame-failure-suppression.md`
-- `M1-M2-frame-sizing.md`
-- `M3-M6-focus-revision.md`
-- `M4-spaces-diagnostics-topology.md`
-- `M5-raw-multitouch.md`
-- `A1-A5-pure-engine-worldstore.md`
+## Executive summary (as of the fanout)
 
-This doc is the parent synthesis: what changed after dedicated planners inspected the real code, what can go to writer agents, and what should remain planning/research.
-
-## Executive summary
+The corrections below were folded into the per-cluster discovery docs and the roadmap. Kept verbatim for provenance.
 
 Patch work is ready, but not all patch items are equally tiny once tests are included:
 
@@ -133,6 +126,8 @@ First architecture spike:
 Do not proceed to A2 until A1 agreement tests are green and onboarding visual behavior is unchanged.
 
 ## Ready-to-run worker prompts
+
+> Note: the `/tmp/nehir-upstream-port-fanout/*.md` handoffs these prompts reference are expired. The per-cluster discovery docs (linked from [`20260618-upstream-port-roadmap.md`](20260618-upstream-port-roadmap.md)) are now the canonical handoffs — use the roadmap's "Handing off to a worker" template against those instead. The prompt bodies below are kept for the scope wording.
 
 ### Worker prompt — P3
 
