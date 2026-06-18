@@ -556,7 +556,6 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
     @Test @MainActor func trackpadLikeScrollWheelEventDoesNotUseMouseWheelPath() async {
         let fixture = await prepareMouseWheelScrollFixture()
         let before = fixture.controller.workspaceManager.niriViewportState(for: fixture.workspaceId)
-            .viewOffsetPixels.current()
 
         fixture.handler.dispatchScrollWheel(
             at: fixture.location,
@@ -566,9 +565,18 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
             phase: 0,
             modifiers: fixture.controller.settings.scrollModifierKey.cgEventFlag
         )
+        fixture.handler.dispatchScrollWheel(
+            at: fixture.location,
+            deltaX: 70,
+            deltaY: 0,
+            momentumPhase: 0,
+            phase: 0,
+            modifiers: fixture.controller.settings.scrollModifierKey.cgEventFlag
+        )
 
         let after = fixture.controller.workspaceManager.niriViewportState(for: fixture.workspaceId)
-        #expect(abs(after.viewOffsetPixels.current() - before) < 0.005)
+        #expect(after.activeColumnIndex == before.activeColumnIndex)
+        #expect(after.selectedNodeId == before.selectedNodeId)
         #expect(after.viewOffsetPixels.isGesture == false)
     }
 

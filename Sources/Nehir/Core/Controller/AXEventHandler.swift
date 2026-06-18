@@ -66,6 +66,24 @@ struct NiriCreateFocusTraceEvent: Equatable {
         case focusConfirmed(token: WindowToken, workspaceId: WorkspaceDescriptor.ID, source: ActivationEventSource)
         case borderReapplied(token: WindowToken, phase: ManagedBorderReapplyPhase)
         case nonManagedFallbackEntered(pid: pid_t, source: ActivationEventSource)
+        case windowDecision(
+            token: WindowToken,
+            context: String,
+            existingMode: TrackedWindowMode?,
+            disposition: String,
+            source: String,
+            outcome: String,
+            layout: String,
+            deferred: String?,
+            bundleId: String?,
+            titleLength: Int?,
+            axRole: String?,
+            axSubrole: String?,
+            windowLevel: Int32?,
+            windowTags: UInt64?,
+            parentWindowId: UInt32?,
+            windowFrame: CGRect?
+        )
     }
 
     let timestamp: Date
@@ -146,6 +164,25 @@ extension NiriCreateFocusTraceEvent: CustomStringConvertible {
             "border_reapplied token=\(token) phase=\(phase.rawValue)"
         case let .nonManagedFallbackEntered(pid, source):
             "non_managed_fallback_entered pid=\(pid) source=\(source.rawValue)"
+        case let .windowDecision(
+            token,
+            context,
+            existingMode,
+            disposition,
+            source,
+            outcome,
+            layout,
+            deferred,
+            bundleId,
+            titleLength,
+            axRole,
+            axSubrole,
+            windowLevel,
+            windowTags,
+            parentWindowId,
+            windowFrame
+        ):
+            "window_decision token=\(token) context=\(context) existingMode=\(existingMode.map { String(describing: $0) } ?? "nil") disposition=\(disposition) source=\(source) outcome=\(outcome) layout=\(layout) deferred=\(deferred ?? "nil") bundleId=\(bundleId ?? "nil") titleLength=\(titleLength.map(String.init) ?? "nil") axRole=\(axRole ?? "nil") axSubrole=\(axSubrole ?? "nil") wsLevel=\(windowLevel.map(String.init) ?? "nil") wsTags=\(windowTags.map { String(format: "0x%llx", $0) } ?? "nil") wsParent=\(parentWindowId.map(String.init) ?? "nil") wsFrame=\(windowFrame.map { "(\($0.origin.x),\($0.origin.y),\($0.size.width),\($0.size.height))" } ?? "nil")"
         }
     }
 }
@@ -191,6 +228,7 @@ final class AXEventHandler: CGSEventDelegate {
         let ruleEffects: ManagedWindowRuleEffects
         let replacementMetadata: ManagedReplacementMetadata
         let hasStructuralReplacementWorkspaceMatch: Bool
+        let hasExplicitWorkspaceAssignment: Bool
         let requiresPostCreateLifecycleVerification: Bool
 
         var bundleId: String? {
@@ -231,6 +269,8 @@ final class AXEventHandler: CGSEventDelegate {
     private struct WindowCloseFocusRecoveryContext: Equatable {
         let workspaceId: WorkspaceDescriptor.ID
         let expiresAt: Date
+        let suppressedActivationPid: pid_t?
+        let preservedToken: WindowToken?
     }
 
     private enum ManagedReplacementCorrelationPolicy {
@@ -300,6 +340,11 @@ final class AXEventHandler: CGSEventDelegate {
         let workspaceId: WorkspaceDescriptor.ID
     }
 
+    private struct RecentManagedAdmission {
+        let workspaceId: WorkspaceDescriptor.ID
+        let recordedAt: TimeInterval
+    }
+
     private static let managedReplacementGraceDelay: Duration = .milliseconds(150)
     private static let nativeFullscreenFollowupDelay: Duration = .seconds(1)
     private static let nativeFullscreenStaleCleanupDelay: Duration = .seconds(
@@ -310,6 +355,7 @@ final class AXEventHandler: CGSEventDelegate {
     private static let postCreateLifecycleVerificationDelay: Duration = .milliseconds(75)
     private static let createdWindowRetryLimit = 5
     private static let createPlacementContextTTL: TimeInterval = 15
+    private static let recentManagedAdmissionTTL: TimeInterval = 15
     private static let activationRetryLimit = 5
     private static let nativeAppSwitchLeaseRequestConfirmationGrace: TimeInterval = 0.6
     private static let createFocusTraceLimit = 128
@@ -323,7 +369,13 @@ final class AXEventHandler: CGSEventDelegate {
     private var deferredCreatedWindowIds: Set<UInt32> = []
     private var deferredCreatedWindowOrder: [UInt32] = []
     private var createPlacementContextsByWindowId: [UInt32: WindowCreatePlacementContext] = [:]
-    private var recentManagedWorkspaceByPid: [pid_t: WorkspaceDescriptor.ID] = [:]
+    private struct RecentManagedWorkspace {
+        let workspaceId: WorkspaceDescriptor.ID
+        let recordedAt: TimeInterval
+    }
+
+    private var recentManagedWorkspaceByPid: [pid_t: RecentManagedWorkspace] = [:]
+    private var recentManagedAdmissionByToken: [WindowToken: RecentManagedAdmission] = [:]
     private var pendingManagedReplacementBursts: [ManagedReplacementKey: PendingManagedReplacementBurst] = [:]
     private var pendingManagedReplacementTasks: [ManagedReplacementKey: Task<Void, Never>] = [:]
     private var windowCloseFocusRecoveryContext: WindowCloseFocusRecoveryContext?
@@ -371,6 +423,7 @@ final class AXEventHandler: CGSEventDelegate {
     func cleanup() {
         resetCreatePlacementContextState()
         recentManagedWorkspaceByPid.removeAll()
+        recentManagedAdmissionByToken.removeAll()
         resetManagedReplacementState()
         endWindowCloseFocusRecovery()
         resetNativeFullscreenReplacementState()
@@ -510,6 +563,7 @@ final class AXEventHandler: CGSEventDelegate {
         resetCreatedWindowRetryState()
         resetCreatePlacementContextState()
         recentManagedWorkspaceByPid.removeAll()
+        recentManagedAdmissionByToken.removeAll()
         resetActivationRetryState()
         controller?.focusBridge.reset()
         createFocusTrace.removeAll(keepingCapacity: true)
@@ -577,13 +631,40 @@ final class AXEventHandler: CGSEventDelegate {
         discardCreatePlacementContext(windowId: windowId)
     }
 
+    func shouldSuppressUnrequestedAdmissionDuringNonManagedFocus(
+        token: WindowToken,
+        createPlacementContext: WindowCreatePlacementContext?,
+        hasExplicitWorkspaceAssignment: Bool = false
+    ) -> Bool {
+        guard let controller,
+              controller.workspaceManager.isNonManagedFocusActive,
+              !hasExplicitWorkspaceAssignment,
+              controller.focusBridge.activeManagedRequest?.token != token
+        else {
+            return false
+        }
+
+        // A real CGS create is a user/new-window signal and should still be
+        // admitted. Likewise, an AX-focused admission tied to a fresh recently
+        // managed workspace for the same pid is a focused app-bounce
+        // continuation, not a random stale surface discovered while unmanaged
+        // focus is active. Existing AX/WindowServer surfaces without either
+        // signal are not reliable placement/focus inputs; admitting them here
+        // pulls random apps into the active workspace.
+        return createPlacementContext?.source != "cgs_created"
+            && createPlacementContext?.recentPidWorkspaceId == nil
+    }
+
     func structuralReplacementWorkspaceIdForCreate(
         token: WindowToken,
         bundleId: String?,
         mode: TrackedWindowMode,
         facts: WindowRuleFacts
     ) -> WorkspaceDescriptor.ID? {
-        structuralReplacementMatch(
+        if let workspaceId = recentManagedAdmissionWorkspaceId(for: token) {
+            return workspaceId
+        }
+        return structuralReplacementMatch(
             token: token,
             bundleId: bundleId,
             mode: mode,
@@ -945,6 +1026,7 @@ final class AXEventHandler: CGSEventDelegate {
             scheduleAXContextWarmup(for: candidate.token.pid)
             return
         }
+        recordRecentManagedAdmission(token: trackedToken, workspaceId: trackedEntry.workspaceId)
 
         if trackedEntry.mode == .floating {
             controller.focusPolicyEngine.beginLease(
@@ -1223,7 +1305,11 @@ final class AXEventHandler: CGSEventDelegate {
         scheduleWindowRuleReevaluationIfNeeded(targets: [.pid(token.pid)])
     }
 
-    private func beginWindowCloseFocusRecovery(in workspaceId: WorkspaceDescriptor.ID) {
+    private func beginWindowCloseFocusRecovery(
+        in workspaceId: WorkspaceDescriptor.ID,
+        suppressingPid: pid_t? = nil,
+        preservedToken: WindowToken? = nil
+    ) {
         guard let controller else { return }
         guard let monitorId = controller.workspaceManager.monitorId(for: workspaceId),
               controller.workspaceManager.activeWorkspace(on: monitorId)?.id == workspaceId
@@ -1234,7 +1320,9 @@ final class AXEventHandler: CGSEventDelegate {
 
         windowCloseFocusRecoveryContext = WindowCloseFocusRecoveryContext(
             workspaceId: workspaceId,
-            expiresAt: Date().addingTimeInterval(Self.windowCloseFocusRecoveryDuration)
+            expiresAt: Date().addingTimeInterval(Self.windowCloseFocusRecoveryDuration),
+            suppressedActivationPid: suppressingPid,
+            preservedToken: preservedToken
         )
         controller.focusPolicyEngine.beginLease(
             owner: .windowCloseFocusRecovery,
@@ -1244,13 +1332,17 @@ final class AXEventHandler: CGSEventDelegate {
         )
     }
 
-    private func activeWindowCloseFocusRecoveryWorkspaceId() -> WorkspaceDescriptor.ID? {
+    private func activeWindowCloseFocusRecoveryContext() -> WindowCloseFocusRecoveryContext? {
         guard let context = windowCloseFocusRecoveryContext else { return nil }
         guard context.expiresAt > Date() else {
             endWindowCloseFocusRecovery()
             return nil
         }
-        return context.workspaceId
+        return context
+    }
+
+    private func activeWindowCloseFocusRecoveryWorkspaceId() -> WorkspaceDescriptor.ID? {
+        activeWindowCloseFocusRecoveryContext()?.workspaceId
     }
 
     private func endWindowCloseFocusRecovery(matching workspaceId: WorkspaceDescriptor.ID? = nil) {
@@ -1264,10 +1356,40 @@ final class AXEventHandler: CGSEventDelegate {
 
     private func armWindowCloseFocusRecoveryForFocusedWindowLossIfNeeded(
         pid: pid_t,
-        source: ActivationEventSource
+        source: ActivationEventSource,
+        preservedToken: WindowToken? = nil
     ) {
-        guard source == .focusedWindowChanged else { return }
-        armWindowCloseFocusRecoveryForFocusedAppEvent(pid: pid)
+        guard source == .focusedWindowChanged,
+              let controller
+        else { return }
+
+        if let focusedToken = controller.workspaceManager.confirmedManagedFocusToken,
+           focusedToken.pid == pid,
+           let workspaceId = controller.workspaceManager.workspace(for: focusedToken)
+        {
+            beginWindowCloseFocusRecovery(
+                in: workspaceId,
+                suppressingPid: pid,
+                preservedToken: preservedToken ?? focusedToken
+            )
+            return
+        }
+
+        // Quick-terminal overlays can report AXFocusedWindowChanged(window=nil)
+        // for the overlay app, not for the managed window underneath. On close,
+        // the managed focus token may already have been cleared by the earlier
+        // non-managed overlay focus, so anchor recovery to the current
+        // interaction workspace before macOS re-focuses an older managed window
+        // on another visible monitor.
+        guard controller.workspaceManager.isNonManagedFocusActive,
+              let workspaceId = controller.interactionWorkspace()?.id
+        else { return }
+
+        beginWindowCloseFocusRecovery(
+            in: workspaceId,
+            suppressingPid: pid,
+            preservedToken: preservedToken ?? controller.workspaceManager.confirmedManagedFocusToken
+        )
     }
 
     private func armWindowCloseFocusRecoveryForFocusedAppEvent(pid: pid_t) {
@@ -1305,12 +1427,20 @@ final class AXEventHandler: CGSEventDelegate {
         requestDisposition: ActivationRequestDisposition,
         source: ActivationEventSource
     ) -> Bool {
-        guard let recoveryWorkspaceId = activeWindowCloseFocusRecoveryWorkspaceId() else {
+        guard let recoveryContext = activeWindowCloseFocusRecoveryContext() else {
             return false
         }
+        let recoveryWorkspaceId = recoveryContext.workspaceId
 
         if case .matchesActiveRequest = requestDisposition {
             return false
+        }
+
+        if let suppressedPid = recoveryContext.suppressedActivationPid,
+           observedEntry.pid == suppressedPid,
+           observedEntry.token != recoveryContext.preservedToken
+        {
+            return true
         }
 
         if recoveryWorkspaceId != observedEntry.workspaceId {
@@ -1327,6 +1457,79 @@ final class AXEventHandler: CGSEventDelegate {
         }
 
         return true
+    }
+
+    private func shouldSuppressManagedActivationWhileNonManagedFocusAnchored(
+        entry observedEntry: WindowModel.Entry,
+        requestDisposition: ActivationRequestDisposition
+    ) -> Bool {
+        guard case .unrelatedNoRequest = requestDisposition,
+              let controller,
+              let focusedToken = controller.workspaceManager.confirmedManagedFocusToken,
+              focusedToken != observedEntry.token,
+              let focusedEntry = controller.workspaceManager.entry(for: focusedToken),
+              let focusedMonitorId = controller.workspaceManager.monitorId(for: focusedEntry.workspaceId),
+              controller.workspaceManager.activeWorkspace(on: focusedMonitorId)?.id == focusedEntry.workspaceId
+        else {
+            return false
+        }
+
+        let overlayFocusIsActive = controller.workspaceManager.isNonManagedFocusActive
+            || hasVisibleSamePidOverlayWindow(for: observedEntry)
+        guard overlayFocusIsActive else { return false }
+
+        // While an unmanaged overlay (for example Ghostty Quick Terminal) owns
+        // native focus, macOS may report the app's regular managed window as the
+        // focused AX window. The overlay should not move Nehir's managed
+        // interaction/focus anchor away from the window the user was using before
+        // the overlay appeared, even when both windows are on the same workspace.
+        return true
+    }
+
+    private func hasVisibleSamePidOverlayWindow(for entry: WindowModel.Entry) -> Bool {
+        guard let windowId = UInt32(exactly: entry.windowId) else { return false }
+        let currentNonManagedFocusToken = controller?.currentBorderTarget().flatMap { target in
+            !target.isManaged ? target.token : nil
+        }
+        return SkyLight.shared.queryAllVisibleWindows().contains { info in
+            guard info.pid == entry.pid,
+                  info.id != windowId,
+                  info.level != 0,
+                  !info.frame.isNull,
+                  !info.frame.isEmpty
+            else {
+                return false
+            }
+
+            let token = WindowToken(pid: entry.pid, windowId: Int(info.id))
+            if currentNonManagedFocusToken == token {
+                return true
+            }
+            return isKnownSamePidOverlayWindow(info, pid: entry.pid)
+        }
+    }
+
+    private func isKnownSamePidOverlayWindow(_ info: WindowServerInfo, pid: pid_t) -> Bool {
+        guard let controller else { return false }
+        let axRef = AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: Int(info.id))
+        let facts = managedReplacementFacts(
+            for: axRef,
+            pid: pid,
+            bundleId: resolveBundleId(pid),
+            windowInfo: info,
+            includeTitle: false
+        )
+        let decision = controller.windowRuleEngine.decision(
+            for: facts,
+            token: WindowToken(pid: pid, windowId: Int(info.id)),
+            appFullscreen: false
+        )
+        if case let .builtInRule(name) = decision.source {
+            return name == "ghosttyQuickTerminalOverlay"
+                || name == "cleanShotRecordingOverlay"
+                || name == "systemTextInputPanel"
+        }
+        return false
     }
 
     /// Native app activation can lead the observable quick-terminal close signal.
@@ -1500,6 +1703,15 @@ final class AXEventHandler: CGSEventDelegate {
         let appFullscreen = isFullscreenProvider?(axRef) ?? AXWindowService.isFullscreen(axRef)
 
         if let entry = controller.workspaceManager.entry(for: token) {
+            if removeExistingEntryIfCurrentDecisionIsUntracked(
+                entry,
+                axRef: axRef,
+                appFullscreen: appFullscreen,
+                source: source
+            ) {
+                return
+            }
+
             if appFullscreen {
                 suspendManagedWindowForNativeFullscreen(entry)
                 return
@@ -1517,6 +1729,13 @@ final class AXEventHandler: CGSEventDelegate {
                 isWorkspaceActive: isWorkspaceActive,
                 requestDisposition: requestDisposition,
                 source: source
+            ) {
+                return
+            }
+
+            if shouldSuppressManagedActivationWhileNonManagedFocusAnchored(
+                entry: entry,
+                requestDisposition: requestDisposition
             ) {
                 return
             }
@@ -1608,6 +1827,13 @@ final class AXEventHandler: CGSEventDelegate {
                 isWorkspaceActive: isWorkspaceActive,
                 requestDisposition: requestDisposition,
                 source: source
+            ) {
+                return
+            }
+
+            if shouldSuppressManagedActivationWhileNonManagedFocusAnchored(
+                entry: restoredEntry,
+                requestDisposition: requestDisposition
             ) {
                 return
             }
@@ -1731,11 +1957,17 @@ final class AXEventHandler: CGSEventDelegate {
             break
         }
 
+        let focusedTokenBeforeFallback = controller.workspaceManager.confirmedManagedFocusToken
+        let shouldPreserveManagedFocus = source == .focusedWindowChanged
+            && focusedTokenBeforeFallback != nil
         let target = controller.keyboardFocusTarget(for: token, axRef: axRef)
         let fallbackFullscreen = appFullscreenForFallbackLifecyclePreservation(
             observedAppFullscreen: appFullscreen
         )
-        _ = controller.workspaceManager.enterNonManagedFocus(appFullscreen: fallbackFullscreen)
+        _ = controller.workspaceManager.enterNonManagedFocus(
+            appFullscreen: fallbackFullscreen,
+            preserveFocusedToken: shouldPreserveManagedFocus
+        )
         _ = controller.focusBorderController.focusChanged(to: target, forceOrdering: true)
 
         recordNiriCreateFocusTrace(
@@ -1791,6 +2023,14 @@ final class AXEventHandler: CGSEventDelegate {
         guard candidate.token == token else { return false }
 
         cancelCreatedWindowRetry(windowId: windowId)
+        if shouldSuppressUnrequestedAdmissionDuringNonManagedFocus(
+            token: candidate.token,
+            createPlacementContext: createPlacementContext,
+            hasExplicitWorkspaceAssignment: candidate.hasExplicitWorkspaceAssignment
+        ) {
+            discardCreatePlacementContext(windowId: windowId)
+            return true
+        }
         if shouldDelayManagedReplacementCreate(candidate) {
             enqueueManagedReplacementCreate(candidate)
             return true
@@ -1805,6 +2045,29 @@ final class AXEventHandler: CGSEventDelegate {
         let isWorkspaceActive = targetMonitor.map { monitor in
             controller.workspaceManager.activeWorkspace(on: monitor.id)?.id == entry.workspaceId
         } ?? false
+
+        if shouldSuppressManagedActivationWhileNonManagedFocusAnchored(
+            entry: entry,
+            requestDisposition: requestDisposition
+        ) {
+            return true
+        }
+
+        if shouldSuppressObservedActivationDuringWindowCloseRecovery(
+            entry: entry,
+            requestDisposition: requestDisposition,
+            source: source
+        ) {
+            if case let .conflictsWithPendingRequest(request) = requestDisposition {
+                continueManagedFocusRequest(
+                    request,
+                    source: source,
+                    origin: origin,
+                    reason: .pendingFocusMismatch
+                )
+            }
+            return true
+        }
 
         switch requestDisposition {
         case .matchesActiveRequest:
@@ -1901,7 +2164,7 @@ final class AXEventHandler: CGSEventDelegate {
             if let confirmedRequestId {
                 cancelActivationRetry(requestId: confirmedRequestId)
             }
-            recentManagedWorkspaceByPid[entry.pid] = wsId
+            recordRecentManagedWorkspace(pid: entry.pid, workspaceId: wsId)
             recordNiriCreateFocusTrace(
                 .init(
                     kind: .focusConfirmed(
@@ -1917,7 +2180,7 @@ final class AXEventHandler: CGSEventDelegate {
                 in: wsId,
                 onMonitor: monitorId
             )
-            recentManagedWorkspaceByPid[entry.pid] = wsId
+            recordRecentManagedWorkspace(pid: entry.pid, workspaceId: wsId)
         }
 
         let target = controller.keyboardFocusTarget(for: entry.token, axRef: entry.axRef)
@@ -2591,7 +2854,9 @@ final class AXEventHandler: CGSEventDelegate {
             axRef: axRef,
             pid: token.pid,
             appFullscreen: appFullscreen,
-            windowInfo: matchingWindowInfo
+            windowInfo: matchingWindowInfo,
+            traceContext: "create",
+            existingModeForTrace: nil
         )
 
         let trackedMode = controller.trackedModeForLifecycle(
@@ -2654,6 +2919,7 @@ final class AXEventHandler: CGSEventDelegate {
                 facts: evaluation.facts
             ),
             hasStructuralReplacementWorkspaceMatch: structuralReplacementWorkspaceId != nil,
+            hasExplicitWorkspaceAssignment: evaluation.decision.workspaceName != nil,
             requiresPostCreateLifecycleVerification: requiresPostCreateLifecycleVerification(
                 trackedMode: trackedMode,
                 facts: evaluation.facts
@@ -3097,8 +3363,15 @@ final class AXEventHandler: CGSEventDelegate {
         )
         guard managedReplacementCorrelationPolicy(for: baseMetadata) != nil else { return nil }
 
+        let recentAdmissionWorkspaceId = recentManagedAdmissionWorkspaceId(for: token)
+
         var match: StructuralReplacementMatch?
         func recordMatch(token: WindowToken, workspaceId: WorkspaceDescriptor.ID) -> Bool {
+            if let recentAdmissionWorkspaceId,
+               recentAdmissionWorkspaceId != workspaceId
+            {
+                return true
+            }
             if match != nil {
                 return false
             }
@@ -3154,6 +3427,58 @@ final class AXEventHandler: CGSEventDelegate {
         }
 
         return match
+    }
+
+    private func recordRecentManagedAdmission(token: WindowToken, workspaceId: WorkspaceDescriptor.ID) {
+        pruneRecentManagedAdmissions()
+        recentManagedAdmissionByToken[token] = RecentManagedAdmission(
+            workspaceId: workspaceId,
+            recordedAt: managedReplacementCurrentUptime()
+        )
+    }
+
+    private func recordRecentManagedWorkspace(pid: pid_t, workspaceId: WorkspaceDescriptor.ID) {
+        pruneRecentManagedWorkspaces()
+        recentManagedWorkspaceByPid[pid] = RecentManagedWorkspace(
+            workspaceId: workspaceId,
+            recordedAt: managedReplacementCurrentUptime()
+        )
+    }
+
+    private func recentManagedWorkspaceId(for pid: pid_t) -> WorkspaceDescriptor.ID? {
+        pruneRecentManagedWorkspaces()
+        guard let recent = recentManagedWorkspaceByPid[pid],
+              controller?.workspaceManager.descriptor(for: recent.workspaceId) != nil
+        else {
+            return nil
+        }
+        return recent.workspaceId
+    }
+
+    private func pruneRecentManagedWorkspaces(now: TimeInterval? = nil) {
+        let now = now ?? managedReplacementCurrentUptime()
+        recentManagedWorkspaceByPid = recentManagedWorkspaceByPid.filter { _, recent in
+            now - recent.recordedAt <= Self.recentManagedAdmissionTTL &&
+                controller?.workspaceManager.descriptor(for: recent.workspaceId) != nil
+        }
+    }
+
+    private func recentManagedAdmissionWorkspaceId(for token: WindowToken) -> WorkspaceDescriptor.ID? {
+        pruneRecentManagedAdmissions()
+        guard let admission = recentManagedAdmissionByToken[token],
+              controller?.workspaceManager.descriptor(for: admission.workspaceId) != nil
+        else {
+            return nil
+        }
+        return admission.workspaceId
+    }
+
+    private func pruneRecentManagedAdmissions(now: TimeInterval? = nil) {
+        let now = now ?? managedReplacementCurrentUptime()
+        recentManagedAdmissionByToken = recentManagedAdmissionByToken.filter { _, admission in
+            now - admission.recordedAt <= Self.recentManagedAdmissionTTL &&
+                controller?.workspaceManager.descriptor(for: admission.workspaceId) != nil
+        }
     }
 
     private func managedReplacementCorrelationPolicy(
@@ -3590,7 +3915,7 @@ final class AXEventHandler: CGSEventDelegate {
         }
         guard let controller else { return nil }
 
-        let recentPidWorkspaceId = recentManagedWorkspaceByPid[pid]
+        let recentPidWorkspaceId = recentManagedWorkspaceId(for: pid)
         let context = makeCreatePlacementContext(
             nativeSpaceMonitorId: nil,
             fallbackFocusedWorkspaceId: recentPidWorkspaceId,
@@ -3688,6 +4013,52 @@ final class AXEventHandler: CGSEventDelegate {
         }
     }
 
+    private func removeExistingEntryIfCurrentDecisionIsUntracked(
+        _ entry: WindowModel.Entry,
+        axRef: AXWindowRef,
+        appFullscreen: Bool,
+        source: ActivationEventSource
+    ) -> Bool {
+        guard let controller else { return false }
+        let evaluation = controller.evaluateWindowDisposition(
+            axRef: axRef,
+            pid: entry.pid,
+            appFullscreen: appFullscreen,
+            traceContext: "activation_existing",
+            existingModeForTrace: entry.mode
+        )
+        guard controller.trackedModePreservingAutomaticFallbackState(
+            decision: evaluation.decision,
+            existingEntry: entry,
+            context: .automatic
+        ) == nil else {
+            return false
+        }
+
+        cleanupTrackedWindowBeforeUnmanagedDemotion(entry)
+        _ = controller.workspaceManager.removeWindow(pid: entry.pid, windowId: entry.windowId)
+        controller.layoutRefreshController.requestRefresh(
+            reason: .windowRuleReevaluation,
+            affectedWorkspaceIds: [entry.workspaceId]
+        )
+        cancelActivationRetry()
+        _ = controller.workspaceManager.enterNonManagedFocus(
+            appFullscreen: appFullscreenForFallbackLifecyclePreservation(observedAppFullscreen: appFullscreen),
+            preserveFocusedToken: true
+        )
+        recordNiriCreateFocusTrace(
+            .init(kind: .nonManagedFallbackEntered(pid: entry.pid, source: source))
+        )
+        return true
+    }
+
+    private func cleanupTrackedWindowBeforeUnmanagedDemotion(_ entry: WindowModel.Entry) {
+        guard let controller else { return }
+        controller.cleanupScratchpadWindowResourcesIfNeeded(for: entry.token)
+        controller.nativeFullscreenPlaceholderManager.remove(entry.token)
+        controller.clearKeyboardFocusTarget(matching: entry.token, restoreCurrentBorder: true)
+    }
+
     private func handleMissingFocusedWindow(
         pid: pid_t,
         source: ActivationEventSource,
@@ -3723,13 +4094,21 @@ final class AXEventHandler: CGSEventDelegate {
         // Dropdown/quick-terminal close paths can report focused-window=nil
         // without destroying the managed window. Reuse close recovery so the
         // native successor activation does not pull us to another workspace.
-        armWindowCloseFocusRecoveryForFocusedWindowLossIfNeeded(pid: pid, source: source)
+        let focusedTokenBeforeFallback = controller.workspaceManager.confirmedManagedFocusToken
+        armWindowCloseFocusRecoveryForFocusedWindowLossIfNeeded(
+            pid: pid,
+            source: source,
+            preservedToken: focusedTokenBeforeFallback
+        )
 
         cancelActivationRetry()
         let fallbackFullscreen = appFullscreenForFallbackLifecyclePreservation(
             observedAppFullscreen: false
         )
-        _ = controller.workspaceManager.enterNonManagedFocus(appFullscreen: fallbackFullscreen)
+        _ = controller.workspaceManager.enterNonManagedFocus(
+            appFullscreen: fallbackFullscreen,
+            preserveFocusedToken: false
+        )
         recordNiriCreateFocusTrace(
             .init(
                 kind: .nonManagedFallbackEntered(

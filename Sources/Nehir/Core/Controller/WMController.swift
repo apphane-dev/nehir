@@ -140,6 +140,16 @@ final class WMController {
     var isTransferringWindow: Bool = false
     var hiddenAppPIDs: Set<pid_t> = []
 
+    private struct ExplicitWorkspaceMoveIntent {
+        let token: WindowToken
+        let workspaceId: WorkspaceDescriptor.ID
+        let createdAt: Date
+    }
+
+    @ObservationIgnored
+    private var explicitWorkspaceMoveIntentsByToken: [WindowToken: ExplicitWorkspaceMoveIntent] = [:]
+    private let explicitWorkspaceMoveIntentTTL: TimeInterval = 15
+
     @ObservationIgnored
     private(set) lazy var mouseEventHandler = MouseEventHandler(controller: self)
     @ObservationIgnored
@@ -1028,6 +1038,13 @@ final class WMController {
         }
 
         if existingEntry == nil,
+           let explicitMoveTarget = explicitWorkspaceMovePlacementTarget(pid: pid, windowId: axRef.windowId),
+           let workspaceId = explicitMoveTarget.workspaceId
+        {
+            return workspaceId
+        }
+
+        if existingEntry == nil,
            let structuralReplacementWorkspaceId,
            workspaceManager.descriptor(for: structuralReplacementWorkspaceId) != nil
         {
@@ -1043,6 +1060,7 @@ final class WMController {
 
         let placementTarget = createPlacementTarget(
             axRef: axRef,
+            pid: existingEntry == nil ? pid : nil,
             createPlacementContext: createPlacementContext,
             windowFrame: windowFrame,
             fallbackWorkspaceId: fallbackWorkspaceId,
@@ -1207,16 +1225,31 @@ final class WMController {
 
     private func createPlacementTarget(
         axRef: AXWindowRef,
+        pid: pid_t?,
         createPlacementContext: WindowCreatePlacementContext?,
         windowFrame: CGRect?,
         fallbackWorkspaceId: WorkspaceDescriptor.ID?,
         preferManagedFocusPlacement: Bool
     ) -> WorkspacePlacementTarget {
+        if let target = explicitWorkspaceMovePlacementTarget(pid: pid, windowId: axRef.windowId) {
+            return target
+        }
+
         if preferManagedFocusPlacement {
             if let target = managedFocusPlacementTarget(createPlacementContext?.activeFocusRequestWorkspaceId,
                                                         createPlacementContext?.activeFocusRequestMonitorId)
             {
                 return target
+            }
+
+            if let nativeMonitorId = createPlacementContext?.nativeSpaceMonitorId,
+               let workspace = workspaceManager.activeWorkspaceOrFirst(on: nativeMonitorId)
+            {
+                return WorkspacePlacementTarget(
+                    workspaceId: workspace.id,
+                    monitorId: nativeMonitorId,
+                    isAuthoritative: true
+                )
             }
 
             let frameMonitor = monitorForPlacementFrame(windowFrame)
@@ -1270,6 +1303,25 @@ final class WMController {
             }
         }
 
+        let fallbackFrameMonitor = monitorForPlacementFrame(windowFrame)
+        let fallbackFastFrameMonitor = workspaceManager.monitors.count > 1
+            ? monitorForPlacementFrame(AXWindowService.framePreferFast(axRef))
+            : nil
+        let fallbackResolvedFrameMonitor = fallbackFrameMonitor ?? fallbackFastFrameMonitor
+
+        if let interactionMonitorId = createPlacementContext?.interactionMonitorId,
+           let frameMonitor = fallbackResolvedFrameMonitor,
+           frameMonitor.id == interactionMonitorId,
+           createPlacementContext?.nativeSpaceMonitorId != interactionMonitorId,
+           let workspace = workspaceManager.activeWorkspaceOrFirst(on: interactionMonitorId)
+        {
+            return WorkspacePlacementTarget(
+                workspaceId: workspace.id,
+                monitorId: interactionMonitorId,
+                isAuthoritative: true
+            )
+        }
+
         if let monitorId = createPlacementContext?.nativeSpaceMonitorId,
            let workspace = workspaceManager.activeWorkspaceOrFirst(on: monitorId)
         {
@@ -1280,7 +1332,7 @@ final class WMController {
             )
         }
 
-        if let monitor = monitorForPlacementFrame(windowFrame),
+        if let monitor = fallbackFrameMonitor,
            let workspace = workspaceManager.activeWorkspaceOrFirst(on: monitor.id)
         {
             return WorkspacePlacementTarget(
@@ -1290,8 +1342,7 @@ final class WMController {
             )
         }
 
-        if workspaceManager.monitors.count > 1,
-           let monitor = monitorForPlacementFrame(AXWindowService.framePreferFast(axRef)),
+        if let monitor = fallbackFastFrameMonitor,
            let workspace = workspaceManager.activeWorkspaceOrFirst(on: monitor.id)
         {
             return WorkspacePlacementTarget(
@@ -1340,6 +1391,56 @@ final class WMController {
             monitorId: nil,
             isAuthoritative: false
         )
+    }
+
+    private func explicitWorkspaceMovePlacementTarget(pid: pid_t?, windowId: Int) -> WorkspacePlacementTarget? {
+        pruneExplicitWorkspaceMoveIntents()
+        guard let pid else { return nil }
+
+        let token = WindowToken(pid: pid, windowId: windowId)
+        guard let intent = explicitWorkspaceMoveIntentsByToken.removeValue(forKey: token),
+              let target = workspacePlacementTarget(forExplicitMoveIntent: intent)
+        else {
+            return nil
+        }
+        return target
+    }
+
+    func hasPendingExplicitWorkspaceMoveIntent(for token: WindowToken) -> Bool {
+        pruneExplicitWorkspaceMoveIntents()
+        guard let intent = explicitWorkspaceMoveIntentsByToken[token] else { return false }
+        return workspaceManager.descriptor(for: intent.workspaceId) != nil
+    }
+
+    private func workspacePlacementTarget(
+        forExplicitMoveIntent intent: ExplicitWorkspaceMoveIntent
+    ) -> WorkspacePlacementTarget? {
+        guard workspaceManager.descriptor(for: intent.workspaceId) != nil else { return nil }
+        return WorkspacePlacementTarget(
+            workspaceId: intent.workspaceId,
+            monitorId: workspaceManager.monitorId(for: intent.workspaceId),
+            isAuthoritative: true
+        )
+    }
+
+    private func recordExplicitWorkspaceMoveIntent(
+        for token: WindowToken,
+        to workspaceId: WorkspaceDescriptor.ID
+    ) {
+        pruneExplicitWorkspaceMoveIntents()
+        let intent = ExplicitWorkspaceMoveIntent(
+            token: token,
+            workspaceId: workspaceId,
+            createdAt: Date()
+        )
+        explicitWorkspaceMoveIntentsByToken[token] = intent
+    }
+
+    private func pruneExplicitWorkspaceMoveIntents(now: Date = Date()) {
+        explicitWorkspaceMoveIntentsByToken = explicitWorkspaceMoveIntentsByToken.filter { _, intent in
+            now.timeIntervalSince(intent.createdAt) <= explicitWorkspaceMoveIntentTTL &&
+                workspaceManager.descriptor(for: intent.workspaceId) != nil
+        }
     }
 
     private func managedFocusPlacementTarget(
@@ -1807,7 +1908,7 @@ final class WMController {
         monitor: Monitor
     ) -> Bool {
         if entry.workspaceId != workspaceId {
-            reassignManagedWindow(entry.token, to: workspaceId)
+            reassignManagedWindow(entry.token, to: workspaceId, explicitMoveIntent: false)
         }
         axManager.markWindowActive(entry.windowId)
 
@@ -1988,7 +2089,9 @@ final class WMController {
         pid: pid_t,
         appFullscreen: Bool? = nil,
         applyingManualOverride: Bool = true,
-        windowInfo: WindowServerInfo? = nil
+        windowInfo: WindowServerInfo? = nil,
+        traceContext: String? = nil,
+        existingModeForTrace: TrackedWindowMode? = nil
     ) -> WindowDecisionEvaluation {
         let token = WindowToken(pid: pid, windowId: axRef.windowId)
         let sizeConstraints = evaluateSizeConstraints(for: token, axRef: axRef)
@@ -2026,13 +2129,76 @@ final class WMController {
         let decision = applyingManualOverride
             ? decisionApplyingManualOverride(baseDecision, manualOverride: manualOverride)
             : baseDecision
-        return WindowDecisionEvaluation(
+        let evaluation = WindowDecisionEvaluation(
             token: token,
             facts: facts,
             decision: decision,
             appFullscreen: fullscreen,
             manualOverride: manualOverride
         )
+        if let traceContext {
+            recordWindowDecisionTrace(
+                evaluation,
+                context: traceContext,
+                existingMode: existingModeForTrace
+            )
+        }
+        return evaluation
+    }
+
+    private func recordWindowDecisionTrace(
+        _ evaluation: WindowDecisionEvaluation,
+        context: String,
+        existingMode: TrackedWindowMode?
+    ) {
+        guard shouldTraceWindowDecision(evaluation) else { return }
+        let windowServer = evaluation.facts.windowServer
+        recordNiriCreateFocusTrace(
+            .windowDecision(
+                token: evaluation.token,
+                context: context,
+                existingMode: existingMode,
+                disposition: String(describing: evaluation.decision.disposition),
+                source: windowDecisionSourceDescription(evaluation.decision.source),
+                outcome: evaluation.decision.admissionOutcome.rawValue,
+                layout: evaluation.decision.layoutDecisionKind.rawValue,
+                deferred: evaluation.decision.deferredReason?.rawValue,
+                bundleId: evaluation.facts.ax.bundleId,
+                titleLength: evaluation.facts.ax.title?.count,
+                axRole: evaluation.facts.ax.role,
+                axSubrole: evaluation.facts.ax.subrole,
+                windowLevel: windowServer?.level,
+                windowTags: windowServer?.tags,
+                parentWindowId: windowServer?.parentId,
+                windowFrame: windowServer?.frame
+            )
+        )
+    }
+
+    private func shouldTraceWindowDecision(_ evaluation: WindowDecisionEvaluation) -> Bool {
+        if evaluation.facts.ax.bundleId?.lowercased() == "com.mitchellh.ghostty" {
+            return true
+        }
+        if evaluation.decision.disposition == .unmanaged {
+            return true
+        }
+        if let level = evaluation.facts.windowServer?.level, level != 0 {
+            return true
+        }
+        return false
+    }
+
+    private func windowDecisionSourceDescription(_ source: WindowDecisionSource) -> String {
+        switch source {
+        case .manualOverride:
+            "manualOverride"
+        case let .userRule(ruleId):
+            "userRule(\(ruleId.uuidString))"
+        case let .builtInRule(name):
+            "builtInRule(\(name))"
+        case .heuristic:
+            "heuristic"
+        }
     }
 
     private func resolveWindowServerInfoForDisposition(
@@ -2044,9 +2210,7 @@ final class WMController {
             return preferredWindowInfo
         }
 
-        guard bundleId == WindowRuleEngine.cleanShotBundleId,
-              let windowId = UInt32(exactly: token.windowId)
-        else {
+        guard let windowId = UInt32(exactly: token.windowId) else {
             return nil
         }
 
@@ -2710,6 +2874,7 @@ final class WMController {
         nativeFullscreenPlaceholderManager.removeAll()
         focusBorderController.cleanup()
         workspaceManager.resetRuntimeStateForDebug()
+        explicitWorkspaceMoveIntentsByToken.removeAll()
         hiddenAppPIDs.removeAll()
         isTransferringWindow = false
 
@@ -3010,7 +3175,12 @@ final class WMController {
                 : nil
 
             evaluatedAnyWindow = true
-            let evaluation = evaluateWindowDisposition(axRef: axRef, pid: token.pid)
+            let evaluation = evaluateWindowDisposition(
+                axRef: axRef,
+                pid: token.pid,
+                traceContext: "reevaluate:\(String(describing: context))",
+                existingModeForTrace: existingEntry?.mode
+            )
 
             guard let effectiveTrackedMode = trackedModePreservingAutomaticFallbackState(
                 decision: evaluation.decision,
@@ -3032,6 +3202,19 @@ final class WMController {
             let oldEffects = existingEntry?.ruleEffects ?? .none
             let oldMode = existingEntry?.mode
             let oldWorkspaceId = existingEntry?.workspaceId
+            let hasExplicitWorkspaceAssignment = workspaceAssignment(pid: token.pid, windowId: token.windowId) != nil
+                || hasPendingExplicitWorkspaceMoveIntent(for: token)
+            if existingEntry == nil,
+               axEventHandler.shouldSuppressUnrequestedAdmissionDuringNonManagedFocus(
+                   token: token,
+                   createPlacementContext: createPlacementContext,
+                   hasExplicitWorkspaceAssignment: hasExplicitWorkspaceAssignment
+               )
+            {
+                axEventHandler.discardCreatePlacementContext(for: token.windowId)
+                continue
+            }
+
             let structuralReplacementWorkspaceId = existingEntry == nil
                 ? axEventHandler.structuralReplacementWorkspaceIdForCreate(
                     token: token,
@@ -3446,8 +3629,12 @@ final class WMController {
 
     func reassignManagedWindow(
         _ token: WindowToken,
-        to workspaceId: WorkspaceDescriptor.ID
+        to workspaceId: WorkspaceDescriptor.ID,
+        explicitMoveIntent: Bool = true
     ) {
+        if explicitMoveIntent {
+            recordExplicitWorkspaceMoveIntent(for: token, to: workspaceId)
+        }
         workspaceManager.setWorkspace(for: token, to: workspaceId)
         guard let entry = workspaceManager.entry(for: token) else { return }
         focusBorderController.updateFocusedTargetWorkspace(

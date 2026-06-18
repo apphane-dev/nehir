@@ -1151,13 +1151,15 @@ import QuartzCore
 
             let token = WindowToken(pid: pid, windowId: winId)
             let appFullscreen = controller.axEventHandler.isFullscreenProvider?(ax) ?? AXWindowService.isFullscreen(ax)
+            var existingEntry = controller.workspaceManager.entry(for: token)
             let evaluation = controller.evaluateWindowDisposition(
                 axRef: ax,
                 pid: pid,
-                appFullscreen: appFullscreen
+                appFullscreen: appFullscreen,
+                traceContext: "full_refresh",
+                existingModeForTrace: existingEntry?.mode
             )
             let decision = evaluation.decision
-            var existingEntry = controller.workspaceManager.entry(for: token)
             let createPlacementContext = existingEntry == nil
                 ? controller.axEventHandler.pendingCreatePlacementContext(for: winId)
                 : nil
@@ -1236,6 +1238,20 @@ import QuartzCore
                 continue
             }
 
+            let existingAssignment = controller.workspaceAssignment(pid: pid, windowId: winId)
+            let hasExplicitWorkspaceAssignment = existingAssignment != nil
+                || controller.hasPendingExplicitWorkspaceMoveIntent(for: token)
+            if existingEntry == nil,
+               controller.axEventHandler.shouldSuppressUnrequestedAdmissionDuringNonManagedFocus(
+                   token: token,
+                   createPlacementContext: createPlacementContext,
+                   hasExplicitWorkspaceAssignment: hasExplicitWorkspaceAssignment
+               )
+            {
+                controller.axEventHandler.discardCreatePlacementContext(for: winId)
+                continue
+            }
+
             let structuralReplacementWorkspaceId = existingEntry == nil
                 ? controller.axEventHandler.structuralReplacementWorkspaceIdForCreate(
                     token: token,
@@ -1293,16 +1309,13 @@ import QuartzCore
                     ruleEffects = existingEntry.ruleEffects
                 } else if appFullscreen {
                     _ = controller.workspaceManager.markNativeFullscreenSuspended(existingEntry.token)
-                    let existingAssignment = controller.workspaceAssignment(pid: pid, windowId: winId)
                     wsForWindow = existingAssignment ?? defaultWorkspace
                     ruleEffects = decision.ruleEffects
                 } else {
-                    let existingAssignment = controller.workspaceAssignment(pid: pid, windowId: winId)
                     wsForWindow = existingAssignment ?? defaultWorkspace
                     ruleEffects = decision.ruleEffects
                 }
             } else {
-                let existingAssignment = controller.workspaceAssignment(pid: pid, windowId: winId)
                 wsForWindow = existingAssignment ?? defaultWorkspace
                 ruleEffects = decision.ruleEffects
             }

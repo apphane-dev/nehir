@@ -199,6 +199,8 @@ final class WindowRuleEngine {
     static let cleanShotBundleId = "pl.maketheweb.cleanshotx"
     static let systemTextInputPanelRuleName = "systemTextInputPanel"
     private static let cleanShotRecordingOverlayRuleName = "cleanShotRecordingOverlay"
+    private static let ghosttyQuickTerminalRuleName = "ghosttyQuickTerminalOverlay"
+    private static let ghosttyBundleId = "com.mitchellh.ghostty"
     private static let systemTextInputPanelBundleIds: Set<String> = [
         "com.apple.characterpaletteim",
         "com.apple.emojifunctionrowitem-container",
@@ -332,6 +334,10 @@ final class WindowRuleEngine {
                 heuristicReasons: [],
                 deferredReason: nil
             )
+        }
+
+        if let ghosttyQuickTerminalDecision = ghosttyQuickTerminalOverlayDecision(for: facts) {
+            return ghosttyQuickTerminalDecision
         }
 
         let userRule = bestMatch(in: compiledUserRules, facts: facts)
@@ -483,6 +489,25 @@ final class WindowRuleEngine {
             layoutDecisionKind: .explicitLayout,
             workspaceName: workspaceName,
             ruleEffects: effects,
+            heuristicReasons: [],
+            deferredReason: nil
+        )
+    }
+
+    private func ghosttyQuickTerminalOverlayDecision(for facts: WindowRuleFacts) -> WindowDecision? {
+        guard facts.ax.bundleId?.lowercased() == Self.ghosttyBundleId,
+              let windowServer = facts.windowServer,
+              windowServer.level != 0
+        else {
+            return nil
+        }
+
+        return WindowDecision(
+            disposition: .unmanaged,
+            source: .builtInRule(Self.ghosttyQuickTerminalRuleName),
+            layoutDecisionKind: .explicitLayout,
+            workspaceName: nil,
+            ruleEffects: .none,
             heuristicReasons: [],
             deferredReason: nil
         )
