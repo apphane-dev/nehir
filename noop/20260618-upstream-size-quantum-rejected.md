@@ -44,7 +44,7 @@ Upstream's quantum learner would re-introduce exactly that risk.
 
 The `32.0` threshold (`:3288`) is a magic number with **no test guarding it** and **no derivation** from observed geometry (tuned empirically for #45). Residual risk: a terminal with large cells (≥24pt font, row height ≈36pt) could produce a single-row overshoot >32pt ⇒ misclassified as a real minimum ⇒ false pin ⇒ cascade.
 
-The deliverable is **test coverage** that locks the detector's boundary behavior and documents the threshold's assumption (see the boundary matrix in [`20260618-refused-frame-feedback-characterization.md`](20260618-refused-frame-feedback-characterization.md) Gap B.3). Making the threshold derivable/configurable is **optional/defer** pending a real repro.
+The deliverable is **test coverage** that locks the detector's boundary behavior and documents the threshold's assumption (see the boundary matrix in [`20260618-refused-frame-feedback-characterization.md`](../discovery/20260618-refused-frame-feedback-characterization.md) Gap B.3). Making the threshold derivable/configurable is **optional/defer** pending a real repro.
 
 ## Recommendation
 

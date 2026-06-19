@@ -17,7 +17,7 @@ Re-verify before implementing; line numbers drift.
 > committed-gesture end (`MouseEventHandler.swift:1796`–`:1809`), with
 > **richer** guards and tracing than the PR adds to the upstream rewrite. The
 > PR is also **distinct** from the trackpad-gesture sibling track
-> ([`20260616-nehir-53-trackpad-four-finger-swipe-gesture.md`](../20260616-nehir-53-trackpad-four-finger-swipe-gesture.md)
+> ([`20260616-nehir-53-trackpad-four-finger-swipe-gesture.md`](../discovery/20260616-nehir-53-trackpad-four-finger-swipe-gesture.md)
 > / [`…-omniwm-301-…`](./20260616-omniwm-301-three-finger-swipe-stuck-under-app-gesture-competition.md)):
 > those concern gesture *detection* / competition (the swipe aborts or
 > "gets stuck" mid-gesture); #296 concerns *focus* at gesture *end* (a

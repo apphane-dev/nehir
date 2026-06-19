@@ -2,7 +2,7 @@
 
 > ⚠️ **SUPERSEDED.** This was the original combined minor summary. Each item now has a proper per-cluster discovery doc; read those instead:
 > - M1 — [`20260618-refused-frame-feedback-characterization.md`](20260618-refused-frame-feedback-characterization.md)
-> - M2 — [`noop/20260618-upstream-size-quantum-rejected.md`](noop/20260618-upstream-size-quantum-rejected.md) (rejection)
+> - M2 — [`noop/20260618-upstream-size-quantum-rejected.md`](../noop/20260618-upstream-size-quantum-rejected.md) (rejection)
 > - M3 — [`20260618-focus-request-origin-ffm-cursor-warp.md`](20260618-focus-request-origin-ffm-cursor-warp.md)
 > - M4 — [`20260618-displays-separate-spaces-mode-detection.md`](20260618-displays-separate-spaces-mode-detection.md) (Stage 1) + [`20260618-space-topology-eviction-exemption.md`](20260618-space-topology-eviction-exemption.md) (Stage 2)
 > - M5 — [`20260618-raw-multitouch-gesture-source.md`](20260618-raw-multitouch-gesture-source.md)

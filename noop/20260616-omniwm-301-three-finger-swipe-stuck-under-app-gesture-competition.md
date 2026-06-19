@@ -12,7 +12,7 @@ trace"). Re-verify before implementing; line numbers drift.
 > **Filed under discovery/noop/** — the report reproduces against the same
 > nehir gesture path, but its root cause and fix are already owned by the
 > sibling discovery
-> [`20260616-nehir-53-trackpad-four-finger-swipe-gesture.md`](../20260616-nehir-53-trackpad-four-finger-swipe-gesture.md)
+> [`20260616-nehir-53-trackpad-four-finger-swipe-gesture.md`](../discovery/20260616-nehir-53-trackpad-four-finger-swipe-gesture.md)
 > (same `averageGestureTouchPosition` matcher, same abort-on-nil, same
 > diagnostic gap). OmniWM #301 is the 3-finger / app-competition manifestation
 > of that root cause; it motivates no new repo action beyond what #53's
@@ -150,7 +150,7 @@ Two structural facts make this exact symptom class likely and hard to field-diag
 The root cause is **the strict exact-count matcher plus abort-on-nil, with no
 hysteresis and no failure trace** — every element of which is already
 documented in
-[`20260616-nehir-53-trackpad-four-finger-swipe-gesture.md`](../20260616-nehir-53-trackpad-four-finger-swipe-gesture.md):
+[`20260616-nehir-53-trackpad-four-finger-swipe-gesture.md`](../discovery/20260616-nehir-53-trackpad-four-finger-swipe-gesture.md):
 
 - nehir-53 §"The code in question" analyzes this same matcher (`:2146`/`:2163`/`:2176`),
   the same `nil`-abort block, and the same multi-frame commit threshold
