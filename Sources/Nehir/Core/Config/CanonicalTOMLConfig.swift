@@ -54,13 +54,14 @@ struct CanonicalTOMLConfig: Codable, Equatable {
 
     struct MouseWarp: Codable, Equatable {
         // monitorOrder is a flat string array for now; future revision may use a typed OutputId.
+        var enabled: Bool
         var monitorOrder: [String]
         var axis: String?
         var margin: Int
         var unknownFields: [String: SettingsTOMLUnknownValue] = [:]
 
         enum CodingKeys: String, CodingKey, CaseIterable {
-            case monitorOrder, axis, margin
+            case enabled, monitorOrder, axis, margin
         }
     }
 
@@ -240,6 +241,7 @@ extension CanonicalTOMLConfig {
             unknownFields: unknown["focus"] ?? [:]
         )
         mouseWarp = MouseWarp(
+            enabled: export.mouseWarpEnabled,
             monitorOrder: export.mouseWarpMonitorOrder,
             axis: export.mouseWarpAxis,
             margin: export.mouseWarpMargin,
@@ -348,6 +350,7 @@ extension CanonicalTOMLConfig {
             focusFollowsMouse: focus.followsMouse,
             moveMouseToFocusedWindow: focus.moveMouseToFocusedWindow,
             focusFollowsWindowToMonitor: focus.followsWindowToMonitor,
+            mouseWarpEnabled: mouseWarp.enabled,
             mouseWarpMonitorOrder: mouseWarp.monitorOrder,
             mouseWarpAxis: mouseWarp.axis,
             mouseWarpMargin: mouseWarp.margin,
@@ -490,6 +493,7 @@ extension CanonicalTOMLConfig.MouseWarp {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let d = CanonicalTOMLConfig.defaults().mouseWarp
+        enabled = try container.decodeWithDefault(Bool.self, forKey: .enabled, default: d.enabled)
         monitorOrder = try container.decodeWithDefault([String].self, forKey: .monitorOrder, default: d.monitorOrder)
         axis = try container.decodeIfPresent(String.self, forKey: .axis)
         margin = try container.decodeWithDefault(Int.self, forKey: .margin, default: d.margin)
@@ -498,6 +502,7 @@ extension CanonicalTOMLConfig.MouseWarp {
 
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: SettingsTOMLDynamicKey.self)
+        try container.encode(enabled, forKey: "enabled")
         try container.encode(monitorOrder, forKey: "monitorOrder")
         try container.encodeIfPresent(axis, forKey: "axis")
         try container.encode(margin, forKey: "margin")

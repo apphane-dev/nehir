@@ -34,7 +34,7 @@ struct DisplayEnvironmentDiagnostics: Equatable {
             case let .fixedDock(_, monitorName, _, _):
                 "Fixed Dock detected on \(monitorName)"
             case .horizontalDisplayArrangement:
-                "Side-by-side display arrangement detected"
+                "Unsupported vertical display overlap detected"
             }
         }
 
@@ -52,7 +52,7 @@ struct DisplayEnvironmentDiagnostics: Equatable {
             case .fixedDock:
                 "Enable Dock auto-hide in System Settings > Desktop & Dock, or move the fixed Dock away from the edge used for hidden-window parking."
             case .horizontalDisplayArrangement:
-                "Arrange displays vertically in System Settings > Displays > Arrange so horizontal parking edges do not touch another display."
+                "Arrange displays vertically or diagonally in System Settings > Displays > Arrange so display frames do not overlap vertically."
             }
         }
     }
@@ -81,7 +81,11 @@ struct DisplayEnvironmentDiagnostics: Equatable {
         evaluate(monitors: Monitor.current())
     }
 
-    static func evaluate(monitors: [Monitor]) -> DisplayEnvironmentDiagnostics {
+    /// Evaluates the currently supported display environment. As of now Nehir supports
+    /// fixed-Dock-free setups and display arrangements with no vertical overlap
+    /// (vertical/diagonal layouts). Separate Spaces detection is shown as state in the
+    /// UI, but it does not change or suppress the support recommendation.
+    static func evaluate(monitors: [Monitor], spacesMode _: DisplaySpacesMode = .unavailable) -> DisplayEnvironmentDiagnostics {
         var issues: [Issue] = []
         issues.append(contentsOf: fixedDockIssues(monitors: monitors))
         issues.append(contentsOf: horizontalArrangementIssues(monitors: monitors))

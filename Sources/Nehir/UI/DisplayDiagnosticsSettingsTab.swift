@@ -7,6 +7,7 @@ struct DisplayDiagnosticsSettingsTab: View {
     @Bindable var navigation: SettingsNavigationModel
 
     @State private var diagnostics = DisplayEnvironmentDiagnostics.current()
+    @State private var displaySpacesMode: DisplaySpacesMode = .unavailable
     @State private var monitors = Monitor.current()
     @State private var axGranted = AccessibilityPermissionMonitor.shared.isGranted
     @State private var applicableSettingsIssues: [SettingsDiagnosticsIssue] = []
@@ -133,10 +134,13 @@ struct DisplayDiagnosticsSettingsTab: View {
             }
 
             Section("Display and Dock Recommendations") {
-                SettingsCaption("For the best Niri scrolling experience, use an auto-hide Dock and arrange displays vertically in macOS System Settings.")
+                SettingsCaption("Nehir currently supports an auto-hide Dock and display arrangements with no vertical overlap: vertical or diagonal layouts in macOS System Settings. A diagonal arrangement is recommended when you want to avoid macOS' native cross-display edge warp and rely only on Nehir's configured Mouse Warp.")
+                Label("Displays have separate Spaces: \(displaySpacesMode.displayName)", systemImage: displaySpacesMode.systemImage)
+                    .foregroundStyle(.secondary)
+                SettingsCaption("Separate Spaces is detected for visibility only; Nehir does not enforce it or change display-arrangement recommendations based on it yet.")
 
                 if diagnostics.issues.isEmpty {
-                    Label("No fixed Dock or side-by-side display arrangement detected.", systemImage: "checkmark.circle")
+                    Label("No fixed Dock or unsupported vertical display overlap detected.", systemImage: "checkmark.circle")
                         .foregroundStyle(.green)
                 } else {
                     ForEach(diagnostics.issues) { issue in
@@ -449,7 +453,8 @@ struct DisplayDiagnosticsSettingsTab: View {
 
     private func refresh() {
         monitors = Monitor.current()
-        diagnostics = DisplayEnvironmentDiagnostics.evaluate(monitors: monitors)
+        displaySpacesMode = SkyLight.shared.displaySpacesMode(monitors: monitors)
+        diagnostics = DisplayEnvironmentDiagnostics.evaluate(monitors: monitors, spacesMode: displaySpacesMode)
         axGranted = AccessibilityPermissionMonitor.shared.isGranted
         refreshSettingsIssues()
         traceCaptureStatus = controller.runtimeTraceCaptureStatus
