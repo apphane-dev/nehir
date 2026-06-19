@@ -94,6 +94,9 @@
     "Sources/Nehir/Core/Config/MonitorGapSettings.swift": [
       {"repo": "https://github.com/BarutSRB/OmniWM", "hash": "dacccb8"}
     ],
+    "Sources/Nehir/Core/Controller/LayoutRefreshController.swift": [
+      {"repo": "https://github.com/BarutSRB/OmniWM", "hash": "2dcab36"}
+    ],
     "Sources/Nehir/Core/Controller/WMController.swift": [
       {"repo": "https://github.com/BarutSRB/OmniWM", "hash": "713280e"}
     ],
@@ -105,6 +108,12 @@
     ],
     "Sources/Nehir/Core/SkyLight/DisplaySpacesMode.swift": [
       {"repo": "https://github.com/BarutSRB/OmniWM", "hash": "ee554c7"}
+    ],
+    "Sources/Nehir/Core/SkyLight/SkyLight.swift": [
+      {"repo": "https://github.com/BarutSRB/OmniWM", "hash": "ee554c7"}
+    ],
+    "Sources/Nehir/Core/SkyLight/SpaceTopology.swift": [
+      {"repo": "https://github.com/BarutSRB/OmniWM", "hash": "e5e368d"}
     ]
   }
 }

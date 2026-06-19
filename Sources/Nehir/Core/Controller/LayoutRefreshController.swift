@@ -181,6 +181,8 @@ import QuartzCore
     var layoutState = LayoutState()
     var debugCounters = RefreshDebugCounters()
     var debugHooks = RefreshDebugHooks()
+    var spaceTopologyProviderForTests: (([Monitor], [UInt32]) -> SpaceTopology)?
+    private var lastSpaceTopologyDebugSummary = "notCaptured"
     private var activeFrameContext: RefreshFrameContext?
     private var pendingRevealTransactionsByWindowId: [Int: PendingRevealTransaction] = [:]
     private var pendingRevealVerificationTasksByWindowId: [Int: Task<Void, Never>] = [:]
@@ -684,10 +686,23 @@ import QuartzCore
     func resetDebugState() {
         debugCounters = RefreshDebugCounters()
         debugHooks = RefreshDebugHooks()
+        lastSpaceTopologyDebugSummary = "notCaptured"
     }
 
     func refreshDebugSnapshot() -> RefreshDebugCounters {
         debugCounters
+    }
+
+    private func currentSpaceTopology(monitors: [Monitor], trackedEntries: [WindowModel.Entry]) -> SpaceTopology {
+        let windowIds = trackedEntries.compactMap { UInt32(exactly: $0.windowId) }
+        if let provider = spaceTopologyProviderForTests {
+            return provider(monitors, windowIds)
+        }
+        return SpaceTopology.current(monitors: monitors, windowIds: windowIds)
+    }
+
+    func spaceTopologyDebugDump() -> String {
+        lastSpaceTopologyDebugSummary
     }
 
     func requestRefresh(
@@ -1424,6 +1439,11 @@ import QuartzCore
             hadLifecycleContextAtStart: hadNativeFullscreenLifecycleContextAtStart
         )
         let trackedEntries = controller.workspaceManager.allEntries()
+        let spaceTopology = currentSpaceTopology(
+            monitors: controller.workspaceManager.monitors,
+            trackedEntries: trackedEntries
+        )
+        lastSpaceTopologyDebugSummary = spaceTopology.debugSummary
         if shouldPreserveMissingWindows {
             // Native macOS fullscreen moves the app onto its own Space, so visible-window
             // enumeration temporarily excludes the rest of the managed workspace.
@@ -1443,6 +1463,21 @@ import QuartzCore
                 where enumerationSnapshot.failedPIDs.contains(entry.handle.pid)
             {
                 seenKeys.insert(.init(pid: entry.handle.pid, windowId: entry.windowId))
+            }
+
+            var inactiveSpaceExemptions = 0
+            for entry in trackedEntries {
+                guard let windowId = UInt32(exactly: entry.windowId),
+                      spaceTopology.isWindowOnKnownInactiveSpace(windowId: windowId)
+                else { continue }
+                seenKeys.insert(.init(pid: entry.handle.pid, windowId: entry.windowId))
+                inactiveSpaceExemptions += 1
+                controller.recordRuntimeInsertionTrace(
+                    "spaceTopology.exempt windowId=\(entry.windowId) pid=\(entry.handle.pid) mode=\(spaceTopology.mode.rawValue)"
+                )
+            }
+            if inactiveSpaceExemptions > 0 {
+                lastSpaceTopologyDebugSummary += " exempted=\(inactiveSpaceExemptions)"
             }
 
             preserveScratchpadHiddenWindowsDuringFullRescan(
