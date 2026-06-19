@@ -1,11 +1,16 @@
 # Workspace assignment visibility + lone-window width cache leak — Discovery
 
+**Status:** completed — implemented in the main Nehir source tree on 2026-06-19.
+Resolution and implementation learning are captured in the completed plan
+[`completed/20260619-workspace-assignment-lone-window-width-and-reveal.md`](20260619-workspace-assignment-lone-window-width-and-reveal.md).
+This document is kept as the self-contained runtime-evidence record.
+
 Scope: document the failed lone-window-width fix and the runtime evidence from the
 workspace-assignment repros. The goal is to preserve the concrete evidence and
 separate the real model change from shortcut fixes that only reset `cachedWidth`.
 
 All source references below were checked against the main Nehir source tree on
-2026-06-19. Line numbers drift — re-verify before implementing.
+2026-06-19. Line numbers drift — they describe the pre-implementation code shape.
 
 ---
 
@@ -24,11 +29,15 @@ All source references below were checked against the main Nehir source tree on
   debug output showed `override=nil` after a second column was added, but the
   first column still had `cached=2040.0`. That proves the single-window render
   width had already polluted the canonical column cache.
-- **Verdict:** 🔴 Open / Applies. Fix the width bug as a model split: canonical
-  column width must be separate from the lone-window render/layout override.
-  Do not “fix” by clearing `cachedWidth` opportunistically. Separately, make the
-  workspace-inactive reveal path verify that a window is actually onscreen before
-  clearing hidden state.
+- **Verdict:** ✅ Resolved (implemented 2026-06-19). The width bug was fixed as a
+  model split: canonical column `cachedWidth` is now separate from the transient
+  lone-window render/layout override (`loneWindowLayoutWidthOverride`), and
+  viewport/snap geometry resolves through a single `effectiveViewportWidth` entry
+  point so the split does not desync render width from scroll/snap math. The fix
+  did **not** clear `cachedWidth` opportunistically. Separately, the
+  workspace-inactive reveal path now verifies onscreen placement before clearing
+  hidden state. See the completed plan for the second-stage viewport-width
+  learning that the storage split alone was insufficient.
 
 ---
 

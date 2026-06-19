@@ -1,10 +1,10 @@
 # Workspace assignment: lone-window width split + verified inactive reveal
 
-**Status:** planned
+**Status:** completed — implemented in the main Nehir source tree on 2026-06-19.
 **Source discovery:** `discovery/20260619-workspace-assignment-lone-window-width-cache-leak.md`
 
 All source file references were verified against the main Nehir source tree on
-2026-06-19. Re-verify line numbers before editing; they drift.
+2026-06-19. Line numbers drift; re-verify before future follow-up work.
 
 ## TL;DR
 
@@ -21,10 +21,76 @@ Fix the workspace-assignment repro as two related but distinct defects:
 The width fix is the primary model change. Do **not** solve it by opportunistically
 clearing `cachedWidth`; that was the failed shortcut captured in the discovery.
 
-## Current code map
+
+## Completion notes / implementation learning
+
+Implemented as a structural model split plus verified reveal handling:
+
+- `cachedWidth` remains the canonical resolved column width used by normal
+  multi-column layout, manual sizing, animations, constraints, and resize
+  commands.
+- Default lone-window `.fill` / `.centered` policy writes only a transient
+  `loneWindowLayoutWidthOverride`; it no longer mutates canonical
+  `cachedWidth`.
+- Multi-column entry paths clear the transient override rather than resetting
+  canonical width. The debug dump now reports both values (`cached=...` and
+  `override=...`).
+- Workspace-inactive tiled reveal now distinguishes attempted placement from
+  verified placement. Hidden state is cleared only after an onscreen verified
+  position/frame, or after a pending verified frame-write reveal succeeds.
+
+The important follow-up learning from the runtime repro is that splitting the
+storage was necessary but not sufficient. The first implementation produced the
+right model split in a lone workspace:
+
+```text
+columns=1 cached=1008.0 override=2040.0 spec=prop:0.5000 manual=false
+```
+
+But viewport/snap geometry still read raw `cachedWidth`, so a default fill lone
+window used a 1008-wide scroll model while rendering a 2040-wide window. The
+trace showed snap targets such as `targetOffset=-8.0` producing a rendered frame
+like `target=16,0,2040,1266` (left gap preserved, right margin lost), and the
+opposite edge snap could target about `949.6`, rendering `target=-942,0,2040,1266`.
+That proved lone-window viewport math must share a single effective-width entry
+point, not recompute from canonical cache at each call site.
+
+Final correction: introduce/use `NiriContainer.effectiveViewportWidth` for
+viewport positions, total width, snap candidates, snap bounds, visibility, and
+centering. It returns `loneWindowLayoutWidthOverride ?? cachedWidth`, so lone
+windows snap against the rendered span while ordinary multi-column layout stays
+canonical. For the exact lone-window case, snap/bounds use `0 ...
+(renderWidth - viewportWidth)` rather than synthetic `±gap` overscroll points,
+so fill windows settle with both side margins intact.
+
+Docs reviewed after implementation:
+
+- `docs/ARCHITECTURE.md` needed updates to describe `cachedWidth` as canonical,
+  `loneWindowLayoutWidthOverride` as transient, and `effectiveViewportWidth` as
+  the source of truth for viewport/snap width.
+- `docs/viewport-navigation-spec.md` needed updates because snap-grid behavior
+  now explicitly uses effective viewport width for lone-window rendering.
+- `docs/glossary.md` needed updates because the previous default-column-width
+  wording implied lone policy participates in canonical column-width resolution.
+- `docs/CONFIGURATION.md`, `docs/offscreen-clamp-fix.md`, `docs/index.md`, and
+  other docs were checked and did not require source-of-truth changes for this
+  implementation beyond the files above.
+
+Validation run after the final correction:
+
+```bash
+swift build
+swift test --filter LayoutRefreshControllerTests
+swift test --filter NiriLayoutEngineTests
+git diff --check
+```
+
+## Original code map
+
+The bug existed in the following pre-implementation code shape:
 
 - `Sources/Nehir/Core/Layout/Niri/NiriNode.swift:381` — `NiriContainer.cachedWidth`
-  is the only horizontal column width cache.
+  was the only horizontal column width cache.
 - `Sources/Nehir/Core/Layout/Niri/NiriNode.swift:389` —
   `hasManualSingleWindowWidthOverride` distinguishes user/manual lone-window
   sizing from the default lone-window policy.
@@ -250,20 +316,9 @@ entries. Change this to use the returned placement results:
 - Keep `blockedRevealTokens` / `pendingRevealTokens` semantics so a token does not
   get cleared by the later `shownEntries` loop in the same plan.
 
-## Validation plan
+## Validation completed
 
-### Before adding tests
-
-The repository rule for runtime bugs applies: do not add or rewrite tests until
-the real repro is confirmed fixed by the user.
-
-Run only implementation sanity checks first:
-
-```bash
-swift build
-```
-
-Then validate in the original repro:
+The real repro was re-run and exposed the second-stage viewport-width issue described in the completion notes. After correcting viewport/snap geometry to use `effectiveViewportWidth`, validation was completed with the commands above. The original intended runtime checks remain useful for future regressions:
 
 1. Assign one window into an inactive empty workspace and activate it.
    - Expected: if the model clears hidden state, the selected/focused token has an
@@ -278,9 +333,9 @@ Then validate in the original repro:
    - Expected two-column state: both columns have balanced/default cached widths
      and transient override is nil.
 
-### Post-confirmation regression tests
+### Future regression tests
 
-After the user confirms the real repro is fixed, add focused tests:
+No tests were added during the runtime-debug loop per repository guidance. Useful follow-up regression tests:
 
 1. `NiriLayoutEngineTests` — default fill lone window then second **moved** window
    balances columns. This must cover `moveWindowToWorkspace`, not only
@@ -304,7 +359,7 @@ swift test --filter LayoutRefreshControllerTests
 swift build
 ```
 
-## Acceptance criteria
+## Acceptance criteria — completed
 
 - No default lone-window `.fill` / centered code path writes the policy render
   width into canonical `cachedWidth`.
