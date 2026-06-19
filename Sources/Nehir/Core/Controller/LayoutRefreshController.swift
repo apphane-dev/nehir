@@ -3437,7 +3437,7 @@ import QuartzCore
 
         if let observedFrame = result.writeResult.observedFrame,
            result.writeResult.failureReason == .verificationMismatch,
-           isCellQuantizationOvershoot(target: result.targetFrame, observed: observedFrame)
+           Self.isCellQuantizationOvershoot(target: result.targetFrame, observed: observedFrame)
         {
             // Terminal/grid apps (e.g. Ghostty) snap window geometry to whole cell rows. Such
             // overshoot is bidirectional quantization, not a one-sided hard minimum: the window
@@ -3585,7 +3585,7 @@ import QuartzCore
     /// apps (terminal emulators) snap bidirectionally to whole grid lines and do not move the
     /// window, so a genuine quantization mismatch never undershoots past one cell or shifts the
     /// origin; anything larger is a real refusal/minimum and must not be swallowed here.
-    private func isCellQuantizationOvershoot(target: CGRect, observed: CGRect) -> Bool {
+    static func isCellQuantizationOvershoot(target: CGRect, observed: CGRect) -> Bool {
         let threshold = Self.cellQuantizationOvershootThreshold
         func axisOvershoot(_ targetDimension: CGFloat, _ observedDimension: CGFloat) -> CGFloat {
             observedDimension > targetDimension + 0.5 ? observedDimension - targetDimension : 0
