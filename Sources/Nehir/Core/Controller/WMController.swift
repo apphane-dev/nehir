@@ -113,7 +113,17 @@ final class WMController {
     private let restorePlanner = RestorePlanner()
     let windowRuleEngine = WindowRuleEngine()
 
-    var niriEngine: NiriLayoutEngine?
+    /// The live Niri layout engine. Reads remain module-internal; writes are
+    /// funneled through `setNiriEngine(_:)` so future ad-hoc assignments are a
+    /// compile error rather than a code-review hope.
+    private(set) var niriEngine: NiriLayoutEngine?
+
+    /// The only sanctioned way to install/replace the live Niri engine.
+    /// Reads remain module-internal; writes are funneled here so future
+    /// ad-hoc assignments are caught at compile time.
+    func setNiriEngine(_ engine: NiriLayoutEngine?) {
+        niriEngine = engine
+    }
 
     let tabbedOverlayManager = TabbedColumnOverlayManager()
     @ObservationIgnored
@@ -165,6 +175,16 @@ final class WMController {
     var niriLayoutHandler: NiriLayoutHandler {
         layoutRefreshController.niriHandler
     }
+
+    /// Narrow layout-command surface for command logic. Prefer this over the
+    /// 41-method concrete `niriLayoutHandler` so the command boundary is an
+    /// auditable type, not a code-review hope.
+    var layoutCoordinator: LayoutCoordinator { niriLayoutHandler }
+
+    /// Narrow seam for interactive-mode cancellation and focus-dependent reads,
+    /// so handlers depend on the protocol rather than reaching into `niriEngine`.
+    /// `WMController` itself conforms; see `FocusCoordinator.swift`.
+    var focusCoordinator: FocusCoordinator { self }
 
     @ObservationIgnored
     private(set) lazy var serviceLifecycleManager = ServiceLifecycleManager(controller: self)

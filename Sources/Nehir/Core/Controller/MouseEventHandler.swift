@@ -579,7 +579,7 @@ final class MouseEventHandler {
         guard let controller else { return }
 
         if state.isMoving {
-            controller.niriEngine?.interactiveMoveCancel()
+            controller.focusCoordinator.interactiveMoveCancel()
             state.dragGhostController?.endDrag()
             state.isMoving = false
             state.moveIsInsertMode = false
@@ -588,7 +588,7 @@ final class MouseEventHandler {
         }
 
         if state.isResizing {
-            controller.niriEngine?.clearInteractiveResize()
+            controller.focusCoordinator.clearInteractiveResize()
             state.isResizing = false
             state.activeInteractionButton = nil
             state.activeInteractionWorkspaceId = nil
