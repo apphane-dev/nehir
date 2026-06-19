@@ -145,6 +145,7 @@ private func cleanupRefreshTestController(_ controller: WMController) {
     controller.axManager.currentWindowsAsyncOverride = nil
     controller.axManager.fullRescanEnumerationOverrideForTests = nil
     controller.axManager.frameApplyOverrideForTests = nil
+    controller.layoutRefreshController.spaceTopologyProviderForTests = nil
     controller.axEventHandler.resetDebugStateForTests()
     controller.axEventHandler.isFullscreenProvider = nil
 }
@@ -3274,6 +3275,136 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         #expect(axState.retryBudgetCount == 0)
         #expect(axState.forceApplyWindowIdCount == 0)
         #expect(axState.inactiveWorkspaceWindowIdCount == 0)
+    }
+
+    @Test @MainActor func fullRescanPreservesWindowOnKnownInactiveNativeSpace() async {
+        let controller = makeRefreshTestController()
+        controller.axManager.fullRescanEnumerationOverrideForTests = {
+            AXManager.FullRescanEnumerationSnapshot(windows: [], failedPIDs: [])
+        }
+        guard let workspaceId = controller.interactionWorkspace()?.id,
+              let displayId = controller.workspaceManager.monitors.first?.displayId
+        else {
+            Issue.record("Missing active workspace")
+            return
+        }
+
+        let pid = getpid()
+        let windowId = 3_071
+        _ = addWindow(on: controller, workspaceId: workspaceId, pid: pid, windowId: windowId)
+        controller.layoutRefreshController.spaceTopologyProviderForTests = { _, _ in
+            SpaceTopology(
+                mode: .enabled,
+                activeSpaceIdsByDisplayId: [displayId: 10],
+                knownSpaceIds: [10, 20],
+                spaceIdsByWindowId: [UInt32(windowId): [20]]
+            )
+        }
+
+        controller.layoutRefreshController.requestFullRescan(reason: .startup)
+        await waitForRefreshWork(on: controller)
+        controller.layoutRefreshController.requestFullRescan(reason: .startup)
+        await waitForRefreshWork(on: controller)
+
+        #expect(controller.workspaceManager.entry(forPid: pid, windowId: windowId) != nil)
+        #expect(controller.layoutRefreshController.spaceTopologyDebugDump().contains("exempted=1"))
+    }
+
+    @Test @MainActor func fullRescanStillEvictsMissingWindowWithoutSpaceRecord() async {
+        let controller = makeRefreshTestController()
+        controller.axManager.fullRescanEnumerationOverrideForTests = {
+            AXManager.FullRescanEnumerationSnapshot(windows: [], failedPIDs: [])
+        }
+        guard let workspaceId = controller.interactionWorkspace()?.id,
+              let displayId = controller.workspaceManager.monitors.first?.displayId
+        else {
+            Issue.record("Missing active workspace")
+            return
+        }
+
+        let pid = getpid()
+        let windowId = 3_072
+        _ = addWindow(on: controller, workspaceId: workspaceId, pid: pid, windowId: windowId)
+        controller.layoutRefreshController.spaceTopologyProviderForTests = { _, _ in
+            SpaceTopology(
+                mode: .enabled,
+                activeSpaceIdsByDisplayId: [displayId: 10],
+                knownSpaceIds: [10, 20],
+                spaceIdsByWindowId: [:]
+            )
+        }
+
+        controller.layoutRefreshController.requestFullRescan(reason: .startup)
+        await waitForRefreshWork(on: controller)
+        #expect(controller.workspaceManager.entry(forPid: pid, windowId: windowId) != nil)
+
+        controller.layoutRefreshController.requestFullRescan(reason: .startup)
+        await waitForRefreshWork(on: controller)
+        #expect(controller.workspaceManager.entry(forPid: pid, windowId: windowId) == nil)
+    }
+
+    @Test @MainActor func fullRescanDoesNotExemptWhenSeparateSpacesDisabled() async {
+        let controller = makeRefreshTestController()
+        controller.axManager.fullRescanEnumerationOverrideForTests = {
+            AXManager.FullRescanEnumerationSnapshot(windows: [], failedPIDs: [])
+        }
+        guard let workspaceId = controller.interactionWorkspace()?.id,
+              let displayId = controller.workspaceManager.monitors.first?.displayId
+        else {
+            Issue.record("Missing active workspace")
+            return
+        }
+
+        let pid = getpid()
+        let windowId = 3_073
+        _ = addWindow(on: controller, workspaceId: workspaceId, pid: pid, windowId: windowId)
+        controller.layoutRefreshController.spaceTopologyProviderForTests = { _, _ in
+            SpaceTopology(
+                mode: .disabled,
+                activeSpaceIdsByDisplayId: [displayId: 10],
+                knownSpaceIds: [10, 20],
+                spaceIdsByWindowId: [UInt32(windowId): [20]]
+            )
+        }
+
+        controller.layoutRefreshController.requestFullRescan(reason: .startup)
+        await waitForRefreshWork(on: controller)
+        controller.layoutRefreshController.requestFullRescan(reason: .startup)
+        await waitForRefreshWork(on: controller)
+
+        #expect(controller.workspaceManager.entry(forPid: pid, windowId: windowId) == nil)
+    }
+
+    @Test @MainActor func fullRescanDoesNotExemptWindowOnActiveSpace() async {
+        let controller = makeRefreshTestController()
+        controller.axManager.fullRescanEnumerationOverrideForTests = {
+            AXManager.FullRescanEnumerationSnapshot(windows: [], failedPIDs: [])
+        }
+        guard let workspaceId = controller.interactionWorkspace()?.id,
+              let displayId = controller.workspaceManager.monitors.first?.displayId
+        else {
+            Issue.record("Missing active workspace")
+            return
+        }
+
+        let pid = getpid()
+        let windowId = 3_074
+        _ = addWindow(on: controller, workspaceId: workspaceId, pid: pid, windowId: windowId)
+        controller.layoutRefreshController.spaceTopologyProviderForTests = { _, _ in
+            SpaceTopology(
+                mode: .enabled,
+                activeSpaceIdsByDisplayId: [displayId: 10],
+                knownSpaceIds: [10, 20],
+                spaceIdsByWindowId: [UInt32(windowId): [10]]
+            )
+        }
+
+        controller.layoutRefreshController.requestFullRescan(reason: .startup)
+        await waitForRefreshWork(on: controller)
+        controller.layoutRefreshController.requestFullRescan(reason: .startup)
+        await waitForRefreshWork(on: controller)
+
+        #expect(controller.workspaceManager.entry(forPid: pid, windowId: windowId) == nil)
     }
 
     @Test @MainActor func fullRescanClearsFocusedFloatingBorderWhenWindowMissing() async {

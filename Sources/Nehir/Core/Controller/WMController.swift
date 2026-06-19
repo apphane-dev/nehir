@@ -3014,6 +3014,8 @@ final class WMController {
             focusTargetDebugDump(),
             "-- Monitor Topology --",
             workspaceManager.monitorTopologyDebugDump(),
+            "-- SpaceTopology --",
+            layoutRefreshController.spaceTopologyDebugDump(),
             "-- WorkspaceManager --",
             workspaceManager.runtimeStateDebugSummary(),
             "-- AXManager --",
