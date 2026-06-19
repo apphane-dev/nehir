@@ -202,6 +202,7 @@ extension NiriLayoutEngine {
                 let widthDelta = column.cachedWidth - originalWidth
                 viewportState { state in
                     state.viewOffsetPixels = .static(origOffset + widthDelta)
+                    state.preservesUnsnappedGestureOffset = false
                 }
             }
         }

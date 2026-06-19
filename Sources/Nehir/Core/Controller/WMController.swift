@@ -236,6 +236,16 @@ final class WMController {
         runtimeTraceCaptureSession != nil
     }
 
+    /// Test-only read access to captured mouse-focus traces. Trace capture must be active.
+    func runtimeMouseTraceRecordsForTests() -> [String] {
+        runtimeMouseTraceRecords
+    }
+
+    /// Test-only read access to captured viewport traces. Trace capture must be active.
+    func runtimeViewportTraceRecordsForTests() -> [String] {
+        runtimeViewportTraceRecords
+    }
+
     let animationClock = AnimationClock()
     let motionPolicy: MotionPolicy
     private let windowFocusOperations: WindowFocusOperations
@@ -2371,6 +2381,7 @@ final class WMController {
             "targetViewStart=\(targetViewStartText)",
             "gesture=\(state.viewOffsetPixels.isGesture)",
             "animating=\(state.viewOffsetPixels.isAnimating)",
+            "preserveUnsnapped=\(state.preservesUnsnappedGestureOffset)",
             "selectedNode=\(selectedNode)",
             "preferredFocus=\(preferredFocus)",
             "confirmedFocus=\(confirmedFocus)",

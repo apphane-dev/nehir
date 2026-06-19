@@ -482,6 +482,7 @@ extension NiriLayoutEngine {
             state.activeColumnIndex = activeIdx - 1
             state.activatePrevColumnOnRemoval = nil
             state.viewOffsetPixels = .static(previousOffset)
+            state.preservesUnsnappedGestureOffset = false
             viewportNeedsRecalc = true
             fallbackSelectionId = fallbackSelectionFromActiveColumn(
                 in: workspaceId,

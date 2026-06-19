@@ -64,6 +64,7 @@ extension ViewportState {
     ) {
         guard motion.animationsEnabled else {
             viewOffsetPixels = .static(offset)
+            preservesUnsnappedGestureOffset = false
             return
         }
 
@@ -73,6 +74,7 @@ extension ViewportState {
         let toDiff = offset - viewOffsetPixels.target()
         if abs(toDiff) < pixel {
             viewOffsetPixels.offset(delta: Double(toDiff))
+            preservesUnsnappedGestureOffset = false
             return
         }
 
@@ -88,19 +90,23 @@ extension ViewportState {
             displayRefreshRate: displayRefreshRate
         )
         viewOffsetPixels = .spring(animation)
+        preservesUnsnappedGestureOffset = false
     }
 
     mutating func cancelAnimation() {
         viewOffsetPixels = .static(viewOffsetPixels.target())
+        preservesUnsnappedGestureOffset = false
     }
 
     mutating func settleAtCurrentOffset() {
         viewOffsetPixels = .static(viewOffsetPixels.current())
+        preservesUnsnappedGestureOffset = false
     }
 
     mutating func reset() {
         activeColumnIndex = 0
         viewOffsetPixels = .static(0.0)
+        preservesUnsnappedGestureOffset = false
         selectionProgress = 0.0
         selectedNodeId = nil
     }
@@ -108,6 +114,7 @@ extension ViewportState {
     mutating func offsetViewport(by delta: CGFloat) {
         let current = viewOffsetPixels.current()
         viewOffsetPixels = .static(current + delta)
+        preservesUnsnappedGestureOffset = false
     }
 
     mutating func saveViewOffsetForFullscreen() {
@@ -116,6 +123,7 @@ extension ViewportState {
 
     mutating func restoreViewOffset(_ offset: CGFloat) {
         viewOffsetPixels = .static(offset)
+        preservesUnsnappedGestureOffset = false
         viewOffsetToRestore = nil
     }
 
@@ -127,6 +135,7 @@ extension ViewportState {
 
         guard motion.animationsEnabled else {
             viewOffsetPixels = .static(offset)
+            preservesUnsnappedGestureOffset = false
             viewOffsetToRestore = nil
             return
         }
@@ -144,6 +153,7 @@ extension ViewportState {
             displayRefreshRate: displayRefreshRate
         )
         viewOffsetPixels = .spring(animation)
+        preservesUnsnappedGestureOffset = false
         viewOffsetToRestore = nil
     }
 
