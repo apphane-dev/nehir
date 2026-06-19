@@ -44,3 +44,20 @@ still stand on its own without opening the link.
 
 Code citations (file + line, e.g. `AXEventHandler.swift:1790`) are fine and
 encouraged — they point at durable source, not ephemeral runtime output.
+
+## Discovery documents: do not encode machine-specific paths
+
+When writing durable planning or discovery documents, **do not include local
+machine-specific filesystem paths** such as `/Users/...`, worktree checkout paths,
+`~/.herdr/...`, `~/.local/...`, or absolute paths to the main source checkout.
+
+Use repository-relative source paths instead, for example:
+
+- `Sources/Nehir/Core/Controller/WorkspaceNavigationHandler.swift`
+- `Tests/NehirTests/WorkspaceNavigationHandlerTests.swift`
+- `discovery/20260618-stale-session-selection-revision-guard.md`
+
+For verification/provenance wording, say "verified against the main Nehir source
+tree" or "verified against `main` on YYYY-MM-DD" rather than naming the local
+checkout path. Durable docs must remain useful on another machine, in another
+worktree, and after local trace/worktree cleanup.
