@@ -16,6 +16,7 @@ final class MoveDemoModel: ObservableObject {
 
     struct Column: Identifiable, Equatable {
         let id: Int
+        /// Visual order, top-to-bottom, for SwiftUI rendering and hit-testing.
         var windows: [Window]
         var count: Int { windows.count }
     }
@@ -33,10 +34,7 @@ final class MoveDemoModel: ObservableObject {
         let action: String
     }
 
-    @Published private(set) var workspaces: [Workspace]
-    @Published private(set) var currentWorkspaceIndex: Int = 0
-    @Published private(set) var focusedColumnId: Int
-    @Published private(set) var focusedWindowId: Int
+    @Published private var world: CoreWorld<Int, Int>
 
     /// Horizontal scroll position (left-origin). `0` shows the leftmost columns; the track
     /// is offset by `-scrollX`.
@@ -49,7 +47,8 @@ final class MoveDemoModel: ObservableObject {
     @Published var paletteOpen = false
     @Published var paletteSelection = 0
 
-    private var columnIdSeed: Int
+    private var symbolsByWindowID: [Int: String]
+    private var workspaceLabelsByID: [Int: String]
 
     // Fixed geometry so scroll math is deterministic (never derived from measured layout).
     let viewportWidth: CGFloat = 150
@@ -95,27 +94,44 @@ final class MoveDemoModel: ObservableObject {
             let symbol = ws2Symbols[(i + 2) % ws2Symbols.count]
             return Column(id: 200 + i, windows: [Window(id: 200 + i, symbol: symbol)])
         }
-        workspaces = [
+        let seededWorkspaces = [
             Workspace(id: 0, label: "1", columns: ws0),
             Workspace(id: 1, label: "2", columns: ws1),
             Workspace(id: 2, label: "3", columns: ws2)
         ]
-        columnIdSeed = 1000
-        focusedColumnId = ws0.first?.id ?? 0
-        focusedWindowId = ws0.first?.windows.first?.id ?? 0
-    }
 
-    private func nextColumnId() -> Int {
-        columnIdSeed += 1
-        return columnIdSeed
+        symbolsByWindowID = Dictionary(
+            uniqueKeysWithValues: seededWorkspaces
+                .flatMap(\.columns)
+                .flatMap(\.windows)
+                .map { ($0.id, $0.symbol) }
+        )
+        workspaceLabelsByID = Dictionary(uniqueKeysWithValues: seededWorkspaces.map { ($0.id, $0.label) })
+        world = Self.makeWorld(fromVisualWorkspaces: seededWorkspaces, nextColumnID: 1001)
     }
 
     // MARK: Derived
 
+    var workspaces: [Workspace] { Self.makeVisualWorkspaces(from: world, symbolsByWindowID: symbolsByWindowID, labelsByWorkspaceID: workspaceLabelsByID) }
+
+    var currentWorkspaceIndex: Int { world.activeWorkspaceIndex }
+
+    var focusedColumnId: Int {
+        guard let workspace = world.activeWorkspace,
+              let activeColumnIndex = workspace.activeColumnIndex,
+              workspace.columns.indices.contains(activeColumnIndex)
+        else { return 0 }
+        return workspace.columns[activeColumnIndex].id.rawValue
+    }
+
+    var focusedWindowId: Int {
+        world.activeWorkspace?.focusedWindowID ?? 0
+    }
+
     var currentWorkspace: Workspace { workspaces[currentWorkspaceIndex] }
 
     private var focusedColumnIndex: Int? {
-        workspaces[currentWorkspaceIndex].columns.firstIndex { $0.id == focusedColumnId }
+        world.activeWorkspace?.activeColumnIndex
     }
 
     var contentWidth: CGFloat {
@@ -155,31 +171,102 @@ final class MoveDemoModel: ObservableObject {
         animateFocusIfNeeded { self.scrollX = target }
     }
 
+    private static func makeWorld(fromVisualWorkspaces workspaces: [Workspace], nextColumnID: Int) -> CoreWorld<Int, Int> {
+        CoreWorld(
+            workspaces: workspaces.map { workspace in
+                CoreWorkspace(
+                    id: workspace.id,
+                    columns: workspace.columns.map { column in
+                        let storageWindows = column.windows.reversed().map { CoreWindow(id: $0.id) }
+                        return CoreColumn(
+                            id: CoreColumnID(rawValue: column.id),
+                            windows: Array(storageWindows),
+                            activeWindowIndex: max(0, column.windows.count - 1)
+                        )
+                    },
+                    activeColumnIndex: workspace.columns.isEmpty ? nil : 0
+                )
+            },
+            activeWorkspaceIndex: 0,
+            nextColumnID: nextColumnID,
+            config: PureLayoutConfig(infiniteLoop: false)
+        )
+    }
+
+    private static func makeVisualWorkspaces(
+        from world: CoreWorld<Int, Int>,
+        symbolsByWindowID: [Int: String],
+        labelsByWorkspaceID: [Int: String]
+    ) -> [Workspace] {
+        world.workspaces.map { workspace in
+            Workspace(
+                id: workspace.id,
+                label: labelsByWorkspaceID[workspace.id] ?? "\(workspace.id)",
+                columns: workspace.columns.map { column in
+                    Column(
+                        id: column.id.rawValue,
+                        windows: column.windows.reversed().map { window in
+                            Window(id: window.id, symbol: symbolsByWindowID[window.id] ?? Self.symbols[abs(window.id) % Self.symbols.count])
+                        }
+                    )
+                }
+            )
+        }
+    }
+
+    private static func focusedColumnID(in world: CoreWorld<Int, Int>) -> Int? {
+        guard let workspace = world.activeWorkspace,
+              let activeColumnIndex = workspace.activeColumnIndex,
+              workspace.columns.indices.contains(activeColumnIndex)
+        else { return nil }
+        return workspace.columns[activeColumnIndex].id.rawValue
+    }
+
+    private func commitWorld(_ newWorld: CoreWorld<Int, Int>, resetScroll: Bool = false, scrollToFocusedColumn: Bool = true) {
+        guard newWorld != world || resetScroll else { return }
+        let visualWorkspaces = Self.makeVisualWorkspaces(from: newWorld, symbolsByWindowID: symbolsByWindowID, labelsByWorkspaceID: workspaceLabelsByID)
+        let targetColumnID = Self.focusedColumnID(in: newWorld) ?? focusedColumnId
+        let targetScroll = resetScroll ? CGFloat(0) : (scrollToFocusedColumn ? scrollCentering(columns: visualWorkspaces[newWorld.activeWorkspaceIndex].columns, columnId: targetColumnID) : scrollX)
+        animateFocusIfNeeded {
+            world = newWorld
+            scrollX = targetScroll
+        }
+    }
+
     // MARK: Focus
 
     func focusColumn(_ id: Int) {
-        guard let col = currentWorkspace.columns.first(where: { $0.id == id }) else { return }
-        let targetScroll = scrollCentering(columnId: id)
-        animateFocusIfNeeded {
-            focusedColumnId = id
-            focusedWindowId = col.windows.first?.id ?? focusedWindowId
-            scrollX = targetScroll
-        }
+        guard let workspace = world.activeWorkspace,
+              let columnIndex = workspace.columns.firstIndex(where: { $0.id.rawValue == id })
+        else { return }
+        let column = workspace.columns[columnIndex]
+        guard !column.windows.isEmpty else { return }
+        let newWorld = PureLayoutReducer.focusWindow(
+            columnIndex: columnIndex,
+            windowStorageIndex: column.windows.count - 1,
+            in: world
+        )
+        commitWorld(newWorld)
     }
 
-    /// Focuses a specific window within a column by stack index.
+    /// Focuses a specific window within a column by visual stack index.
     func focusWindow(columnId: Int, index: Int) {
-        guard let col = currentWorkspace.columns.first(where: { $0.id == columnId }) else { return }
-        let clamped = min(max(index, 0), col.windows.count - 1)
-        let targetScroll = scrollCentering(columnId: columnId)
-        animateFocusIfNeeded {
-            focusedColumnId = columnId
-            focusedWindowId = col.windows.indices.contains(clamped) ? col.windows[clamped].id : focusedWindowId
-            scrollX = targetScroll
-        }
+        guard let workspace = world.activeWorkspace,
+              let columnIndex = workspace.columns.firstIndex(where: { $0.id.rawValue == columnId })
+        else { return }
+        let column = workspace.columns[columnIndex]
+        guard !column.windows.isEmpty else { return }
+        let visualIndex = min(max(index, 0), column.windows.count - 1)
+        let storageIndex = column.windows.count - 1 - visualIndex
+        let newWorld = PureLayoutReducer.focusWindow(
+            columnIndex: columnIndex,
+            windowStorageIndex: storageIndex,
+            in: world
+        )
+        commitWorld(newWorld)
     }
 
-    /// Hit-tests the canvas at `screenX`. Returns the column id and the window stack index
+    /// Hit-tests the canvas at `screenX`. Returns the column id and the visual window stack index
     /// under the point (so clicking a stacked window focuses that specific window, not just
     /// the top of the stack). `canvasWidth` is the drawn width; `scrollX` is the current scroll.
     /// The first column's left edge sits at `(canvasWidth - viewportWidth)/2 - scrollX`.
@@ -202,7 +289,7 @@ final class MoveDemoModel: ObservableObject {
         guard let xy = resolveHit(screenX: screenX, canvasWidth: canvasWidth) else { return nil }
         let column = currentWorkspace.columns.first(where: { $0.id == xy.columnId }) ?? currentWorkspace.columns[0]
         guard column.windows.count > 1 else { return xy }
-        // Window tiles divide the column height; map y → stack index.
+        // Window tiles divide the column height; map y → visual stack index.
         let columnTop = (canvasHeight - columnHeight) / 2
         let relY = screenY - columnTop
         let available = columnHeight - 6 - CGFloat(column.windows.count - 1) * windowSpacing
@@ -213,75 +300,29 @@ final class MoveDemoModel: ObservableObject {
     }
 
     func focusLeft() {
-        guard let i = focusedColumnIndex, i > 0 else { return }
-        focusColumn(currentWorkspace.columns[i - 1].id)
+        commitWorld(PureLayoutReducer.focus(.left, in: world))
     }
 
     func focusRight() {
-        guard let i = focusedColumnIndex, i < currentWorkspace.columns.count - 1 else { return }
-        focusColumn(currentWorkspace.columns[i + 1].id)
+        commitWorld(PureLayoutReducer.focus(.right, in: world))
     }
 
     func focusUp() {
-        guard let col = currentWorkspace.columns.first(where: { $0.id == focusedColumnId }),
-              let i = col.windows.firstIndex(where: { $0.id == focusedWindowId }),
-              i > 0
-        else { return }
-        animateFocusIfNeeded { focusedWindowId = col.windows[i - 1].id }
+        commitWorld(PureLayoutReducer.focus(.up, in: world))
     }
 
     func focusDown() {
-        guard let col = currentWorkspace.columns.first(where: { $0.id == focusedColumnId }),
-              let i = col.windows.firstIndex(where: { $0.id == focusedWindowId }),
-              i < col.windows.count - 1
-        else { return }
-        animateFocusIfNeeded { focusedWindowId = col.windows[i + 1].id }
+        commitWorld(PureLayoutReducer.focus(.down, in: world))
     }
 
     // MARK: Move (consume-or-expel)
 
-    /// Niri move-left/right. A window that shares a column **expels** into its own new column
+    /// Niri move-left/right. A window that shares a column **expels** it into its own new column
     /// (placed on the moved-toward side); a solo window **collocates** into the neighbour
     /// column (stacking), and its now-empty source column collapses.
     func moveFocusedWindow(direction: Int) {
-        guard direction == -1 || direction == 1 else { return }
-        guard let i = focusedColumnIndex else { return }
-        var cols = currentWorkspace.columns
-        guard let winIndex = cols[i].windows.firstIndex(where: { $0.id == focusedWindowId }) else { return }
-
-        if cols[i].windows.count > 1 {
-            // EXPEL: pull the focused window into a new solo column on the direction side.
-            let window = cols[i].windows.remove(at: winIndex)
-            let newColumn = Column(id: nextColumnId(), windows: [window])
-            let insertIndex = direction == 1 ? i + 1 : i
-            let clamped = min(max(insertIndex, 0), cols.count)
-            cols.insert(newColumn, at: clamped)
-            commitMove(columns: cols, focusedColumnId: newColumn.id, focusedWindowId: window.id)
-        } else {
-            // CONSUME: collocate into the neighbour column on the direction side; source collapses.
-            let target = i + direction
-            guard cols.indices.contains(target) else { return }
-            let window = cols[i].windows[0]
-            cols.remove(at: i)
-            // After removing source at i, resolve the neighbour's new index:
-            //  - direction == 1  (neighbour was i+1) → shifts down to i
-            //  - direction == -1 (neighbour was i-1) → stays at i-1
-            let resolvedTarget = direction == 1 ? i : i - 1
-            cols[resolvedTarget].windows.append(window)
-            commitMove(columns: cols, focusedColumnId: cols[resolvedTarget].id, focusedWindowId: window.id)
-        }
-    }
-
-    /// Commits a move: structure change + focus + scroll all in one animation transaction so the
-    /// reflow, highlight, and viewport track stay in sync.
-    private func commitMove(columns: [Column], focusedColumnId: Int, focusedWindowId: Int) {
-        let targetScroll = scrollCentering(columns: columns, columnId: focusedColumnId)
-        animateFocusIfNeeded {
-            workspaces[currentWorkspaceIndex].columns = columns
-            self.focusedColumnId = focusedColumnId
-            self.focusedWindowId = focusedWindowId
-            scrollX = targetScroll
-        }
+        guard let pureDirection = horizontalDirection(for: direction) else { return }
+        commitWorld(PureLayoutReducer.moveFocusedWindow(pureDirection, in: world))
     }
 
     // MARK: ⌥-drag column reorder
@@ -305,8 +346,7 @@ final class MoveDemoModel: ObservableObject {
         let rawOffset = Int((dragTranslation / max(slotWidth, 1)).rounded())
         let to = min(max(from + rawOffset, 0), currentWorkspace.columns.count - 1)
         if to != from {
-            let col = workspaces[currentWorkspaceIndex].columns.remove(at: from)
-            workspaces[currentWorkspaceIndex].columns.insert(col, at: to)
+            reorderColumnInWorld(from: from, to: to)
         }
         cancelColumnDrag()
         ensureFocusedVisible()
@@ -322,22 +362,38 @@ final class MoveDemoModel: ObservableObject {
         guard let from = currentWorkspace.columns.firstIndex(where: { $0.id == columnId }) else { return }
         let to = min(max(from + delta, 0), currentWorkspace.columns.count - 1)
         guard to != from else { return }
-        let col = workspaces[currentWorkspaceIndex].columns.remove(at: from)
-        workspaces[currentWorkspaceIndex].columns.insert(col, at: to)
+        reorderColumnInWorld(from: from, to: to)
         ensureFocusedVisible()
+    }
+
+    private func reorderColumnInWorld(from: Int, to: Int) {
+        var newWorld = world
+        guard newWorld.workspaces.indices.contains(newWorld.activeWorkspaceIndex),
+              newWorld.workspaces[newWorld.activeWorkspaceIndex].columns.indices.contains(from),
+              newWorld.workspaces[newWorld.activeWorkspaceIndex].columns.indices.contains(to)
+        else { return }
+
+        let activeColumnID = newWorld.activeWorkspace.flatMap { workspace -> CoreColumnID? in
+            guard let activeColumnIndex = workspace.activeColumnIndex,
+                  workspace.columns.indices.contains(activeColumnIndex)
+            else { return nil }
+            return workspace.columns[activeColumnIndex].id
+        }
+
+        let col = newWorld.workspaces[newWorld.activeWorkspaceIndex].columns.remove(at: from)
+        newWorld.workspaces[newWorld.activeWorkspaceIndex].columns.insert(col, at: to)
+        if let activeColumnID,
+           let activeIndex = newWorld.workspaces[newWorld.activeWorkspaceIndex].columns.firstIndex(where: { $0.id == activeColumnID })
+        {
+            newWorld.workspaces[newWorld.activeWorkspaceIndex].activeColumnIndex = activeIndex
+        }
+        world = newWorld
     }
 
     // MARK: Workspace
 
     func switchWorkspace(by delta: Int) {
-        let next = currentWorkspaceIndex + delta
-        guard workspaces.indices.contains(next) else { return }
-        animateFocusIfNeeded {
-            currentWorkspaceIndex = next
-            scrollX = 0
-            focusedColumnId = workspaces[next].columns.first?.id ?? focusedColumnId
-            focusedWindowId = workspaces[next].columns.first?.windows.first?.id ?? focusedWindowId
-        }
+        commitWorld(PureLayoutReducer.switchWorkspace(by: delta, in: world), resetScroll: true)
     }
 
     // MARK: Palette
@@ -380,14 +436,24 @@ final class MoveDemoModel: ObservableObject {
 
     /// Moves the focused window up/down within its column stack (reorders the stack).
     func moveFocusedWindowVertical(direction: Int) {
-        guard direction == -1 || direction == 1 else { return }
-        guard let colIndex = focusedColumnIndex else { return }
-        var cols = currentWorkspace.columns
-        guard let winIndex = cols[colIndex].windows.firstIndex(where: { $0.id == focusedWindowId }) else { return }
-        let target = winIndex + direction
-        guard cols[colIndex].windows.indices.contains(target) else { return }
-        cols[colIndex].windows.swapAt(winIndex, target)
-        workspaces[currentWorkspaceIndex].columns = cols
+        guard let pureDirection = verticalDirection(for: direction) else { return }
+        commitWorld(PureLayoutReducer.moveFocusedWindow(pureDirection, in: world), scrollToFocusedColumn: false)
+    }
+
+    private func horizontalDirection(for direction: Int) -> PureDirection? {
+        switch direction {
+        case -1: .left
+        case 1: .right
+        default: nil
+        }
+    }
+
+    private func verticalDirection(for direction: Int) -> PureDirection? {
+        switch direction {
+        case -1: .up
+        case 1: .down
+        default: nil
+        }
     }
 }
 
