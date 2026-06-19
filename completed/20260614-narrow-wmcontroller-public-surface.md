@@ -327,3 +327,114 @@ partially after Phase 1.
 - Every surviving `.niriEngine` read is documented in the Phase 4 table with a one-line
   justification.
 - All phases are no-behavior-change: `swift build` clean and `swift test` green after each.
+
+---
+
+## Outcome (completed 2026-06-19)
+
+Shipped on branch `patch/narrow-wmcontroller-public-surface` as three independently-shippable,
+no-behavior-change commits. Reviewer verdict: **all four success criteria PASS** with file:line
+evidence; no plan risk materialized; all non-goals honored; `swift build` clean.
+
+| Phase | Commit | Summary |
+|---|---|---|
+| 1 — `setNiriEngine` funnel | `a968a7a6` | `niriEngine` → `private(set)`; single `setNiriEngine(_:)` mutation funnel; the one prior write site in `NiriLayoutHandler.enableNiriLayout` now calls it. Pure — the three post-assignment side effects stay at the call site. |
+| 2 — `LayoutCoordinator` | `cb08c462` | New `LayoutCoordinator` protocol (21 members, derived from exactly what `CommandHandler` calls); `NiriLayoutHandler` conforms via a free extension; `WMController.layoutCoordinator` computed; all 34 `CommandHandler` reach-throughs migrated. |
+| 3 — `FocusCoordinator` | `41902e64` | New `FocusCoordinator` protocol (4 members) + `WMController` adaptor forwarding to `niriEngine`; `MouseEventHandler`'s two interactive-cancel calls and `FocusBorderController`'s fullscreen read migrated off direct `niriEngine`. |
+| 4 — audit | (doc only) | Surviving-reads table below; no source changed, nothing committed. |
+
+**Total diff vs `main`:** 167 insertions / 43 deletions across 7 files
+(`FocusCoordinator.swift`, `LayoutCoordinator.swift` new; `WMController.swift`, `CommandHandler.swift`,
+`NiriLayoutHandler.swift`, `MouseEventHandler.swift`, `FocusBorderController.swift` changed).
+
+**Validation:** baseline `swift test` = 1251 tests / 101 suites / 0 failures on `main`; identical
+1251/0 after each of Phases 1–3. No behavior change — the protocols are pure type-level
+indirection over the unchanged concrete object.
+
+### Corrections vs. this plan's signatures (real code wins)
+
+The plan's listed signatures were treated as a guide, not a contract; the protocol matches the
+concrete methods:
+- `activateNode` takes `options: NodeActivationOptions` (the plan said `NiriActivationOptions`).
+  Real type defined at `Sources/Nehir/Core/Controller/NiriLayoutHandler.swift:1992`. Protocol
+  requirements omit default values; both call sites pass explicit `options:`, so conformance holds.
+- `withNiriWorkspaceContext` has two concrete overloads; only the trailing-closure form
+  `CommandHandler` uses is on the protocol.
+- `FocusBorderController` lives at `Sources/Nehir/Core/Border/FocusBorderController.swift`
+  (the plan said `Core/Controller/`).
+- `findNode(for: WindowToken)` returns `NiriWindow?`, not `NiriNode?`; the `FocusCoordinator`
+  adaptor upcasts covariantly (`NiriWindow: NiriNode`).
+
+### Notes for a future reviewer
+- `FocusCoordinator.focusedNode(for:)` is on the protocol (the plan's Proposed model enumerated
+  all four members) but has **zero consumers today**. The protocol as a whole clears the
+  over-extraction threshold (4 members across 2 consumers — `MouseEventHandler` +
+  `FocusBorderController`), so the named-method fallback did not apply. Flagged so it is not
+  mistaken for dead code in a later audit.
+- `NiriLayoutHandler` method bodies are unchanged on this branch — the only edit to that file is
+  the single line at `:1532` (the `setNiriEngine` call). Its `weak controller` back-reference is
+  untouched.
+
+## Phase 4 — surviving `.niriEngine` reads (the audit deliverable)
+
+Measured against the post-Phase-3 source (2026-06-19). `FocusBorderController` now has **0**
+direct `niriEngine` reads (Phase 3 moved it fully behind `FocusCoordinator`).
+
+| Bucket | Count | Notes |
+|---|---|---|
+| External production reads (`Sources/`, excl. `WMController.swift` + `NiriLayoutHandler.swift`) | **31** | across 9 files. Plan's original 34 − 3 migrated by Phase 3 = 31. |
+| Internal — `WMController.swift` | 22 (+ storage decl + write funnel) | orchestrator self-use |
+| Internal — `NiriLayoutHandler.swift` | 17 | the handler IS the engine coordinator; layout-pipeline internals |
+| Test reads — `Tests/NehirTests/` | **104** | sanctioned inspection seam; `private(set)` keeps them working. Intentionally NOT migrated (plan non-goal). |
+
+### The 31 external production reads
+
+| # | file:line | classification | why it stays a direct read |
+|---|---|---|---|
+| 1 | `AXEventHandler.swift:1270` | window-state AX lookup | per-window tabbed-hidden check deciding whether an AX confirm animates |
+| 2 | `AXEventHandler.swift:1287` | structural-mutation support | pre-removal frame-diff bookkeeping for a window being destroyed; co-located with the mutation it brackets |
+| 3 | `AXEventHandler.swift:2191` | **rendered-frame AX lookup** ⚑ | focus-confirmation mouse positioning; one of 3 `renderedFrame ?? frame` sites |
+| 4 | `AXEventHandler.swift:2641` | structural mutation behind a handler method | engine API for token rekey; already a named method, not ad-hoc state |
+| 5 | `AXEventHandler.swift:3613` | **rendered-frame AX lookup** ⚑ | border refresh after managed rekey; one of 3 `renderedFrame ?? frame` sites |
+| 6 | `CommandHandler.swift:437` | navigation node-query (residual) | private generic node-lookup helper; not a command-surface method, so it stayed off `LayoutCoordinator`. Single consumer |
+| 7 | `LayoutRefreshController.swift:383` | refresh-pipeline relayout | refresh pipeline applying frames; plan-named sanctioned seam |
+| 8 | `LayoutRefreshController.swift:3468` | refresh-pipeline relayout | learned constraints applied during refresh |
+| 9 | `LayoutRefreshController.swift:4002` | refresh-pipeline relayout | focus-driven tabbed-window reordering on a refresh diff |
+| 10–18 | `MouseEventHandler.swift:868,1001,1042,1078,1112,1281,1454,1894,1909` | interactive pointer/gesture handling (9) | heterogeneous mouse/gesture engine use (workspace resolution, hit-test, gesture acquire/finalize); NOT the command surface and NOT a single repeated query. Phase 3 moved only the 2 cancel ops; these 9 are interactive-mode plumbing |
+| 19 | `ServiceLifecycleManager.swift:144` | lifecycle/topology sync | monitor-disconnect cleanup; plan-named sanctioned seam |
+| 20 | `WindowActionHandler.swift:397` | navigation focus query | workspace-navigation focus-target resolution |
+| 21 | `WindowActionHandler.swift:454` | structural-mutation support | insert-index computation for a workspace move |
+| 22–29 | `WorkspaceNavigationHandler.swift:101,267,376,499,554,621,672,741` | navigation focus/column query (8) | workspace-switch focus restoration + move source/target resolution. A coherent *navigation* cluster (not command-surface, so off `LayoutCoordinator`). Single consumer |
+| 30 | `OverviewController.swift:314` | whole-layout snapshot | read-only overview snapshot; plan-named sanctioned seam |
+| 31 | `IPCQueryRouter.swift:140` | whole-layout snapshot / ordering | IPC workspace-entry ordering; plan-named sanctioned seam |
+
+### Internal reads (not exhaustively relisted)
+
+- **`WMController.swift`** (orchestrator self-use): activation gate `if niriEngine == nil`;
+  config-update cache invalidation `niriEngine?.invalidateCachedLayoutSpans()`; monitor
+  orientation sync; workspace-bar ordering handed into `WorkspaceBarDataSource`; diagnostics /
+  relayout helpers; and the keyboard-focus `renderedFrame ?? frame` query at `:4001` ⚑
+  (third site of that pattern).
+- **`NiriLayoutHandler.swift`**: all 17 are layout-pipeline internals —
+  `withNiriWorkspaceContext` / `withNiriOperationContext` guards, `syncMonitorsToNiriEngine`,
+  `refreshResolvedMonitorSettings`, `updateConfiguration`, orientation resolution, and the
+  engine-presence guards gating every layout op.
+
+### `LayoutStateQuery` decision (the plan's `>1-consumer` rule)
+
+The pattern `niriEngine?.findNode(for: token).flatMap { $0.renderedFrame ?? $0.frame }` appears at
+**3 sites / 2 files**: `AXEventHandler.swift:2191`, `AXEventHandler.swift:3613`,
+`WMController.swift:4001`. The `>1 consumer` threshold **is met**, so a narrow
+`LayoutStateQuery { func renderedFrame(for:) -> CGRect? }` is justified.
+
+**Deferred to a follow-up**, not part of this no-behavior-change plan. It is borderline — two of
+three sites share a file (`AXEventHandler`), so the *minimum* dedup is a `private func` helper
+there rather than a module protocol; the protocol only pays off if site (c) or a 4th consumer also
+migrates. The fullscreen query is already behind `FocusCoordinator` as of Phase 3; no other
+consumer. If a separate small plan is wanted, the choice is: ship `LayoutStateQuery` for a durable
+read seam, or just a `private renderedFrame(for:)` helper in `AXEventHandler`.
+
+### Pointer
+
+Discovery doc: [`discovery/20260613-codebase-review-findings.md`](../discovery/20260613-codebase-review-findings.md)
+— §7 "Narrow WMController's public surface".
