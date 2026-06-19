@@ -3777,7 +3777,14 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         )
         await waitForRefreshWork(on: controller)
 
-        #expect(affectedWorkspaceSnapshots.last == [])
+        // P2 coalescing: same-kind refreshes no longer cancel the active task, so
+        // the active GLOBAL relayout runs to completion and the later scoped
+        // relayout runs as a follow-up. The invariant this test guards — a
+        // pending global relayout is not narrowed away by a scoped one — still
+        // holds: a global-scope pass (empty affected set) is executed, followed
+        // by the scoped catch-up pass.
+        #expect(affectedWorkspaceSnapshots.contains([]))
+        #expect(affectedWorkspaceSnapshots.contains([workspaceId]))
     }
 
     @Test @MainActor func appLifecycleUsesFullRescan() async {
@@ -4112,6 +4119,103 @@ private func syncNiriWorkspaceStatesForRefreshTests(
 
         #expect(relayoutEvents.map(\.0) == [.workspaceTransition, .gapsChanged])
         #expect(relayoutEvents.map(\.1) == [.immediateRelayout, .relayout])
+    }
+
+    // MARK: - P2: same-kind refreshes coalesce without cancelling the active task
+
+    @Test @MainActor func immediateRelayoutCoalescesWithActiveImmediateRelayoutWithoutCancelling() async {
+        let controller = makeRefreshTestController()
+        let gate = AsyncGate()
+        var relayoutEvents: [(RefreshReason, LayoutRefreshController.RefreshRoute)] = []
+        var sampledCancellation = false
+        var activeWasCancelled: Bool?
+
+        controller.layoutRefreshController.resetDebugState()
+        controller.layoutRefreshController.debugHooks.onRelayout = { reason, route in
+            relayoutEvents.append((reason, route))
+            if route == .immediateRelayout {
+                await gate.wait()
+                // Sample only on the active (first) traversal; the coalesced
+                // pending is a fresh task whose isCancelled would mask a regression.
+                if !sampledCancellation {
+                    sampledCancellation = true
+                    activeWasCancelled = Task.isCancelled
+                }
+            }
+            return true
+        }
+
+        controller.layoutRefreshController.requestImmediateRelayout(reason: .workspaceTransition)
+        await waitUntil { relayoutEvents.count == 1 }
+        // Same-kind arrival while the active task is parked: must merge, not cancel.
+        controller.layoutRefreshController.requestImmediateRelayout(reason: .appActivationTransition)
+
+        gate.open()
+        await waitForRefreshWork(on: controller)
+
+        #expect(activeWasCancelled == false)
+        #expect(relayoutEvents.map(\.1) == [.immediateRelayout, .immediateRelayout])
+    }
+
+    @Test @MainActor func relayoutCoalescesWithActiveRelayoutWithoutCancelling() async {
+        let controller = makeRefreshTestController()
+        let gate = AsyncGate()
+        var relayoutEvents: [(RefreshReason, LayoutRefreshController.RefreshRoute)] = []
+        var sampledCancellation = false
+        var activeWasCancelled: Bool?
+
+        controller.layoutRefreshController.resetDebugState()
+        controller.layoutRefreshController.debugHooks.onRelayout = { reason, route in
+            relayoutEvents.append((reason, route))
+            if route == .relayout {
+                await gate.wait()
+                if !sampledCancellation {
+                    sampledCancellation = true
+                    activeWasCancelled = Task.isCancelled
+                }
+            }
+            return true
+        }
+
+        // Both reasons route as .relayout with .plain scheduling (zero debounce),
+        // so neither side sleeps before the gated hook.
+        controller.layoutRefreshController.requestRelayout(reason: .gapsChanged)
+        await waitUntil { relayoutEvents.count == 1 }
+        controller.layoutRefreshController.requestRelayout(reason: .windowRuleReevaluation)
+
+        gate.open()
+        await waitForRefreshWork(on: controller)
+
+        #expect(activeWasCancelled == false)
+        #expect(relayoutEvents.map(\.0) == [.gapsChanged, .windowRuleReevaluation])
+        #expect(relayoutEvents.map(\.1) == [.relayout, .relayout])
+    }
+
+    @Test @MainActor func activeRelayoutIsStillCancelledByIncomingFullRescan() async {
+        let controller = makeRefreshTestController()
+        let gate = AsyncGate()
+        var relayoutEvents: [(RefreshReason, LayoutRefreshController.RefreshRoute)] = []
+        var activeWasCancelled: Bool?
+
+        controller.layoutRefreshController.resetDebugState()
+        controller.layoutRefreshController.debugHooks.onRelayout = { reason, route in
+            relayoutEvents.append((reason, route))
+            if route == .relayout {
+                await gate.wait()
+                activeWasCancelled = Task.isCancelled
+            }
+            return true
+        }
+
+        controller.layoutRefreshController.requestRelayout(reason: .gapsChanged)
+        await waitUntil { relayoutEvents.count == 1 }
+        // Escalation: an incoming full rescan must still cancel the active relayout.
+        controller.layoutRefreshController.requestFullRescan(reason: .startup)
+
+        gate.open()
+        await waitForRefreshWork(on: controller)
+
+        #expect(activeWasCancelled == true)
     }
 
     @Test @MainActor func visibilityRefreshCoalescesWhilePending() async {
