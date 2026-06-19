@@ -2,6 +2,13 @@ import AppKit
 import Foundation
 
 extension NiriLayoutEngine {
+    struct PureLayoutSnapshot: Equatable {
+        var columns: [[WindowToken]]
+        var activeColumnIndex: Int?
+        var activeWindowIndices: [Int]
+        var focusedWindowID: WindowToken?
+    }
+
     enum PureLayoutFocusResult {
         case handled(NiriNode?)
         case unsupported
@@ -41,6 +48,12 @@ extension NiriLayoutEngine {
             return .handled(nil)
         }
 
+        assertPureLayoutSnapshotMatches(
+            Self.pureLayoutSnapshot(after),
+            selectedWindow: target,
+            in: workspaceId
+        )
+
         if direction.primaryStep(for: orientation) != nil {
             state.activatePrevColumnOnRemoval = nil
         }
@@ -64,6 +77,45 @@ extension NiriLayoutEngine {
         case horizontalExpel
         case horizontalConsume(targetColumnIndexBeforeMove: Int)
         case unsupported
+    }
+
+    func pureLayoutExpectedMoveSnapshot(
+        _ window: NiriWindow,
+        direction: Direction,
+        in workspaceId: WorkspaceDescriptor.ID,
+        allowEdgeWrap: Bool
+    ) -> PureLayoutSnapshot? {
+        guard let pureDirection = PureDirection(direction: direction, orientation: .horizontal),
+              let before = pureLayoutWorld(
+                  in: workspaceId,
+                  selectedWindow: window,
+                  infiniteLoop: allowEdgeWrap && effectiveInfiniteLoop(in: workspaceId)
+              )
+        else {
+            return nil
+        }
+
+        let after = PureLayoutReducer.moveFocusedWindow(pureDirection, in: before)
+        return Self.pureLayoutSnapshot(after)
+    }
+
+    func assertPureLayoutSnapshotMatches(
+        _ expected: PureLayoutSnapshot?,
+        selectedWindow: NiriWindow,
+        in workspaceId: WorkspaceDescriptor.ID
+    ) {
+        guard let expected else { return }
+        guard let actualWorld = pureLayoutWorld(
+            in: workspaceId,
+            selectedWindow: selectedWindow,
+            infiniteLoop: effectiveInfiniteLoop(in: workspaceId)
+        ) else {
+            assertionFailure("Niri runtime could not be snapshotted after pure layout operation")
+            return
+        }
+
+        let actual = Self.pureLayoutSnapshot(actualWorld)
+        assert(actual == expected, "Niri runtime diverged from PureLayoutReducer. expected=\(expected), actual=\(actual)")
     }
 
     /// Uses `PureLayoutReducer` as the focused-window move decision engine and
@@ -131,6 +183,21 @@ extension NiriLayoutEngine {
         }
 
         return .unsupported
+    }
+
+    private static func pureLayoutSnapshot(
+        _ world: CoreWorld<WorkspaceDescriptor.ID, WindowToken>
+    ) -> PureLayoutSnapshot {
+        guard let workspace = world.activeWorkspace else {
+            return PureLayoutSnapshot(columns: [], activeColumnIndex: nil, activeWindowIndices: [], focusedWindowID: nil)
+        }
+
+        return PureLayoutSnapshot(
+            columns: workspace.columns.map { $0.windows.map(\.id) },
+            activeColumnIndex: workspace.activeColumnIndex,
+            activeWindowIndices: workspace.columns.map(\.activeWindowIndex),
+            focusedWindowID: workspace.focusedWindowID
+        )
     }
 
     private func pureLayoutWorld(

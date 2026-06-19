@@ -14,11 +14,17 @@ extension NiriLayoutEngine {
         switch direction {
         case .down,
              .up:
-            switch pureLayoutMovePlan(node, direction: direction, in: workspaceId, allowEdgeWrap: true) {
+            let purePlan = pureLayoutMovePlan(node, direction: direction, in: workspaceId, allowEdgeWrap: true)
+            switch purePlan {
             case .noChange:
                 return false
             case let .verticalSwap(targetToken):
-                return moveWindowVertical(node, targetToken: targetToken)
+                let expected = pureLayoutExpectedMoveSnapshot(node, direction: direction, in: workspaceId, allowEdgeWrap: true)
+                let moved = moveWindowVertical(node, targetToken: targetToken)
+                if moved {
+                    assertPureLayoutSnapshotMatches(expected, selectedWindow: node, in: workspaceId)
+                }
+                return moved
             case .unsupported:
                 return moveWindowVertical(node, direction: direction)
             case .horizontalConsume,
