@@ -1,6 +1,6 @@
 # M1 — Refused-frame feedback characterization tests
 
-**Status:** planned (Gap B in progress)
+**Status:** completed (Gap B landed on `main` as `3bee984e` — "Characterize refused-frame resize-minimum learner")
 **Source discovery:** `discovery/20260618-refused-frame-feedback-characterization.md`
 **Upstream commit:** `40934c5` — "Feed terminally refused frame sizes back into layout constraints"
 **Depends on:** P4 (`patch/p4-frame-write-suppression`) — hard prereq; this branch is based on it.
