@@ -110,11 +110,13 @@ Snap points are computed per column. The viewport always snaps to the nearest sn
 For each column:
 - **Left-edge snap** — viewport left aligns to show the column's left edge
 - **Right-edge snap** — viewport right aligns to show the column's right edge
-- **Center snap** — column is centered in the viewport. Only added when `column.effectiveWidth > 0.30 * viewportWidth`
+- **Center snap** — column is centered in the viewport. Only added when `column.effectiveViewportWidth > 0.30 * viewportWidth`
 
 Columns narrower than 30% of the viewport only get edge snaps. This keeps the snap grid sparse for multi-column layouts with small panels.
 
 Columns whose effective width approximately fills the viewport (within pixel tolerance) do **not** get the synthetic `columnX - gap` / `columnX + width + gap - viewportWidth` edge snaps. For a full-width column those points are meaningless `±gap` shifts: they reveal no neighboring column and lose working-area margins. Over-wide columns (wider than the viewport) keep their edge snaps so clipped content can be reached. The column can still have a center snap and the snap grid still includes far overscroll boundary points.
+
+For a lone-window workspace, effective viewport width is the transient lone-window render width (`loneWindowLayoutWidthOverride`) when present, not the canonical column `cachedWidth`. This lets fill/centered lone windows scroll and snap against the real rendered span while preserving the canonical width used when a second column appears.
 
 ### Gesture release
 
@@ -122,7 +124,7 @@ On gesture release, the viewport snaps to the nearest snap point. The focused co
 
 Hold the **Mouse Modifier** key during a gesture to bypass snapping — the viewport settles at the decelerated natural position.
 
-Implementation contract: `computeSnapGrid(...)`, `viewportStartBounds(...)`, and `ViewportSnapContext` in `ViewportState+Geometry.swift` are the source of truth for snap points and bounds. Gesture release, viewport scroll commands, Reveal Partial, resize adjustment, and column transitions must consume this shared geometry instead of constructing local snap/edge formulas.
+Implementation contract: `computeSnapGrid(...)`, `viewportStartBounds(...)`, and `ViewportSnapContext` in `ViewportState+Geometry.swift` are the source of truth for snap points and bounds. Gesture release, viewport scroll commands, Reveal Partial, resize adjustment, column transitions, and lone-window scroll/snap handling must consume this shared geometry instead of constructing local snap/edge formulas.
 
 ---
 
@@ -139,9 +141,9 @@ Per-monitor overrides are tri-state through `MonitorNiriSettings.loneWindowPolic
 - `.fill` — explicit Fill on that monitor
 - `.centered(maxWidthFraction:)` — explicit Centered on that monitor
 
-`SingleWindowViewportGeometry` is the source of truth for the resolved lone-window rect, center offset, and render offset. Controllers and gesture handlers should call `singleWindowViewportGeometry(...)`, `resolvedSingleWindowViewportRect(...)`, `prepareSingleWindowViewport(...)`, or `prepareAndSeedSingleWindowViewport(...)` rather than re-deriving the math.
+`SingleWindowViewportGeometry` is the source of truth for the resolved lone-window rect, center offset, and render offset. `NiriContainer.effectiveViewportWidth` is the source of truth for viewport positions, bounds, and snap width when that rect is wider or narrower than the canonical column width. Controllers and gesture handlers should call `singleWindowViewportGeometry(...)`, `resolvedSingleWindowViewportRect(...)`, `prepareSingleWindowViewport(...)`, or `prepareAndSeedSingleWindowViewport(...)` rather than re-deriving the math.
 
-Lone-window rendering follows the raw viewport offset so scroll gestures are visible. The snap grid decides where the viewport settles. This keeps fill windows responsive during a gesture while preventing them from parking at bogus `±gap` edge snaps after release.
+Lone-window rendering follows the raw viewport offset so scroll gestures are visible. The snap grid decides where the viewport settles. This keeps fill windows responsive during a gesture while preventing them from parking at bogus `±gap` edge snaps after release. `cachedWidth` remains the canonical column width for later multi-column layout; the fill/centered render span is transient and must not leak back into canonical width state.
 
 ---
 

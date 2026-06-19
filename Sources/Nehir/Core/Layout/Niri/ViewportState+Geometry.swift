@@ -92,8 +92,20 @@ struct ViewportSnapContext {
         guard columns.indices.contains(columnIndex) else { return [] }
         let column = columns[columnIndex]
         let start = state.columnX(at: columnIndex, columns: columns, gap: gap)
-        let width = max(0, column.cachedWidth)
+        let width = max(0, column.effectiveViewportWidth)
         guard width > 0 else { return [] }
+
+        if columns.count == 1,
+           columnIndex == 0,
+           column.loneWindowLayoutWidthOverride != nil
+        {
+            let edgeOffset = width - viewportWidth
+            return [
+                SnapPoint(offset: 0, columnIndex: 0, kind: .leftEdge),
+                SnapPoint(offset: edgeOffset, columnIndex: 0, kind: .rightEdge),
+                SnapPoint(offset: edgeOffset / 2, columnIndex: 0, kind: .center)
+            ].sortedAndDeduped(pixelTolerance: pixelTolerance)
+        }
 
         var candidates: [SnapPoint] = [
             SnapPoint(
@@ -159,7 +171,7 @@ struct ViewportSnapContext {
 
         for index in columns.indices {
             let start = state.columnX(at: index, columns: columns, gap: gap)
-            let width = max(0, columns[index].cachedWidth)
+            let width = max(0, columns[index].effectiveViewportWidth)
             guard width > 0 else { continue }
             let end = start + width
             if start >= viewportStart - pixelTolerance,
@@ -179,7 +191,7 @@ struct ViewportSnapContext {
 
         let firstStart = state.columnX(at: first, columns: columns, gap: gap)
         let lastStart = state.columnX(at: last, columns: columns, gap: gap)
-        let lastEnd = lastStart + max(0, columns[last].cachedWidth)
+        let lastEnd = lastStart + max(0, columns[last].effectiveViewportWidth)
         let coveredWidth = max(0, lastEnd - firstStart)
         let tolerance = max(pixelTolerance, 2 * gap + pixelTolerance)
 
@@ -292,11 +304,31 @@ extension NiriContainer {
 
 extension ViewportState {
     func columnX(at index: Int, columns: [NiriContainer], gap: CGFloat) -> CGFloat {
-        containerPosition(at: index, containers: columns, gap: gap, sizeKeyPath: \.cachedWidth)
+        containerPosition(at: index, containers: columns, gap: gap)
     }
 
     func totalWidth(columns: [NiriContainer], gap: CGFloat) -> CGFloat {
-        totalSpan(containers: columns, gap: gap, sizeKeyPath: \.cachedWidth)
+        totalSpan(containers: columns, gap: gap)
+    }
+
+    func containerPosition(
+        at index: Int,
+        containers: [NiriContainer],
+        gap: CGFloat
+    ) -> CGFloat {
+        var pos: CGFloat = 0
+        for i in 0 ..< index {
+            guard i < containers.count else { break }
+            pos += containers[i].effectiveViewportWidth + gap
+        }
+        return pos
+    }
+
+    func totalSpan(containers: [NiriContainer], gap: CGFloat) -> CGFloat {
+        guard !containers.isEmpty else { return 0 }
+        let sizeSum = containers.reduce(0) { $0 + $1.effectiveViewportWidth }
+        let gapSum = CGFloat(max(0, containers.count - 1)) * gap
+        return sizeSum + gapSum
     }
 
     func containerPosition(
@@ -382,6 +414,43 @@ extension ViewportState {
             parent: primarySpan(parent) > 0 ? parent : fallbackLocalFrame,
             orientation: orientation,
             scale: scale
+        )
+    }
+
+    func computeCenteredOffset(
+        containerIndex: Int,
+        containers: [NiriContainer],
+        gap: CGFloat,
+        viewportSpan: CGFloat,
+        workingArea: CGRect? = nil,
+        viewFrame: CGRect? = nil,
+        orientation: Monitor.Orientation = .horizontal,
+        scale: CGFloat = 2.0
+    ) -> CGFloat {
+        guard !containers.isEmpty, containerIndex >= 0, containerIndex < containers.count else { return 0 }
+
+        let areas = normalizedFittingAreas(
+            viewportSpan: viewportSpan,
+            workingArea: workingArea,
+            viewFrame: viewFrame,
+            orientation: orientation,
+            scale: scale
+        )
+        let targetPos = containerPosition(
+            at: containerIndex,
+            containers: containers,
+            gap: gap
+        )
+        let targetSize = containers[containerIndex].effectiveViewportWidth
+        let mode = containers[containerIndex].effectiveSizingMode
+
+        return computeModeAwareCenteredOffset(
+            currentViewStart: targetPos,
+            targetPos: targetPos,
+            targetSpan: targetSize,
+            mode: mode,
+            areas: areas,
+            gap: gap
         )
     }
 
@@ -529,9 +598,16 @@ extension ViewportState {
     ) -> ClosedRange<CGFloat> {
         guard !columns.isEmpty, viewportWidth > 0 else { return 0 ... 0 }
 
+        if columns.count == 1,
+           let overrideWidth = columns.first?.loneWindowLayoutWidthOverride
+        {
+            let edgeOffset = overrideWidth - viewportWidth
+            return min(0, edgeOffset) ... max(0, edgeOffset)
+        }
+
         let fraction = edgeVisibleFraction.clamped(to: 0 ... 1)
-        let firstWidth = max(0, columns.first?.cachedWidth ?? 0)
-        let lastWidth = max(0, columns.last?.cachedWidth ?? 0)
+        let firstWidth = max(0, columns.first?.effectiveViewportWidth ?? 0)
+        let lastWidth = max(0, columns.last?.effectiveViewportWidth ?? 0)
         let total = totalWidth(columns: columns, gap: gap)
 
         // Allow intentional edge overscroll: at the farthest point only a small sliver
@@ -601,10 +677,21 @@ extension ViewportState {
             boundedViewportStart(offset, columns: columns, gap: gap, viewportWidth: viewportWidth)
         }
 
+        if columns.count == 1,
+           let overrideWidth = columns.first?.loneWindowLayoutWidthOverride
+        {
+            let edgeOffset = overrideWidth - viewportWidth
+            return [
+                SnapPoint(offset: 0, columnIndex: 0, kind: .leftEdge),
+                SnapPoint(offset: edgeOffset, columnIndex: 0, kind: .rightEdge),
+                SnapPoint(offset: edgeOffset / 2, columnIndex: 0, kind: .center)
+            ].sortedAndDeduped(pixelTolerance: pixelTolerance)
+        }
+
         var points: [SnapPoint] = []
         var columnX: CGFloat = 0
         for (index, column) in columns.enumerated() {
-            let width = column.cachedWidth
+            let width = column.effectiveViewportWidth
             guard width.isFinite, width > 0 else {
                 columnX += max(0, width.isFinite ? width : 0) + gap
                 continue
@@ -651,7 +738,7 @@ extension ViewportState {
         guard columns.indices.contains(index), viewportWidth > 0 else { return .parked(.minimum) }
 
         let columnStart = columnX(at: index, columns: columns, gap: gap)
-        let columnEnd = columnStart + columns[index].cachedWidth
+        let columnEnd = columnStart + columns[index].effectiveViewportWidth
         let viewportStart = viewportOffset
         let viewportEnd = viewportOffset + viewportWidth
 
@@ -684,7 +771,6 @@ extension ViewportState {
             containers: columns,
             gap: gap,
             viewportSpan: viewportWidth,
-            sizeKeyPath: \.cachedWidth,
             workingArea: workingArea,
             viewFrame: viewFrame,
             orientation: .horizontal,

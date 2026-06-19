@@ -380,6 +380,8 @@ class NiriContainer: NiriNode {
 
     var cachedWidth: CGFloat = 0
 
+    var loneWindowLayoutWidthOverride: CGFloat?
+
     var presetWidthIdx: Int?
 
     var isFullWidth: Bool = false
@@ -587,6 +589,14 @@ class NiriContainer: NiriNode {
             minConstraint: bounds.min,
             maxConstraint: bounds.max
         )
+    }
+
+    var effectiveViewportWidth: CGFloat {
+        loneWindowLayoutWidthOverride ?? cachedWidth
+    }
+
+    func clearLoneWindowLayoutWidthOverride() {
+        loneWindowLayoutWidthOverride = nil
     }
 
     func resolveAndCacheHeight(workingAreaHeight: CGFloat, gaps: CGFloat) {

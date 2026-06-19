@@ -145,7 +145,7 @@ extension NiriLayoutEngine {
 
         if root.allWindows.count == 1 {
             for column in root.columns where !column.hasManualSingleWindowWidthOverride {
-                column.cachedWidth = 0
+                column.clearLoneWindowLayoutWidthOverride()
             }
         }
 

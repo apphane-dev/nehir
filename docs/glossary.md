@@ -31,11 +31,13 @@ In the [layout notation](viewport-navigation-spec.md#layout-notation), clipped c
 - **balanced** — fit `N` columns across the working area, so each column starts at `1/N` width
 - **custom** — use an explicit working-area width fraction
 
-Column-width resolution (highest wins):
+Canonical column-width resolution (highest wins):
 
-1. `LoneWindowPolicy.fill` / `.centered` — only when the lone-window predicate holds
+1. Manual/fixed/full-width column state
 2. `DefaultColumnWidth.custom(fraction)`
 3. `DefaultColumnWidth.balanced(columns)` → `1/N`
+
+`LoneWindowPolicy.fill` / `.centered` does not replace canonical column width. It supplies a transient lone-window viewport/render width while the lone-window predicate holds.
 
 ---
 
@@ -78,7 +80,7 @@ A mode where keyboard focus moves to whichever tiled window is under the cursor 
 - **fill** — make the lone window fill the working area
 - **centered** — cap the lone window to a max working-area width fraction and keep it horizontally centered
 
-The policy defines only the default initial lone-window rect. After a manual resize, the window keeps the requested width (still centered) and is not capped by the policy max width.
+The policy defines only the default lone-window render/viewport rect. It is transient: the column keeps its canonical width for later multi-column layout. After a manual resize, the window keeps the requested width (still centered) and is not capped by the policy max width.
 
 Per-monitor lone-window overrides are tri-state through `MonitorNiriSettings.loneWindowPolicy`:
 
@@ -149,17 +151,17 @@ The centralized geometry model for a workspace containing exactly one normal non
 - the center offset for initial/resting placement
 - rendered-frame offsetting relative to the current viewport offset
 
-Callers should use `singleWindowViewportGeometry(...)`, `resolvedSingleWindowViewportRect(...)`, `prepareSingleWindowViewport(...)`, or `prepareAndSeedSingleWindowViewport(...)` instead of re-deriving centered width, center offset, or frame offset rules in controllers.
+Callers should use `singleWindowViewportGeometry(...)`, `resolvedSingleWindowViewportRect(...)`, `prepareSingleWindowViewport(...)`, or `prepareAndSeedSingleWindowViewport(...)` instead of re-deriving centered width, center offset, or frame offset rules in controllers. Viewport positions, bounds, and snap widths should use `NiriContainer.effectiveViewportWidth`, which selects the transient lone-window render width when present and falls back to canonical `cachedWidth` otherwise.
 
-Lone-window rendering follows the raw viewport offset so gestures are visibly responsive. The shared [snap grid](#snap-grid), not a render-time clamp, decides where the window settles.
+Lone-window rendering follows the raw viewport offset so gestures are visibly responsive. The shared [snap grid](#snap-grid), not a render-time clamp, decides where the window settles. `cachedWidth` remains canonical; the lone-window render width must not leak into multi-column layout state.
 
 ---
 
 ## snap grid
 
-The ordered set of [snap points](#snap-point) for the current column layout. Computed from column positions and widths by `computeSnapGrid(...)` / `ViewportSnapContext`. The viewport targets the nearest snap point on gesture release.
+The ordered set of [snap points](#snap-point) for the current column layout. Computed from column positions and effective viewport widths by `computeSnapGrid(...)` / `ViewportSnapContext`. The viewport targets the nearest snap point on gesture release.
 
-Columns that approximately fill the viewport (within pixel tolerance) intentionally omit synthetic `±gap` edge snaps; those points would only shift a full-width column by one gap and lose working-area margins. Over-wide columns (wider than the viewport) keep their edge snaps so clipped leading/trailing content can still be reached. Center and [far overscroll boundary](#far-overscroll-boundary) snaps remain in both cases.
+Columns that approximately fill the viewport (within pixel tolerance) intentionally omit synthetic `±gap` edge snaps; those points would only shift a full-width column by one gap and lose working-area margins. Over-wide columns (wider than the viewport) keep their edge snaps so clipped leading/trailing content can still be reached. Center and [far overscroll boundary](#far-overscroll-boundary) snaps remain in both cases. Lone-window snap math uses the transient lone-window render width via `effectiveViewportWidth`, not raw canonical `cachedWidth`.
 
 See [Snap Grid](viewport-navigation-spec.md#snap-grid).
 
