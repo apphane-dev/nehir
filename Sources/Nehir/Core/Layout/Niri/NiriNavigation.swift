@@ -248,6 +248,22 @@ extension NiriLayoutEngine {
         gaps: CGFloat,
         orientation: Monitor.Orientation = .horizontal
     ) -> NiriNode? {
+        switch pureLayoutFocusTarget(
+            direction: direction,
+            currentSelection: currentSelection,
+            in: workspaceId,
+            motion: motion,
+            state: &state,
+            workingFrame: workingFrame,
+            gaps: gaps,
+            orientation: orientation
+        ) {
+        case let .handled(target):
+            return target
+        case .unsupported:
+            break
+        }
+
         if direction.primaryStep(for: orientation) != nil {
             return moveSelectionCrossContainer(
                 direction: direction,

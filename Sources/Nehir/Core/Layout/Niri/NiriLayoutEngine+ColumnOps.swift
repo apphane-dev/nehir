@@ -482,6 +482,15 @@ extension NiriLayoutEngine {
     ) -> Bool {
         guard direction == .left || direction == .right else { return false }
 
+        if let pureWouldChange = pureLayoutMoveWouldChange(
+            window,
+            direction: direction,
+            in: workspaceId,
+            allowEdgeWrap: allowEdgeWrap
+        ), !pureWouldChange {
+            return false
+        }
+
         guard let currentColumn = findColumn(containing: window, in: workspaceId),
               let currentIdx = columnIndex(of: currentColumn, in: workspaceId)
         else {
