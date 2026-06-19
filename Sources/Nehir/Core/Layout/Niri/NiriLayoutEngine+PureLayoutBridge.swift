@@ -58,27 +58,79 @@ extension NiriLayoutEngine {
         return .handled(target)
     }
 
-    /// Returns whether `PureLayoutReducer` says the focused window move should
-    /// change the logical layout. `nil` means the bridge cannot model the current
-    /// runtime tree safely, so callers should fall back to existing Niri logic.
-    func pureLayoutMoveWouldChange(
+    enum PureLayoutMovePlan: Equatable {
+        case noChange
+        case verticalSwap(targetToken: WindowToken)
+        case horizontalExpel
+        case horizontalConsume(targetColumnIndexBeforeMove: Int)
+        case unsupported
+    }
+
+    /// Uses `PureLayoutReducer` as the focused-window move decision engine and
+    /// returns the concrete runtime operation Niri should execute. Niri still
+    /// owns tree mutation, viewport state, and animation, but the choice of
+    /// no-op / vertical swap / horizontal expel / horizontal consume comes from
+    /// the shared pure model.
+    func pureLayoutMovePlan(
         _ window: NiriWindow,
         direction: Direction,
         in workspaceId: WorkspaceDescriptor.ID,
         allowEdgeWrap: Bool
-    ) -> Bool? {
+    ) -> PureLayoutMovePlan {
         guard let pureDirection = PureDirection(direction: direction, orientation: .horizontal),
               let before = pureLayoutWorld(
                   in: workspaceId,
                   selectedWindow: window,
                   infiniteLoop: allowEdgeWrap && effectiveInfiniteLoop(in: workspaceId)
-              )
+              ),
+              let beforeWorkspace = before.activeWorkspace,
+              let beforeActiveColumnIndex = beforeWorkspace.activeColumnIndex,
+              beforeWorkspace.columns.indices.contains(beforeActiveColumnIndex)
         else {
-            return nil
+            return .unsupported
         }
 
         let after = PureLayoutReducer.moveFocusedWindow(pureDirection, in: before)
-        return after != before
+        guard after != before else { return .noChange }
+        guard let afterWorkspace = after.activeWorkspace else {
+            return .unsupported
+        }
+
+        if pureDirection.horizontalStep == nil {
+            guard let afterActiveColumnIndex = afterWorkspace.activeColumnIndex,
+                  afterWorkspace.columns.indices.contains(afterActiveColumnIndex),
+                  afterActiveColumnIndex == beforeActiveColumnIndex
+            else {
+                return .unsupported
+            }
+
+            let beforeColumn = beforeWorkspace.columns[beforeActiveColumnIndex]
+            let afterActiveWindowIndex = afterWorkspace.columns[afterActiveColumnIndex].activeWindowIndex
+            guard beforeColumn.windows.indices.contains(afterActiveWindowIndex) else {
+                return .unsupported
+            }
+
+            let displacedToken = beforeColumn.windows[afterActiveWindowIndex].id
+            guard displacedToken != window.token else { return .unsupported }
+            return .verticalSwap(targetToken: displacedToken)
+        }
+
+        if afterWorkspace.columns.count == beforeWorkspace.columns.count + 1 {
+            return .horizontalExpel
+        }
+
+        if afterWorkspace.columns.count == beforeWorkspace.columns.count - 1,
+           let afterActiveColumnIndex = afterWorkspace.activeColumnIndex,
+           afterWorkspace.columns.indices.contains(afterActiveColumnIndex)
+        {
+            let targetColumnID = afterWorkspace.columns[afterActiveColumnIndex].id.rawValue
+            guard beforeWorkspace.columns.indices.contains(targetColumnID) else {
+                return .unsupported
+            }
+            return .horizontalConsume(targetColumnIndexBeforeMove: targetColumnID)
+        }
+
+        return .unsupported
     }
 
     private func pureLayoutWorld(

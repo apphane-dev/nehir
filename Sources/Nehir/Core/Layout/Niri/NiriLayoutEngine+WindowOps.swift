@@ -14,15 +14,17 @@ extension NiriLayoutEngine {
         switch direction {
         case .down,
              .up:
-            if let pureWouldChange = pureLayoutMoveWouldChange(
-                node,
-                direction: direction,
-                in: workspaceId,
-                allowEdgeWrap: true
-            ), !pureWouldChange {
+            switch pureLayoutMovePlan(node, direction: direction, in: workspaceId, allowEdgeWrap: true) {
+            case .noChange:
+                return false
+            case let .verticalSwap(targetToken):
+                return moveWindowVertical(node, targetToken: targetToken)
+            case .unsupported:
+                return moveWindowVertical(node, direction: direction)
+            case .horizontalConsume,
+                 .horizontalExpel:
                 return false
             }
-            return moveWindowVertical(node, direction: direction)
         case .left,
              .right:
             return consumeOrExpelWindow(
@@ -38,10 +40,6 @@ extension NiriLayoutEngine {
     }
 
     private func moveWindowVertical(_ node: NiriWindow, direction: Direction) -> Bool {
-        guard let column = node.parent as? NiriContainer else {
-            return false
-        }
-
         let sibling: NiriNode?
         switch direction {
         case .up:
@@ -52,14 +50,30 @@ extension NiriLayoutEngine {
             return false
         }
 
-        guard let targetSibling = sibling else {
+        guard let targetSibling = sibling as? NiriWindow else {
+            return false
+        }
+
+        return moveWindowVertical(node, targetWindow: targetSibling)
+    }
+
+    private func moveWindowVertical(_ node: NiriWindow, targetToken: WindowToken) -> Bool {
+        guard let targetWindow = findNode(for: targetToken) else { return false }
+        return moveWindowVertical(node, targetWindow: targetWindow)
+    }
+
+    private func moveWindowVertical(_ node: NiriWindow, targetWindow: NiriWindow) -> Bool {
+        guard let column = node.parent as? NiriContainer,
+              targetWindow.parent === column,
+              targetWindow !== node
+        else {
             return false
         }
 
         let nodeIdx = column.windowNodes.firstIndex { $0 === node }
-        let siblingIdx = column.windowNodes.firstIndex { $0 === targetSibling }
+        let siblingIdx = column.windowNodes.firstIndex { $0 === targetWindow }
 
-        node.swapWith(targetSibling)
+        node.swapWith(targetWindow)
 
         if column.displayMode == .tabbed, let nIdx = nodeIdx, let sIdx = siblingIdx {
             if nIdx == column.activeTileIdx {
