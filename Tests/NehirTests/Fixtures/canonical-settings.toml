@@ -43,6 +43,7 @@ scrollSensitivity = 5.0
 
 [mouseWarp]
 axis = "horizontal"
+enabled = true
 margin = 1
 monitorOrder = []
 

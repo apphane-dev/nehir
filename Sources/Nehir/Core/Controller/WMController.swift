@@ -720,6 +720,7 @@ final class WMController {
     }
 
     func shouldUseMouseWarp(for monitors: [Monitor]? = nil) -> Bool {
+        guard settings.mouseWarpEnabled else { return false }
         let effectiveMonitors = monitors ?? workspaceManager.monitors
         return effectiveMonitors.count > 1
     }
@@ -2781,7 +2782,8 @@ final class WMController {
             "WMController runtime state",
             "enabled=\(isEnabled) desiredEnabled=\(desiredEnabled) hotkeysEnabled=\(hotkeysEnabled) desiredHotkeysEnabled=\(desiredHotkeysEnabled)",
             "accessibilityGranted=\(accessibilityPermissionGranted) lockScreenActive=\(isLockScreenActive) overviewOpen=\(isOverviewOpen()) startedServices=\(hasStartedServices)",
-            "focusFollowsMouse=\(focusFollowsMouseEnabled) moveMouseToFocusedWindow=\(moveMouseToFocusedWindowEnabled) mouseWarpPolicyEnabled=\(isMouseWarpPolicyEnabled)",
+            "focusFollowsMouse=\(focusFollowsMouseEnabled) moveMouseToFocusedWindow=\(moveMouseToFocusedWindowEnabled) mouseWarpEnabled=\(settings.mouseWarpEnabled) mouseWarpPolicyEnabled=\(isMouseWarpPolicyEnabled)",
+            "displaySpacesMode=\(SkyLight.shared.displaySpacesMode().rawValue)",
             "isTransferringWindow=\(isTransferringWindow) hiddenAppPIDs=\(hiddenAppPIDs.count) workspaceBarHiddenMonitors=\(hiddenWorkspaceBarMonitorIds.count)",
             "runtimeTraceCaptureActive=\(traceCaptureStatus.isActive) runtimeTraceStartedAt=\(traceCaptureStatus.startedAt?.ISO8601Format() ?? "nil") viewportTraceRecords=\(runtimeViewportTraceRecords.count) resizeTraceRecords=\(runtimeResizeTraceRecords.count) insertionTraceRecords=\(runtimeInsertionTraceRecords.count) mouseTraceRecords=\(runtimeMouseTraceRecords.count)",
             "workspaceBarRefreshDebugState requestCount=\(workspaceBarRefreshDebugState.requestCount) scheduledCount=\(workspaceBarRefreshDebugState.scheduledCount) executionCount=\(workspaceBarRefreshDebugState.executionCount) isQueued=\(workspaceBarRefreshDebugState.isQueued)",

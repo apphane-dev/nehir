@@ -58,6 +58,10 @@ final class SkyLight {
     private typealias TransactionSetWindowLevelFunc = @convention(c) (CFTypeRef, UInt32, Int32) -> CGError
     private typealias CopyManagedDisplaySpacesFunc = @convention(c) (Int32) -> CFArray?
     private typealias DisplayCreateUUIDFromDisplayIDFunc = @convention(c) (CGDirectDisplayID) -> Unmanaged<CFUUID>?
+    // SLSGetSpaceManagementMode returns non-zero when "Displays have separate Spaces"
+    // is enabled, zero when disabled. Optional: may be missing/renamed on some macOS
+    // versions; `displaySpacesMode` falls back to the managed-display-spaces shape.
+    private typealias SpaceManagementModeFunc = @convention(c) (Int32) -> Int32
 
     typealias ConnectionNotifyCallback = @convention(c) (
         UInt32,
@@ -138,8 +142,13 @@ final class SkyLight {
     private let newRegionWithRect: NewRegionWithRectFunc?
     private let transactionSetWindowLevel: TransactionSetWindowLevelFunc?
     private let copyManagedDisplaySpaces: CopyManagedDisplaySpacesFunc?
+    private let getSpaceManagementMode: SpaceManagementModeFunc?
 
     @MainActor static var orderedStateProviderForTests: ((UInt32) -> Bool?)?
+    /// Test injection hook for `displaySpacesMode`. When non-nil it fully replaces
+    /// the runtime detection. Restore to `nil` in a `defer`. Mirrors
+    /// `orderedStateProviderForTests`.
+    @MainActor static var displaySpacesModeOverrideForTests: (() -> DisplaySpacesMode)?
     private static let displayCreateUUIDFromDisplayID: DisplayCreateUUIDFromDisplayIDFunc? = {
         let handle = dlopen("/System/Library/Frameworks/ApplicationServices.framework/ApplicationServices", RTLD_LAZY)
             ?? dlopen("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics", RTLD_LAZY)
@@ -278,6 +287,58 @@ final class SkyLight {
             as: CopyManagedDisplaySpacesFunc.self
         )
             ?? resolveOptional("CGSCopyManagedDisplaySpaces", as: CopyManagedDisplaySpacesFunc.self)
+        // Optional — must NOT gate startup. Fallback in `displaySpacesMode`.
+        getSpaceManagementMode = resolveOptional(
+            "SLSGetSpaceManagementMode",
+            as: SpaceManagementModeFunc.self
+        )
+    }
+
+    /// Whether macOS "Displays have separate Spaces" is enabled. Primary signal is
+    /// `SLSGetSpaceManagementMode` (non-zero = enabled). When that private symbol is
+    /// unavailable, fall back to inferring the mode from the managed-display-spaces
+    /// structure (one shared "Main" entry with multiple displays = OFF/disabled;
+    /// one entry per display = ON/enabled; indeterminate = unavailable). Monitors
+    /// are only consulted on the fallback path.
+    func displaySpacesMode(monitors: [Monitor]? = nil) -> DisplaySpacesMode {
+        if let override = Self.displaySpacesModeOverrideForTests {
+            return override()
+        }
+        if let getSpaceManagementMode {
+            let cid = getMainConnectionID()
+            if cid != 0 {
+                return getSpaceManagementMode(cid) != 0 ? .enabled : .disabled
+            }
+        }
+        return displaySpacesModeFromManagedDisplaySpaces(monitors: monitors ?? Monitor.current())
+    }
+
+    private func displaySpacesModeFromManagedDisplaySpaces(monitors: [Monitor]) -> DisplaySpacesMode {
+        guard let copyManagedDisplaySpaces else { return .unavailable }
+        // Single display is structurally indistinguishable between the two modes —
+        // do not claim a mode we cannot verify.
+        guard monitors.count > 1 else { return .unavailable }
+        let cid = getMainConnectionID()
+        guard cid != 0, let spacesRef = copyManagedDisplaySpaces(cid) else { return .unavailable }
+        defer { cfRelease(spacesRef) }
+        guard let displaySpaces = spacesRef as? [[String: Any]] else { return .unavailable }
+
+        let displayEntries = displaySpaces.compactMap { $0["Display Identifier"] as? String }.filter { !$0.isEmpty }
+        // Separate Spaces OFF: all displays share one space set under a single "Main" entry.
+        if displayEntries == ["Main"] {
+            return .disabled
+        }
+
+        let displayIdByIdentifier = Self.managedDisplayIdentifierMap(for: monitors)
+        let matchedDisplayIds = Set(displayEntries.compactMap { displayIdByIdentifier[$0] })
+        let allMonitorDisplayIds = Set(monitors.map(\.displayId))
+        // Separate Spaces ON: each attached display owns its own managed-display-spaces entry.
+        if !allMonitorDisplayIds.isEmpty,
+           matchedDisplayIds.isSuperset(of: allMonitorDisplayIds)
+        {
+            return .enabled
+        }
+        return .unavailable
     }
 
     func getMainConnectionID() -> Int32 {
@@ -368,16 +429,7 @@ final class SkyLight {
         defer { cfRelease(spacesRef) }
         guard let displaySpaces = spacesRef as? [[String: Any]] else { return nil }
 
-        var displayIdByIdentifier: [String: CGDirectDisplayID] = [:]
-        for monitor in monitors {
-            displayIdByIdentifier[String(monitor.displayId)] = monitor.displayId
-            if let identifier = Self.managedDisplayIdentifier(for: monitor.displayId) {
-                displayIdByIdentifier[identifier] = monitor.displayId
-            }
-        }
-        if let main = monitors.first(where: \.isMain) ?? monitors.first {
-            displayIdByIdentifier["Main"] = main.displayId
-        }
+        let displayIdByIdentifier = Self.managedDisplayIdentifierMap(for: monitors)
 
         for display in displaySpaces {
             guard Self.displaySpaces(display, contains: spaceId),
@@ -390,6 +442,20 @@ final class SkyLight {
         }
 
         return nil
+    }
+
+    private static func managedDisplayIdentifierMap(for monitors: [Monitor]) -> [String: CGDirectDisplayID] {
+        var displayIdByIdentifier: [String: CGDirectDisplayID] = [:]
+        for monitor in monitors {
+            displayIdByIdentifier[String(monitor.displayId)] = monitor.displayId
+            if let identifier = managedDisplayIdentifier(for: monitor.displayId) {
+                displayIdByIdentifier[identifier] = monitor.displayId
+            }
+        }
+        if let main = monitors.first(where: \.isMain) ?? monitors.first {
+            displayIdByIdentifier["Main"] = main.displayId
+        }
+        return displayIdByIdentifier
     }
 
     private static func managedDisplayIdentifier(for displayId: CGDirectDisplayID) -> String? {

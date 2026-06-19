@@ -37,6 +37,12 @@ struct MonitorSettingsTab: View {
         return sortedMonitors.first(where: { $0.id == monitorID })
     }
 
+    private var shouldWarnDisabledMouseWarpHasNoFullVerticalSideOverlap: Bool {
+        !settings.mouseWarpEnabled
+            && connectedMonitors.count > 1
+            && !MonitorSettingsTabModel.hasFullVerticalSideOverlap(connectedMonitors)
+    }
+
     var body: some View {
         SettingsPage(
             subtitle: "Configure mouse warp order and per-monitor orientation without changing macOS display arrangement."
@@ -57,33 +63,52 @@ struct MonitorSettingsTab: View {
             }
 
             Section("Mouse Warp") {
-                SettingsCaption("Moves the cursor to the opposite monitor when it reaches a screen edge.")
+                Toggle("Enable Mouse Warp", isOn: $settings.mouseWarpEnabled)
+                    .onChange(of: settings.mouseWarpEnabled) { _, _ in
+                        controller.syncMouseWarpPolicy()
+                    }
+                SettingsCaption("When enabled, moves the cursor to the opposite monitor when it reaches a screen edge. Use a diagonal macOS display arrangement to avoid native edge warping and rely only on Nehir's configured warp. Turn this off to rely only on macOS cursor movement.")
 
-                LabeledContent("Axis") {
-                    Picker("Warp Axis", selection: Binding(
-                        get: { settings.mouseWarpAxis },
-                        set: { settings.mouseWarpAxis = $0 }
-                    )) {
-                        ForEach(MouseWarpAxis.allCases, id: \.self) { axis in
-                            Text(axis.displayName).tag(axis)
+                if settings.mouseWarpEnabled {
+                    LabeledContent("Axis") {
+                        Picker("Warp Axis", selection: Binding(
+                            get: { settings.mouseWarpAxis },
+                            set: { settings.mouseWarpAxis = $0 }
+                        )) {
+                            ForEach(MouseWarpAxis.allCases, id: \.self) { axis in
+                                Text(axis.displayName).tag(axis)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.segmented)
+                        .frame(maxWidth: 260)
+                    }
+
+                    LabeledContent("Trigger Margin") {
+                        Stepper(value: Binding(
+                            get: { settings.mouseWarpMargin },
+                            set: { settings.mouseWarpMargin = $0 }
+                        ), in: 1 ... 10) {
+                            Text("\(settings.mouseWarpMargin) px")
+                                .foregroundStyle(.secondary)
+                                .monospacedDigit()
                         }
                     }
-                    .labelsHidden()
-                    .pickerStyle(.segmented)
-                    .frame(maxWidth: 260)
-                }
-
-                LabeledContent("Trigger Margin") {
-                    Stepper(value: Binding(
-                        get: { settings.mouseWarpMargin },
-                        set: { settings.mouseWarpMargin = $0 }
-                    ), in: 1 ... 10) {
-                        Text("\(settings.mouseWarpMargin) px")
-                            .foregroundStyle(.secondary)
-                            .monospacedDigit()
+                    SettingsCaption("How close to the edge (in pixels) before the cursor jumps to the next monitor.")
+                } else {
+                    SettingsCaption("Axis and trigger margin settings are hidden while Mouse Warp is disabled; existing values are preserved.")
+                    if shouldWarnDisabledMouseWarpHasNoFullVerticalSideOverlap {
+                        HStack(alignment: .top, spacing: 6) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundStyle(.yellow)
+                                .accessibilityHidden(true)
+                            Text("Some displays do not share a full vertical edge overlap. With Mouse Warp disabled, macOS native cursor movement may only work through the overlapping edge segment, or may not cross between diagonally arranged displays at all.")
+                                .foregroundStyle(.secondary)
+                        }
+                        .font(.caption)
+                        .accessibilityElement(children: .combine)
                     }
                 }
-                SettingsCaption("How close to the edge (in pixels) before the cursor jumps to the next monitor.")
             }
 
             Section("Warp Order") {
@@ -496,6 +521,31 @@ enum MonitorSettingsTabModel {
         var reorderedEntries = entries
         reorderedEntries.swapAt(currentIndex, targetIndex)
         return reorderedEntries.map(\.name)
+    }
+
+    static func hasFullVerticalSideOverlap(_ monitors: [Monitor]) -> Bool {
+        guard monitors.count > 1 else { return true }
+
+        for firstIndex in monitors.indices {
+            for secondIndex in monitors.indices where secondIndex > firstIndex {
+                let firstFrame = monitors[firstIndex].frame
+                let secondFrame = monitors[secondIndex].frame
+                let horizontalOverlap = overlap(firstFrame.minX ... firstFrame.maxX, secondFrame.minX ... secondFrame.maxX)
+                guard horizontalOverlap < 1 else { continue }
+
+                let verticalOverlap = overlap(firstFrame.minY ... firstFrame.maxY, secondFrame.minY ... secondFrame.maxY)
+                let shorterHeight = min(firstFrame.height, secondFrame.height)
+                if verticalOverlap >= max(1, shorterHeight - 1) {
+                    return true
+                }
+            }
+        }
+
+        return false
+    }
+
+    private static func overlap(_ lhs: ClosedRange<CGFloat>, _ rhs: ClosedRange<CGFloat>) -> CGFloat {
+        max(0, min(lhs.upperBound, rhs.upperBound) - max(lhs.lowerBound, rhs.lowerBound))
     }
 }
 
