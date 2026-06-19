@@ -50,6 +50,32 @@ final class MouseEventHandler {
         case niri(workspaceId: WorkspaceDescriptor.ID, window: NiriWindow)
     }
 
+    /// Outcome of resolving a focus-follows-mouse target. The non-target cases
+    /// carry a machine-readable `skipReason` so a runtime trace can distinguish
+    /// *why* FFM did not fire — e.g. blocked by an unmanaged overlay (`occlusion`)
+    /// versus no focusable tile under the pointer (`noHitTest`). Used to diagnose
+    /// click-through overlay cases such as #64, where the resolved window number
+    /// alone reveals whether the overlay or the tile beneath was reported.
+    private enum FocusFollowsMouseResolution {
+        case target(FocusFollowsMouseTarget)
+        case noWorkspace
+        case occlusion
+        case noHitTest
+
+        var targetValue: FocusFollowsMouseTarget? {
+            if case let .target(value) = self { return value } else { return nil }
+        }
+
+        var skipReason: String {
+            switch self {
+            case .target: return "resolved"
+            case .noWorkspace: return "noWorkspace"
+            case .occlusion: return "occlusion"
+            case .noHitTest: return "noHitTest"
+            }
+        }
+    }
+
     struct GestureTouchSample: Equatable, Sendable {
         let phase: NSTouch.Phase
         let normalizedPosition: CGPoint?
@@ -781,7 +807,7 @@ final class MouseEventHandler {
         ) else {
             return payload
         }
-        return .init(location: currentLocation, windowUnderPointer: nil)
+        return .init(location: currentLocation, windowUnderPointer: payload.windowUnderPointer)
     }
 
     private func pointsApproximatelyEqual(_ lhs: CGPoint, _ rhs: CGPoint, tolerance: CGFloat) -> Bool {
@@ -1241,12 +1267,13 @@ final class MouseEventHandler {
         let confirmedToken = controller.workspaceManager.confirmedManagedFocusToken
         let pendingToken = controller.workspaceManager.activeFocusRequestToken
 
-        guard let target = resolveFocusFollowsMouseTarget(
+        let resolution = resolveFocusFollowsMouse(
             at: location,
             windowUnderPointer: windowUnderPointer
-        ) else {
+        )
+        guard case let .target(target) = resolution else {
             traceMouseFocus(
-                "ffm.skip reason=noTarget loc=\(formatPoint(location)) confirmed=\(formatToken(confirmedToken)) pending=\(formatToken(pendingToken))"
+                "ffm.skip reason=noTarget sub=\(resolution.skipReason) loc=\(formatPoint(location)) windowUnderPointer=\(windowUnderPointer.map(String.init) ?? "nil") confirmed=\(formatToken(confirmedToken)) pending=\(formatToken(pendingToken))"
             )
             return
         }
@@ -1288,33 +1315,33 @@ final class MouseEventHandler {
         activateFocusFollowsMouseTarget(target)
     }
 
-    private func resolveFocusFollowsMouseTarget(
+    private func resolveFocusFollowsMouse(
         at location: CGPoint,
         windowUnderPointer: Int? = nil,
         allowWindowServerSnapshotFallback: Bool = true
-    ) -> FocusFollowsMouseTarget? {
-        guard let controller else { return nil }
+    ) -> FocusFollowsMouseResolution {
+        guard let controller else { return .noHitTest }
         guard let wsId = workspaceIdForPointer(at: location) ?? controller.interactionWorkspace()?.id else {
-            return nil
+            return .noWorkspace
         }
 
         if isFloatingWindowCoveringPointer(at: location, in: wsId)
             || hasVisibleFloatingWindowOverNiriLayout(in: wsId)
-            || controller.unmanagedWindowServerWindowCovers(
+            || controller.unmanagedInteractiveWindowServerWindowCovers(
                 point: location,
                 windowUnderPointer: windowUnderPointer,
                 allowWindowServerSnapshotFallback: allowWindowServerSnapshotFallback
             )
         {
-            return nil
+            return .occlusion
         }
 
         guard let engine = controller.niriEngine,
               let window = engine.hitTestFocusableWindow(point: location, in: wsId)
         else {
-            return nil
+            return .noHitTest
         }
-        return .niri(workspaceId: wsId, window: window)
+        return .target(.niri(workspaceId: wsId, window: window))
     }
 
     private func isFloatingWindowCoveringPointer(
@@ -1395,10 +1422,10 @@ final class MouseEventHandler {
         at location: CGPoint,
         windowUnderPointer: Int? = nil
     ) {
-        guard let target = resolveFocusFollowsMouseTarget(
+        guard let target = resolveFocusFollowsMouse(
             at: location,
             windowUnderPointer: windowUnderPointer
-        ) else { return }
+        ).targetValue else { return }
         controller?.suppressMouseMoveToFocusedWindow(for: focusFollowsMouseToken(for: target))
     }
 
@@ -2174,7 +2201,11 @@ final class MouseEventHandler {
         let location = event.location
         let screenLocation = ScreenCoordinateSpace.toAppKit(point: location)
         let modifiers = event.flags
-        let windowUnderPointer = windowUnderPointer(from: event)
+        let directWindowRaw = Int(event.getIntegerValueField(.mouseEventWindowUnderMousePointer))
+        let eventHandlingWindowRaw = Int(
+            event.getIntegerValueField(.mouseEventWindowUnderMousePointerThatCanHandleThisEvent)
+        )
+        let windowUnderPointer = windowUnderPointer(direct: directWindowRaw, canHandle: eventHandlingWindowRaw)
         let scrollPayload: (deltaX: CGFloat, deltaY: CGFloat, momentumPhase: UInt32, phase: UInt32)?
         if type == .scrollWheel {
             scrollPayload = (
@@ -2198,6 +2229,12 @@ final class MouseEventHandler {
             guard let handler = MouseEventHandler._instance else { return }
             switch type {
             case .mouseMoved:
+                handler.traceTapMouseMovedRawFields(
+                    direct: directWindowRaw,
+                    canHandle: eventHandlingWindowRaw,
+                    resolved: windowUnderPointer,
+                    location: screenLocation
+                )
                 handler.receiveTapMouseMoved(at: screenLocation, windowUnderPointer: windowUnderPointer)
             case .leftMouseDown:
                 _ = handler.receiveTapMouseDown(
@@ -2250,12 +2287,50 @@ final class MouseEventHandler {
 
     private nonisolated static func windowUnderPointer(from event: CGEvent) -> Int? {
         let directWindow = Int(event.getIntegerValueField(.mouseEventWindowUnderMousePointer))
-        if directWindow > 0 { return directWindow }
-
         let eventHandlingWindow = Int(
             event.getIntegerValueField(.mouseEventWindowUnderMousePointerThatCanHandleThisEvent)
         )
-        return eventHandlingWindow > 0 ? eventHandlingWindow : nil
+        return windowUnderPointer(direct: directWindow, canHandle: eventHandlingWindow)
+    }
+
+    /// Diagnostic-only: records the raw `CGEvent` window-under-pointer fields for a
+    /// mouse-moved event so a runtime trace can show whether the WindowServer
+    /// populated them (and with what value) for events that originate over an
+    /// overlay. This is the ground truth behind `windowUnderPointer(from:)` and is
+    /// needed to distinguish "fields genuinely empty" from "value lost in the
+    /// queue" for cases like the JankyBorders overlay (#64). No-op unless runtime
+    /// trace capture is active.
+    @MainActor
+    private func traceTapMouseMovedRawFields(
+        direct: Int,
+        canHandle: Int,
+        resolved: Int?,
+        location: CGPoint
+    ) {
+        guard controller?.isRuntimeTraceCaptureActive == true else { return }
+        traceMouseFocus(
+            "tap.mouseMoved direct=\(direct) canHandle=\(canHandle) resolved=\(resolved.map(String.init) ?? "nil") loc=\(formatPoint(location))"
+        )
+    }
+
+    /// Reconciles the geometrically-topmost window under the pointer (`direct`)
+    /// with the window that can actually handle the event (`canHandle`).
+    ///
+    /// When the two diverge (`direct != canHandle`, both positive) the topmost
+    /// window is click-through — e.g. a decorative overlay from the standalone
+    /// "Borders" app that does not receive mouse events. Prefer the
+    /// event-handling window so a click-through overlay does not suppress
+    /// focus-follows-mouse (#64). When both agree (an interactive overlay such
+    /// as the Ghostty Quick terminal) the overlay is still reported and correctly
+    /// suppresses FFM, so the completed overlay fix is preserved.
+    ///
+    /// `canHandle` is preferred whenever it is positive; `direct` is only used as
+    /// a fallback for owners/event types that populate only the geometric field.
+    nonisolated static func windowUnderPointer(direct: Int, canHandle: Int) -> Int? {
+        if direct > 0, canHandle > 0, direct != canHandle {
+            return canHandle
+        }
+        return canHandle > 0 ? canHandle : (direct > 0 ? direct : nil)
     }
 
     nonisolated static func resolvedWheelAxisDelta(pointDelta: CGFloat, fixedPointDelta: CGFloat) -> CGFloat {

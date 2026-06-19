@@ -58,6 +58,35 @@ private func sendCommittingTrackpadGesture(
 }
 
 @MainActor
+/// Builds a raw `CGWindowList` window record for an unmanaged overlay covering
+/// `appKitFrame`. Bounds are emitted in WindowServer/Quartz space (top-left
+/// origin) and converted to AppKit by the occlusion predicate, matching how the
+/// live `CGWindowListCopyWindowInfo` snapshot is consumed. Lets FFM occlusion
+/// tests inject a deterministic overlay without depending on real on-screen
+/// windows.
+private func makeUnmanagedOverlayWindowInfo(
+    windowId: Int,
+    pid: pid_t,
+    appKitFrame: CGRect,
+    layer: Int = 0,
+    ownerName: String = "TestOverlay"
+) -> [String: Any] {
+    let quartz = ScreenCoordinateSpace.toWindowServer(rect: appKitFrame)
+    return [
+        kCGWindowNumber as String: NSNumber(value: windowId),
+        kCGWindowOwnerPID as String: NSNumber(value: pid),
+        kCGWindowOwnerName as String: ownerName,
+        kCGWindowLayer as String: NSNumber(value: layer),
+        kCGWindowIsOnscreen as String: NSNumber(value: true),
+        kCGWindowBounds as String: [
+            "X": NSNumber(value: Double(quartz.minX)),
+            "Y": NSNumber(value: Double(quartz.minY)),
+            "Width": NSNumber(value: Double(quartz.width)),
+            "Height": NSNumber(value: Double(quartz.height))
+        ]
+    ]
+}
+
 private func makeOwnedUtilityTestWindow(
     frame: CGRect = CGRect(x: 40, y: 40, width: 240, height: 180)
 ) -> NSWindow {
@@ -107,6 +136,7 @@ private func makeMouseEventTestController(
     controller.lockScreenObserver.frontmostApplicationProvider = { nil }
     controller.unmanagedWindowServerWindowFramesProvider = { _ in [] }
     controller.unmanagedOverlayWindowServerWindowCoversOverride = { _ in false }
+    controller.unmanagedOverlayWindowInfoProvider = { [] }
     let frame = CGRect(x: 0, y: 0, width: 1920, height: 1080)
     let monitor = Monitor(
         id: Monitor.ID(displayId: 1),
@@ -2449,7 +2479,10 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
             width: 160,
             height: 120
         )
-        controller.unmanagedWindowServerWindowFramesProvider = { _ in [unmanagedFrame] }
+        controller.unmanagedOverlayWindowInfoProvider = {
+            [makeUnmanagedOverlayWindowInfo(windowId: 9340, pid: 55555, appKitFrame: unmanagedFrame)]
+        }
+        controller.ownerAppIsInteractiveApplicationProvider = { _ in true }
 
         controller.mouseEventHandler.dispatchMouseMoved(at: unmanagedFrame.center)
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
@@ -3125,5 +3158,427 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
 
         let viewportTraces = controller.runtimeViewportTraceRecordsForTests()
         #expect(viewportTraces.contains { $0.contains("reason=touch_scroll_gesture_abort") })
+    }
+
+    // MARK: - #64: click-through overlays must not suppress focus-follows-mouse
+
+    @Test @MainActor func windowUnderPointerReconcilesClickThroughTopmostWindow() {
+        // Click-through overlay (e.g. the standalone Borders app) is geometrically
+        // topmost (`direct`) but does not handle events, so `canHandle` reports the
+        // tile beneath. Resolve to the tile so FFM is not suppressed by it (#64).
+        #expect(MouseEventHandler.windowUnderPointer(direct: 5000, canHandle: 4000) == 4000)
+        // Interactive overlay (e.g. Ghostty Quick terminal): both fields agree, so
+        // the overlay is still reported and correctly suppresses FFM — no
+        // regression of the completed overlay fix.
+        #expect(MouseEventHandler.windowUnderPointer(direct: 5000, canHandle: 5000) == 5000)
+        // Neither field populated → nil.
+        #expect(MouseEventHandler.windowUnderPointer(direct: 0, canHandle: 0) == nil)
+        // Fallback for owners/event types that populate only the geometric field.
+        #expect(MouseEventHandler.windowUnderPointer(direct: 6000, canHandle: 0) == 6000)
+        // Only the event-handling field populated → prefer it.
+        #expect(MouseEventHandler.windowUnderPointer(direct: 0, canHandle: 7000) == 7000)
+    }
+
+    @Test @MainActor func focusFollowsMouseFiresThroughClickThroughOverlay() async {
+        let controller = makeMouseEventTestController()
+        controller.enableNiriLayout()
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+        controller.syncMonitorsToNiriEngine()
+        controller.setFocusFollowsMouse(true)
+
+        guard let workspaceId = controller.interactionWorkspace()?.id,
+              let engine = controller.niriEngine,
+              let monitor = controller.workspaceManager.monitor(for: workspaceId)
+        else {
+            Issue.record("Missing Niri context for click-through hover test")
+            return
+        }
+
+        let firstToken = controller.workspaceManager.addWindow(
+            makeMouseEventTestWindow(windowId: 8801),
+            pid: getpid(),
+            windowId: 8801,
+            to: workspaceId
+        )
+        let secondToken = controller.workspaceManager.addWindow(
+            makeMouseEventTestWindow(windowId: 8802),
+            pid: getpid(),
+            windowId: 8802,
+            to: workspaceId
+        )
+        guard let firstHandle = controller.workspaceManager.handle(for: firstToken),
+              let secondHandle = controller.workspaceManager.handle(for: secondToken)
+        else {
+            Issue.record("Missing handles for click-through hover test")
+            return
+        }
+
+        _ = engine.syncWindows(
+            [firstHandle, secondHandle],
+            in: workspaceId,
+            selectedNodeId: nil,
+            focusedHandle: firstHandle
+        )
+        _ = controller.workspaceManager.setManagedFocus(firstHandle, in: workspaceId, onMonitor: monitor.id)
+        controller.layoutRefreshController.requestImmediateRelayout(reason: .workspaceTransition)
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+
+        guard let secondNode = engine.findNode(for: secondHandle),
+              let hoveredFrame = secondNode.frame
+        else {
+            Issue.record("Missing hovered tile frame for click-through hover test")
+            return
+        }
+
+        var snapshotCalls = 0
+        controller.unmanagedWindowServerWindowFramesProvider = { _ in
+            snapshotCalls += 1
+            return []
+        }
+
+        // A decorative click-through overlay sits geometrically over the tile
+        // (direct=8900) but the event-handling field resolves to the managed tile
+        // beneath (canHandle=8802). windowUnderPointer(direct:canHandle:) yields
+        // 8802 (the managed tile), so FFM must fire on it instead of freezing.
+        let resolvedWindow = MouseEventHandler.windowUnderPointer(direct: 8900, canHandle: 8802)
+        controller.mouseEventHandler.dispatchMouseMoved(
+            at: CGPoint(x: hoveredFrame.midX, y: hoveredFrame.midY),
+            windowUnderPointer: resolvedWindow
+        )
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+
+        #expect(resolvedWindow == 8802)
+        #expect(controller.workspaceManager.pendingFocusedHandle == secondHandle)
+        #expect(snapshotCalls == 0)
+    }
+
+    @Test @MainActor func focusFollowsMouseSuppressesOverInteractiveOverlay() async {
+        let controller = makeMouseEventTestController()
+        controller.enableNiriLayout()
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+        controller.syncMonitorsToNiriEngine()
+        controller.setFocusFollowsMouse(true)
+
+        guard let workspaceId = controller.interactionWorkspace()?.id,
+              let engine = controller.niriEngine,
+              let monitor = controller.workspaceManager.monitor(for: workspaceId)
+        else {
+            Issue.record("Missing Niri context for interactive overlay regression test")
+            return
+        }
+
+        let firstToken = controller.workspaceManager.addWindow(
+            makeMouseEventTestWindow(windowId: 8811),
+            pid: getpid(),
+            windowId: 8811,
+            to: workspaceId
+        )
+        let secondToken = controller.workspaceManager.addWindow(
+            makeMouseEventTestWindow(windowId: 8812),
+            pid: getpid(),
+            windowId: 8812,
+            to: workspaceId
+        )
+        guard let firstHandle = controller.workspaceManager.handle(for: firstToken),
+              let secondHandle = controller.workspaceManager.handle(for: secondToken)
+        else {
+            Issue.record("Missing handles for interactive overlay regression test")
+            return
+        }
+
+        _ = engine.syncWindows(
+            [firstHandle, secondHandle],
+            in: workspaceId,
+            selectedNodeId: nil,
+            focusedHandle: firstHandle
+        )
+        _ = controller.workspaceManager.setManagedFocus(firstHandle, in: workspaceId, onMonitor: monitor.id)
+        controller.layoutRefreshController.requestImmediateRelayout(reason: .workspaceTransition)
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+
+        guard let secondNode = engine.findNode(for: secondHandle),
+              let hoveredFrame = secondNode.frame
+        else {
+            Issue.record("Missing hovered tile frame for interactive overlay regression test")
+            return
+        }
+
+        var snapshotCalls = 0
+        controller.unmanagedWindowServerWindowFramesProvider = { _ in
+            snapshotCalls += 1
+            return []
+        }
+
+        // Interactive overlay (e.g. Ghostty Quick terminal): it handles events, so
+        // direct==canHandle==8899. The reconcile keeps the overlay window number;
+        // it is unmanaged and unowned → FFM must stay suppressed (completed fix).
+        let resolvedWindow = MouseEventHandler.windowUnderPointer(direct: 8899, canHandle: 8899)
+        controller.mouseEventHandler.dispatchMouseMoved(
+            at: CGPoint(x: hoveredFrame.midX, y: hoveredFrame.midY),
+            windowUnderPointer: resolvedWindow
+        )
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+
+        #expect(resolvedWindow == 8899)
+        #expect(snapshotCalls == 0)
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == firstToken)
+        #expect(controller.workspaceManager.activeFocusRequestToken == nil)
+    }
+
+    @Test @MainActor func focusFollowsMouseNotSuppressedByOwnedPassthroughBorder() async {
+        let registry = makeOwnedMouseWindowRegistry { nil }
+        let controller = makeMouseEventTestController(ownedWindowRegistry: registry)
+        controller.enableNiriLayout()
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+        controller.syncMonitorsToNiriEngine()
+        controller.setFocusFollowsMouse(true)
+
+        guard let workspaceId = controller.interactionWorkspace()?.id,
+              let engine = controller.niriEngine,
+              let monitor = controller.workspaceManager.monitor(for: workspaceId)
+        else {
+            Issue.record("Missing Niri context for owned border hover test")
+            return
+        }
+
+        let firstToken = controller.workspaceManager.addWindow(
+            makeMouseEventTestWindow(windowId: 8821),
+            pid: getpid(),
+            windowId: 8821,
+            to: workspaceId
+        )
+        let secondToken = controller.workspaceManager.addWindow(
+            makeMouseEventTestWindow(windowId: 8822),
+            pid: getpid(),
+            windowId: 8822,
+            to: workspaceId
+        )
+        guard let firstHandle = controller.workspaceManager.handle(for: firstToken),
+              let secondHandle = controller.workspaceManager.handle(for: secondToken)
+        else {
+            Issue.record("Missing handles for owned border hover test")
+            return
+        }
+
+        _ = engine.syncWindows(
+            [firstHandle, secondHandle],
+            in: workspaceId,
+            selectedNodeId: nil,
+            focusedHandle: firstHandle
+        )
+        _ = controller.workspaceManager.setManagedFocus(firstHandle, in: workspaceId, onMonitor: monitor.id)
+        controller.layoutRefreshController.requestImmediateRelayout(reason: .workspaceTransition)
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+
+        guard let secondNode = engine.findNode(for: secondHandle),
+              let hoveredFrame = secondNode.frame
+        else {
+            Issue.record("Missing hovered tile frame for owned border hover test")
+            return
+        }
+
+        // Register a Nehir-owned passthrough border surface (the built-in border).
+        let borderWindowNumber = 8898
+        registry.registerWindowNumber(
+            surfaceId: "test-owned-border",
+            kind: .border,
+            windowNumber: borderWindowNumber,
+            frameProvider: { hoveredFrame },
+            visibilityProvider: { true },
+            hitTestPolicy: .passthrough,
+            capturePolicy: .excluded,
+            suppressesManagedFocusRecovery: false
+        )
+        defer {
+            registry.unregister(surfaceId: "test-owned-border")
+            registry.resetForTests()
+        }
+
+        var snapshotCalls = 0
+        controller.unmanagedWindowServerWindowFramesProvider = { _ in
+            snapshotCalls += 1
+            return []
+        }
+
+        // The built-in border is click-through: geometrically topmost (direct) but
+        // the tile beneath handles events (canHandle=8822). The reconcile yields
+        // the managed tile, and even if the border number reached the occlusion
+        // check it is owned → not unmanaged → FFM fires on the tile.
+        let resolvedWindow = MouseEventHandler.windowUnderPointer(direct: borderWindowNumber, canHandle: 8822)
+        controller.mouseEventHandler.dispatchMouseMoved(
+            at: CGPoint(x: hoveredFrame.midX, y: hoveredFrame.midY),
+            windowUnderPointer: resolvedWindow
+        )
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+
+        #expect(resolvedWindow == 8822)
+        #expect(controller.workspaceManager.pendingFocusedHandle == secondHandle)
+        #expect(snapshotCalls == 0)
+    }
+
+    // MARK: - #64: snapshot-fallback path (windowUnderPointer == nil)
+
+    // These exercise the path the bug actually takes in the field: on some
+    // macOS builds the CGEvent window-under-pointer fields are never populated
+    // for mouse-moved events, so FFM's occlusion decision falls to the
+    // WindowServer snapshot. A decorative click-through overlay owned by a
+    // faceless process (e.g. the JankyBorders binary: bundleId == nil,
+    // activationPolicy == nil) must not suppress FFM there, while an
+    // interactive overlay owned by a real bundled app (e.g. the Ghostty Quick
+    // terminal) must still suppress it.
+
+    @Test @MainActor func focusFollowsMouseFiresThroughFacelessClickThroughOverlayOnSnapshotFallback() async {
+        let controller = makeMouseEventTestController()
+        controller.enableNiriLayout()
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+        controller.syncMonitorsToNiriEngine()
+        controller.setFocusFollowsMouse(true)
+
+        guard let workspaceId = controller.interactionWorkspace()?.id,
+              let engine = controller.niriEngine,
+              let monitor = controller.workspaceManager.monitor(for: workspaceId)
+        else {
+            Issue.record("Missing Niri context for faceless overlay hover test")
+            return
+        }
+
+        let firstToken = controller.workspaceManager.addWindow(
+            makeMouseEventTestWindow(windowId: 8831),
+            pid: getpid(),
+            windowId: 8831,
+            to: workspaceId
+        )
+        let secondToken = controller.workspaceManager.addWindow(
+            makeMouseEventTestWindow(windowId: 8832),
+            pid: getpid(),
+            windowId: 8832,
+            to: workspaceId
+        )
+        guard let firstHandle = controller.workspaceManager.handle(for: firstToken),
+              let secondHandle = controller.workspaceManager.handle(for: secondToken)
+        else {
+            Issue.record("Missing handles for faceless overlay hover test")
+            return
+        }
+
+        _ = engine.syncWindows(
+            [firstHandle, secondHandle],
+            in: workspaceId,
+            selectedNodeId: nil,
+            focusedHandle: firstHandle
+        )
+        _ = controller.workspaceManager.setManagedFocus(firstHandle, in: workspaceId, onMonitor: monitor.id)
+        controller.layoutRefreshController.requestImmediateRelayout(reason: .workspaceTransition)
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+
+        guard let secondNode = engine.findNode(for: secondHandle),
+              let hoveredFrame = secondNode.frame
+        else {
+            Issue.record("Missing hovered tile frame for faceless overlay hover test")
+            return
+        }
+
+        // A decorative click-through overlay covers the tile geometrically and
+        // is reported by the WindowServer snapshot (JankyBorders-style).
+        // windowUnderPointer is nil (the real field-empty case), forcing the
+        // snapshot fallback.
+        controller.unmanagedOverlayWindowInfoProvider = {
+            [makeUnmanagedOverlayWindowInfo(
+                windowId: 8890,
+                pid: 55556,
+                appKitFrame: hoveredFrame,
+                ownerName: "borders"
+            )]
+        }
+        // The overlay's owner is a faceless process: not a registered app, so
+        // it cannot host an interactive surface → excluded from occlusion.
+        controller.ownerAppIsInteractiveApplicationProvider = { _ in false }
+
+        controller.mouseEventHandler.dispatchMouseMoved(
+            at: CGPoint(x: hoveredFrame.midX, y: hoveredFrame.midY),
+            windowUnderPointer: nil
+        )
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+
+        #expect(controller.workspaceManager.pendingFocusedHandle == secondHandle)
+    }
+
+    @Test @MainActor func focusFollowsMouseSuppressesOverInteractiveAppOverlayOnSnapshotFallback() async {
+        // Regression guard for the Ghostty Quick terminal: an interactive
+        // overlay owned by a real bundled app must still suppress FFM on the
+        // snapshot-fallback path, even though windowUnderPointer is nil.
+        let controller = makeMouseEventTestController()
+        controller.enableNiriLayout()
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+        controller.syncMonitorsToNiriEngine()
+        controller.setFocusFollowsMouse(true)
+
+        guard let workspaceId = controller.interactionWorkspace()?.id,
+              let engine = controller.niriEngine,
+              let monitor = controller.workspaceManager.monitor(for: workspaceId)
+        else {
+            Issue.record("Missing Niri context for interactive app overlay test")
+            return
+        }
+
+        let firstToken = controller.workspaceManager.addWindow(
+            makeMouseEventTestWindow(windowId: 8841),
+            pid: getpid(),
+            windowId: 8841,
+            to: workspaceId
+        )
+        let secondToken = controller.workspaceManager.addWindow(
+            makeMouseEventTestWindow(windowId: 8842),
+            pid: getpid(),
+            windowId: 8842,
+            to: workspaceId
+        )
+        guard let firstHandle = controller.workspaceManager.handle(for: firstToken),
+              let secondHandle = controller.workspaceManager.handle(for: secondToken)
+        else {
+            Issue.record("Missing handles for interactive app overlay test")
+            return
+        }
+
+        _ = engine.syncWindows(
+            [firstHandle, secondHandle],
+            in: workspaceId,
+            selectedNodeId: nil,
+            focusedHandle: firstHandle
+        )
+        _ = controller.workspaceManager.setManagedFocus(firstHandle, in: workspaceId, onMonitor: monitor.id)
+        controller.layoutRefreshController.requestImmediateRelayout(reason: .workspaceTransition)
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+
+        guard let secondNode = engine.findNode(for: secondHandle),
+              let hoveredFrame = secondNode.frame
+        else {
+            Issue.record("Missing hovered tile frame for interactive app overlay test")
+            return
+        }
+
+        // The interactive overlay covers the tile above the normal app layer
+        // and is reported by the snapshot. Ghostty's Quick terminal can appear
+        // faceless/unregistered on this path, but because its owner is not the
+        // decorative border utility, it must still occlude FFM.
+        controller.unmanagedOverlayWindowInfoProvider = {
+            [makeUnmanagedOverlayWindowInfo(
+                windowId: 8899,
+                pid: 55557,
+                appKitFrame: hoveredFrame,
+                layer: 25,
+                ownerName: "Ghostty"
+            )]
+        }
+        controller.ownerAppIsInteractiveApplicationProvider = { _ in false }
+
+        controller.mouseEventHandler.dispatchMouseMoved(
+            at: CGPoint(x: hoveredFrame.midX, y: hoveredFrame.midY),
+            windowUnderPointer: nil
+        )
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == firstToken)
+        #expect(controller.workspaceManager.activeFocusRequestToken == nil)
     }
 }
