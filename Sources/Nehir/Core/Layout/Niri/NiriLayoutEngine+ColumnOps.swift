@@ -488,12 +488,15 @@ extension NiriLayoutEngine {
             in: workspaceId,
             allowEdgeWrap: allowEdgeWrap
         )
+        let pureExpected = purePlan == .unsupported
+            ? nil
+            : pureLayoutExpectedMoveSnapshot(window, direction: direction, in: workspaceId, allowEdgeWrap: allowEdgeWrap)
 
         switch purePlan {
         case .noChange:
             return false
         case .horizontalExpel:
-            return expelWindow(
+            let moved = expelWindow(
                 window,
                 to: direction,
                 in: workspaceId,
@@ -502,6 +505,10 @@ extension NiriLayoutEngine {
                 workingFrame: workingFrame,
                 gaps: gaps
             )
+            if moved {
+                assertPureLayoutSnapshotMatches(pureExpected, selectedWindow: window, in: workspaceId)
+            }
+            return moved
         case .horizontalConsume,
              .unsupported:
             break
@@ -626,6 +633,10 @@ extension NiriLayoutEngine {
             fromContainerIndex: previousActiveColumnIndex,
             previousActiveContainerPosition: previousActiveColumnPosition
         )
+
+        if case .horizontalConsume = purePlan {
+            assertPureLayoutSnapshotMatches(pureExpected, selectedWindow: window, in: workspaceId)
+        }
 
         return true
     }
