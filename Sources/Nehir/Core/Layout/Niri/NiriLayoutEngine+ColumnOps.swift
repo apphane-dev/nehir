@@ -35,6 +35,7 @@ extension NiriLayoutEngine {
         targetColumn.savedWidth = sourceColumn.savedWidth
         targetColumn.hasManualSingleWindowWidthOverride = sourceColumn.hasManualSingleWindowWidthOverride
         targetColumn.cachedWidth = 0
+        targetColumn.clearLoneWindowLayoutWidthOverride()
         targetColumn.widthAnimation = nil
         targetColumn.targetWidth = nil
     }

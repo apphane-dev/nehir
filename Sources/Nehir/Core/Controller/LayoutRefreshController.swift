@@ -127,6 +127,7 @@ import QuartzCore
         let targetFrame: CGRect
         let targetMonitorId: Monitor.ID
         let hiddenState: WindowModel.HiddenState
+        let retainHiddenStateOnFailure: Bool
         var postSuccessActions: [PostLayoutAction]
         var delayedVerificationScheduled: Bool = false
     }
@@ -2370,14 +2371,61 @@ import QuartzCore
         let displayId: CGDirectDisplayID?
     }
 
+    fileprivate struct WindowPositionApplyResult {
+        let token: WindowToken
+        let requestedFrame: CGRect
+        let observedFrame: CGRect?
+        let fallbackAttempted: Bool
+        let fallbackResult: AXFrameWriteResult?
+        let verified: Bool
+    }
+
     fileprivate enum HideOperationResolution {
         case movable(WindowPositionPlan, hiddenState: WindowModel.HiddenState)
         case alreadyHidden(hiddenState: WindowModel.HiddenState)
         case unavailable
     }
 
-    fileprivate func applyPositionPlans(_ plans: [WindowPositionPlan]) {
-        guard let controller, !plans.isEmpty else { return }
+    private func positionPlanPlacementVerified(
+        _ plan: WindowPositionPlan,
+        requestedFrame: CGRect,
+        observedFrame: CGRect?,
+        epsilon: CGFloat
+    ) -> Bool {
+        guard let observedFrame else { return false }
+        guard abs(observedFrame.origin.x - requestedFrame.origin.x) <= epsilon,
+              abs(observedFrame.origin.y - requestedFrame.origin.y) <= epsilon
+        else {
+            return false
+        }
+
+        guard let displayId = plan.displayId,
+              let monitor = controller?.workspaceManager.monitors.first(where: { $0.displayId == displayId })
+        else {
+            return true
+        }
+
+        return monitor.visibleFrame.contains(CGPoint(x: observedFrame.midX, y: observedFrame.midY))
+    }
+
+    private func verifiedCurrentRevealFrame(
+        for entry: WindowModel.Entry,
+        targetFrame: CGRect,
+        monitor: Monitor
+    ) -> CGRect? {
+        let observedFrame = observedWindowFrame(entry) ?? controller?.axManager.lastAppliedFrame(for: entry.windowId)
+        guard let observedFrame,
+              observedFrame.approximatelyEqual(to: targetFrame, tolerance: 1.0),
+              monitor.visibleFrame.contains(CGPoint(x: observedFrame.midX, y: observedFrame.midY))
+        else {
+            return nil
+        }
+        return observedFrame
+    }
+
+    @discardableResult
+    fileprivate func applyPositionPlans(_ plans: [WindowPositionPlan]) -> [WindowPositionApplyResult] {
+        guard let controller, !plans.isEmpty else { return [] }
 
         // Diagnostic: log every position plan before SkyLight
         for plan in plans {
@@ -2397,17 +2445,30 @@ import QuartzCore
         )
 
         let verifyEpsilon: CGFloat = 1.0
+        var results: [WindowPositionApplyResult] = []
+        results.reserveCapacity(plans.count)
+
         for plan in plans {
-            if let observedOrigin = liveWindowOrigin(plan.entry) {
+            let requestedFrame = CGRect(origin: plan.origin, size: plan.frameSize)
+            var observedFrame = AXWindowService.framePreferFast(plan.entry.axRef)
+                ?? controller.axManager.lastAppliedFrame(for: plan.entry.windowId)
+            var fallbackAttempted = false
+            var fallbackResult: AXFrameWriteResult?
+
+            if let observedOrigin = observedFrame?.origin {
                 let dx = abs(observedOrigin.x - plan.origin.x)
                 let dy = abs(observedOrigin.y - plan.origin.y)
                 // Diagnostic: log SkyLight result vs requested
                 controller.axManager.recordFrameApplyTrace("hidePlan.verify id=\(plan.entry.windowId) requested=\(LayoutTrace.point(plan.origin)) observed=\(LayoutTrace.point(observedOrigin)) dx=\(String(format: "%.1f", dx)) dy=\(String(format: "%.1f", dy)) fallback=\(dx > verifyEpsilon || dy > verifyEpsilon ? "YES" : "no")")
                 if dx > verifyEpsilon || dy > verifyEpsilon {
-                    let fallbackFrame = CGRect(origin: plan.origin, size: plan.frameSize)
-                    let axResult = AXWindowService.setFrame(plan.entry.axRef, frame: fallbackFrame)
+                    fallbackAttempted = true
+                    let axResult = AXWindowService.setFrame(plan.entry.axRef, frame: requestedFrame)
+                    fallbackResult = axResult
+                    observedFrame = axResult.observedFrame
+                        ?? AXWindowService.framePreferFast(plan.entry.axRef)
+                        ?? controller.axManager.lastAppliedFrame(for: plan.entry.windowId)
                     // Diagnostic: log AX fallback result
-                    if let afterFallback = liveWindowOrigin(plan.entry) {
+                    if let afterFallback = observedFrame?.origin {
                         controller.axManager.recordFrameApplyTrace("hidePlan.axFallback id=\(plan.entry.windowId) axResult=\(axResult) requested=\(LayoutTrace.point(plan.origin)) afterFallback=\(LayoutTrace.point(afterFallback))")
                     } else {
                         controller.axManager.recordFrameApplyTrace("hidePlan.axFallback id=\(plan.entry.windowId) axResult=\(axResult) afterFallback=nil")
@@ -2416,7 +2477,28 @@ import QuartzCore
             } else {
                 controller.axManager.recordFrameApplyTrace("hidePlan.verify id=\(plan.entry.windowId) requested=\(LayoutTrace.point(plan.origin)) observed=nil")
             }
+
+            let verified = positionPlanPlacementVerified(
+                plan,
+                requestedFrame: requestedFrame,
+                observedFrame: observedFrame,
+                epsilon: verifyEpsilon
+            )
+            controller.axManager.recordFrameApplyTrace(
+                "hidePlan.final id=\(plan.entry.windowId) requested=\(LayoutTrace.rect(requestedFrame)) observed=\(observedFrame.map(LayoutTrace.rect) ?? "nil") fallback=\(fallbackAttempted ? "YES" : "no") verified=\(verified)"
+            )
+            results.append(
+                WindowPositionApplyResult(
+                    token: plan.entry.token,
+                    requestedFrame: requestedFrame,
+                    observedFrame: observedFrame,
+                    fallbackAttempted: fallbackAttempted,
+                    fallbackResult: fallbackResult,
+                    verified: verified
+                )
+            )
         }
+        return results
     }
 
     fileprivate func resolveHideOperation(
@@ -2764,9 +2846,30 @@ import QuartzCore
         for entry: WindowModel.Entry,
         hiddenState: WindowModel.HiddenState
     ) -> Bool {
-        !hiddenState.workspaceInactive
+        if hiddenState.workspaceInactive, entry.mode == .tiling {
+            return true
+        }
+        return !hiddenState.workspaceInactive
             && entry.mode == .floating
             && hiddenState.restoresViaFloatingState
+    }
+
+    fileprivate func shouldUsePendingRevealTransaction(
+        for entry: WindowModel.Entry,
+        hiddenState: WindowModel.HiddenState,
+        targetFrame: CGRect,
+        monitor: Monitor
+    ) -> Bool {
+        guard shouldUsePendingRevealTransaction(for: entry, hiddenState: hiddenState) else {
+            return false
+        }
+        if hiddenState.workspaceInactive,
+           entry.mode == .tiling,
+           verifiedCurrentRevealFrame(for: entry, targetFrame: targetFrame, monitor: monitor) != nil
+        {
+            return false
+        }
+        return true
     }
 
     fileprivate func beginPendingRevealTransaction(
@@ -2793,6 +2896,7 @@ import QuartzCore
             targetFrame: targetFrame,
             targetMonitorId: monitor.id,
             hiddenState: hiddenState,
+            retainHiddenStateOnFailure: hiddenState.workspaceInactive && entry.mode == .tiling,
             postSuccessActions: onSuccess.map { [$0] } ?? []
         )
         return true
@@ -2857,7 +2961,12 @@ import QuartzCore
             pendingRevealTransactionsByWindowId[result.windowId] = pendingTransaction
             scheduleDelayedRevealVerification(forWindowId: result.windowId)
         case .failure:
-            finalizePendingRevealTransactionFailure(forWindowId: result.windowId)
+            let retainHiddenState = transaction.retainHiddenStateOnFailure
+                && result.writeResult.failureReason.map(isDelayedRevealRecoverable) == true
+            finalizePendingRevealTransactionFailure(
+                forWindowId: result.windowId,
+                retainHiddenState: retainHiddenState
+            )
         }
     }
 
@@ -2927,7 +3036,10 @@ import QuartzCore
         }
     }
 
-    private func finalizePendingRevealTransactionFailure(forWindowId windowId: Int) {
+    private func finalizePendingRevealTransactionFailure(
+        forWindowId windowId: Int,
+        retainHiddenState: Bool? = nil
+    ) {
         guard let controller,
               let pendingTransaction = pendingRevealTransactionsByWindowId.removeValue(forKey: windowId)
         else {
@@ -2943,7 +3055,10 @@ import QuartzCore
             return
         }
 
-        if pendingTransaction.hiddenState.workspaceInactive {
+        let shouldRetainHiddenState = retainHiddenState ?? pendingTransaction.retainHiddenStateOnFailure
+        if pendingTransaction.hiddenState.workspaceInactive,
+           !shouldRetainHiddenState
+        {
             controller.workspaceManager.setHiddenState(nil, for: pendingTransaction.token)
             controller.axManager.unsuppressFrameWrites(frameEntry)
             return
@@ -3015,7 +3130,29 @@ import QuartzCore
                 return false
             }
         case let .positionPlan(plan):
-            applyPositionPlans([plan])
+            let results = applyPositionPlans([plan])
+            let verified = results.first?.verified == true
+            if hiddenState.workspaceInactive, entry.mode == .tiling, !verified {
+                let targetFrame = CGRect(origin: plan.origin, size: plan.frameSize)
+                guard beginPendingRevealTransaction(
+                    for: entry,
+                    hiddenState: hiddenState,
+                    targetFrame: targetFrame,
+                    monitor: monitor,
+                    onSuccess: onSuccess
+                ) else {
+                    return true
+                }
+                controller.axManager.unsuppressFrameWrites(frameEntry)
+                controller.axManager.forceApplyNextFrame(for: entry.windowId)
+                controller.axManager.applyFramesParallel(
+                    [(entry.pid, entry.windowId, targetFrame)],
+                    terminalObserver: { [weak self] result in
+                        self?.completePendingRevealTransaction(with: result)
+                    }
+                )
+                return true
+            }
             controller.workspaceManager.setHiddenState(nil, for: entry.token)
             controller.axManager.unsuppressFrameWrites(frameEntry)
             onSuccess?()
@@ -3584,48 +3721,56 @@ final class LayoutDiffExecutor {
         }
 
         for (entry, hiddenState) in restoreEntries {
+            guard let targetFrame = frameChangeByToken[entry.token] else {
+                if refreshController.hasPendingRevealTransaction(for: entry.windowId) {
+                    blockedRevealTokens.insert(entry.token)
+                }
+                continue
+            }
             guard refreshController.shouldUsePendingRevealTransaction(
                 for: entry,
-                hiddenState: hiddenState
+                hiddenState: hiddenState,
+                targetFrame: targetFrame,
+                monitor: monitor
             ) else {
                 continue
             }
-            if let targetFrame = frameChangeByToken[entry.token] {
-                if refreshController.beginPendingRevealTransaction(
-                    for: entry,
-                    hiddenState: hiddenState,
-                    targetFrame: targetFrame,
-                    monitor: monitor
-                ) {
-                    pendingRevealTokens.insert(entry.token)
-                } else {
-                    blockedRevealTokens.insert(entry.token)
-                }
-            } else if refreshController.hasPendingRevealTransaction(for: entry.windowId) {
+            if refreshController.beginPendingRevealTransaction(
+                for: entry,
+                hiddenState: hiddenState,
+                targetFrame: targetFrame,
+                monitor: monitor
+            ) {
+                pendingRevealTokens.insert(entry.token)
+            } else {
                 blockedRevealTokens.insert(entry.token)
             }
         }
 
         for (entry, hiddenState) in shownEntries {
             guard let hiddenState else { continue }
+            guard let targetFrame = frameChangeByToken[entry.token] else {
+                if refreshController.hasPendingRevealTransaction(for: entry.windowId) {
+                    blockedRevealTokens.insert(entry.token)
+                }
+                continue
+            }
             guard refreshController.shouldUsePendingRevealTransaction(
                 for: entry,
-                hiddenState: hiddenState
+                hiddenState: hiddenState,
+                targetFrame: targetFrame,
+                monitor: monitor
             ) else {
                 continue
             }
-            if let targetFrame = frameChangeByToken[entry.token] {
-                if refreshController.beginPendingRevealTransaction(
-                    for: entry,
-                    hiddenState: hiddenState,
-                    targetFrame: targetFrame,
-                    monitor: monitor
-                ) {
-                    pendingRevealTokens.insert(entry.token)
-                } else {
-                    blockedRevealTokens.insert(entry.token)
-                }
-            } else if refreshController.hasPendingRevealTransaction(for: entry.windowId) {
+            if refreshController.beginPendingRevealTransaction(
+                for: entry,
+                hiddenState: hiddenState,
+                targetFrame: targetFrame,
+                monitor: monitor
+            ) {
+                pendingRevealTokens.insert(entry.token)
+            } else {
                 blockedRevealTokens.insert(entry.token)
             }
         }
@@ -3703,7 +3848,9 @@ final class LayoutDiffExecutor {
                         hiddenState: hiddenState
                     )
                 }
-            refreshController.applyPositionPlans(restorePlans)
+            let restorePositionResultsByToken = Dictionary(
+                uniqueKeysWithValues: refreshController.applyPositionPlans(restorePlans).map { ($0.token, $0) }
+            )
             if LayoutTrace.isEnabled {
                 for plan in restorePlans {
                     LayoutTrace.log(
@@ -3712,10 +3859,17 @@ final class LayoutDiffExecutor {
                 }
             }
 
-            for (entry, _) in restoreEntries
+            for (entry, hiddenState) in restoreEntries
                 where !pendingRevealTokens.contains(entry.token)
                 && !blockedRevealTokens.contains(entry.token)
             {
+                if hiddenState.workspaceInactive,
+                   entry.mode == .tiling,
+                   restorePositionResultsByToken[entry.token]?.verified == false
+                {
+                    blockedRevealTokens.insert(entry.token)
+                    continue
+                }
                 controller.workspaceManager.setHiddenState(nil, for: entry.token)
             }
         }

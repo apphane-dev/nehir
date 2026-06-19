@@ -42,6 +42,11 @@ extension NiriLayoutEngine {
             targetColumn = newColumn
         }
         targetColumn.appendChild(window)
+        if targetRoot.allWindows.count != 1 {
+            for column in targetRoot.columns where !column.hasManualSingleWindowWidthOverride {
+                column.clearLoneWindowLayoutWidthOverride()
+            }
+        }
 
         cleanupEmptyColumn(sourceColumn, in: sourceWorkspaceId, state: &sourceState)
 
@@ -88,6 +93,11 @@ extension NiriLayoutEngine {
         column.detach()
 
         targetRoot.appendChild(column)
+        if targetRoot.allWindows.count != 1 {
+            for targetColumn in targetRoot.columns where !targetColumn.hasManualSingleWindowWidthOverride {
+                targetColumn.clearLoneWindowLayoutWidthOverride()
+            }
+        }
 
         sourceState.selectedNodeId = fallbackSelection
 

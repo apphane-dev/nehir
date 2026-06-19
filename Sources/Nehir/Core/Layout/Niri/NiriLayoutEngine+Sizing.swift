@@ -76,6 +76,7 @@ extension NiriLayoutEngine {
             "widthSpec=\(widthSpecDescription(column.width))",
             "effectiveSpec=\(widthSpecDescription(currentSpec))",
             "cached=\(fmt(column.cachedWidth))",
+            "override=\(fmt(column.loneWindowLayoutWidthOverride))",
             "resolvedSpec=\(fmt(resolvedSpec))",
             "targetWidth=\(fmt(column.targetWidth))",
             "presetIdx=\(column.presetWidthIdx.map(String.init) ?? "nil")",
@@ -100,18 +101,7 @@ extension NiriLayoutEngine {
         gaps: CGFloat
     ) -> CGFloat {
         if column.cachedWidth <= 0 {
-            if let singleWindowContext = singleWindowLayoutContext(in: workspaceId),
-               singleWindowContext.container === column
-            {
-                column.cachedWidth = resolvedSingleWindowRect(
-                    for: singleWindowContext,
-                    in: workingFrame,
-                    scale: 1.0,
-                    gaps: gaps
-                ).width
-            } else {
-                column.resolveAndCacheWidth(workingAreaWidth: workingFrame.width, gaps: gaps)
-            }
+            column.resolveAndCacheWidth(workingAreaWidth: workingFrame.width, gaps: gaps)
         }
 
         return column.cachedWidth

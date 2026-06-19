@@ -197,6 +197,7 @@ extension NiriLayoutEngine {
         }
 
         for container in containers {
+            container.clearLoneWindowLayoutWidthOverride()
             switch orientation {
             case .horizontal:
                 if container.cachedWidth <= 0 {
@@ -702,13 +703,14 @@ extension NiriLayoutEngine {
         in workingFrame: CGRect,
         gaps: CGFloat
     ) -> CGFloat {
+        if context.container.cachedWidth <= 0 {
+            context.container.resolveAndCacheWidth(workingAreaWidth: workingFrame.width, gaps: gaps)
+        }
+
         guard context.container.hasManualSingleWindowWidthOverride else {
             return workingFrame.width * CGFloat(context.maxWidthFraction.clamped(to: 0.0 ... 1.0))
         }
 
-        if context.container.cachedWidth <= 0 {
-            context.container.resolveAndCacheWidth(workingAreaWidth: workingFrame.width, gaps: gaps)
-        }
         return max(0, context.container.cachedWidth)
     }
 
@@ -821,7 +823,11 @@ extension NiriLayoutEngine {
             scale: scale,
             gaps: gaps
         )
-        context.container.cachedWidth = geometry.rect.width
+        if context.container.hasManualSingleWindowWidthOverride {
+            context.container.clearLoneWindowLayoutWidthOverride()
+        } else {
+            context.container.loneWindowLayoutWidthOverride = geometry.rect.width
+        }
         return geometry
     }
 
@@ -881,7 +887,11 @@ extension NiriLayoutEngine {
             gaps: gaps
         )
         let canonicalRect = geometry.rect
-        context.container.cachedWidth = canonicalRect.width
+        if context.container.hasManualSingleWindowWidthOverride {
+            context.container.clearLoneWindowLayoutWidthOverride()
+        } else {
+            context.container.loneWindowLayoutWidthOverride = canonicalRect.width
+        }
         let renderOffset = context.container.renderOffset(at: time)
         let renderedRect = geometry.renderedRect(
             viewOffset: state.viewOffsetPixels.value(at: time),

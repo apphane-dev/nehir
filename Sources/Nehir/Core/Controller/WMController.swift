@@ -2467,6 +2467,7 @@ final class WMController {
         return [
             String(format: "x=%.1f", columnXForDebug(index, columns: columns, gap: gap)),
             String(format: "cached=%.1f", column.cachedWidth),
+            column.loneWindowLayoutWidthOverride.map { String(format: "override=%.1f", $0) } ?? "override=nil",
             "spec=\(niriWidthSpecDebug(column.width))",
             "target=\(column.targetWidth.map { String(format: "%.1f", $0) } ?? "nil")",
             "preset=\(column.presetWidthIdx.map(String.init) ?? "nil")",

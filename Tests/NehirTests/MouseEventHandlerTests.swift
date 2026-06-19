@@ -1122,7 +1122,8 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
         )
         await fixture.controller.layoutRefreshController.waitForRefreshWorkForTests()
 
-        #expect(abs(column.cachedWidth - originalWidth) < 0.001)
+        #expect(abs(column.cachedWidth - cappedWidth) < 0.001)
+        #expect(column.cachedWidth <= cappedWidth)
         #expect(fixture.handler.state.isResizing == false)
     }
 
