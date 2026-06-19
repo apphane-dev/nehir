@@ -759,4 +759,51 @@ private func prepareIPCQueryRouterNiriState(
         #expect(ruleActionsPayload.ruleActions == capabilitiesPayload.ruleActions)
         #expect(queriesPayload.queries.map { $0.name } == capabilitiesPayload.queries.map { $0.name })
     }
+
+    @Test func displaysQueryReportsEffectiveOrientationOverride() {
+        // Portrait fixture: autoOrientation == .vertical, but a user override forces .horizontal.
+        // The IPC `orientation` field must reflect the override, not the auto value.
+        let portraitMonitor = makeLayoutPlanTestMonitor(
+            displayId: layoutPlanTestSyntheticDisplayId(77),
+            name: "Portrait",
+            width: 900,
+            height: 1600
+        )
+        let controller = makeLayoutPlanTestController(monitors: [portraitMonitor])
+        defer { resetSharedControllerStateForTests() }
+
+        controller.settings.updateOrientationSettings(
+            MonitorOrientationSettings(
+                monitorName: portraitMonitor.name,
+                monitorDisplayId: portraitMonitor.displayId,
+                orientation: .horizontal
+            )
+        )
+
+        let router = IPCQueryRouter(controller: controller, sessionToken: ipcQueryRouterSessionToken)
+        let result = router.displaysResult(IPCQueryRequest(name: .displays))
+
+        #expect(result.displays.count == 1)
+        #expect(result.displays.first?.id == "display:\(portraitMonitor.displayId)")
+        #expect(result.displays.first?.orientation == .horizontal)
+    }
+
+    @Test func displaysQueryReportsAutoOrientationWhenNoOverride() {
+        // Guards the effectiveOrientation fallback: with no override installed, the
+        // auto orientation flows through. Landscape fixture -> .horizontal.
+        let landscapeMonitor = makeLayoutPlanTestMonitor(
+            displayId: layoutPlanTestSyntheticDisplayId(78),
+            name: "Landscape",
+            width: 1920,
+            height: 1080
+        )
+        let controller = makeLayoutPlanTestController(monitors: [landscapeMonitor])
+        defer { resetSharedControllerStateForTests() }
+
+        let router = IPCQueryRouter(controller: controller, sessionToken: ipcQueryRouterSessionToken)
+        let result = router.displaysResult(IPCQueryRequest(name: .displays))
+
+        #expect(result.displays.count == 1)
+        #expect(result.displays.first?.orientation == .horizontal)
+    }
 }
