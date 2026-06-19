@@ -224,6 +224,31 @@ final class WMController {
         .visibleUnmanagedWindowServerFrames
     @ObservationIgnored
     var unmanagedOverlayWindowServerWindowCoversOverride: (@MainActor (CGPoint) -> Bool)?
+    /// On-screen WindowServer window records consulted by focus-follows-mouse's
+    /// occlusion check. Defaults to the live `CGWindowList` snapshot; tests stub
+    /// it so the occlusion decision is deterministic and does not depend on
+    /// whatever real windows happen to be on screen. Each record is the raw
+    /// `kCGWindowListCopyWindowInfo` dictionary (window id, owner pid, layer,
+    /// bounds, on-screen flag).
+    @ObservationIgnored
+    var unmanagedOverlayWindowInfoProvider: @MainActor () -> [[String: Any]] = {
+        CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID) as? [[String: Any]] ?? []
+    }
+
+    /// Reports whether the process owning an overlay window is a registered,
+    /// bundled application. This is a structural, timing-independent signal
+    /// (unlike an `AXUIElementCopyAttributeNames` query, which can transiently
+    /// fail for a real app revealing a window and would let FFM fire through
+    /// it). The snapshot fallback only exempts faceless owners when they also
+    /// match a known decorative border utility name (e.g. JankyBorders'
+    /// `borders` owner). Unknown faceless owners, including Ghostty's Quick
+    /// terminal path, remain interactive/occluding. Override in tests.
+    @ObservationIgnored
+    var ownerAppIsInteractiveApplicationProvider: @MainActor (pid_t) -> Bool = { pid in
+        guard let app = NSRunningApplication(processIdentifier: pid) else { return false }
+        return app.bundleIdentifier != nil
+    }
+
     @ObservationIgnored
     weak var ipcApplicationBridge: IPCApplicationBridge?
     @ObservationIgnored
@@ -2672,6 +2697,121 @@ final class WMController {
 
         guard allowWindowServerSnapshotFallback else { return false }
         return unmanagedWindowServerWindowFramesProvider(trackedWindowIds).contains { $0.contains(point) }
+    }
+
+    /// Focus-follows-mouse occlusion variant that excludes click-through
+    /// decorative overlays on the snapshot-fallback branch.
+    ///
+    /// `unmanagedWindowServerWindowCovers` treats any on-screen, layer-0,
+    /// ≥80 px, unmanaged window frame as an occluder. That is correct for
+    /// interactive overlays (e.g. the Ghostty Quick terminal) but wrong for a
+    /// decorative click-through overlay such as the JankyBorders app: it is
+    /// purely visual and never receives clicks, so FFM should fire on the
+    /// managed tile beneath. JankyBorders creates its windows via private SLS
+    /// APIs (no `ignoresMouseEvents`, empty opaque-shape region) and neither
+    /// the CGEvent window-under-pointer fields (empty for these mouse-moved
+    /// events — verified) nor the `CGWindowList` snapshot can flag it as
+    /// click-through. The conservative discriminator is: only a faceless owner
+    /// whose WindowServer owner name matches a known decorative border utility
+    /// (e.g. `borders` / JankyBorders) is excluded (#64). Unknown faceless
+    /// owners remain occluding, preserving Ghostty Quick terminal suppression.
+    /// The number fast-path is unchanged.
+    func unmanagedInteractiveWindowServerWindowCovers(
+        point: CGPoint,
+        windowUnderPointer: Int? = nil,
+        allowWindowServerSnapshotFallback: Bool = true
+    ) -> Bool {
+        let trackedWindowIds = Set(workspaceManager.trackedWindowIdsForDebug())
+        if let windowUnderPointer, windowUnderPointer > 0 {
+            return isUnmanagedWindowServerWindow(
+                windowId: windowUnderPointer,
+                trackedWindowIds: trackedWindowIds
+            )
+        }
+
+        guard allowWindowServerSnapshotFallback else { return false }
+        // Single source of truth: the injectable window-info provider (the live
+        // `CGWindowList` snapshot in production; a stub in tests). Filtering for
+        // an interactive unmanaged overlay that covers `point` — excluding
+        // click-through decorative overlays owned by a faceless process (#64).
+        return Self.visibleUnmanagedInteractiveWindowServerWindowCovers(
+            point: point,
+            trackedWindowIds: trackedWindowIds,
+            windows: unmanagedOverlayWindowInfoProvider(),
+            isOwnedWindowNumber: { [ownedWindowRegistry] windowNumber in
+                ownedWindowRegistry.contains(windowNumber: windowNumber)
+            },
+            ownerAppIsInteractiveApplication: { [weak self] pid in
+                self?.ownerAppIsInteractiveApplicationProvider(pid) ?? true
+            }
+        )
+    }
+
+    static func visibleUnmanagedInteractiveWindowServerWindowCovers(
+        point: CGPoint,
+        trackedWindowIds: Set<Int> = [],
+        windows providedWindows: [[String: Any]]? = nil,
+        isOwnedWindowNumber: @MainActor (Int) -> Bool = { _ in false },
+        ownerAppIsInteractiveApplication: @MainActor (pid_t) -> Bool = { _ in true }
+    ) -> Bool {
+        let windows: [[String: Any]]
+        if let providedWindows {
+            windows = providedWindows
+        } else {
+            windows = CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID) as? [[String: Any]] ?? []
+        }
+
+        for info in windows {
+            let layer = (info[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0
+            // FFM snapshot fallback must catch interactive overlays above the
+            // normal app layer too (e.g. Ghostty Quick terminal). Decorative
+            // JankyBorders windows are filtered later by owner name.
+            guard layer >= 0 else { continue }
+
+            let isOnscreen = (info[kCGWindowIsOnscreen as String] as? NSNumber)?.boolValue ?? false
+            guard isOnscreen else { continue }
+
+            guard let bounds = info[kCGWindowBounds as String] as? [String: Any],
+                  let x = (bounds["X"] as? NSNumber)?.doubleValue,
+                  let y = (bounds["Y"] as? NSNumber)?.doubleValue,
+                  let width = (bounds["Width"] as? NSNumber)?.doubleValue,
+                  let height = (bounds["Height"] as? NSNumber)?.doubleValue,
+                  width >= 80,
+                  height >= 80
+            else { continue }
+
+            let frame = ScreenCoordinateSpace.toAppKit(
+                rect: CGRect(x: x, y: y, width: width, height: height)
+            )
+            guard frame.contains(point) else { continue }
+
+            let windowId = (info[kCGWindowNumber as String] as? NSNumber)?.intValue ?? 0
+            guard windowId > 0 else { continue }
+            if isOwnedWindowNumber(windowId) { continue }
+            if trackedWindowIds.contains(windowId) { continue }
+
+            let pid = (info[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value ?? 0
+            let ownerName = info[kCGWindowOwnerName as String] as? String
+            // Only a known decorative border utility gets the faceless-process
+            // exemption. Ghostty's Quick terminal can also appear faceless on
+            // the snapshot path, but it is interactive and must still occlude.
+            if pid > 0,
+               !ownerAppIsInteractiveApplication(pid),
+               isDecorativeBorderOverlayOwner(ownerName)
+            {
+                continue
+            }
+
+            return true
+        }
+
+        return false
+    }
+
+    private static func isDecorativeBorderOverlayOwner(_ ownerName: String?) -> Bool {
+        guard let ownerName else { return false }
+        let normalized = ownerName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return normalized == "borders" || normalized == "jankyborders" || normalized == "janky borders"
     }
 
     private func isUnmanagedWindowServerWindow(windowId: Int, trackedWindowIds: Set<Int>) -> Bool {
