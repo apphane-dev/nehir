@@ -2185,6 +2185,9 @@ final class AXEventHandler: CGSEventDelegate {
 
         let target = controller.keyboardFocusTarget(for: entry.token, axRef: entry.axRef)
         var preferredMouseFrame: CGRect?
+        // M3: whether this confirmation is focus-follows-mouse driven. Hoisted out of
+        // the engine block so the cursor-warp gate below can suppress warp on hover.
+        var confirmationIsFFM = false
         if let engine = controller.niriEngine,
            let node = engine.findNode(for: entry.handle),
            let _ = controller.workspaceManager.monitor(for: wsId)
@@ -2201,6 +2204,7 @@ final class AXEventHandler: CGSEventDelegate {
             let recentFFMIsFresh = recentFFMDate.map { now.timeIntervalSince($0) <= 1.0 } ?? false
             let isFFM = pendingFFMToken == entry.token && pendingFFMIsFresh
                 || (recentFFMToken == entry.token && recentFFMIsFresh)
+            confirmationIsFFM = isFFM
             if pendingFFMToken == entry.token, pendingFFMIsFresh {
                 state.pendingFFMFocusToken = nil
                 state.pendingFFMFocusTimestamp = nil
@@ -2368,7 +2372,8 @@ final class AXEventHandler: CGSEventDelegate {
            controller.moveMouseToFocusedWindowEnabled,
            controller.workspaceManager.confirmedManagedFocusToken == entry.token,
            !controller.workspaceManager.isNonManagedFocusActive,
-           !controller.shouldSuppressMouseMoveToFocusedWindow(for: entry.token)
+           !controller.shouldSuppressMouseMoveToFocusedWindow(for: entry.token),
+           !confirmationIsFFM
         {
             controller.moveMouseToWindow(entry.token, preferredFrame: preferredMouseFrame, reason: "axFocusConfirmed")
         }

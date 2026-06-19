@@ -1584,6 +1584,67 @@ private func waitUntilAXEventTest(
         #expect(updatedState.selectedNodeId == focusedNode.id)
     }
 
+    // MARK: - M3: FFM confirmations must not warp the cursor to the focused window
+
+    @Test @MainActor func ffmFocusConfirmationDoesNotWarpCursorWhenMoveMouseToFocusedWindowEnabled() async {
+        let controller = makeAXEventTestController()
+        guard let monitor = controller.workspaceManager.monitors.first,
+              let workspaceId = controller.workspaceManager.activeWorkspaceOrFirst(on: monitor.id)?.id
+        else {
+            Issue.record("Missing workspace for FFM-warp test")
+            return
+        }
+
+        controller.enableNiriLayout()
+        controller.updateNiriConfig(balancedColumnCount: 1)
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+        controller.syncMonitorsToNiriEngine()
+        guard let engine = controller.niriEngine else {
+            Issue.record("Missing Niri engine")
+            return
+        }
+
+        let appPid: pid_t = 9_810
+        let targetToken = controller.workspaceManager.addWindow(
+            AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: 9811),
+            pid: appPid,
+            windowId: 9811,
+            to: workspaceId
+        )
+        let targetNode = engine.addWindow(token: targetToken, to: workspaceId, afterSelection: nil, focusedToken: targetToken)
+        for column in engine.columns(in: workspaceId) {
+            column.cachedWidth = 900
+            column.cachedHeight = 800
+        }
+        _ = targetNode
+        guard let entry = controller.workspaceManager.entry(for: targetToken) else {
+            Issue.record("Missing entry for FFM-warp test")
+            return
+        }
+
+        _ = controller.workspaceManager.setManagedFocus(targetToken, in: workspaceId, onMonitor: monitor.id)
+        controller.setMoveMouseToFocusedWindow(true)
+
+        var warpPoints: [CGPoint] = []
+        controller.warpMouseCursorPosition = { warpPoints.append($0) }
+
+        // Mark this confirmation as focus-follows-mouse driven, as MouseEventHandler would.
+        controller.workspaceManager.withNiriViewportState(for: workspaceId) { state in
+            state.pendingFFMFocusToken = targetToken
+            state.pendingFFMFocusTimestamp = Date()
+        }
+
+        controller.axEventHandler.handleManagedAppActivation(
+            entry: entry,
+            isWorkspaceActive: true,
+            appFullscreen: false,
+            source: .focusedWindowChanged
+        )
+
+        #expect(controller.workspaceManager.confirmedManagedFocusToken == targetToken)
+        #expect(warpPoints.isEmpty)
+    }
+
     @Test @MainActor func workspaceActivationForPendingManagedRequestDoesNotStartNativeAppSwitchLease() {
         let controller = makeAXEventTestController()
         controller.hasStartedServices = true
