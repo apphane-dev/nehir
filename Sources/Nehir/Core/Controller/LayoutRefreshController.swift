@@ -1421,7 +1421,7 @@ import QuartzCore
         }
 
         let scratchpadTokenBeforeRemove = controller.workspaceManager.scratchpadToken()
-        controller.workspaceManager.removeMissing(keys: seenKeys, requiredConsecutiveMisses: 1)
+        controller.workspaceManager.removeMissing(keys: seenKeys, requiredConsecutiveMisses: 2)
         let remainingTokens = Set(controller.workspaceManager.allEntries().map(\.token))
         for entry in trackedEntries where !remainingTokens.contains(entry.token) {
             controller.nativeFullscreenPlaceholderManager.remove(entry.token)

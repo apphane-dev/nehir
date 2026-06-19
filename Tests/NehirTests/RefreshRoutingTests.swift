@@ -262,6 +262,11 @@ private func lastAppliedBorderWindowId(on controller: WMController) -> Int? {
 }
 
 @MainActor
+private func lastAppliedBorderFrame(on controller: WMController) -> CGRect? {
+    controller.focusBorderController.lastAppliedFocusedFrameForTests
+}
+
+@MainActor
 private final class RefreshEventRecorder {
     var relayoutEvents: [(RefreshReason, LayoutRefreshController.RefreshRoute)] = []
     var visibilityReasons: [RefreshReason] = []
@@ -3210,7 +3215,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         #expect(controller.workspaceManager.layoutReason(for: handle) == .standard)
     }
 
-    @Test @MainActor func fullRescanRemovesMissingTrackedWindowOnFirstVerifiedMiss() async {
+    @Test @MainActor func fullRescanRemovesMissingTrackedWindowOnSecondVerifiedMiss() async {
         let controller = makeRefreshTestController()
         controller.axManager.currentWindowsAsyncOverride = { [] }
         guard let workspaceId = controller.interactionWorkspace()?.id else {
@@ -3226,6 +3231,12 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         controller.axManager.applyFramesParallel([(pid, windowId, targetFrame)])
         controller.axManager.markWindowInactive(windowId)
         controller.axManager.forceApplyNextFrame(for: windowId)
+
+        controller.layoutRefreshController.requestFullRescan(reason: .startup)
+        await waitForRefreshWork(on: controller)
+
+        // P1 hysteresis: a single transient rescan miss must not evict a tracked window.
+        #expect(controller.workspaceManager.entry(forPid: pid, windowId: windowId) != nil)
 
         controller.layoutRefreshController.requestFullRescan(reason: .startup)
         await waitForRefreshWork(on: controller)
@@ -3270,6 +3281,17 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         primeFocusedBorder(on: controller, handle: handle)
         #expect(controller.currentBorderTarget()?.token == token)
         #expect(lastAppliedBorderWindowId(on: controller) == windowId)
+
+        controller.layoutRefreshController.requestFullRescan(reason: .startup)
+        await waitForRefreshWork(on: controller)
+
+        // P1 hysteresis: the floating window and its border survive a single rescan miss.
+        #expect(controller.workspaceManager.entry(for: token) != nil)
+        #expect(controller.currentBorderTarget()?.token == token)
+        #expect(controller.currentBorderTarget()?.workspaceId == workspaceId)
+        #expect(controller.currentBorderTarget()?.isManaged == true)
+        #expect(lastAppliedBorderWindowId(on: controller) == windowId)
+        #expect(lastAppliedBorderFrame(on: controller) == CGRect(x: 10, y: 10, width: 800, height: 600))
 
         controller.layoutRefreshController.requestFullRescan(reason: .startup)
         await waitForRefreshWork(on: controller)
@@ -3571,6 +3593,15 @@ private func syncNiriWorkspaceStatesForRefreshTests(
                 failedPIDs: [6_102]
             )
         }
+
+        controller.layoutRefreshController.requestFullRescan(reason: .startup)
+        await waitForRefreshWork(on: controller)
+
+        // P1 hysteresis: live and failed-PID windows survive; a genuinely-missing
+        // window survives the first rescan miss and is only evicted on the second.
+        #expect(controller.workspaceManager.entry(for: liveHandle) != nil)
+        #expect(controller.workspaceManager.entry(for: failedHandle) != nil)
+        #expect(controller.workspaceManager.entry(for: missingHandle) != nil)
 
         controller.layoutRefreshController.requestFullRescan(reason: .startup)
         await waitForRefreshWork(on: controller)
