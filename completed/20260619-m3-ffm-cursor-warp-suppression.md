@@ -1,8 +1,14 @@
 # M3 (narrow) — Suppress cursor warp on focus-follows-mouse confirmations
 
-**Status:** planned
+**Status:** completed — shipped on `main` in `51f86e84` ("Suppress cursor warp for FFM AX confirmations")
 **Source discovery:** `discovery/20260618-focus-request-origin-ffm-cursor-warp.md`
 **Upstream commit:** `fce3a2c` — "Fix cursor warp for focus follows mouse"
+
+## Completion evidence
+
+`origin/main` contains `51f86e84` with the plan's intended source change: `AXEventHandler.handleManagedAppActivation` hoists the existing `isFFM` signal into a `confirmationIsFFM` flag and adds `&& !confirmationIsFFM` to the cursor-warp gate. The `ConfirmationLoop`/origin model was correctly left out (deferred to A4/M6).
+
+Test landed: `AXEventHandlerTests.ffmFocusConfirmationDoesNotWarpCursorWhenMoveMouseToFocusedWindowEnabled` (negative case — FFM confirmation does not warp). The positive non-FFM-warp case is covered by existing `AXEventHandlerTests` confirm coverage rather than a new explicit test. `swift test --filter AXEventHandlerTests` is green (163 tests).
 
 ## TL;DR
 

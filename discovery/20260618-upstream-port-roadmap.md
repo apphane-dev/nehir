@@ -44,8 +44,8 @@ Status: `not started` · `planned` · `in progress` · `landed` · `decided-no` 
 | Patch | P4 | Suppress frame-change relayout after a recent AX write failure | 🔴 | one-branch fix + 2 AXManager tests | — | landed | [discovery](20260618-upstream-frame-write-failure-suppression.md) · [completed](../completed/20260619-p4-frame-write-suppression.md) |
 | Minor | M1 | Refused-frame-size feedback → constraints | 🟢 not a port — **loop already exists** | characterization tests + optional 2-stable-observation hardening | **P4** (hard prereq for assertions) | landed | [discovery](20260618-refused-frame-feedback-characterization.md) · [completed](../completed/20260619-m1-refused-frame-feedback-characterization.md) |
 | Minor | M2 | Learned per-window size quantum | 🟢 rejected | noop/rejection memo only | — | decided-no | [noop](../noop/20260618-upstream-size-quantum-rejected.md) |
-| Minor | M3 | Focus-request origin for FFM cursor-warp | 🟡 | narrow FFM warp gate using existing `isFFM`; origin model deferred | — (soft sequencing before M6) | planned | [discovery](20260618-focus-request-origin-ffm-cursor-warp.md) · [plan](../planned/20260619-m3-ffm-cursor-warp-suppression.md) |
-| Minor | M4-S1 | Displays-have-separate-Spaces mode detection + diagnostics | 🟡 | diagnostics-only; no layout/startup change | — | planned | [discovery](20260618-displays-separate-spaces-mode-detection.md) · [plan](../planned/20260619-m4s1-displays-separate-spaces-detection.md) |
+| Minor | M3 | Focus-request origin for FFM cursor-warp | 🟡 | narrow FFM warp gate using existing `isFFM`; origin model deferred | — (soft sequencing before M6) | landed | [discovery](20260618-focus-request-origin-ffm-cursor-warp.md) · [completed](../completed/20260619-m3-ffm-cursor-warp-suppression.md) |
+| Minor | M4-S1 | Displays-have-separate-Spaces mode detection + diagnostics | 🟡 | diagnostics-only; no layout/startup change | — | landed | [discovery](20260618-displays-separate-spaces-mode-detection.md) · [completed](../completed/20260619-m4s1-displays-separate-spaces-detection.md) |
 | Minor | M4-S2 | Minimal Space topology eviction exemption | 🟡 | small value-type topology; OFF = true no-op; product-gated | **M4-S1** | not started | [M4-S2](20260618-space-topology-eviction-exemption.md) |
 | Minor | M5 | Raw MultitouchSupport gesture source | 🟡 | **investigation first**; flag-gated prototype only after abort-trace | abort-trace (M5 step 1) | not started | [M5](20260618-raw-multitouch-gesture-source.md) |
 | Minor | M6 | Cross-workspace stale focus/session revision guard | 🔴 | revision counter + apply guard + cross-ws clear; **high callsite risk** | **M3** (recommended sequence) | not started | [M6](20260618-stale-session-selection-revision-guard.md) |
@@ -64,10 +64,10 @@ Frame sizing (batch 2):
   P4 ──▶ M1   (landed; M2 is decided-no and its boundary tests folded into M1)
 
 Focus (batch 3, split):
-  M3 ──▶ M6   (recommended review sequence; narrowed M3 does not supply M6's origin/revision model)
+  M3 ──▶ M6   (M3 landed; M6 is next in the focus lane and must add its own origin/revision model)
 
 Spaces (batch 4, staged):
-  M4-S1 ──▶ M4-S2
+  M4-S1 ──▶ M4-S2   (M4-S1 landed; M4-S2 awaits a maintainer manual review on a real host)
 
 Gesture (batch 5):
   M5-step1 (abort trace) ──▶ M5-prototype (flag-gated, optional)
@@ -83,10 +83,10 @@ Architecture (parallel from the start):
 - M1 characterization tests landed; M2 rejection memo is written. Optional 2-stable-observation hardening remains deferred. Do **not** port upstream `AXFrameApplicationLedger` or learned quantum.
 
 **Batch 3 — focus work split:**
-- M3 first (narrow FFM warp gate using the existing confirm-time `isFFM` signal). M6 after M3 for review sequencing; M6 must add its own revision/origin model if needed (the narrowed M3 plan intentionally does **not** add `ManagedFocusOrigin`).
+- M3 landed (`51f86e84`): narrow FFM warp gate using the existing confirm-time `isFFM` signal. M6 is next in the focus lane; it must add its own revision/origin model if needed (the narrowed M3 intentionally does **not** add `ManagedFocusOrigin`). M6 is high callsite-risk and currently discovery-only — a plan doc is needed before implementation.
 
 **Batch 4 — Spaces mode (staged):**
-- M4-S1 (diagnostics only). M4-S2 only after S1 is reviewed and manual mode detection works on a real host.
+- M4-S1 landed (`4e54d4a1`) as informational diagnostics + a Mouse Warp enable toggle (scope diverged from a standalone warning; see the completed doc). M4-S2 only after a maintainer manual review confirms mode detection on a real multi-display host.
 
 **Batch 5 — gesture input:**
 - M5 step 1 (abort/skip tracing) as a standalone hardening patch first. Raw MultitouchSupport prototype only behind internal flags, only if abort traces + a reporter-side failing trace justify it.

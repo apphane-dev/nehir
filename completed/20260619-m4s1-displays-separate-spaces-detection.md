@@ -1,8 +1,14 @@
 # M4 Stage 1 — Displays-have-separate-Spaces mode detection + diagnostics
 
-**Status:** planned
+**Status:** completed — shipped on `main` in `4e54d4a1` ("Detect separate Spaces and clarify monitor guidance")
 **Source discovery:** `discovery/20260618-displays-separate-spaces-mode-detection.md`
 **Upstream commits:** `de971b6`, `ee554c7`
+
+## Completion evidence
+
+`origin/main` contains `4e54d4a1`. It ships `DisplaySpacesMode` detection (`Sources/Nehir/Core/SkyLight/DisplaySpacesMode.swift`), the `displaySpacesMode` runtime-dump field, informational Separate-Spaces state in Diagnostics, the supported vertical/diagonal arrangement warning, and a new `[mouseWarp].enabled` toggle with disabled-state guidance. The shipped scope follows the "Implementation drift accepted during review" section below (informational state, not a warning issue).
+
+Tests landed: `DisplaySpacesModeTests` (5 tests). `swift test --filter DisplaySpacesMode` is green.
 
 ## TL;DR
 
