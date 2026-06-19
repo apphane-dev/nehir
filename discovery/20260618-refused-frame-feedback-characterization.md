@@ -1,7 +1,7 @@
 # M1 — Refused frame-size feedback already exists in nehir (characterization + optional hardening) — Discovery
 
 Source upstream commit: [`40934c5`](https://github.com/BarutSRB/OmniWM/commit/40934c5) — "Feed terminally refused frame sizes back into layout constraints" (0.4.9.8 line, behind "apps that flat-out refuse a size … are handled gracefully").
-Related: [`20260618-upstream-frame-write-failure-suppression.md`](20260618-upstream-frame-write-failure-suppression.md) (P4), [`20260614-ax-frame-write-verification-race.md`](20260614-ax-frame-write-verification-race.md) (readback race / Option D), [`20260616-omniwm-403-…`](20260616-omniwm-403-frame-write-race-min-size-suppression.md).
+Related: [`20260618-upstream-frame-write-failure-suppression.md`](../completed/20260618-upstream-frame-write-failure-suppression.md) (P4), [`20260614-ax-frame-write-verification-race.md`](20260614-ax-frame-write-verification-race.md) (readback race / Option D), [`20260616-omniwm-403-…`](20260616-omniwm-403-frame-write-race-min-size-suppression.md).
 
 Scope: re-evaluate whether M1 is a *port* after direct code inspection. **It is not.** This doc records the finding and scopes the actual remaining work.
 

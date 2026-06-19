@@ -4,7 +4,7 @@
 **Cluster:** upstream-port patch track (P4)
 **Source concept:** closed Hiro PR #403; nehir-native recommendation.
 **Discovery docs:**
-- Primary: `discovery/20260618-upstream-frame-write-failure-suppression.md`
+- Primary: `completed/20260618-upstream-frame-write-failure-suppression.md`
 - Root-cause sibling (background only): `discovery/20260616-omniwm-403-frame-write-race-min-size-suppression.md`
 
 ## Completion evidence

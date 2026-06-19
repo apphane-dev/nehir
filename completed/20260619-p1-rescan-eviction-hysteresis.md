@@ -106,4 +106,4 @@ The eviction mechanism, verified against main at the lines above:
 
 ## Pointer
 
-Discovery doc: [`discovery/20260618-upstream-rescan-eviction-hysteresis.md`](../discovery/20260618-upstream-rescan-eviction-hysteresis.md). Track summary: [`discovery/20260618-upstream-port-patch-fixes.md`](../discovery/20260618-upstream-port-patch-fixes.md).
+Discovery doc: [`completed/20260618-upstream-rescan-eviction-hysteresis.md`](20260618-upstream-rescan-eviction-hysteresis.md). Track summary: [`discovery/20260618-upstream-port-patch-fixes.md`](../discovery/20260618-upstream-port-patch-fixes.md).

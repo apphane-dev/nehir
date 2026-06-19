@@ -9,10 +9,10 @@ Counting note: this roadmap has 13 rows because M4 is split into Stage 1/Stage 2
 ## Per-cluster discovery docs (canonical)
 
 - Patch track:
-  - P1 — [`20260618-upstream-rescan-eviction-hysteresis.md`](20260618-upstream-rescan-eviction-hysteresis.md)
-  - P2 — [`20260618-upstream-refresh-coalescing.md`](20260618-upstream-refresh-coalescing.md)
-  - P3 — [`20260618-upstream-monitor-orientation-override.md`](20260618-upstream-monitor-orientation-override.md)
-  - P4 — [`20260618-upstream-frame-write-failure-suppression.md`](20260618-upstream-frame-write-failure-suppression.md)
+  - P1 — [`20260618-upstream-rescan-eviction-hysteresis.md`](../completed/20260618-upstream-rescan-eviction-hysteresis.md)
+  - P2 — [`20260618-upstream-refresh-coalescing.md`](../completed/20260618-upstream-refresh-coalescing.md)
+  - P3 — [`20260618-upstream-monitor-orientation-override.md`](../completed/20260618-upstream-monitor-orientation-override.md)
+  - P4 — [`20260618-upstream-frame-write-failure-suppression.md`](../completed/20260618-upstream-frame-write-failure-suppression.md)
 - Minor track:
   - M1 — [`20260618-refused-frame-feedback-characterization.md`](20260618-refused-frame-feedback-characterization.md)
   - M2 — [`noop/20260618-upstream-size-quantum-rejected.md`](../noop/20260618-upstream-size-quantum-rejected.md) (rejected)
@@ -38,10 +38,10 @@ Status: `not started` · `planned` · `in progress` · `landed` · `decided-no` 
 
 | Tier | ID | Title | Verdict | Deliverability | Depends on | Status | Doc |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Patch | P1 | Require two consecutive rescan misses before eviction | 🔴 | one-token port + 2 controller-test rewrites | — | landed | [discovery](20260618-upstream-rescan-eviction-hysteresis.md) · [completed](../completed/20260619-p1-rescan-eviction-hysteresis.md) |
-| Patch | P2 | Coalesce same-kind refreshes without cancelling | 🔴 | two-case switch edit + 3 routing tests | — | landed | [discovery](20260618-upstream-refresh-coalescing.md) · [completed](../completed/20260619-p2-refresh-coalescing.md) |
-| Patch | P3 | Preserve monitor orientation overrides + IPC effective orientation | 🟡 | small direct port; leaf = defensive, IPC = observable | — | landed | [discovery](20260618-upstream-monitor-orientation-override.md) · [completed](../completed/20260619-p3-monitor-orientation-override.md) |
-| Patch | P4 | Suppress frame-change relayout after a recent AX write failure | 🔴 | one-branch fix + 2 AXManager tests | — | landed | [discovery](20260618-upstream-frame-write-failure-suppression.md) · [completed](../completed/20260619-p4-frame-write-suppression.md) |
+| Patch | P1 | Require two consecutive rescan misses before eviction | 🔴 | one-token port + 2 controller-test rewrites | — | landed | [discovery](../completed/20260618-upstream-rescan-eviction-hysteresis.md) · [completed](../completed/20260619-p1-rescan-eviction-hysteresis.md) |
+| Patch | P2 | Coalesce same-kind refreshes without cancelling | 🔴 | two-case switch edit + 3 routing tests | — | landed | [discovery](../completed/20260618-upstream-refresh-coalescing.md) · [completed](../completed/20260619-p2-refresh-coalescing.md) |
+| Patch | P3 | Preserve monitor orientation overrides + IPC effective orientation | 🟡 | small direct port; leaf = defensive, IPC = observable | — | landed | [discovery](../completed/20260618-upstream-monitor-orientation-override.md) · [completed](../completed/20260619-p3-monitor-orientation-override.md) |
+| Patch | P4 | Suppress frame-change relayout after a recent AX write failure | 🔴 | one-branch fix + 2 AXManager tests | — | landed | [discovery](../completed/20260618-upstream-frame-write-failure-suppression.md) · [completed](../completed/20260619-p4-frame-write-suppression.md) |
 | Minor | M1 | Refused-frame-size feedback → constraints | 🟢 not a port — **loop already exists** | characterization tests + optional 2-stable-observation hardening | **P4** (hard prereq for assertions) | landed | [discovery](20260618-refused-frame-feedback-characterization.md) · [completed](../completed/20260619-m1-refused-frame-feedback-characterization.md) |
 | Minor | M2 | Learned per-window size quantum | 🟢 rejected | noop/rejection memo only | — | decided-no | [noop](../noop/20260618-upstream-size-quantum-rejected.md) |
 | Minor | M3 | Focus-request origin for FFM cursor-warp | 🟡 | narrow FFM warp gate using existing `isFFM`; origin model deferred | — (soft sequencing before M6) | landed | [discovery](20260618-focus-request-origin-ffm-cursor-warp.md) · [completed](../completed/20260619-m3-ffm-cursor-warp-suppression.md) |

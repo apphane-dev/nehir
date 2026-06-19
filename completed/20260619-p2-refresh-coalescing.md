@@ -1,7 +1,7 @@
 # P2 — Coalesce same-kind refreshes without cancelling
 
 **Status:** completed — shipped on `main` in `0ac70a5d` ("Coalesce same-kind refreshes instead of cancelling the active one (P2)").
-**Source discovery:** `discovery/20260618-upstream-refresh-coalescing.md`
+**Source discovery:** `completed/20260618-upstream-refresh-coalescing.md`
 **Upstream commit:** `631caa9` — "Coalesce same-kind refreshes without cancelling"
 
 ## Completion evidence

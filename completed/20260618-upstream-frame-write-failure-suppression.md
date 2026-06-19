@@ -1,6 +1,6 @@
 # Upstream port P4 — Suppress app-originated frame-change relayout after a recent AX write failure — Discovery
 
-Source: closed Hiro PR #403 concept (not a merged upstream commit); the nehir-native recommendation is documented in [`20260616-omniwm-403-frame-write-race-min-size-suppression.md`](20260616-omniwm-403-frame-write-race-min-size-suppression.md).
+Source: closed Hiro PR #403 concept (not a merged upstream commit); the nehir-native recommendation is documented in [`20260616-omniwm-403-frame-write-race-min-size-suppression.md`](../discovery/20260616-omniwm-403-frame-write-race-min-size-suppression.md).
 This doc is the **patch-cluster discovery** for that one-branch fix; the linked sibling is the full root-cause trace.
 
 Scope: confirm the suppression gap exists in nehir, confirm the bounded-clearing safety property the fix relies on, and scope the patch.

@@ -1,10 +1,10 @@
 # Upstream port candidates — Patch fixes
 
 > ⚠️ **SUPERSEDED.** This was the original combined patch summary. Each item now has a proper per-cluster discovery doc; read those instead:
-> - P1 — [`20260618-upstream-rescan-eviction-hysteresis.md`](20260618-upstream-rescan-eviction-hysteresis.md)
-> - P2 — [`20260618-upstream-refresh-coalescing.md`](20260618-upstream-refresh-coalescing.md)
-> - P3 — [`20260618-upstream-monitor-orientation-override.md`](20260618-upstream-monitor-orientation-override.md)
-> - P4 — [`20260618-upstream-frame-write-failure-suppression.md`](20260618-upstream-frame-write-failure-suppression.md)
+> - P1 — [`20260618-upstream-rescan-eviction-hysteresis.md`](../completed/20260618-upstream-rescan-eviction-hysteresis.md)
+> - P2 — [`20260618-upstream-refresh-coalescing.md`](../completed/20260618-upstream-refresh-coalescing.md)
+> - P3 — [`20260618-upstream-monitor-orientation-override.md`](../completed/20260618-upstream-monitor-orientation-override.md)
+> - P4 — [`20260618-upstream-frame-write-failure-suppression.md`](../completed/20260618-upstream-frame-write-failure-suppression.md)
 >
 > Kept for history.
 

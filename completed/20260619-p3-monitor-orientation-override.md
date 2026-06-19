@@ -2,7 +2,7 @@
 
 **Status:** completed — shipped on `main` in `7e9f44a9` ("Preserve orientation overrides and report effective orientation over IPC (P3)").
 **Source upstream commit:** [`8338d97`](https://github.com/BarutSRB/OmniWM/commit/8338d97) — "Preserve monitor orientation overrides and report them over IPC"
-**Discovery doc (authoritative):** [`discovery/20260618-upstream-monitor-orientation-override.md`](../discovery/20260618-upstream-monitor-orientation-override.md)
+**Discovery doc (authoritative):** [`completed/20260618-upstream-monitor-orientation-override.md`](20260618-upstream-monitor-orientation-override.md)
 **Branch:** `patch/p3-monitor-orientation-override`
 
 ---
@@ -172,4 +172,4 @@ JSON snapshot pins the literal `displays` payload (not blocking).
 
 ## Pointer
 
-Discovery / evidence: [`discovery/20260618-upstream-monitor-orientation-override.md`](../discovery/20260618-upstream-monitor-orientation-override.md).
+Discovery / evidence: [`completed/20260618-upstream-monitor-orientation-override.md`](20260618-upstream-monitor-orientation-override.md).
