@@ -4,6 +4,8 @@ Source upstream range: `BarutSRB/OmniWM` after `ee9b4f0707668d43f73e4af8c9a4f358
 
 **This doc is the single source of truth** for tier, verdict, deliverability, sequencing, and status of every port candidate. Per-cluster discovery docs carry the detail; this carries the priority/categorization.
 
+Counting note: this roadmap has 13 rows because M4 is split into Stage 1/Stage 2 and A2–A5 are grouped into one architecture row. M2 is retained as a decided-no row so the upstream candidate is accounted for.
+
 ## Per-cluster discovery docs (canonical)
 
 - Patch track:
@@ -13,7 +15,7 @@ Source upstream range: `BarutSRB/OmniWM` after `ee9b4f0707668d43f73e4af8c9a4f358
   - P4 — [`20260618-upstream-frame-write-failure-suppression.md`](20260618-upstream-frame-write-failure-suppression.md)
 - Minor track:
   - M1 — [`20260618-refused-frame-feedback-characterization.md`](20260618-refused-frame-feedback-characterization.md)
-  - M2 — [`noop/20260618-upstream-size-quantum-rejected.md`](noop/20260618-upstream-size-quantum-rejected.md) (rejected)
+  - M2 — [`noop/20260618-upstream-size-quantum-rejected.md`](../noop/20260618-upstream-size-quantum-rejected.md) (rejected)
   - M3 — [`20260618-focus-request-origin-ffm-cursor-warp.md`](20260618-focus-request-origin-ffm-cursor-warp.md)
   - M4 Stage 1 — [`20260618-displays-separate-spaces-mode-detection.md`](20260618-displays-separate-spaces-mode-detection.md)
   - M4 Stage 2 — [`20260618-space-topology-eviction-exemption.md`](20260618-space-topology-eviction-exemption.md)
@@ -32,18 +34,18 @@ Source upstream range: `BarutSRB/OmniWM` after `ee9b4f0707668d43f73e4af8c9a4f358
 ## Canonical table
 
 Verdict legend: 🔴 Open/Applies (defect present, fix indicated) · 🟡 Conditional (applies with nuance / investigate / product-gated / architecture spike) · 🟢 Not a port (already exists / rejected / noop).
-Status: `not started` · `in progress` · `landed` · `decided-no` · `deferred`.
+Status: `not started` · `planned` · `in progress` · `landed` · `decided-no` · `deferred`.
 
 | Tier | ID | Title | Verdict | Deliverability | Depends on | Status | Doc |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Patch | P1 | Require two consecutive rescan misses before eviction | 🔴 | one-token port + 2 controller-test rewrites | — | not started | [P1](20260618-upstream-rescan-eviction-hysteresis.md) |
-| Patch | P2 | Coalesce same-kind refreshes without cancelling | 🔴 | two-case switch edit + 3 routing tests | — | not started | [P2](20260618-upstream-refresh-coalescing.md) |
-| Patch | P3 | Preserve monitor orientation overrides + IPC effective orientation | 🟡 | small direct port; leaf = defensive, IPC = observable | — | not started | [P3](20260618-upstream-monitor-orientation-override.md) |
-| Patch | P4 | Suppress frame-change relayout after a recent AX write failure | 🔴 | one-branch fix + 2 AXManager tests | — | not started | [P4](20260618-upstream-frame-write-failure-suppression.md) |
-| Minor | M1 | Refused-frame-size feedback → constraints | 🟢 not a port — **loop already exists** | characterization tests + optional 2-stable-observation hardening | **P4** (hard prereq for assertions) | not started | [M1](20260618-refused-frame-feedback-characterization.md) |
-| Minor | M2 | Learned per-window size quantum | 🟢 rejected | noop/rejection memo only | — | decided-no | [M2](noop/20260618-upstream-size-quantum-rejected.md) |
-| Minor | M3 | Focus-request origin for FFM cursor-warp | 🟡 | concept port (skip Dwindle hunks); minor patch | — (groundwork for A4) | not started | [M3](20260618-focus-request-origin-ffm-cursor-warp.md) |
-| Minor | M4-S1 | Displays-have-separate-Spaces mode detection + diagnostics | 🟡 | diagnostics-only; no layout/startup change | — | not started | [M4-S1](20260618-displays-separate-spaces-mode-detection.md) |
+| Patch | P1 | Require two consecutive rescan misses before eviction | 🔴 | one-token port + 2 controller-test rewrites | — | landed | [discovery](20260618-upstream-rescan-eviction-hysteresis.md) · [completed](../completed/20260619-p1-rescan-eviction-hysteresis.md) |
+| Patch | P2 | Coalesce same-kind refreshes without cancelling | 🔴 | two-case switch edit + 3 routing tests | — | landed | [discovery](20260618-upstream-refresh-coalescing.md) · [completed](../completed/20260619-p2-refresh-coalescing.md) |
+| Patch | P3 | Preserve monitor orientation overrides + IPC effective orientation | 🟡 | small direct port; leaf = defensive, IPC = observable | — | landed | [discovery](20260618-upstream-monitor-orientation-override.md) · [completed](../completed/20260619-p3-monitor-orientation-override.md) |
+| Patch | P4 | Suppress frame-change relayout after a recent AX write failure | 🔴 | one-branch fix + 2 AXManager tests | — | landed | [discovery](20260618-upstream-frame-write-failure-suppression.md) · [completed](../completed/20260619-p4-frame-write-suppression.md) |
+| Minor | M1 | Refused-frame-size feedback → constraints | 🟢 not a port — **loop already exists** | characterization tests + optional 2-stable-observation hardening | **P4** (hard prereq for assertions) | landed | [discovery](20260618-refused-frame-feedback-characterization.md) · [completed](../completed/20260619-m1-refused-frame-feedback-characterization.md) |
+| Minor | M2 | Learned per-window size quantum | 🟢 rejected | noop/rejection memo only | — | decided-no | [noop](../noop/20260618-upstream-size-quantum-rejected.md) |
+| Minor | M3 | Focus-request origin for FFM cursor-warp | 🟡 | narrow FFM warp gate using existing `isFFM`; origin model deferred | — (soft sequencing before M6) | planned | [discovery](20260618-focus-request-origin-ffm-cursor-warp.md) · [plan](../planned/20260619-m3-ffm-cursor-warp-suppression.md) |
+| Minor | M4-S1 | Displays-have-separate-Spaces mode detection + diagnostics | 🟡 | diagnostics-only; no layout/startup change | — | planned | [discovery](20260618-displays-separate-spaces-mode-detection.md) · [plan](../planned/20260619-m4s1-displays-separate-spaces-detection.md) |
 | Minor | M4-S2 | Minimal Space topology eviction exemption | 🟡 | small value-type topology; OFF = true no-op; product-gated | **M4-S1** | not started | [M4-S2](20260618-space-topology-eviction-exemption.md) |
 | Minor | M5 | Raw MultitouchSupport gesture source | 🟡 | **investigation first**; flag-gated prototype only after abort-trace | abort-trace (M5 step 1) | not started | [M5](20260618-raw-multitouch-gesture-source.md) |
 | Minor | M6 | Cross-workspace stale focus/session revision guard | 🔴 | revision counter + apply guard + cross-ws clear; **high callsite risk** | **M3** (recommended sequence) | not started | [M6](20260618-stale-session-selection-revision-guard.md) |
@@ -52,17 +54,17 @@ Status: `not started` · `in progress` · `landed` · `decided-no` · `deferred`
 
 ## Sequencing (DAG)
 
-Dependency edges (→ = "lands before") and the recommended batches. Patches have no inter-dependencies and are parallel-safe in isolated worktrees.
+Dependency edges (→ = "lands before") and the recommended batches. The patch batch is already landed; remaining arrows are sequencing guidance unless noted as a hard prerequisite.
 
 ```
-Patch (batch 1, parallel-safe):
-  P3   P4   P1   P2          (serial in one worktree: P3 → P4 → P1/P2)
+Patch (batch 1):
+  P3   P4   P1   P2          (landed)
 
 Frame sizing (batch 2):
-  P4 ──▶ M1   (M2 is decided-no; its boundary tests fold into M1)
+  P4 ──▶ M1   (landed; M2 is decided-no and its boundary tests folded into M1)
 
 Focus (batch 3, split):
-  M3 ──▶ M6
+  M3 ──▶ M6   (recommended review sequence; narrowed M3 does not supply M6's origin/revision model)
 
 Spaces (batch 4, staged):
   M4-S1 ──▶ M4-S2
@@ -74,14 +76,14 @@ Architecture (parallel from the start):
   A1 ──▶ A2 ──▶ (A3 / A4 / A5, deferred)
 ```
 
-**Batch 1 — safe patch cluster** (parallel-safe; serial order if one worktree: `P3 → P4 → P1/P2`):
-- P3 (lowest coupling) · P4 (prereq for M1) · P1/P2 (one PR acceptable; both touch `RefreshRoutingTests`).
+**Batch 1 — safe patch cluster**: landed.
+- P3, P4, P1, and P2 are on `main`. P4 remains the prerequisite behind M1's completed assertions.
 
-**Batch 2 — frame-sizing hardening** (after P4):
-- M1 characterization tests + M2 rejection memo (already written). Optional 2-stable-observation hardening only after tests characterize current behavior. Do **not** port upstream `AXFrameApplicationLedger` or learned quantum.
+**Batch 2 — frame-sizing hardening**: landed / decided.
+- M1 characterization tests landed; M2 rejection memo is written. Optional 2-stable-observation hardening remains deferred. Do **not** port upstream `AXFrameApplicationLedger` or learned quantum.
 
 **Batch 3 — focus work split:**
-- M3 first (focus-request origin + FFM warp gate). M6 after M3 (M6 consumes `ManagedFocusOrigin`; high callsite coverage risk → own review loop).
+- M3 first (narrow FFM warp gate using the existing confirm-time `isFFM` signal). M6 after M3 for review sequencing; M6 must add its own revision/origin model if needed (the narrowed M3 plan intentionally does **not** add `ManagedFocusOrigin`).
 
 **Batch 4 — Spaces mode (staged):**
 - M4-S1 (diagnostics only). M4-S2 only after S1 is reviewed and manual mode detection works on a real host.
@@ -97,7 +99,7 @@ Architecture (parallel from the start):
 1. **Patch PR shape:** split P3 and P4; P1/P2 together is acceptable (both touch refresh tests).
 2. **M1 hardening:** do not approve the optional 2-stable-observation gate now — first land P4 + M1 characterization tests.
 3. **M4-S1 mouse warp:** advisory copy only; do **not** auto-disable `MouseWarpHandler` when Separate Spaces is ON.
-4. **M3 scope:** FFM cursor-warp origin only; the hiro-317 `createdAt`/grace-window is a separate A4 task, not M3.
+4. **M3 scope:** narrow FFM cursor-warp suppression only, using the existing confirm-time `isFFM` signal. Do **not** add `ManagedFocusOrigin` or the hiro-317 `createdAt`/grace-window in M3; those are deferred to A4/M6.
 5. **A1 scope:** pure addition + agreement tests first; onboarding refactor only after the 3 divergences are decided.
 6. **WorldStore:** do **not** port upstream `WorldStore`/`EventIntake`/`IntentLedger`/`DeadlineWheel`/`SurfaceReconciler` wholesale — see "Why not wholesale WorldStore" below and the analysis doc.
 
@@ -144,4 +146,4 @@ Each per-cluster discovery doc is a self-contained handoff (provenance, code in 
 
 > Implement **<ID>** per [`<doc path>`]. Scope only what that doc's Recommendation covers; honor its "What NOT to change" / "Non-goals". Return: changed files, tests added, commands run, whether the change was direct-port / concept-port / rejected, and residual risks. Do **not** expand scope to other IDs.
 
-Dependencies to respect when assigning: P4 before M1; M3 before M6; M4-S1 before M4-S2; M5 abort-trace before any raw-source prototype; A1 before A2. Do **not** ask one subagent to port the full upstream range — it is heterogeneous and includes intentionally removed features.
+Dependencies to respect when assigning: P4 before M1 (already satisfied); M3 before M6 as a recommended review sequence only (narrowed M3 has no hard code dependency for M6); M4-S1 before M4-S2; M5 abort-trace before any raw-source prototype; A1 before A2. Do **not** ask one subagent to port the full upstream range — it is heterogeneous and includes intentionally removed features.
