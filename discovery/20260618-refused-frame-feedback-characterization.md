@@ -5,8 +5,6 @@ Related: [`20260618-upstream-frame-write-failure-suppression.md`](20260618-upstr
 
 Scope: re-evaluate whether M1 is a *port* after direct code inspection. **It is not.** This doc records the finding and scopes the actual remaining work.
 
-All file/line references below were verified against worktree `worktree-calm-harbor-e6a1` on 2026-06-18. Re-verify before implementing; line numbers drift.
-
 ---
 
 ## TL;DR

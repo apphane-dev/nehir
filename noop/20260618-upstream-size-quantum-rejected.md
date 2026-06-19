@@ -4,8 +4,6 @@ Source upstream commit: [`6eb9ba0`](https://github.com/BarutSRB/OmniWM/commit/6e
 Filed against: `BarutSRB/OmniWM` (upstream of nehir — see `NOTICE.md`).
 Scope: decide whether to port the quantum learner into nehir. **Recommendation: reject.**
 
-All file/line references below were verified against worktree `worktree-calm-harbor-e6a1` on 2026-06-18. Re-verify before implementing; line numbers drift.
-
 ---
 
 ## TL;DR

@@ -4,8 +4,6 @@ Source direction: upstream WorldStore/EventIntake/IntentLedger/SurfaceReconciler
 Full architecture analysis: [`20260618-worldstore-pure-engine-reuse.md`](20260618-worldstore-pure-engine-reuse.md) (why not to port WorldStore wholesale; A1–A5 framing).
 Scope of **this** doc: the first, safest architecture spike — extract a pure, AppKit/AX/SkyLight-free Niri model + reducer + invariants, shared by the SwiftUI onboarding demo and (initially) by tests. Do **not** refactor the real runtime in A1.
 
-All file/line references below were verified against worktree `worktree-calm-harbor-e6a1` on 2026-06-18. Re-verify before implementing; line numbers drift.
-
 ---
 
 ## TL;DR

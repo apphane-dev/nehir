@@ -6,8 +6,6 @@ Context: [`20260618-separate-spaces-and-monitor-arrangement.md`](20260618-separa
 
 Scope: a minimal `SpaceTopology` value type + per-window Space lookup that exempts windows on known-inactive native Spaces from miss-eviction, concept-ported from upstream `2dcab36` but adapted to nehir's `confirmedMissingKeys`/`removeMissing` shape. Do **not** build upstream's full SpaceTracker/topology runtime.
 
-All file/line references below were verified against worktree `worktree-calm-harbor-e6a1` on 2026-06-18. Re-verify before implementing; line numbers drift.
-
 ---
 
 ## TL;DR

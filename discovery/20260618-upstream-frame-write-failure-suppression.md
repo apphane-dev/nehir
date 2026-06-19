@@ -5,8 +5,6 @@ This doc is the **patch-cluster discovery** for that one-branch fix; the linked 
 
 Scope: confirm the suppression gap exists in nehir, confirm the bounded-clearing safety property the fix relies on, and scope the patch.
 
-All file/line references below were verified against worktree `worktree-calm-harbor-e6a1` on 2026-06-18. Re-verify before implementing; line numbers drift.
-
 ---
 
 ## TL;DR

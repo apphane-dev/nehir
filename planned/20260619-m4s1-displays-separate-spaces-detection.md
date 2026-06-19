@@ -4,10 +4,6 @@
 **Source discovery:** `discovery/20260618-displays-separate-spaces-mode-detection.md`
 **Upstream commits:** `de971b6`, `ee554c7`
 
-All file/line references re-verified against
-`/Users/Aleksei_Gurianov/ghq/github.com/guria/nehir` on 2026-06-19. Re-verify
-before editing; line numbers drift.
-
 ## TL;DR
 
 Nehir cannot tell whether macOS "Displays have separate Spaces" is on. With it

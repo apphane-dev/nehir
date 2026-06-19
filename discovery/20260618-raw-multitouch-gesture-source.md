@@ -5,8 +5,6 @@ Related: [`20260616-nehir-53-trackpad-four-finger-swipe-gesture.md`](20260616-ne
 
 Scope: **investigation, not a production change.** Evaluate whether a raw `MultitouchSupport`-based gesture source is worth prototyping, behind an internal flag, **without** replacing the production path. Produce a go/no-go decision.
 
-All file/line references below were verified against worktree `worktree-calm-harbor-e6a1` on 2026-06-18. Re-verify before implementing; line numbers drift.
-
 ---
 
 ## TL;DR

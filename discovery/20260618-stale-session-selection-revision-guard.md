@@ -6,8 +6,6 @@ Related: [`20260616-omniwm-317-rapid-focus-revert-race.md`](20260616-omniwm-317-
 
 Scope: determine whether the stale session-patch overwrite and the stale cross-workspace pending-focus apply to nehir, and scope a nehir-shaped fix (do **not** port upstream WorldStore).
 
-All file/line references below were verified against worktree `worktree-calm-harbor-e6a1` on 2026-06-18. Re-verify before implementing; line numbers drift.
-
 ---
 
 ## TL;DR

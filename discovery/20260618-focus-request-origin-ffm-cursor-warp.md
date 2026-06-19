@@ -5,8 +5,6 @@ Related: [`20260616-ffm-steals-focus-behind-overlay-on-stale-queued-mouse-moves.
 
 Scope: determine whether the warp-on-hover defect applies to nehir, and scope a concept port (skip upstream's Dwindle hunks — Dwindle is intentionally absent from nehir).
 
-All file/line references below were verified against worktree `worktree-calm-harbor-e6a1` on 2026-06-18. Re-verify before implementing; line numbers drift.
-
 ---
 
 ## TL;DR

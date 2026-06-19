@@ -4,10 +4,6 @@
 **Source discovery:** `discovery/20260618-upstream-refresh-coalescing.md`
 **Upstream commit:** `631caa9` — "Coalesce same-kind refreshes without cancelling"
 
-All file/line references verified against main repo
-`/Users/Aleksei_Gurianov/ghq/github.com/guria/nehir` on 2026-06-19 (exact match
-to discovery; line numbers had not drifted).
-
 ## Completion evidence
 
 `origin/main` contains `0ac70a5d` with the plan's intended source and test changes. Verified while updating this plan branch on 2026-06-19 via `git log origin/main` and `git show --stat 0ac70a5d`.

@@ -5,11 +5,6 @@
 **Upstream commit:** `40934c5` — "Feed terminally refused frame sizes back into layout constraints"
 **Depends on:** P4 (`patch/p4-frame-write-suppression`) — hard prereq; this branch is based on it.
 
-All file/line references re-verified against
-`/Users/Aleksei_Gurianov/ghq/github.com/guria/nehir` on 2026-06-19. **The discovery
-doc's line numbers had drifted; the numbers below are current.** Re-verify before
-editing; line numbers drift.
-
 ## TL;DR
 
 Nehir already implements the full refused-frame → constraint feedback loop

@@ -6,8 +6,6 @@ Stage 2 companion: [`20260618-space-topology-eviction-exemption.md`](20260618-sp
 
 Scope: **diagnostics and mode detection only — no layout/eviction behavior change, no startup requirement.** Determine whether nehir can detect the macOS setting and adjust guidance by mode.
 
-All file/line references below were verified against worktree `worktree-calm-harbor-e6a1` on 2026-06-18. Re-verify before implementing; line numbers drift.
-
 ---
 
 ## TL;DR

@@ -3,11 +3,7 @@
 **Status:** completed — shipped on `main` in `7e9f44a9` ("Preserve orientation overrides and report effective orientation over IPC (P3)").
 **Source upstream commit:** [`8338d97`](https://github.com/BarutSRB/OmniWM/commit/8338d97) — "Preserve monitor orientation overrides and report them over IPC"
 **Discovery doc (authoritative):** [`discovery/20260618-upstream-monitor-orientation-override.md`](../discovery/20260618-upstream-monitor-orientation-override.md)
-**Worktree:** `/Users/Aleksei_Gurianov/.herdr/worktrees/nehir/p3-monitor-orientation` · branch `patch/p3-monitor-orientation-override`
-
-All file/line refs below were re-verified on the main app worktree
-(`/Users/Aleksei_Gurianov/ghq/github.com/guria/nehir`, branch `main`) on
-2026-06-19. Re-verify before implementing; line numbers drift.
+**Branch:** `patch/p3-monitor-orientation-override`
 
 ---
 

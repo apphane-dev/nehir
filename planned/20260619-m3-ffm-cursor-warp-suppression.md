@@ -4,10 +4,6 @@
 **Source discovery:** `discovery/20260618-focus-request-origin-ffm-cursor-warp.md`
 **Upstream commit:** `fce3a2c` — "Fix cursor warp for focus follows mouse"
 
-All file/line references re-verified against
-`/Users/Aleksei_Gurianov/ghq/github.com/guria/nehir` on 2026-06-19. Re-verify before
-editing; line numbers drift.
-
 ## TL;DR
 
 With **Move mouse to focused window** enabled, a focus-follows-mouse (hover)

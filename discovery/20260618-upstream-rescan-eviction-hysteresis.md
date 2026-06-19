@@ -4,8 +4,6 @@ Source upstream commit: [`ba9d1e2`](https://github.com/BarutSRB/OmniWM/commit/ba
 Filed against: `BarutSRB/OmniWM` (upstream of nehir — see `NOTICE.md`).
 Scope: determine whether the single-miss eviction behavior applies to nehir, and scope the port.
 
-All file/line references below were verified against worktree `worktree-calm-harbor-e6a1` on 2026-06-18. Re-verify before implementing; line numbers drift.
-
 ---
 
 ## TL;DR

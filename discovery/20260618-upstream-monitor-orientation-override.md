@@ -4,8 +4,6 @@ Source upstream commit: [`8338d97`](https://github.com/BarutSRB/OmniWM/commit/83
 Filed against: `BarutSRB/OmniWM` (upstream of nehir — see `NOTICE.md`).
 Scope: determine whether the orientation clobber and the IPC misreport apply to nehir, and scope the port.
 
-All file/line references below were verified against worktree `worktree-calm-harbor-e6a1` on 2026-06-18. Re-verify before implementing; line numbers drift.
-
 ---
 
 ## TL;DR
