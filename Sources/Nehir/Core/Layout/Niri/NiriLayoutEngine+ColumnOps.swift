@@ -482,12 +482,30 @@ extension NiriLayoutEngine {
     ) -> Bool {
         guard direction == .left || direction == .right else { return false }
 
-        if let pureWouldChange = pureLayoutMoveWouldChange(
+        let purePlan = pureLayoutMovePlan(
             window,
             direction: direction,
             in: workspaceId,
             allowEdgeWrap: allowEdgeWrap
-        ), !pureWouldChange {
+        )
+
+        switch purePlan {
+        case .noChange:
+            return false
+        case .horizontalExpel:
+            return expelWindow(
+                window,
+                to: direction,
+                in: workspaceId,
+                motion: motion,
+                state: &state,
+                workingFrame: workingFrame,
+                gaps: gaps
+            )
+        case .horizontalConsume,
+             .unsupported:
+            break
+        case .verticalSwap:
             return false
         }
 
@@ -497,7 +515,7 @@ extension NiriLayoutEngine {
             return false
         }
 
-        if currentColumn.windowNodes.count > 1 {
+        if purePlan == .unsupported, currentColumn.windowNodes.count > 1 {
             return expelWindow(
                 window,
                 to: direction,
@@ -510,19 +528,29 @@ extension NiriLayoutEngine {
         }
 
         let cols = columns(in: workspaceId)
-        let step = (direction == .right) ? 1 : -1
         let neighborIdx: Int
-        if allowEdgeWrap {
-            guard let wrappedIdx = wrapIndex(currentIdx + step, total: cols.count, in: workspaceId) else {
-                return false
+        switch purePlan {
+        case let .horizontalConsume(targetColumnIndexBeforeMove):
+            guard cols.indices.contains(targetColumnIndexBeforeMove) else { return false }
+            neighborIdx = targetColumnIndexBeforeMove
+        case .unsupported:
+            let step = (direction == .right) ? 1 : -1
+            if allowEdgeWrap {
+                guard let wrappedIdx = wrapIndex(currentIdx + step, total: cols.count, in: workspaceId) else {
+                    return false
+                }
+                neighborIdx = wrappedIdx
+            } else {
+                let adjacentIdx = currentIdx + step
+                guard adjacentIdx >= 0, adjacentIdx < cols.count else {
+                    return false
+                }
+                neighborIdx = adjacentIdx
             }
-            neighborIdx = wrappedIdx
-        } else {
-            let adjacentIdx = currentIdx + step
-            guard adjacentIdx >= 0, adjacentIdx < cols.count else {
-                return false
-            }
-            neighborIdx = adjacentIdx
+        case .noChange,
+             .horizontalExpel,
+             .verticalSwap:
+            return false
         }
 
         if neighborIdx == currentIdx { return false }
