@@ -157,6 +157,8 @@ struct ViewportState {
 
     var viewOffsetToRestore: CGFloat?
 
+    var preservesUnsnappedGestureOffset = false
+
     var activatePrevColumnOnRemoval: CGFloat?
 
     var pendingFFMFocusToken: WindowToken?

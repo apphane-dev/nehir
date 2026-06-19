@@ -276,15 +276,41 @@ import QuartzCore
             return
         }
 
-        guard let displayLink = getOrCreateDisplayLink(for: targetDisplayId) else { return }
-        guard niriHandler.registerScrollAnimation(workspaceId, on: targetDisplayId) else {
+        guard let displayLink = getOrCreateDisplayLink(for: targetDisplayId) else {
+            controller.recordRuntimeViewportTrace(
+                workspaceId: workspaceId,
+                reason: "scroll_animation_start_failed",
+                details: [
+                    "displayId=\(targetDisplayId)",
+                    "reason=noDisplayLink"
+                ]
+            )
+            return
+        }
+        let didRegister = niriHandler.registerScrollAnimation(workspaceId, on: targetDisplayId)
+        controller.recordRuntimeViewportTrace(
+            workspaceId: workspaceId,
+            reason: didRegister ? "scroll_animation_start" : "scroll_animation_start_skipped",
+            details: [
+                "displayId=\(targetDisplayId)",
+                "registered=\(didRegister)"
+            ]
+        )
+        guard didRegister else {
             return
         }
         displayLink.add(to: .main, forMode: .common)
     }
 
     func stopScrollAnimation(for displayId: CGDirectDisplayID) {
-        niriHandler.scrollAnimationByDisplay.removeValue(forKey: displayId)
+        let workspaceId = niriHandler.scrollAnimationByDisplay.removeValue(forKey: displayId)
+        if let workspaceId, let controller {
+            controller.recordRuntimeViewportTrace(
+                workspaceId: workspaceId,
+                reason: "scroll_animation_stop",
+                details: ["displayId=\(displayId)"]
+            )
+        }
         stopDisplayLinkIfIdle(for: displayId)
     }
 

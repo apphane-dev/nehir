@@ -1,7 +1,7 @@
 import AppKit
 import Foundation
 
-private let VIEW_GESTURE_WORKING_AREA_MOVEMENT: Double = 1200.0
+let VIEW_GESTURE_WORKING_AREA_MOVEMENT: Double = 1200.0
 
 extension ViewportState {
     @discardableResult
@@ -9,6 +9,7 @@ extension ViewportState {
         guard !columns.isEmpty else { return false }
         let currentOffset = viewOffsetPixels.current()
         viewOffsetPixels = .gesture(ViewGesture(currentViewOffset: Double(currentOffset), isTrackpad: isTrackpad))
+        preservesUnsnappedGestureOffset = false
         selectionProgress = 0.0
         return true
     }
@@ -130,6 +131,7 @@ extension ViewportState {
 
         guard motion.animationsEnabled else {
             viewOffsetPixels = .static(CGFloat(targetOffset))
+            preservesUnsnappedGestureOffset = false
             activatePrevColumnOnRemoval = nil
             selectionProgress = 0.0
             return
@@ -144,6 +146,7 @@ extension ViewportState {
             displayRefreshRate: displayRefreshRate
         )
         viewOffsetPixels = .spring(animation)
+        preservesUnsnappedGestureOffset = false
 
         activatePrevColumnOnRemoval = nil
         selectionProgress = 0.0
@@ -204,6 +207,7 @@ extension ViewportState {
         } else {
             viewOffsetPixels = .static(CGFloat(finalOffset))
         }
+        preservesUnsnappedGestureOffset = true
         activatePrevColumnOnRemoval = nil
         selectionProgress = 0.0
     }
@@ -305,6 +309,7 @@ extension ViewportState {
 
     private mutating func endGestureWithoutSnap(currentOffset: Double) {
         viewOffsetPixels = .static(CGFloat(currentOffset))
+        preservesUnsnappedGestureOffset = false
         activatePrevColumnOnRemoval = nil
         viewOffsetToRestore = nil
         selectionProgress = 0.0

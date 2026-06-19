@@ -314,7 +314,9 @@ final class ServiceLifecycleManager {
             queue: .main
         ) { [weak self] _ in
             MainActor.assumeIsolated {
-                _ = self?.controller?.workspaceManager.recordReconcileEvent(.systemSleep(source: .service))
+                guard let controller = self?.controller else { return }
+                controller.mouseEventHandler.stopMultitouch()
+                _ = controller.workspaceManager.recordReconcileEvent(.systemSleep(source: .service))
             }
         }
 
@@ -326,6 +328,7 @@ final class ServiceLifecycleManager {
             MainActor.assumeIsolated {
                 guard let controller = self?.controller else { return }
                 _ = controller.workspaceManager.recordReconcileEvent(.systemWake(source: .service))
+                controller.mouseEventHandler.restartMultitouch()
                 controller.layoutRefreshController.requestRefresh(reason: .unlock)
             }
         }

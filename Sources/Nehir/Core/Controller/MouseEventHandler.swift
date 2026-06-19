@@ -185,8 +185,6 @@ final class MouseEventHandler {
 
         var eventTap: CFMachPort?
         var runLoopSource: CFRunLoopSource?
-        var gestureTap: CFMachPort?
-        var gestureRunLoopSource: CFRunLoopSource?
         var currentHoveredEdges: ResizeEdge = []
         var isResizing: Bool = false
         var isMoving: Bool = false
@@ -217,6 +215,7 @@ final class MouseEventHandler {
 
     weak var controller: WMController?
     var state = State()
+    private var multitouchSource: MultitouchGestureSource?
     var pressedMouseButtonsProvider: @MainActor () -> Int = { Int(NSEvent.pressedMouseButtons) }
     var mouseLocationProvider: @MainActor () -> CGPoint = { NSEvent.mouseLocation }
 
@@ -267,37 +266,12 @@ final class MouseEventHandler {
             CGEvent.tapEnable(tap: tap, enable: true)
         }
 
-        let gestureMask: CGEventMask = UInt64(NSEvent.EventTypeMask.gesture.rawValue)
-
-        let gestureCallback: CGEventTapCallBack = { _, type, event, _ in
-            if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-                if let tap = MouseEventHandler._instance?.state.gestureTap {
-                    CGEvent.tapEnable(tap: tap, enable: true)
-                }
-                return Unmanaged.passUnretained(event)
-            }
-
-            _ = MouseEventHandler.processGestureTapCallback(type: type, event: event)
-
-            return Unmanaged.passUnretained(event)
+        let source = MultitouchGestureSource()
+        source.onSnapshot = { [weak self] snapshot in
+            self?.receiveTapGestureEvent(snapshot)
         }
-
-        state.gestureTap = CGEvent.tapCreate(
-            tap: .cghidEventTap,
-            place: .headInsertEventTap,
-            options: .listenOnly,
-            eventsOfInterest: gestureMask,
-            callback: gestureCallback,
-            userInfo: nil
-        )
-
-        if let tap = state.gestureTap {
-            state.gestureRunLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
-            if let source = state.gestureRunLoopSource {
-                CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
-            }
-            CGEvent.tapEnable(tap: tap, enable: true)
-        }
+        source.start()
+        multitouchSource = source
     }
 
     func cleanup() {
@@ -309,14 +283,8 @@ final class MouseEventHandler {
             CGEvent.tapEnable(tap: tap, enable: false)
             state.eventTap = nil
         }
-        if let source = state.gestureRunLoopSource {
-            CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
-            state.gestureRunLoopSource = nil
-        }
-        if let tap = state.gestureTap {
-            CGEvent.tapEnable(tap: tap, enable: false)
-            state.gestureTap = nil
-        }
+        multitouchSource?.stop()
+        multitouchSource = nil
         MouseEventHandler._instance = nil
         state.currentHoveredEdges = []
         state.isResizing = false
@@ -324,6 +292,15 @@ final class MouseEventHandler {
         state.activeInteractionWorkspaceId = nil
         state.pendingTapEvents.clear()
         resetGestureState()
+    }
+
+    func restartMultitouch() {
+        abortActiveGestureIfNeeded()
+        multitouchSource?.restart()
+    }
+
+    func stopMultitouch() {
+        multitouchSource?.stop()
     }
 
     func dispatchMouseMoved(at location: CGPoint, windowUnderPointer: Int? = nil) {
@@ -552,12 +529,32 @@ final class MouseEventHandler {
             handleInputSuppressionBegan()
             return
         }
+        guard shouldProcessGestureFrame(snapshot) else { return }
         if shouldBlockOwnWindowInput(at: snapshot.location) {
             dropPendingTapEvents()
         } else {
             flushPendingTapEvents(beforeImmediateDispatch: true)
         }
         handleGestureEvent(snapshot)
+    }
+
+    private func shouldProcessGestureFrame(_ snapshot: GestureEventSnapshot) -> Bool {
+        guard state.gesturePhase == .idle else { return true }
+        let activeTouchCount = snapshot.touches.filter { $0.phase != .ended && $0.phase != .cancelled }.count
+        guard activeTouchCount > 0 else { return true }
+        guard let requiredFingers = controller?.settings.gestureFingerCount.rawValue else { return false }
+        guard activeTouchCount == requiredFingers else {
+            let reason = activeTouchCount > requiredFingers ? "overCount" : "underCount"
+            traceGestureSkip(
+                reason: reason,
+                location: snapshot.location,
+                requiredFingers: requiredFingers,
+                activeTouches: activeTouchCount,
+                phase: NSEvent.Phase(rawValue: snapshot.phaseRawValue)
+            )
+            return false
+        }
+        return true
     }
 
     private var isInputSuppressed: Bool {
@@ -790,6 +787,23 @@ final class MouseEventHandler {
     private func traceMouseFocus(_ message: @autoclosure () -> String) {
         guard controller?.isRuntimeTraceCaptureActive == true else { return }
         controller?.recordRuntimeMouseTrace(message())
+    }
+
+    // Emits a `gesture.skip reason=...` mouse-trace record at every point where a trackpad
+    // gesture is skipped or aborted before committing, so an "eaten" swipe (#53) can be
+    // diagnosed. Purely additive: a no-op unless runtime trace capture is active.
+    private func traceGestureSkip(
+        reason: String,
+        location: CGPoint,
+        requiredFingers: Int? = nil,
+        activeTouches: Int? = nil,
+        phase: NSEvent.Phase? = nil
+    ) {
+        var fields = ["reason=\(reason)", "loc=\(formatPoint(location))"]
+        if let requiredFingers { fields.append("requiredFingers=\(requiredFingers)") }
+        if let activeTouches { fields.append("activeTouches=\(activeTouches)") }
+        if let phase { fields.append("phase=\(phase.rawValue)") }
+        traceMouseFocus("gesture.skip " + fields.joined(separator: " "))
     }
 
     private func formatPoint(_ point: CGPoint) -> String {
@@ -1405,23 +1419,28 @@ final class MouseEventHandler {
             if phase == .ended || phase == .cancelled || activeTouchCount == 0 {
                 state.suppressGestureUntilTouchesEnd = false
             } else {
+                traceGestureSkip(reason: "suppressed", location: location, activeTouches: activeTouchCount, phase: phase)
                 return
             }
         }
 
         guard controller.isEnabled else {
+            traceGestureSkip(reason: "disabled", location: location, activeTouches: activeTouchCount, phase: phase)
             abortActiveGestureIfNeeded()
             return
         }
         guard controller.settings.scrollGestureEnabled else {
+            traceGestureSkip(reason: "disabled", location: location, activeTouches: activeTouchCount, phase: phase)
             abortActiveGestureIfNeeded()
             return
         }
         if controller.isOverviewOpen() {
+            traceGestureSkip(reason: "overview", location: location, activeTouches: activeTouchCount, phase: phase)
             abortActiveGestureIfNeeded()
             return
         }
         if shouldBlockOwnWindowInput(at: location) {
+            traceGestureSkip(reason: "ownWindow", location: location, activeTouches: activeTouchCount, phase: phase)
             abortActiveGestureIfNeeded()
             return
         }
@@ -1448,10 +1467,12 @@ final class MouseEventHandler {
             return
         }
         guard !state.isResizing, !state.isMoving else {
+            traceGestureSkip(reason: "busy", location: location, activeTouches: activeTouchCount, phase: phase)
             abortActiveGestureIfNeeded()
             return
         }
         guard let engine = controller.niriEngine else {
+            traceGestureSkip(reason: "noEngine", location: location, activeTouches: activeTouchCount, phase: phase)
             abortActiveGestureIfNeeded()
             return
         }
@@ -1477,14 +1498,17 @@ final class MouseEventHandler {
         }
 
         if phase == .began, state.gesturePhase != .idle {
+            traceGestureSkip(reason: "conflict", location: location, requiredFingers: requiredFingers, activeTouches: activeTouchCount, phase: phase)
             abortActiveGestureIfNeeded()
         }
 
         guard resolveScrollContext(at: location) != nil else {
+            traceGestureSkip(reason: "noScrollContext", location: location, requiredFingers: requiredFingers, activeTouches: activeTouchCount, phase: phase)
             abortActiveGestureIfNeeded()
             return
         }
         guard !snapshot.touches.isEmpty else {
+            traceGestureSkip(reason: "emptyTouches", location: location, requiredFingers: requiredFingers, activeTouches: activeTouchCount, phase: phase)
             abortActiveGestureIfNeeded()
             return
         }
@@ -1499,6 +1523,12 @@ final class MouseEventHandler {
                 )
                 return
             }
+            // averageGestureTouchPosition returns nil for over/under-count or unusable touch
+            // positions; re-derive the concrete reason from the active touch count for diagnosis.
+            let matcherReason = activeTouchCount > requiredFingers
+                ? "overCount"
+                : (activeTouchCount < requiredFingers ? "underCount" : "malformedTouch")
+            traceGestureSkip(reason: matcherReason, location: location, requiredFingers: requiredFingers, activeTouches: activeTouchCount, phase: phase)
             abortActiveGestureIfNeeded()
             return
         }
@@ -1509,6 +1539,7 @@ final class MouseEventHandler {
         switch state.gesturePhase {
         case .idle:
             guard let currentContext = resolveScrollContext(at: location) else {
+                traceGestureSkip(reason: "noScrollContext", location: location, requiredFingers: requiredFingers, activeTouches: activeTouchCount, phase: phase)
                 abortActiveGestureIfNeeded()
                 return
             }
@@ -1541,6 +1572,7 @@ final class MouseEventHandler {
              .committed:
             guard var lockedContext = state.lockedGestureContext else {
                 assertionFailure("Active gesture missing locked context")
+                traceGestureSkip(reason: "noContext", location: location, requiredFingers: requiredFingers, activeTouches: activeTouchCount, phase: phase)
                 abortActiveGestureIfNeeded()
                 return
             }
@@ -1559,6 +1591,7 @@ final class MouseEventHandler {
             }
             let wsId = lockedContext.workspaceId
             guard let monitor = controller.workspaceManager.monitor(byId: lockedContext.monitorId) else {
+                traceGestureSkip(reason: "noMonitor", location: location, requiredFingers: requiredFingers, activeTouches: activeTouchCount, phase: phase)
                 abortActiveGestureIfNeeded()
                 return
             }
@@ -1578,7 +1611,8 @@ final class MouseEventHandler {
                 }
 
                 guard abs(cumulativeX) > abs(cumulativeY) else {
-                    resetGestureState()
+                    traceGestureSkip(reason: "nonHorizontal", location: location, requiredFingers: requiredFingers, activeTouches: activeTouchCount, phase: phase)
+                    abortActiveGestureIfNeeded()
                     return
                 }
 
@@ -1632,9 +1666,11 @@ final class MouseEventHandler {
         let scale = backingScale(for: monitor)
 
         var didApply = false
+        var didInterruptAnimation = false
         controller.workspaceManager.withNiriViewportState(for: wsId) { vstate in
             if vstate.viewOffsetPixels.isAnimating {
                 vstate.settleAtCurrentOffset()
+                didInterruptAnimation = true
             }
 
             engine.prepareAndSeedSingleWindowViewport(
@@ -1660,6 +1696,9 @@ final class MouseEventHandler {
                 viewportWidth: viewportWidth
             )
             didApply = true
+        }
+        if didInterruptAnimation {
+            controller.layoutRefreshController.stopScrollAnimation(for: monitor.displayId)
         }
         if didApply {
             controller.recordRuntimeViewportTrace(
@@ -1774,13 +1813,71 @@ final class MouseEventHandler {
         var endedGestureIsAnimating = false
         controller.workspaceManager.withNiriViewportState(for: wsId) { endState in
             previousActiveColumnIndex = endState.activeColumnIndex
+            let snapToColumn = !lockedContext.bypassSnap
+            if let gesture = endState.viewOffsetPixels.gestureRef {
+                let normFactor = gesture.isTrackpad
+                    ? Double(insetFrame.width) / VIEW_GESTURE_WORKING_AREA_MOVEMENT
+                    : 1.0
+                let activeColumnX = Double(endState.columnX(
+                    at: endState.activeColumnIndex,
+                    columns: columns,
+                    gap: gap
+                ))
+                let currentOffset = gesture.current()
+                let velocity = gesture.tracker.velocity() * normFactor
+                let projectedOffset = gesture.tracker.projectedEndPosition() * normFactor
+                    + gesture.deltaFromTracker
+                let currentViewStart = activeColumnX + currentOffset
+                let projectedViewStart = activeColumnX + projectedOffset
+                let snapContext = endState.snapContext(
+                    columns: columns,
+                    gap: gap,
+                    viewportWidth: insetFrame.width
+                )
+                let closestSnap = snapToColumn
+                    ? snapContext.closest(to: CGFloat(projectedViewStart))
+                    : nil
+                let targetOffset = closestSnap.map { snapContext.targetOffset(for: $0, in: endState) }
+                var details = [
+                    "input=trackpadTouches",
+                    "snap=\(snapToColumn)",
+                    "activeColumnIndex=\(endState.activeColumnIndex)",
+                    String(format: "currentOffset=%.3f", currentOffset),
+                    String(format: "currentViewStart=%.3f", currentViewStart),
+                    String(format: "projectedOffset=%.3f", projectedOffset),
+                    String(format: "projectedViewStart=%.3f", projectedViewStart),
+                    String(format: "velocity=%.3f", velocity),
+                    String(format: "timestamp=%.6f", timestamp ?? CACurrentMediaTime()),
+                    String(format: "clockNow=%.6f", CACurrentMediaTime()),
+                    "snapPointCount=\(snapContext.snapPoints.count)"
+                ]
+                if let closestSnap {
+                    details.append(String(format: "closestSnap=%.3f", closestSnap.offset))
+                    details.append("closestSnapColumn=\(closestSnap.columnIndex)")
+                    details.append("closestSnapKind=\(closestSnap.kind)")
+                    details.append(String(
+                        format: "closestSnapDistance=%.3f",
+                        abs(Double(closestSnap.offset) - projectedViewStart)
+                    ))
+                } else {
+                    details.append("closestSnap=nil")
+                }
+                if let targetOffset {
+                    details.append(String(format: "targetOffset=%.3f", targetOffset))
+                }
+                controller.recordRuntimeViewportTrace(
+                    workspaceId: wsId,
+                    reason: "touch_scroll_gesture_end_candidate",
+                    details: details
+                )
+            }
             endState.endGesture(
                 columns: columns,
                 gap: gap,
                 viewportWidth: insetFrame.width,
                 motion: controller.motionPolicy.snapshot(),
                 isTrackpad: true,
-                snapToColumn: !lockedContext.bypassSnap,
+                snapToColumn: snapToColumn,
                 workingArea: insetFrame,
                 viewFrame: monitor.frame,
                 scale: scale,
@@ -1829,6 +1926,7 @@ final class MouseEventHandler {
                 "snap=\(!lockedContext.bypassSnap)",
                 "focusSelection=\(focusSelectionDisposition)",
                 "focusFollowsMouse=\(controller.focusFollowsMouseEnabled)",
+                "endedGestureIsAnimating=\(endedGestureIsAnimating)",
                 "previousActiveColumnIndex=\(previousActiveColumnIndex.map(String.init) ?? "nil")",
                 "endedActiveColumnIndex=\(endedActiveColumnIndex.map(String.init) ?? "nil")"
             ]
@@ -1885,7 +1983,23 @@ final class MouseEventHandler {
     }
 
     private func abortActiveGestureIfNeeded() {
-        if state.gesturePhase == .committed {
+        let previousGesturePhase = state.gesturePhase
+        if previousGesturePhase == .armed {
+            // An armed (not-yet-committed) gesture is dying. Surface it in the viewport
+            // trace stream alongside the armed/committed/end records so an "eaten" swipe
+            // (#53) is visible. Purely additive: a no-op unless trace capture is active.
+            if let wsId = state.lockedGestureContext?.workspaceId, let controller {
+                controller.recordRuntimeViewportTrace(
+                    workspaceId: wsId,
+                    reason: "touch_scroll_gesture_abort",
+                    details: [
+                        "input=trackpadTouches",
+                        "phase=armed"
+                    ]
+                )
+            }
+        }
+        if previousGesturePhase == .committed {
             guard let lockedContext = state.lockedGestureContext else {
                 assertionFailure("Committed gesture missing locked context")
                 resetGestureState()

@@ -619,6 +619,7 @@ enum NiriWindowMoveResult {
 
         if !usesCenteredLoneWindow,
            !isGestureOrAnimation,
+           !state.preservesUnsnappedGestureOffset,
            snapshot.isActiveWorkspace,
            let selectedId = state.selectedNodeId,
            let selectedNode = pass.engine.findNode(by: selectedId),
@@ -641,6 +642,7 @@ enum NiriWindowMoveResult {
 
         if !usesCenteredLoneWindow,
            !isGestureOrAnimation,
+           !state.preservesUnsnappedGestureOffset,
            snapshot.isActiveWorkspace
         {
             let columns = pass.engine.columns(in: pass.wsId)
@@ -662,6 +664,7 @@ enum NiriWindowMoveResult {
                         activeColumnIndex: activeIndex,
                         in: state
                     ))
+                    state.preservesUnsnappedGestureOffset = false
                     if abs(state.viewOffsetPixels.current() - offsetBefore) > 1 {
                         viewportNeedsRecalc = true
                     }
@@ -671,6 +674,7 @@ enum NiriWindowMoveResult {
 
         let ranEnsureVisible = !usesCenteredLoneWindow
             && !isGestureOrAnimation
+            && !state.preservesUnsnappedGestureOffset
             && snapshot.isActiveWorkspace
             && state.selectedNodeId != nil
             && pass.engine.findNode(by: state.selectedNodeId!) != nil
@@ -803,6 +807,7 @@ enum NiriWindowMoveResult {
     ) {
         state.activeColumnIndex = 0
         state.viewOffsetPixels = .static(geometry?.centerOffset ?? 0)
+        state.preservesUnsnappedGestureOffset = false
         state.activatePrevColumnOnRemoval = nil
         state.viewOffsetToRestore = nil
         state.selectionProgress = 0

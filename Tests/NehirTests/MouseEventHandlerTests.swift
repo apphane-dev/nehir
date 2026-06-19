@@ -3051,4 +3051,63 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
         #expect(controller.niriLayoutHandler.scrollAnimationByDisplay[monitor.displayId] == nil)
     }
 
+    // MARK: - M5 step 1: gesture skip/abort trace capture
+
+    @Test @MainActor func gestureSkipTraceRecordsOverCountReason() async {
+        let fixture = await prepareMouseWheelScrollFixture()
+        let controller = fixture.controller
+        let handler = fixture.handler
+
+        controller.toggleRuntimeTraceCapture(desiredState: .active)
+
+        // 4 active touches vs requiredFingers 3 → matcher returns nil → overCount skip.
+        handler.receiveTapGestureEvent(
+            .init(
+                location: fixture.location,
+                phaseRawValue: NSEvent.Phase.changed.rawValue,
+                timestamp: CACurrentMediaTime(),
+                touches: makeGestureTouchSamples(xPositions: [0.20, 0.25, 0.30, 0.35])
+            )
+        )
+
+        let mouseTraces = controller.runtimeMouseTraceRecordsForTests()
+        #expect(mouseTraces.contains { $0.contains("gesture.skip reason=overCount") })
+    }
+
+    @Test @MainActor func gestureAbortTraceRecordsArmedAbortReason() async {
+        let fixture = await prepareMouseWheelScrollFixture()
+        let controller = fixture.controller
+        let handler = fixture.handler
+        let baseTime = CACurrentMediaTime()
+
+        controller.toggleRuntimeTraceCapture(desiredState: .active)
+
+        // Arm with a horizontal 3-finger began.
+        handler.receiveTapGestureEvent(
+            .init(
+                location: fixture.location,
+                phaseRawValue: NSEvent.Phase.began.rawValue,
+                timestamp: baseTime,
+                touches: makeGestureTouchSamples(xPositions: [0.20, 0.25, 0.30])
+            )
+        )
+        #expect(handler.state.gesturePhase == .armed)
+
+        // Vertical-dominant changed past threshold → nonHorizontal skip + armed abort.
+        handler.receiveTapGestureEvent(
+            .init(
+                location: fixture.location,
+                phaseRawValue: NSEvent.Phase.changed.rawValue,
+                timestamp: baseTime + 0.016,
+                touches: makeGestureTouchSamples(xPositions: [0.20, 0.25, 0.30], yPosition: 0.9)
+            )
+        )
+
+        let mouseTraces = controller.runtimeMouseTraceRecordsForTests()
+        #expect(mouseTraces.contains { $0.contains("gesture.skip reason=nonHorizontal") })
+
+        let viewportTraces = controller.runtimeViewportTraceRecordsForTests()
+        #expect(viewportTraces.contains { $0.contains("reason=touch_scroll_gesture_abort") })
+    }
+
 }
