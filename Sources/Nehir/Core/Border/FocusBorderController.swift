@@ -412,10 +412,6 @@ final class FocusBorderController {
     private func isManagedWindowFullscreen(_ token: WindowToken) -> Bool {
         guard let controller else { return false }
 
-        if controller.niriEngine?.findNode(for: token)?.isFullscreen == true {
-            return true
-        }
-
-        return false
+        return controller.focusCoordinator.isFocusedWindowFullscreen(token)
     }
 }

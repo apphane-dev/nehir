@@ -1281,6 +1281,255 @@ enum NiriWindowMoveResult {
         )
     }
 
+    func focusPrevious() {
+        guard let controller else { return }
+        withNiriWorkspaceContext { engine, wsId, motion, state, _, workingFrame, gaps in
+            if let currentId = state.selectedNodeId {
+                engine.updateFocusTimestamp(for: currentId)
+            }
+
+            if let currentId = state.selectedNodeId {
+                engine.activateWindow(currentId)
+            }
+
+            guard let previousWindow = engine.focusPrevious(
+                currentNodeId: state.selectedNodeId,
+                in: wsId,
+                motion: motion,
+                state: &state,
+                workingFrame: workingFrame,
+                gaps: gaps,
+                limitToWorkspace: true
+            ) else {
+                return
+            }
+
+            activateNode(
+                previousWindow, in: wsId, state: &state,
+                options: .init(ensureVisible: false, updateTimestamp: false, startAnimation: false)
+            )
+
+            if state.viewOffsetPixels.isAnimating {
+                controller.layoutRefreshController.startScrollAnimation(for: wsId)
+            }
+        }
+    }
+
+    func focusDownOrLeft() {
+        executeCombinedNavigation { engine, currentNode, wsId, motion, state, workingFrame, gaps in
+            engine.focusDownOrLeft(
+                currentSelection: currentNode,
+                in: wsId,
+                motion: motion,
+                state: &state,
+                workingFrame: workingFrame,
+                gaps: gaps
+            )
+        }
+    }
+
+    func focusUpOrRight() {
+        executeCombinedNavigation { engine, currentNode, wsId, motion, state, workingFrame, gaps in
+            engine.focusUpOrRight(
+                currentSelection: currentNode,
+                in: wsId,
+                motion: motion,
+                state: &state,
+                workingFrame: workingFrame,
+                gaps: gaps
+            )
+        }
+    }
+
+    func focusWindowInColumn(index: Int) {
+        executeCombinedNavigation { engine, currentNode, wsId, motion, state, workingFrame, gaps in
+            engine.focusWindowInColumn(
+                index,
+                currentSelection: currentNode,
+                in: wsId,
+                motion: motion,
+                state: &state,
+                workingFrame: workingFrame,
+                gaps: gaps
+            )
+        }
+    }
+
+    func focusWindowTop() {
+        executeCombinedNavigation { engine, currentNode, wsId, motion, state, workingFrame, gaps in
+            engine.focusWindowTop(
+                currentSelection: currentNode,
+                in: wsId,
+                motion: motion,
+                state: &state,
+                workingFrame: workingFrame,
+                gaps: gaps
+            )
+        }
+    }
+
+    func focusWindowBottom() {
+        executeCombinedNavigation { engine, currentNode, wsId, motion, state, workingFrame, gaps in
+            engine.focusWindowBottom(
+                currentSelection: currentNode,
+                in: wsId,
+                motion: motion,
+                state: &state,
+                workingFrame: workingFrame,
+                gaps: gaps
+            )
+        }
+    }
+
+    func focusWindowDownOrTop() {
+        executeCombinedNavigation { engine, currentNode, wsId, motion, state, workingFrame, gaps in
+            engine.focusWindowDownOrTop(
+                currentSelection: currentNode,
+                in: wsId,
+                motion: motion,
+                state: &state,
+                workingFrame: workingFrame,
+                gaps: gaps
+            )
+        }
+    }
+
+    func focusWindowUpOrBottom() {
+        executeCombinedNavigation { engine, currentNode, wsId, motion, state, workingFrame, gaps in
+            engine.focusWindowUpOrBottom(
+                currentSelection: currentNode,
+                in: wsId,
+                motion: motion,
+                state: &state,
+                workingFrame: workingFrame,
+                gaps: gaps
+            )
+        }
+    }
+
+    func focusWindowOrWorkspace(direction: Direction) {
+        guard direction == .down || direction == .up else { return }
+        executeCombinedNavigation(
+            onNoTarget: { [weak controller] in
+                controller?.workspaceNavigationHandler.switchWorkspaceRelative(
+                    isNext: direction == .down,
+                    wrapAround: false
+                )
+            },
+            { engine, currentNode, wsId, motion, state, workingFrame, gaps in
+                engine.focusTarget(
+                    direction: direction,
+                    currentSelection: currentNode,
+                    in: wsId,
+                    motion: motion,
+                    state: &state,
+                    workingFrame: workingFrame,
+                    gaps: gaps
+                )
+            }
+        )
+    }
+
+    func focusColumnFirst() {
+        executeCombinedNavigation { engine, currentNode, wsId, motion, state, workingFrame, gaps in
+            engine.focusColumnFirst(
+                currentSelection: currentNode,
+                in: wsId,
+                motion: motion,
+                state: &state,
+                workingFrame: workingFrame,
+                gaps: gaps
+            )
+        }
+    }
+
+    func focusColumnLast() {
+        executeCombinedNavigation { engine, currentNode, wsId, motion, state, workingFrame, gaps in
+            engine.focusColumnLast(
+                currentSelection: currentNode,
+                in: wsId,
+                motion: motion,
+                state: &state,
+                workingFrame: workingFrame,
+                gaps: gaps
+            )
+        }
+    }
+
+    func focusColumn(index: Int) {
+        executeCombinedNavigation { engine, currentNode, wsId, motion, state, workingFrame, gaps in
+            engine.focusColumn(
+                index,
+                currentSelection: currentNode,
+                in: wsId,
+                motion: motion,
+                state: &state,
+                workingFrame: workingFrame,
+                gaps: gaps
+            )
+        }
+    }
+
+    private func executeCombinedNavigation(
+        onNoTarget: (() -> Void)? = nil,
+        _ navigationAction: (
+            NiriLayoutEngine,
+            NiriNode,
+            WorkspaceDescriptor.ID,
+            MotionSnapshot,
+            inout ViewportState,
+            CGRect,
+            CGFloat
+        )
+            -> NiriNode?
+    ) {
+        guard let controller else { return }
+        guard let engine = controller.niriEngine else { return }
+        guard let wsId = controller.interactionWorkspace()?.id else { return }
+        guard let monitor = controller.workspaceManager.monitor(for: wsId) else { return }
+
+        var state = controller.workspaceManager.niriViewportState(for: wsId)
+        let currentNode: NiriNode
+        if let currentId = state.selectedNodeId,
+           let node = engine.findNode(by: currentId)
+        {
+            currentNode = node
+        } else if let lastFocused = controller.workspaceManager.rememberedTiledFocusToken(in: wsId),
+                  let node = engine.findNode(for: lastFocused)
+        {
+            state.selectedNodeId = node.id
+            currentNode = node
+        } else if let selectedId = engine.validateSelection(state.selectedNodeId, in: wsId),
+                  let node = engine.findNode(by: selectedId)
+        {
+            state.selectedNodeId = selectedId
+            currentNode = node
+        } else {
+            onNoTarget?()
+            return
+        }
+
+        let gap = controller.gapSize(for: monitor)
+        let workingFrame = controller.insetWorkingFrame(for: monitor)
+        let motion = controller.motionPolicy.snapshot()
+        guard let newNode = navigationAction(engine, currentNode, wsId, motion, &state, workingFrame, gap) else {
+            onNoTarget?()
+            return
+        }
+
+        activateNode(
+            newNode, in: wsId, state: &state,
+            options: .init(activateWindow: false, ensureVisible: false)
+        )
+        _ = controller.workspaceManager.applySessionPatch(
+            .init(
+                workspaceId: wsId,
+                viewportState: state,
+                rememberedFocusToken: nil
+            )
+        )
+    }
+
     func toggleFullscreen() {
         guard let controller else { return }
         withNiriWorkspaceContext { engine, wsId, motion, state, _, _, _ in
@@ -1376,6 +1625,25 @@ enum NiriWindowMoveResult {
             )
             controller.layoutRefreshController.requestRefresh(reason: .layoutCommand)
             startScrollAnimationIfNeeded(for: wsId, state: state, engine: engine)
+        }
+    }
+
+    func toggleColumnTabbed() {
+        guard let controller else { return }
+        withNiriWorkspaceContext { engine, wsId, motion, state, monitor, workingFrame, gaps in
+            let orientation = engine.monitor(for: monitor.id)?.orientation
+                ?? controller.settings.effectiveOrientation(for: monitor)
+            if engine.toggleColumnTabbed(
+                in: wsId,
+                state: &state,
+                motion: motion,
+                workingFrame: workingFrame,
+                gaps: gaps,
+                orientation: orientation
+            ) {
+                controller.layoutRefreshController.requestRefresh(reason: .layoutCommand)
+                startScrollAnimationIfNeeded(for: wsId, state: state, engine: engine)
+            }
         }
     }
 
@@ -1529,7 +1797,7 @@ enum NiriWindowMoveResult {
         engine.revealPartial = revealPartial
         engine.renderStyle.tabIndicatorWidth = TabbedColumnOverlayManager.tabIndicatorWidth
         engine.animationClock = controller.animationClock
-        controller.niriEngine = engine
+        controller.setNiriEngine(engine)
         controller.syncNiriResizeTraceSink()
 
         syncMonitorsToNiriEngine()
@@ -1821,6 +2089,70 @@ enum NiriWindowMoveResult {
         guard direction == .down || direction == .up else { return }
         guard moveWindow(direction: direction) == .atColumnEdge else { return }
         controller?.workspaceNavigationHandler.moveWindowToAdjacentWorkspace(direction: direction)
+    }
+
+    func moveColumn(direction: Direction) {
+        withNiriOperationContext { ctx, state in
+            guard let column = ctx.engine.findColumn(containing: ctx.windowNode, in: ctx.wsId) else { return false }
+            let oldFrames = ctx.engine.captureWindowFrames(in: ctx.wsId)
+            guard ctx.engine.moveColumn(
+                column, direction: direction, in: ctx.wsId,
+                motion: ctx.motion,
+                state: &state,
+                workingFrame: ctx.workingFrame,
+                gaps: ctx.gaps
+            ) else { return false }
+            return ctx.commitWithCapturedAnimation(state: state, oldFrames: oldFrames)
+        }
+    }
+
+    func moveColumnToFirst() {
+        withNiriOperationContext { ctx, state in
+            guard let column = ctx.engine.findColumn(containing: ctx.windowNode, in: ctx.wsId) else { return false }
+            let oldFrames = ctx.engine.captureWindowFrames(in: ctx.wsId)
+            guard ctx.engine.moveColumnToFirst(
+                column,
+                in: ctx.wsId,
+                motion: ctx.motion,
+                state: &state,
+                workingFrame: ctx.workingFrame,
+                gaps: ctx.gaps
+            ) else { return false }
+            return ctx.commitWithCapturedAnimation(state: state, oldFrames: oldFrames)
+        }
+    }
+
+    func moveColumnToLast() {
+        withNiriOperationContext { ctx, state in
+            guard let column = ctx.engine.findColumn(containing: ctx.windowNode, in: ctx.wsId) else { return false }
+            let oldFrames = ctx.engine.captureWindowFrames(in: ctx.wsId)
+            guard ctx.engine.moveColumnToLast(
+                column,
+                in: ctx.wsId,
+                motion: ctx.motion,
+                state: &state,
+                workingFrame: ctx.workingFrame,
+                gaps: ctx.gaps
+            ) else { return false }
+            return ctx.commitWithCapturedAnimation(state: state, oldFrames: oldFrames)
+        }
+    }
+
+    func moveColumnToIndex(index: Int) {
+        withNiriOperationContext { ctx, state in
+            guard let column = ctx.engine.findColumn(containing: ctx.windowNode, in: ctx.wsId) else { return false }
+            let oldFrames = ctx.engine.captureWindowFrames(in: ctx.wsId)
+            guard ctx.engine.moveColumnToIndex(
+                column,
+                index,
+                in: ctx.wsId,
+                motion: ctx.motion,
+                state: &state,
+                workingFrame: ctx.workingFrame,
+                gaps: ctx.gaps
+            ) else { return false }
+            return ctx.commitWithCapturedAnimation(state: state, oldFrames: oldFrames)
+        }
     }
 
     func consumeOrExpelWindow(direction: Direction) {

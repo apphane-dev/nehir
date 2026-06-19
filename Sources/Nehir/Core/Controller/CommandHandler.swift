@@ -47,27 +47,27 @@ final class CommandHandler {
 
         switch command {
         case let .focus(direction):
-            controller.niriLayoutHandler.focusNeighbor(direction: direction)
+            controller.layoutCoordinator.focusNeighbor(direction: direction)
         case .focusPrevious:
-            focusPreviousInNiri()
+            controller.layoutCoordinator.focusPrevious()
         case let .move(direction):
-            moveWindow(direction: direction)
+            controller.layoutCoordinator.moveWindow(direction: direction)
         case .moveWindowDown:
-            controller.niriLayoutHandler.moveWindow(direction: .down)
+            controller.layoutCoordinator.moveWindow(direction: .down)
         case .moveWindowUp:
-            controller.niriLayoutHandler.moveWindow(direction: .up)
+            controller.layoutCoordinator.moveWindow(direction: .up)
         case .moveWindowDownOrToWorkspaceDown:
-            controller.niriLayoutHandler.moveWindowOrToAdjacentWorkspace(direction: .down)
+            controller.layoutCoordinator.moveWindowOrToAdjacentWorkspace(direction: .down)
         case .moveWindowUpOrToWorkspaceUp:
-            controller.niriLayoutHandler.moveWindowOrToAdjacentWorkspace(direction: .up)
+            controller.layoutCoordinator.moveWindowOrToAdjacentWorkspace(direction: .up)
         case .consumeOrExpelWindowLeft:
-            controller.niriLayoutHandler.consumeOrExpelWindow(direction: .left)
+            controller.layoutCoordinator.consumeOrExpelWindow(direction: .left)
         case .consumeOrExpelWindowRight:
-            controller.niriLayoutHandler.consumeOrExpelWindow(direction: .right)
+            controller.layoutCoordinator.consumeOrExpelWindow(direction: .right)
         case .consumeWindowIntoColumn:
-            controller.niriLayoutHandler.consumeWindowIntoColumn()
+            controller.layoutCoordinator.consumeWindowIntoColumn()
         case .expelWindowFromColumn:
-            controller.niriLayoutHandler.expelWindowFromColumn()
+            controller.layoutCoordinator.expelWindowFromColumn()
         case let .moveToWorkspace(index):
             controller.workspaceNavigationHandler.moveFocusedWindow(toWorkspaceIndex: index)
         case .moveWindowToWorkspaceUp:
@@ -93,75 +93,75 @@ final class CommandHandler {
         case .focusMonitorLast:
             controller.workspaceNavigationHandler.focusLastMonitor()
         case .toggleFullscreen:
-            toggleFullscreen()
+            controller.layoutCoordinator.toggleFullscreen()
         case .toggleNativeFullscreen:
             toggleNativeFullscreenForFocused()
         case let .moveColumn(direction):
-            moveColumnInNiri(direction: direction)
+            controller.layoutCoordinator.moveColumn(direction: direction)
         case .moveColumnToFirst:
-            moveColumnToFirstInNiri()
+            controller.layoutCoordinator.moveColumnToFirst()
         case .moveColumnToLast:
-            moveColumnToLastInNiri()
+            controller.layoutCoordinator.moveColumnToLast()
         case let .moveColumnToIndex(index):
-            moveColumnToIndexInNiri(index: index)
+            controller.layoutCoordinator.moveColumnToIndex(index: index)
         case .toggleColumnTabbed:
-            toggleColumnTabbedInNiri()
+            controller.layoutCoordinator.toggleColumnTabbed()
         case .focusDownOrLeft:
-            focusDownOrLeftInNiri()
+            controller.layoutCoordinator.focusDownOrLeft()
         case .focusUpOrRight:
-            focusUpOrRightInNiri()
+            controller.layoutCoordinator.focusUpOrRight()
         case let .focusWindowInColumn(index):
-            focusWindowInColumnInNiri(index: index)
+            controller.layoutCoordinator.focusWindowInColumn(index: index)
         case .focusWindowTop:
-            focusWindowTopInNiri()
+            controller.layoutCoordinator.focusWindowTop()
         case .focusWindowBottom:
-            focusWindowBottomInNiri()
+            controller.layoutCoordinator.focusWindowBottom()
         case .focusWindowDownOrTop:
-            focusWindowDownOrTopInNiri()
+            controller.layoutCoordinator.focusWindowDownOrTop()
         case .focusWindowUpOrBottom:
-            focusWindowUpOrBottomInNiri()
+            controller.layoutCoordinator.focusWindowUpOrBottom()
         case .focusWindowOrWorkspaceDown:
-            focusWindowOrWorkspaceInNiri(direction: .down)
+            controller.layoutCoordinator.focusWindowOrWorkspace(direction: .down)
         case .focusWindowOrWorkspaceUp:
-            focusWindowOrWorkspaceInNiri(direction: .up)
+            controller.layoutCoordinator.focusWindowOrWorkspace(direction: .up)
         case .focusColumnFirst:
-            focusColumnFirstInNiri()
+            controller.layoutCoordinator.focusColumnFirst()
         case .focusColumnLast:
-            focusColumnLastInNiri()
+            controller.layoutCoordinator.focusColumnLast()
         case let .focusColumn(index):
-            focusColumnInNiri(index: index)
+            controller.layoutCoordinator.focusColumn(index: index)
         case .scrollViewportLeft:
-            controller.niriLayoutHandler.scrollViewport(direction: .left)
+            controller.layoutCoordinator.scrollViewport(direction: .left)
         case .scrollViewportRight:
-            controller.niriLayoutHandler.scrollViewport(direction: .right)
+            controller.layoutCoordinator.scrollViewport(direction: .right)
         case .cycleColumnWidthForward:
-            controller.niriLayoutHandler.cycleSize(forward: true)
+            controller.layoutCoordinator.cycleSize(forward: true)
         case .cycleColumnWidthBackward:
-            controller.niriLayoutHandler.cycleSize(forward: false)
+            controller.layoutCoordinator.cycleSize(forward: false)
         case .cycleWindowWidthForward:
-            controller.niriLayoutHandler.cycleWindowWidth(forward: true)
+            controller.layoutCoordinator.cycleWindowWidth(forward: true)
         case .cycleWindowWidthBackward:
-            controller.niriLayoutHandler.cycleWindowWidth(forward: false)
+            controller.layoutCoordinator.cycleWindowWidth(forward: false)
         case .cycleWindowHeightForward:
-            controller.niriLayoutHandler.cycleWindowHeight(forward: true)
+            controller.layoutCoordinator.cycleWindowHeight(forward: true)
         case .cycleWindowHeightBackward:
-            controller.niriLayoutHandler.cycleWindowHeight(forward: false)
+            controller.layoutCoordinator.cycleWindowHeight(forward: false)
         case .toggleColumnFullWidth:
-            controller.niriLayoutHandler.toggleColumnFullWidth()
+            controller.layoutCoordinator.toggleColumnFullWidth()
         case .expandColumnToAvailableWidth:
-            controller.niriLayoutHandler.expandColumnToAvailableWidth()
+            controller.layoutCoordinator.expandColumnToAvailableWidth()
         case .resetWindowHeight:
-            controller.niriLayoutHandler.resetWindowHeight()
+            controller.layoutCoordinator.resetWindowHeight()
         case let .setColumnWidth(change):
-            controller.niriLayoutHandler.setColumnWidth(change)
+            controller.layoutCoordinator.setColumnWidth(change)
         case let .setWindowWidth(change):
-            controller.niriLayoutHandler.setWindowWidth(change)
+            controller.layoutCoordinator.setWindowWidth(change)
         case let .setWindowHeight(change):
-            controller.niriLayoutHandler.setWindowHeight(change)
+            controller.layoutCoordinator.setWindowHeight(change)
         case let .swapWorkspaceWithMonitor(direction):
             controller.workspaceNavigationHandler.swapCurrentWorkspaceWithMonitor(direction: direction)
         case .balanceSizes:
-            controller.niriLayoutHandler.balanceSizes()
+            controller.layoutCoordinator.balanceSizes()
         case .workspaceBackAndForth:
             controller.workspaceNavigationHandler.workspaceBackAndForth()
         case let .focusWorkspaceAnywhere(index):
@@ -233,265 +233,6 @@ final class CommandHandler {
             && command != .debugToggleTraceCapture
     }
 
-
-    private func focusPreviousInNiri() {
-        guard let controller else { return }
-        controller.niriLayoutHandler.withNiriWorkspaceContext { engine, wsId, motion, state, _, workingFrame, gaps in
-            if let currentId = state.selectedNodeId {
-                engine.updateFocusTimestamp(for: currentId)
-            }
-
-            if let currentId = state.selectedNodeId {
-                engine.activateWindow(currentId)
-            }
-
-            guard let previousWindow = engine.focusPrevious(
-                currentNodeId: state.selectedNodeId,
-                in: wsId,
-                motion: motion,
-                state: &state,
-                workingFrame: workingFrame,
-                gaps: gaps,
-                limitToWorkspace: true
-            ) else {
-                return
-            }
-
-            controller.niriLayoutHandler.activateNode(
-                previousWindow, in: wsId, state: &state,
-                options: .init(ensureVisible: false, updateTimestamp: false, startAnimation: false)
-            )
-
-            if state.viewOffsetPixels.isAnimating {
-                controller.layoutRefreshController.startScrollAnimation(for: wsId)
-            }
-        }
-    }
-
-    private func focusDownOrLeftInNiri() {
-        executeCombinedNavigation { engine, currentNode, wsId, motion, state, workingFrame, gaps in
-            engine.focusDownOrLeft(
-                currentSelection: currentNode,
-                in: wsId,
-                motion: motion,
-                state: &state,
-                workingFrame: workingFrame,
-                gaps: gaps
-            )
-        }
-    }
-
-    private func focusUpOrRightInNiri() {
-        executeCombinedNavigation { engine, currentNode, wsId, motion, state, workingFrame, gaps in
-            engine.focusUpOrRight(
-                currentSelection: currentNode,
-                in: wsId,
-                motion: motion,
-                state: &state,
-                workingFrame: workingFrame,
-                gaps: gaps
-            )
-        }
-    }
-
-    private func focusWindowInColumnInNiri(index: Int) {
-        executeCombinedNavigation { engine, currentNode, wsId, motion, state, workingFrame, gaps in
-            engine.focusWindowInColumn(
-                index,
-                currentSelection: currentNode,
-                in: wsId,
-                motion: motion,
-                state: &state,
-                workingFrame: workingFrame,
-                gaps: gaps
-            )
-        }
-    }
-
-    private func focusWindowTopInNiri() {
-        executeCombinedNavigation { engine, currentNode, wsId, motion, state, workingFrame, gaps in
-            engine.focusWindowTop(
-                currentSelection: currentNode,
-                in: wsId,
-                motion: motion,
-                state: &state,
-                workingFrame: workingFrame,
-                gaps: gaps
-            )
-        }
-    }
-
-    private func focusWindowBottomInNiri() {
-        executeCombinedNavigation { engine, currentNode, wsId, motion, state, workingFrame, gaps in
-            engine.focusWindowBottom(
-                currentSelection: currentNode,
-                in: wsId,
-                motion: motion,
-                state: &state,
-                workingFrame: workingFrame,
-                gaps: gaps
-            )
-        }
-    }
-
-    private func focusWindowDownOrTopInNiri() {
-        executeCombinedNavigation { engine, currentNode, wsId, motion, state, workingFrame, gaps in
-            engine.focusWindowDownOrTop(
-                currentSelection: currentNode,
-                in: wsId,
-                motion: motion,
-                state: &state,
-                workingFrame: workingFrame,
-                gaps: gaps
-            )
-        }
-    }
-
-    private func focusWindowUpOrBottomInNiri() {
-        executeCombinedNavigation { engine, currentNode, wsId, motion, state, workingFrame, gaps in
-            engine.focusWindowUpOrBottom(
-                currentSelection: currentNode,
-                in: wsId,
-                motion: motion,
-                state: &state,
-                workingFrame: workingFrame,
-                gaps: gaps
-            )
-        }
-    }
-
-    private func focusWindowOrWorkspaceInNiri(direction: Direction) {
-        guard direction == .down || direction == .up else { return }
-        executeCombinedNavigation(onNoTarget: { [weak self] in
-            self?.controller?.workspaceNavigationHandler.switchWorkspaceRelative(
-                isNext: direction == .down,
-                wrapAround: false
-            )
-        }) { engine, currentNode, wsId, motion, state, workingFrame, gaps in
-            engine.focusTarget(
-                direction: direction,
-                currentSelection: currentNode,
-                in: wsId,
-                motion: motion,
-                state: &state,
-                workingFrame: workingFrame,
-                gaps: gaps
-            )
-        }
-    }
-
-    private func focusColumnFirstInNiri() {
-        executeCombinedNavigation { engine, currentNode, wsId, motion, state, workingFrame, gaps in
-            engine.focusColumnFirst(
-                currentSelection: currentNode,
-                in: wsId,
-                motion: motion,
-                state: &state,
-                workingFrame: workingFrame,
-                gaps: gaps
-            )
-        }
-    }
-
-    private func focusColumnLastInNiri() {
-        executeCombinedNavigation { engine, currentNode, wsId, motion, state, workingFrame, gaps in
-            engine.focusColumnLast(
-                currentSelection: currentNode,
-                in: wsId,
-                motion: motion,
-                state: &state,
-                workingFrame: workingFrame,
-                gaps: gaps
-            )
-        }
-    }
-
-    private func focusColumnInNiri(index: Int) {
-        executeCombinedNavigation { engine, currentNode, wsId, motion, state, workingFrame, gaps in
-            engine.focusColumn(
-                index,
-                currentSelection: currentNode,
-                in: wsId,
-                motion: motion,
-                state: &state,
-                workingFrame: workingFrame,
-                gaps: gaps
-            )
-        }
-    }
-
-    private func executeCombinedNavigation(
-        onNoTarget: (() -> Void)? = nil,
-        _ navigationAction: (
-            NiriLayoutEngine,
-            NiriNode,
-            WorkspaceDescriptor.ID,
-            MotionSnapshot,
-            inout ViewportState,
-            CGRect,
-            CGFloat
-        )
-            -> NiriNode?
-    ) {
-        guard let controller else { return }
-        guard let engine = controller.niriEngine else { return }
-        guard let wsId = controller.interactionWorkspace()?.id else { return }
-        guard let monitor = controller.workspaceManager.monitor(for: wsId) else { return }
-
-        var state = controller.workspaceManager.niriViewportState(for: wsId)
-        let currentNode: NiriNode
-        if let currentId = state.selectedNodeId,
-           let node = engine.findNode(by: currentId)
-        {
-            currentNode = node
-        } else if let lastFocused = controller.workspaceManager.rememberedTiledFocusToken(in: wsId),
-                  let node = engine.findNode(for: lastFocused)
-        {
-            state.selectedNodeId = node.id
-            currentNode = node
-        } else if let selectedId = engine.validateSelection(state.selectedNodeId, in: wsId),
-                  let node = engine.findNode(by: selectedId)
-        {
-            state.selectedNodeId = selectedId
-            currentNode = node
-        } else {
-            onNoTarget?()
-            return
-        }
-
-        let gap = controller.gapSize(for: monitor)
-        let workingFrame = controller.insetWorkingFrame(for: monitor)
-        let motion = controller.motionPolicy.snapshot()
-        guard let newNode = navigationAction(engine, currentNode, wsId, motion, &state, workingFrame, gap) else {
-            onNoTarget?()
-            return
-        }
-
-        controller.niriLayoutHandler.activateNode(
-            newNode, in: wsId, state: &state,
-            options: .init(activateWindow: false, ensureVisible: false)
-        )
-        _ = controller.workspaceManager.applySessionPatch(
-            .init(
-                workspaceId: wsId,
-                viewportState: state,
-                rememberedFocusToken: nil
-            )
-        )
-    }
-
-    private func moveWindow(direction: Direction) {
-        moveWindowInNiri(direction: direction)
-    }
-
-    private func toggleFullscreen() {
-        controller?.niriLayoutHandler.toggleFullscreen()
-    }
-
-    private func moveWindowInNiri(direction: Direction) {
-        controller?.niriLayoutHandler.moveWindow(direction: direction)
-    }
-
     private func toggleNativeFullscreenForFocused() {
         guard let controller else { return }
         let setFullscreen = nativeFullscreenSetter ?? { axRef, fullscreen in
@@ -528,9 +269,21 @@ final class CommandHandler {
             return
         }
 
-        let frontmostPid = frontmostAppPidProvider?() ?? NSWorkspace.shared.frontmostApplication?.processIdentifier
-        let frontmostToken = frontmostFocusedWindowTokenProvider?()
-            ?? frontmostPid.flatMap { controller.axEventHandler.focusedWindowToken(for: $0) }
+        // Honor an injected provider's nil rather than falling through to live
+        // state; fall back to AppKit/AX only when no provider is wired in.
+        let frontmostPid: pid_t?
+        if let frontmostAppPidProvider {
+            frontmostPid = frontmostAppPidProvider()
+        } else {
+            frontmostPid = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        }
+
+        let frontmostToken: WindowToken?
+        if let frontmostFocusedWindowTokenProvider {
+            frontmostToken = frontmostFocusedWindowTokenProvider()
+        } else {
+            frontmostToken = frontmostPid.flatMap { controller.axEventHandler.focusedWindowToken(for: $0) }
+        }
         guard let token = controller.workspaceManager.nativeFullscreenCommandTarget(frontmostToken: frontmostToken),
               let entry = controller.workspaceManager.entry(for: token)
         else {
@@ -543,95 +296,4 @@ final class CommandHandler {
             return
         }
     }
-
-    private func moveColumnInNiri(direction: Direction) {
-        guard let controller else { return }
-        controller.niriLayoutHandler.withNiriOperationContext { ctx, state in
-            guard let column = ctx.engine.findColumn(containing: ctx.windowNode, in: ctx.wsId) else { return false }
-            let oldFrames = ctx.engine.captureWindowFrames(in: ctx.wsId)
-            guard ctx.engine.moveColumn(
-                column, direction: direction, in: ctx.wsId,
-                motion: ctx.motion,
-                state: &state,
-                workingFrame: ctx.workingFrame,
-                gaps: ctx.gaps
-            ) else { return false }
-            return ctx.commitWithCapturedAnimation(state: state, oldFrames: oldFrames)
-        }
-    }
-
-    private func moveColumnToFirstInNiri() {
-        guard let controller else { return }
-        controller.niriLayoutHandler.withNiriOperationContext { ctx, state in
-            guard let column = ctx.engine.findColumn(containing: ctx.windowNode, in: ctx.wsId) else { return false }
-            let oldFrames = ctx.engine.captureWindowFrames(in: ctx.wsId)
-            guard ctx.engine.moveColumnToFirst(
-                column,
-                in: ctx.wsId,
-                motion: ctx.motion,
-                state: &state,
-                workingFrame: ctx.workingFrame,
-                gaps: ctx.gaps
-            ) else { return false }
-            return ctx.commitWithCapturedAnimation(state: state, oldFrames: oldFrames)
-        }
-    }
-
-    private func moveColumnToLastInNiri() {
-        guard let controller else { return }
-        controller.niriLayoutHandler.withNiriOperationContext { ctx, state in
-            guard let column = ctx.engine.findColumn(containing: ctx.windowNode, in: ctx.wsId) else { return false }
-            let oldFrames = ctx.engine.captureWindowFrames(in: ctx.wsId)
-            guard ctx.engine.moveColumnToLast(
-                column,
-                in: ctx.wsId,
-                motion: ctx.motion,
-                state: &state,
-                workingFrame: ctx.workingFrame,
-                gaps: ctx.gaps
-            ) else { return false }
-            return ctx.commitWithCapturedAnimation(state: state, oldFrames: oldFrames)
-        }
-    }
-
-    private func moveColumnToIndexInNiri(index: Int) {
-        guard let controller else { return }
-        controller.niriLayoutHandler.withNiriOperationContext { ctx, state in
-            guard let column = ctx.engine.findColumn(containing: ctx.windowNode, in: ctx.wsId) else { return false }
-            let oldFrames = ctx.engine.captureWindowFrames(in: ctx.wsId)
-            guard ctx.engine.moveColumnToIndex(
-                column,
-                index,
-                in: ctx.wsId,
-                motion: ctx.motion,
-                state: &state,
-                workingFrame: ctx.workingFrame,
-                gaps: ctx.gaps
-            ) else { return false }
-            return ctx.commitWithCapturedAnimation(state: state, oldFrames: oldFrames)
-        }
-    }
-
-    private func toggleColumnTabbedInNiri() {
-        guard let controller else { return }
-        controller.niriLayoutHandler.withNiriWorkspaceContext { engine, wsId, motion, state, monitor, workingFrame, gaps in
-            let orientation = engine.monitor(for: monitor.id)?.orientation
-                ?? controller.settings.effectiveOrientation(for: monitor)
-            if engine.toggleColumnTabbed(
-                in: wsId,
-                state: &state,
-                motion: motion,
-                workingFrame: workingFrame,
-                gaps: gaps,
-                orientation: orientation
-            ) {
-                controller.layoutRefreshController.requestRefresh(reason: .layoutCommand)
-                if engine.hasAnyWindowAnimationsRunning(in: wsId) {
-                    controller.layoutRefreshController.startScrollAnimation(for: wsId)
-                }
-            }
-        }
-    }
-
-
 }
