@@ -14,10 +14,18 @@ extension NiriLayoutEngine {
         switch direction {
         case .down,
              .up:
-            moveWindowVertical(node, direction: direction)
+            if let pureWouldChange = pureLayoutMoveWouldChange(
+                node,
+                direction: direction,
+                in: workspaceId,
+                allowEdgeWrap: true
+            ), !pureWouldChange {
+                return false
+            }
+            return moveWindowVertical(node, direction: direction)
         case .left,
              .right:
-            consumeOrExpelWindow(
+            return consumeOrExpelWindow(
                 node,
                 direction: direction,
                 in: workspaceId,
