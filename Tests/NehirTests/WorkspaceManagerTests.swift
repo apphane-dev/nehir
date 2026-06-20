@@ -2411,3 +2411,152 @@ private func workspaceConfigurations(
         "monitorTopologyChanged"
     ])
 }
+
+// MARK: - Selection revision guard
+
+extension WorkspaceManagerTests {
+    @MainActor
+    private func makeSelectionRevisionTestManager()
+        -> (manager: WorkspaceManager, workspaceId: WorkspaceDescriptor.ID)
+    {
+        let defaults = makeWorkspaceManagerTestDefaults()
+        let settings = SettingsStore(defaults: defaults)
+        settings.workspaceConfigurations = [
+            WorkspaceConfiguration(name: "1", monitorAssignment: .main)
+        ]
+        let manager = WorkspaceManager(settings: settings)
+        let monitor = makeWorkspaceManagerTestMonitor(displayId: 400, name: "Main", x: 0, y: 0)
+        manager.applyMonitorConfigurationChange([monitor])
+        guard let workspaceId = manager.workspaceId(for: "1", createIfMissing: true) else {
+            fatalError("Failed to create workspace")
+        }
+        return (manager, workspaceId)
+    }
+
+    @Test @MainActor func staleSelectionRevisionDropsSelectionFields() {
+        let (manager, wsId) = makeSelectionRevisionTestManager()
+        let handle = addWorkspaceManagerTestHandle(manager: manager, windowId: 4201, workspaceId: wsId)
+
+        // Live selection at revision 1: selectedNodeId = A
+        let nodeA = NodeId()
+        manager.setSelection(nodeA, for: wsId)
+        let plannedRevision = manager.selectionRevision(for: wsId)
+
+        // Newer live selection at revision 2: selectedNodeId = C
+        let nodeC = NodeId()
+        manager.setSelection(nodeC, for: wsId)
+        #expect(manager.selectionRevision(for: wsId) > plannedRevision)
+
+        // Stale patch built at plannedRevision with selectedNodeId = B
+        var stalePatch = manager.niriViewportState(for: wsId)
+        let nodeB = NodeId()
+        stalePatch.selectedNodeId = nodeB
+        stalePatch.activeColumnIndex = 5
+
+        _ = manager.applySessionPatch(
+            .init(
+                workspaceId: wsId,
+                viewportState: stalePatch,
+                rememberedFocusToken: handle.id,
+                plannedSelectionRevision: plannedRevision
+            )
+        )
+
+        // Selection fields must reflect the LIVE state, not the stale patch.
+        #expect(manager.niriViewportState(for: wsId).selectedNodeId == nodeC)
+        #expect(manager.niriViewportState(for: wsId).activeColumnIndex != 5)
+        // rememberedFocusToken must have been dropped.
+        #expect(manager.rememberedTiledFocusToken(in: wsId) != handle.id)
+    }
+
+    @Test @MainActor func freshSelectionRevisionAppliesSelection() {
+        let (manager, wsId) = makeSelectionRevisionTestManager()
+
+        let nodeA = NodeId()
+        manager.setSelection(nodeA, for: wsId)
+        let currentRevision = manager.selectionRevision(for: wsId)
+
+        // Fresh patch: plannedRevision == current → selection applies normally.
+        let nodeB = NodeId()
+        var freshPatch = manager.niriViewportState(for: wsId)
+        freshPatch.selectedNodeId = nodeB
+
+        _ = manager.applySessionPatch(
+            .init(
+                workspaceId: wsId,
+                viewportState: freshPatch,
+                plannedSelectionRevision: currentRevision
+            )
+        )
+
+        #expect(manager.niriViewportState(for: wsId).selectedNodeId == nodeB)
+    }
+
+    @Test @MainActor func nilPlannedSelectionRevisionAppliesSelection() {
+        let (manager, wsId) = makeSelectionRevisionTestManager()
+
+        let nodeA = NodeId()
+        manager.setSelection(nodeA, for: wsId)
+        // Bump the revision past 0 so we know the guard would drop if plannedRevision were 0.
+        let nodeC = NodeId()
+        manager.setSelection(nodeC, for: wsId)
+        #expect(manager.selectionRevision(for: wsId) > 0)
+
+        // nil plannedRevision → back-compat: applies unconditionally.
+        let nodeB = NodeId()
+        var patch = manager.niriViewportState(for: wsId)
+        patch.selectedNodeId = nodeB
+
+        _ = manager.applySessionPatch(
+            .init(
+                workspaceId: wsId,
+                viewportState: patch
+            )
+        )
+
+        #expect(manager.niriViewportState(for: wsId).selectedNodeId == nodeB)
+    }
+
+    @Test @MainActor func firstLiveSelectionMutationBumpsRevisionFromZeroToOne() {
+        let (manager, wsId) = makeSelectionRevisionTestManager()
+
+        // A fresh workspace has no viewport state and a zero revision. A patch
+        // built now would stamp plannedSelectionRevision = 0.
+        #expect(manager.selectionRevision(for: wsId) == 0)
+
+        // The first live selection write (nil→state) must advance the revision,
+        // so a stale revision-0 patch built before this write is detected.
+        let nodeA = NodeId()
+        manager.setSelection(nodeA, for: wsId)
+        #expect(manager.selectionRevision(for: wsId) == 1)
+        #expect(manager.niriViewportState(for: wsId).selectedNodeId == nodeA)
+    }
+
+    @Test @MainActor func gesturePathStillReplacesEntireViewportState() {
+        let (manager, wsId) = makeSelectionRevisionTestManager()
+
+        // Establish a live selection.
+        let liveNode = NodeId()
+        manager.setSelection(liveNode, for: wsId)
+
+        // A gesture-marked patch with a DIFFERENT selection.
+        let staleNode = NodeId()
+        var gesturePatch = manager.niriViewportState(for: wsId)
+        gesturePatch.selectedNodeId = staleNode
+        gesturePatch.viewOffsetPixels = .gesture(ViewGesture(currentViewOffset: 999.0, isTrackpad: true))
+
+        _ = manager.applySessionPatch(
+            .init(
+                workspaceId: wsId,
+                viewportState: gesturePatch,
+                plannedSelectionRevision: manager.selectionRevision(for: wsId)
+            )
+        )
+
+        // The gesture guard must replace the ENTIRE viewportState with live,
+        // preserving the live selection — NOT the stale patch values.
+        #expect(manager.niriViewportState(for: wsId).selectedNodeId == liveNode)
+        #expect(manager.niriViewportState(for: wsId).viewOffsetPixels.isGesture == false)
+        #expect(manager.niriViewportState(for: wsId).viewOffsetPixels.current() == 0.0)
+    }
+}

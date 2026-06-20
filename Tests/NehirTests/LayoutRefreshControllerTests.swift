@@ -2036,4 +2036,51 @@ private func makeUnavailableLayoutPlanTestWindow(windowId: Int) -> AXWindowRef {
             #expect(controller.workspaceManager.hiddenState(for: token) == nil)
         }
     }
+
+    // MARK: - Selection revision guard
+
+    @Test @MainActor func staleRelayoutPatchDoesNotOverwriteNewerSelection() {
+        let controller = makeLayoutPlanTestController()
+        guard let monitor = controller.workspaceManager.monitors.first,
+              let workspaceId = controller.workspaceManager.activeWorkspaceOrFirst(on: monitor.id)?.id
+        else {
+            Issue.record("Missing monitor or active workspace")
+            return
+        }
+
+        _ = addLayoutPlanTestWindow(on: controller, workspaceId: workspaceId, windowId: 201)
+
+        // Live selection: selectedNodeId = A (bumps revision)
+        let nodeA = NodeId()
+        controller.workspaceManager.setSelection(nodeA, for: workspaceId)
+        let plannedRevision = controller.workspaceManager.selectionRevision(for: workspaceId)
+
+        // Simulate a user focus change between plan-build and plan-apply:
+        // selectedNodeId = C bumps the revision past plannedRevision.
+        let nodeC = NodeId()
+        controller.workspaceManager.setSelection(nodeC, for: workspaceId)
+        #expect(controller.workspaceManager.selectionRevision(for: workspaceId) > plannedRevision)
+
+        // Stale plan built at plannedRevision with selectedNodeId = B.
+        var staleViewport = controller.workspaceManager.niriViewportState(for: workspaceId)
+        let nodeB = NodeId()
+        staleViewport.selectedNodeId = nodeB
+
+        let plan = WorkspaceLayoutPlan(
+            workspaceId: workspaceId,
+            monitor: controller.layoutRefreshController.buildMonitorSnapshot(for: monitor),
+            sessionPatch: WorkspaceSessionPatch(
+                workspaceId: workspaceId,
+                viewportState: staleViewport,
+                plannedSelectionRevision: plannedRevision
+            ),
+            diff: WorkspaceLayoutDiff()
+        )
+
+        controller.layoutRefreshController.executeLayoutPlan(plan)
+
+        // The stale plan's selectedNodeId (B) must NOT overwrite the live one (C).
+        #expect(controller.workspaceManager.niriViewportState(for: workspaceId).selectedNodeId == nodeC)
+        #expect(controller.workspaceManager.niriViewportState(for: workspaceId).selectedNodeId != nodeB)
+    }
 }

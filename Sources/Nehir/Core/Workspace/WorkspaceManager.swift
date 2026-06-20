@@ -152,6 +152,12 @@ final class WorkspaceManager {
 
         struct WorkspaceSession {
             var niriViewportState: ViewportState?
+            /// Monotonically increasing counter bumped whenever a LIVE selection
+            /// field (selectedNodeId / activeColumnIndex / selectionProgress)
+            /// changes. Used by the stale-session-patch guard in `applySessionPatch`
+            /// to detect selection changes that happened between plan-build and
+            /// plan-apply.
+            var selectionRevision: UInt64 = 0
         }
 
         struct FocusSession {
@@ -1649,7 +1655,7 @@ final class WorkspaceManager {
 
         let viewportState = niriViewportState(for: workspaceId)
         if viewportState.selectedNodeId != nodeId {
-            withNiriViewportState(for: workspaceId) {
+            mutateSelection(for: workspaceId) {
                 $0.selectedNodeId = nodeId
             }
             changed = true
@@ -1682,6 +1688,23 @@ final class WorkspaceManager {
                 viewportState = niriViewportState(for: patch.workspaceId)
                 rememberedFocusToken = nil
             }
+
+            // Stale-selection guard: if this patch was built against an older
+            // selection revision, the user changed selection (focus hotkey, click)
+            // between plan-build and plan-apply. Drop ONLY the selection fields and
+            // the remembered-focus token so the stale patch cannot clobber the
+            // newer live selection. Preserve viewOffsetPixels to avoid regressing
+            // viewport scroll/animation (narrower than the gesture guard above).
+            if let plannedRevision = patch.plannedSelectionRevision,
+               plannedRevision < selectionRevision(for: patch.workspaceId)
+            {
+                let live = niriViewportState(for: patch.workspaceId)
+                viewportState.selectedNodeId = live.selectedNodeId
+                viewportState.activeColumnIndex = live.activeColumnIndex
+                viewportState.selectionProgress = live.selectionProgress
+                rememberedFocusToken = nil
+            }
+
             updateNiriViewportState(viewportState, for: patch.workspaceId)
             changed = true
         }
@@ -3193,7 +3216,35 @@ final class WorkspaceManager {
 
     func updateNiriViewportState(_ state: ViewportState, for workspaceId: WorkspaceDescriptor.ID) {
         var workspaceSession = sessionState.workspaceSessions[workspaceId] ?? SessionState.WorkspaceSession()
+        let previousViewportState = workspaceSession.niriViewportState
         workspaceSession.niriViewportState = state
+
+        // Bump the per-workspace revision whenever a LIVE selection field
+        // changes. This is the single chokepoint for ALL live ViewportState
+        // writes — `withNiriViewportState`, `applySessionPatch`, and direct
+        // callers all funnel through here. Planning copies in `buildRelayoutPlan`
+        // / `computeLayoutPlan` never reach this method: they are local
+        // `inout ViewportState` values that get embedded in a
+        // `WorkspaceSessionPatch`, arriving here only via `applySessionPatch` —
+        // by which point the stale-selection guard has already reconciled stale
+        // selection fields against live state. So bumping here can never fire
+        // for a planning-copy write.
+        // Treat an absent prior state (the first live write for a workspace) as
+        // the empty default selection, so a nil→state transition that establishes
+        // a real selection also bumps. Otherwise a patch built against a
+        // never-written workspace (revision 0) would not be detected as stale
+        // after that first write — the guard would compare 0 < 0 and let stale
+        // selection fields through. `ViewportState()` is the same baseline
+        // `niriViewportState(for:)` hands the plan-builder, so the comparison is
+        // consistent, and a first write that is itself empty does not bump.
+        let previousSelection = previousViewportState ?? ViewportState()
+        if previousSelection.selectedNodeId != state.selectedNodeId
+            || previousSelection.activeColumnIndex != state.activeColumnIndex
+            || previousSelection.selectionProgress != state.selectionProgress
+        {
+            workspaceSession.selectionRevision &+= 1
+        }
+
         sessionState.workspaceSessions[workspaceId] = workspaceSession
     }
 
@@ -3206,8 +3257,34 @@ final class WorkspaceManager {
         updateNiriViewportState(state, for: workspaceId)
     }
 
+    /// Returns the current selection revision for a workspace.
+    func selectionRevision(for workspaceId: WorkspaceDescriptor.ID) -> UInt64 {
+        sessionState.workspaceSessions[workspaceId]?.selectionRevision ?? 0
+    }
+
+    /// Explicitly bumps the selection revision for a workspace.
+    @discardableResult
+    func bumpSelectionRevision(for workspaceId: WorkspaceDescriptor.ID) -> UInt64 {
+        var workspaceSession = sessionState.workspaceSessions[workspaceId] ?? SessionState.WorkspaceSession()
+        workspaceSession.selectionRevision &+= 1
+        sessionState.workspaceSessions[workspaceId] = workspaceSession
+        return workspaceSession.selectionRevision
+    }
+
+    /// Preferred entry point for LIVE selection mutations.
+    /// Equivalent to `withNiriViewportState` — the auto-bump in
+    /// `updateNiriViewportState` fires when selection fields change — but signals
+    /// intent at the call site so future readers know this write participates in
+    /// the revision guard.
+    func mutateSelection(
+        for workspaceId: WorkspaceDescriptor.ID,
+        _ mutate: (inout ViewportState) -> Void
+    ) {
+        withNiriViewportState(for: workspaceId, mutate)
+    }
+
     func setSelection(_ nodeId: NodeId?, for workspaceId: WorkspaceDescriptor.ID) {
-        withNiriViewportState(for: workspaceId) {
+        mutateSelection(for: workspaceId) {
             $0.selectedNodeId = nodeId
         }
     }

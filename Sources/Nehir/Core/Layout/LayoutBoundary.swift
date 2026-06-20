@@ -100,6 +100,11 @@ struct WorkspaceSessionPatch {
     let workspaceId: WorkspaceDescriptor.ID
     var viewportState: ViewportState?
     var rememberedFocusToken: WindowToken?
+    /// Selection revision captured at plan-build time.
+    /// `nil` means "apply unconditionally" (synchronous/fresh callers).
+    /// When set, `applySessionPatch` drops stale selection fields if the live
+    /// revision has advanced past this value.
+    var plannedSelectionRevision: UInt64? = nil
 }
 
 struct WorkspaceSessionTransfer {

@@ -94,6 +94,9 @@
     "Sources/Nehir/Core/Config/MonitorGapSettings.swift": [
       {"repo": "https://github.com/BarutSRB/OmniWM", "hash": "dacccb8"}
     ],
+    "Sources/Nehir/Core/Controller/WMController.swift": [
+      {"repo": "https://github.com/BarutSRB/OmniWM", "hash": "713280e"}
+    ],
     "Sources/Nehir/Core/Multitouch/MultitouchBinding.swift": [
       {"repo": "https://github.com/BarutSRB/OmniWM", "hash": "06eb42d"}
     ],

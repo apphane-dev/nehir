@@ -3866,6 +3866,19 @@ final class WMController {
         to workspaceId: WorkspaceDescriptor.ID,
         explicitMoveIntent: Bool = true
     ) {
+        // Cross-workspace stale pending-focus clear: if the token being
+        // reassigned has a pending managed-focus request targeting a DIFFERENT
+        // workspace, cancel it now so a late AX confirmation does not pull
+        // focus/selection back to the old workspace. Callers already reissue
+        // focus for the new workspace after this call.
+        if let activeRequest = focusBridge.activeManagedRequest,
+           activeRequest.token == token,
+           activeRequest.workspaceId != workspaceId
+        {
+            _ = focusBridge.cancelManagedRequest(requestId: activeRequest.requestId)
+            focusBridge.discardPendingFocus(token)
+        }
+
         if explicitMoveIntent {
             recordExplicitWorkspaceMoveIntent(for: token, to: workspaceId)
         }
