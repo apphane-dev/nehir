@@ -478,15 +478,17 @@ extension NiriLayoutEngine {
         state: inout ViewportState,
         workingFrame: CGRect,
         gaps: CGFloat,
-        allowEdgeWrap: Bool = true
+        allowEdgeWrap: Bool = true,
+        orientation: Monitor.Orientation = .horizontal
     ) -> Bool {
-        guard direction == .left || direction == .right else { return false }
+        guard let step = direction.primaryStep(for: orientation) else { return false }
 
         let pureDecision = pureLayoutMoveDecision(
             window,
             direction: direction,
             in: workspaceId,
-            allowEdgeWrap: allowEdgeWrap
+            allowEdgeWrap: allowEdgeWrap,
+            orientation: orientation
         )
         let purePlan = pureDecision.plan
 
@@ -501,7 +503,8 @@ extension NiriLayoutEngine {
                 motion: motion,
                 state: &state,
                 workingFrame: workingFrame,
-                gaps: gaps
+                gaps: gaps,
+                orientation: orientation
             )
             if moved {
                 assertPureLayoutSnapshotMatches(pureDecision.expectedSnapshot, selectedWindow: window, in: workspaceId)
@@ -528,7 +531,8 @@ extension NiriLayoutEngine {
                 motion: motion,
                 state: &state,
                 workingFrame: workingFrame,
-                gaps: gaps
+                gaps: gaps,
+                orientation: orientation
             )
         }
 
@@ -539,7 +543,6 @@ extension NiriLayoutEngine {
             guard cols.indices.contains(targetColumnIndexBeforeMove) else { return false }
             neighborIdx = targetColumnIndexBeforeMove
         case .unsupported:
-            let step = (direction == .right) ? 1 : -1
             if allowEdgeWrap {
                 guard let wrappedIdx = wrapIndex(currentIdx + step, total: cols.count, in: workspaceId) else {
                     return false
@@ -628,6 +631,7 @@ extension NiriLayoutEngine {
             state: &state,
             workingFrame: workingFrame,
             gaps: gaps,
+            orientation: orientation,
             fromContainerIndex: previousActiveColumnIndex,
             previousActiveContainerPosition: previousActiveColumnPosition
         )
@@ -793,9 +797,10 @@ extension NiriLayoutEngine {
         motion: MotionSnapshot,
         state: inout ViewportState,
         workingFrame: CGRect,
-        gaps: CGFloat
+        gaps: CGFloat,
+        orientation: Monitor.Orientation = .horizontal
     ) -> Bool {
-        guard direction == .left || direction == .right else { return false }
+        guard let step = direction.primaryStep(for: orientation) else { return false }
 
         guard let currentColumn = findColumn(containing: window, in: workspaceId),
               let root = roots[workspaceId],
@@ -818,7 +823,7 @@ extension NiriLayoutEngine {
         let newColumn = NiriContainer()
         copyColumnWidthState(from: currentColumn, to: newColumn)
 
-        if direction == .right {
+        if step > 0 {
             root.insertAfter(newColumn, reference: currentColumn)
         } else {
             root.insertBefore(newColumn, reference: currentColumn)
@@ -874,7 +879,8 @@ extension NiriLayoutEngine {
             motion: motion,
             state: &state,
             workingFrame: workingFrame,
-            gaps: gaps
+            gaps: gaps,
+            orientation: orientation
         )
 
         return true

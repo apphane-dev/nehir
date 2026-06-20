@@ -9,29 +9,10 @@ extension NiriLayoutEngine {
         motion: MotionSnapshot,
         state: inout ViewportState,
         workingFrame: CGRect,
-        gaps: CGFloat
+        gaps: CGFloat,
+        orientation: Monitor.Orientation = .horizontal
     ) -> Bool {
-        switch direction {
-        case .down,
-             .up:
-            let pureDecision = pureLayoutMoveDecision(node, direction: direction, in: workspaceId, allowEdgeWrap: true)
-            switch pureDecision.plan {
-            case .noChange:
-                return false
-            case let .verticalSwap(targetToken):
-                let moved = moveWindowVertical(node, targetToken: targetToken)
-                if moved {
-                    assertPureLayoutSnapshotMatches(pureDecision.expectedSnapshot, selectedWindow: node, in: workspaceId)
-                }
-                return moved
-            case .unsupported:
-                return moveWindowVertical(node, direction: direction)
-            case .horizontalConsume,
-                 .horizontalExpel:
-                return false
-            }
-        case .left,
-             .right:
+        if direction.primaryStep(for: orientation) != nil {
             return consumeOrExpelWindow(
                 node,
                 direction: direction,
@@ -39,26 +20,45 @@ extension NiriLayoutEngine {
                 motion: motion,
                 state: &state,
                 workingFrame: workingFrame,
-                gaps: gaps
+                gaps: gaps,
+                orientation: orientation
             )
+        }
+
+        guard direction.secondaryStep(for: orientation) != nil else { return false }
+
+        let pureDecision = pureLayoutMoveDecision(
+            node,
+            direction: direction,
+            in: workspaceId,
+            allowEdgeWrap: true,
+            orientation: orientation
+        )
+        switch pureDecision.plan {
+        case .noChange:
+            return false
+        case let .verticalSwap(targetToken):
+            let moved = moveWindowVertical(node, targetToken: targetToken)
+            if moved {
+                assertPureLayoutSnapshotMatches(pureDecision.expectedSnapshot, selectedWindow: node, in: workspaceId)
+            }
+            return moved
+        case .unsupported:
+            return moveWindowVertical(node, direction: direction, orientation: orientation)
+        case .horizontalConsume,
+             .horizontalExpel:
+            return false
         }
     }
 
-    private func moveWindowVertical(_ node: NiriWindow, direction: Direction) -> Bool {
-        let sibling: NiriNode?
-        switch direction {
-        case .up:
-            sibling = node.nextSibling()
-        case .down:
-            sibling = node.prevSibling()
-        default:
-            return false
-        }
-
-        guard let targetSibling = sibling as? NiriWindow else {
-            return false
-        }
-
+    private func moveWindowVertical(
+        _ node: NiriWindow,
+        direction: Direction,
+        orientation: Monitor.Orientation
+    ) -> Bool {
+        guard let step = direction.secondaryStep(for: orientation) else { return false }
+        let sibling = step > 0 ? node.nextSibling() : node.prevSibling()
+        guard let targetSibling = sibling as? NiriWindow else { return false }
         return moveWindowVertical(node, targetWindow: targetSibling)
     }
 
@@ -75,17 +75,13 @@ extension NiriLayoutEngine {
             return false
         }
 
-        let nodeIdx = column.windowNodes.firstIndex { $0 === node }
-        let siblingIdx = column.windowNodes.firstIndex { $0 === targetWindow }
-
         node.swapWith(targetWindow)
 
-        if column.displayMode == .tabbed, let nIdx = nodeIdx, let sIdx = siblingIdx {
-            if nIdx == column.activeTileIdx {
-                column.setActiveTileIdx(sIdx)
-            } else if sIdx == column.activeTileIdx {
-                column.setActiveTileIdx(nIdx)
-            }
+        if let movedIndex = column.windowNodes.firstIndex(where: { $0 === node }) {
+            column.setActiveTileIdx(movedIndex)
+        }
+        if column.displayMode == .tabbed {
+            updateTabbedColumnVisibility(column: column)
         }
 
         return true

@@ -42,7 +42,6 @@ extension NiriLayoutEngine {
         }
 
         let after = PureLayoutReducer.focus(pureDirection, in: before)
-        applyPureLayoutActiveTileIndices(after, in: workspaceId)
 
         guard after != before,
               let focusedToken = after.activeWorkspace?.focusedWindowID,
@@ -51,6 +50,7 @@ extension NiriLayoutEngine {
             return .handled(nil)
         }
 
+        applyPureLayoutActiveTileIndices(after, in: workspaceId)
         assertPureLayoutSnapshotMatches(
             Self.pureLayoutSnapshot(after),
             selectedWindow: target,
@@ -93,17 +93,11 @@ extension NiriLayoutEngine {
         in workspaceId: WorkspaceDescriptor.ID
     ) {
         guard let expected else { return }
-        guard let actualWorld = pureLayoutWorld(
-            in: workspaceId,
-            selectedWindow: selectedWindow,
-            infiniteLoop: effectiveInfiniteLoop(in: workspaceId)
-        ) else {
+        guard let actual = livePureLayoutSnapshot(in: workspaceId, selectedWindow: selectedWindow) else {
             Self.pureLayoutBridgeLogger.error("Niri runtime could not be snapshotted after pure layout operation")
             assertionFailure("Niri runtime could not be snapshotted after pure layout operation")
             return
         }
-
-        let actual = Self.pureLayoutSnapshot(actualWorld)
         guard actual != expected else { return }
 
         Self.pureLayoutBridgeLogger.error("Niri runtime diverged from PureLayoutReducer. expected=\(String(describing: expected), privacy: .public), actual=\(String(describing: actual), privacy: .public)")
@@ -119,9 +113,10 @@ extension NiriLayoutEngine {
         _ window: NiriWindow,
         direction: Direction,
         in workspaceId: WorkspaceDescriptor.ID,
-        allowEdgeWrap: Bool
+        allowEdgeWrap: Bool,
+        orientation: Monitor.Orientation
     ) -> PureLayoutMoveDecision {
-        guard let pureDirection = PureDirection(direction: direction, orientation: .horizontal),
+        guard let pureDirection = PureDirection(direction: direction, orientation: orientation),
               let before = pureLayoutWorld(
                   in: workspaceId,
                   selectedWindow: window,
@@ -145,29 +140,63 @@ extension NiriLayoutEngine {
         }
 
         if pureDirection.horizontalStep == nil {
-            guard let afterActiveColumnIndex = afterWorkspace.activeColumnIndex,
-                  afterWorkspace.columns.indices.contains(afterActiveColumnIndex),
-                  afterActiveColumnIndex == beforeActiveColumnIndex
-            else {
-                logUnsupportedPureLayoutMove(direction: direction, reason: "vertical move changed active column")
-                return PureLayoutMoveDecision(plan: .unsupported, expectedSnapshot: expectedSnapshot)
-            }
-
-            let beforeColumn = beforeWorkspace.columns[beforeActiveColumnIndex]
-            let afterActiveWindowIndex = afterWorkspace.columns[afterActiveColumnIndex].activeWindowIndex
-            guard beforeColumn.windows.indices.contains(afterActiveWindowIndex) else {
-                logUnsupportedPureLayoutMove(direction: direction, reason: "vertical target index outside before column")
-                return PureLayoutMoveDecision(plan: .unsupported, expectedSnapshot: expectedSnapshot)
-            }
-
-            let displacedToken = beforeColumn.windows[afterActiveWindowIndex].id
-            guard displacedToken != window.token else {
-                logUnsupportedPureLayoutMove(direction: direction, reason: "vertical move did not identify displaced window")
-                return PureLayoutMoveDecision(plan: .unsupported, expectedSnapshot: expectedSnapshot)
-            }
-            return PureLayoutMoveDecision(plan: .verticalSwap(targetToken: displacedToken), expectedSnapshot: expectedSnapshot)
+            return classifyPureLayoutVerticalMove(
+                window: window,
+                direction: direction,
+                beforeWorkspace: beforeWorkspace,
+                beforeActiveColumnIndex: beforeActiveColumnIndex,
+                afterWorkspace: afterWorkspace,
+                expectedSnapshot: expectedSnapshot
+            )
         }
 
+        return classifyPureLayoutHorizontalMove(
+            direction: direction,
+            beforeWorkspace: beforeWorkspace,
+            beforeActiveColumnIndex: beforeActiveColumnIndex,
+            afterWorkspace: afterWorkspace,
+            expectedSnapshot: expectedSnapshot
+        )
+    }
+
+    private func classifyPureLayoutVerticalMove(
+        window: NiriWindow,
+        direction: Direction,
+        beforeWorkspace: CoreWorkspace<WorkspaceDescriptor.ID, WindowToken>,
+        beforeActiveColumnIndex: Int,
+        afterWorkspace: CoreWorkspace<WorkspaceDescriptor.ID, WindowToken>,
+        expectedSnapshot: PureLayoutSnapshot
+    ) -> PureLayoutMoveDecision {
+        guard let afterActiveColumnIndex = afterWorkspace.activeColumnIndex,
+              afterWorkspace.columns.indices.contains(afterActiveColumnIndex),
+              afterActiveColumnIndex == beforeActiveColumnIndex
+        else {
+            logUnsupportedPureLayoutMove(direction: direction, reason: "vertical move changed active column")
+            return PureLayoutMoveDecision(plan: .unsupported, expectedSnapshot: expectedSnapshot)
+        }
+
+        let beforeColumn = beforeWorkspace.columns[beforeActiveColumnIndex]
+        let afterActiveWindowIndex = afterWorkspace.columns[afterActiveColumnIndex].activeWindowIndex
+        guard beforeColumn.windows.indices.contains(afterActiveWindowIndex) else {
+            logUnsupportedPureLayoutMove(direction: direction, reason: "vertical target index outside before column")
+            return PureLayoutMoveDecision(plan: .unsupported, expectedSnapshot: expectedSnapshot)
+        }
+
+        let displacedToken = beforeColumn.windows[afterActiveWindowIndex].id
+        guard displacedToken != window.token else {
+            logUnsupportedPureLayoutMove(direction: direction, reason: "vertical move did not identify displaced window")
+            return PureLayoutMoveDecision(plan: .unsupported, expectedSnapshot: expectedSnapshot)
+        }
+        return PureLayoutMoveDecision(plan: .verticalSwap(targetToken: displacedToken), expectedSnapshot: expectedSnapshot)
+    }
+
+    private func classifyPureLayoutHorizontalMove(
+        direction: Direction,
+        beforeWorkspace: CoreWorkspace<WorkspaceDescriptor.ID, WindowToken>,
+        beforeActiveColumnIndex: Int,
+        afterWorkspace: CoreWorkspace<WorkspaceDescriptor.ID, WindowToken>,
+        expectedSnapshot: PureLayoutSnapshot
+    ) -> PureLayoutMoveDecision {
         let sourceColumn = beforeWorkspace.columns[beforeActiveColumnIndex]
         if sourceColumn.windows.count > 1 {
             return PureLayoutMoveDecision(plan: .horizontalExpel, expectedSnapshot: expectedSnapshot)
@@ -205,6 +234,46 @@ extension NiriLayoutEngine {
             activeColumnIndex: workspace.activeColumnIndex,
             activeWindowIndices: workspace.columns.map(\.activeWindowIndex),
             focusedWindowID: workspace.focusedWindowID
+        )
+    }
+
+    private func livePureLayoutSnapshot(
+        in workspaceId: WorkspaceDescriptor.ID,
+        selectedWindow: NiriWindow
+    ) -> PureLayoutSnapshot? {
+        let niriColumns = columns(in: workspaceId)
+        guard !niriColumns.isEmpty else { return nil }
+
+        var activeColumnIndex: Int?
+        var snapshotColumns: [[WindowToken]] = []
+        var activeWindowIndices: [Int] = []
+
+        for (columnIndex, column) in niriColumns.enumerated() {
+            let windows = column.windowNodes
+            guard !windows.isEmpty else { return nil }
+
+            if windows.contains(where: { $0 === selectedWindow }) {
+                activeColumnIndex = columnIndex
+            }
+
+            snapshotColumns.append(windows.map(\.token))
+            activeWindowIndices.append(min(max(column.activeTileIdx, 0), windows.count - 1))
+        }
+
+        let focusedWindowID = activeColumnIndex.flatMap { columnIndex -> WindowToken? in
+            guard snapshotColumns.indices.contains(columnIndex),
+                  activeWindowIndices.indices.contains(columnIndex)
+            else { return nil }
+            let activeWindowIndex = activeWindowIndices[columnIndex]
+            guard snapshotColumns[columnIndex].indices.contains(activeWindowIndex) else { return nil }
+            return snapshotColumns[columnIndex][activeWindowIndex]
+        }
+
+        return PureLayoutSnapshot(
+            columns: snapshotColumns,
+            activeColumnIndex: activeColumnIndex,
+            activeWindowIndices: activeWindowIndices,
+            focusedWindowID: focusedWindowID
         )
     }
 
