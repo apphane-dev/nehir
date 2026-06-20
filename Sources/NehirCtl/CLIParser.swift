@@ -1,3 +1,9 @@
+// SPDX-FileCopyrightText: 2026 BarutSRB
+// SPDX-FileCopyrightText: 2026 Aleksei Gurianov and Nehir contributors
+// SPDX-FileComment: Provenance=upstream-derived; Upstream-Project=OmniWM; Upstream-Author=BarutSRB; Nehir-Changes-Since=2026; See=NOTICE.md
+//
+// SPDX-License-Identifier: GPL-2.0-only
+
 import Foundation
 import NehirIPC
 
@@ -154,6 +160,19 @@ enum CLIParser {
              "-h":
             return ParsedCLICommand(
                 invocation: .local(.help),
+                outputFormat: .text,
+                expectsEventStream: false,
+                watchConfiguration: nil
+            )
+        case "about",
+             "attribution",
+             "legal",
+             "license":
+            guard filteredArguments.count == 1 else {
+                throw CLIParseError.usage(usageText)
+            }
+            return ParsedCLICommand(
+                invocation: .local(.legalNotice),
                 outputFormat: .text,
                 expectsEventStream: false,
                 watchConfiguration: nil
@@ -720,6 +739,7 @@ enum CLIParser {
             "  nehirctl ping",
             "  nehirctl version",
             "  nehirctl help",
+            "  nehirctl license   # GPL terms and upstream attribution",
             "  nehirctl completion <zsh|bash|fish>"
         ]
         lines += commandLines.map { "  nehirctl \($0)" }
@@ -737,6 +757,10 @@ enum CLIParser {
             "",
             "Formats:",
             "  --format json|table|tsv|text",
+            "",
+            "Legal:",
+            "  GPL-2.0-only. Nehir is an independent derivative fork of OmniWM by BarutSRB.",
+            "  Run `nehirctl license` for source, license, warranty, and attribution details.",
             "",
             "Rule Options:"
         ]

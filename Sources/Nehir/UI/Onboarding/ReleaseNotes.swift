@@ -1,3 +1,8 @@
+// SPDX-FileCopyrightText: 2026 Aleksei Gurianov and Nehir contributors
+// SPDX-FileComment: Provenance=nehir-original; See=NOTICE.md
+//
+// SPDX-License-Identifier: GPL-2.0-only
+
 import Foundation
 
 /// Shared Nehir repository and release-note URLs.
@@ -7,7 +12,7 @@ import Foundation
 /// `releases/tag/v<version>` convention keeps them from drifting apart.
 enum ReleaseNotes {
     /// The canonical GitHub repository URL (no trailing slash).
-    static let repositoryURLString = "https://github.com/guria/nehir"
+    static let repositoryURLString = "https://github.com/apphane-dev/nehir"
 
     /// The "all releases" index page.
     static var releasesURL: URL {
