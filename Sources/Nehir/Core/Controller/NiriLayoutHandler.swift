@@ -2036,6 +2036,8 @@ enum NiriWindowMoveResult {
             guard let monitor = controller.workspaceManager.monitor(for: wsId) else { return }
             let workingFrame = controller.insetWorkingFrame(for: monitor)
             let gaps = controller.gapSize(for: monitor)
+            let orientation = engine.monitor(for: monitor.id)?.orientation
+                ?? controller.settings.effectiveOrientation(for: monitor)
 
             let ctx = NiriOperationContext(
                 controller: controller,
@@ -2045,7 +2047,8 @@ enum NiriWindowMoveResult {
                 windowNode: windowNode,
                 monitor: monitor,
                 workingFrame: workingFrame,
-                gaps: gaps
+                gaps: gaps,
+                orientation: orientation
             )
 
             if operation(ctx, &state) {
@@ -2074,7 +2077,8 @@ enum NiriWindowMoveResult {
                 motion: ctx.motion,
                 state: &state,
                 workingFrame: ctx.workingFrame,
-                gaps: ctx.gaps
+                gaps: ctx.gaps,
+                orientation: ctx.orientation
             ) else {
                 result = edgeResult
                 return false
@@ -2171,7 +2175,8 @@ enum NiriWindowMoveResult {
                 state: &state,
                 workingFrame: ctx.workingFrame,
                 gaps: ctx.gaps,
-                allowEdgeWrap: false
+                allowEdgeWrap: false,
+                orientation: ctx.orientation
             ) else {
                 return false
             }
@@ -2345,6 +2350,7 @@ struct NodeActivationOptions {
     let monitor: Monitor
     let workingFrame: CGRect
     let gaps: CGFloat
+    let orientation: Monitor.Orientation
 
     private func hasPendingAnimationWork(state: ViewportState) -> Bool {
         hasPendingNiriAnimationWork(state: state, engine: engine, workspaceId: wsId)
