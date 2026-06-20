@@ -1,5 +1,5 @@
 ---
-"nehir": none
+"nehir": minor
 
 ---
 
