@@ -1,3 +1,8 @@
+// SPDX-FileCopyrightText: 2026 Aleksei Gurianov and Nehir contributors
+// SPDX-FileComment: Provenance=nehir-original; See=NOTICE.md
+//
+// SPDX-License-Identifier: GPL-2.0-only
+
 import SwiftUI
 
 /// Miniature recreation of the real workspace bar (see `WorkspaceBarView`). Shows the bar's

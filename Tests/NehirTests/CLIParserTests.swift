@@ -1,3 +1,9 @@
+// SPDX-FileCopyrightText: 2026 BarutSRB
+// SPDX-FileCopyrightText: 2026 Aleksei Gurianov and Nehir contributors
+// SPDX-FileComment: Provenance=upstream-derived; Upstream-Project=OmniWM; Upstream-Author=BarutSRB; Nehir-Changes-Since=2026; See=NOTICE.md
+//
+// SPDX-License-Identifier: GPL-2.0-only
+
 import Foundation
 @testable import NehirCtl
 import NehirIPC
@@ -720,5 +726,25 @@ private func sampleRuleOptionValue(for flag: String) -> String {
         #expect(parsed.expectsEventStream == false)
         #expect(parsed.watchConfiguration == nil)
         #expect(parsed.invocation == .local(.completion(.bash)))
+    }
+
+    @Test func parsesLegalAttributionAliasesAsLocalInvocation() throws {
+        for command in ["about", "attribution", "legal", "license"] {
+            let parsed = try CLIParser.parse(arguments: ["nehirctl", command])
+
+            #expect(parsed.outputFormat == .text)
+            #expect(parsed.expectsEventStream == false)
+            #expect(parsed.watchConfiguration == nil)
+            #expect(parsed.invocation == .local(.legalNotice))
+        }
+    }
+
+    @Test func usageIncludesLegalAttribution() {
+        #expect(CLIParser.usageText.contains("nehirctl license"))
+        #expect(CLIParser.usageText.contains("GPL-2.0-only"))
+        #expect(CLIParser.usageText.contains("OmniWM by BarutSRB"))
+        #expect(CLILegalNotice.text.contains("GNU General Public License v2.0 only"))
+        #expect(CLILegalNotice.text.contains("OmniWM by BarutSRB"))
+        #expect(CLILegalNotice.text.contains("NO WARRANTY"))
     }
 }

@@ -246,7 +246,7 @@ Nehir is one of several projects exploring this workflow:
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/chart?repos=guria/nehir&type=date&legend=top-left)](https://www.star-history.com/?type=date&repos=guria%2Fnehir)
+[![Star History Chart](https://api.star-history.com/chart?repos=apphane-dev/nehir&type=date&legend=top-left)](https://www.star-history.com/?type=date&repos=apphane-dev%2Fnehir)
 
 ## License
 

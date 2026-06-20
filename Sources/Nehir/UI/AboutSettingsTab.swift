@@ -1,3 +1,8 @@
+// SPDX-FileCopyrightText: 2026 Aleksei Gurianov and Nehir contributors
+// SPDX-FileComment: Provenance=nehir-original; See=NOTICE.md
+//
+// SPDX-License-Identifier: GPL-2.0-only
+
 import SwiftUI
 
 struct AboutSettingsTab: View {
@@ -7,7 +12,9 @@ struct AboutSettingsTab: View {
     private static let issuesURL = URL(string: "\(ReleaseNotes.repositoryURLString)/issues")!
     private static let discussionsURL = URL(string: "\(ReleaseNotes.repositoryURLString)/discussions")!
     private static let sponsorsURL = URL(string: "https://github.com/sponsors/guria")!
+    private static let upstreamSponsorsURL = URL(string: "https://github.com/sponsors/barutsrb")!
     private static let licenseURL = URL(string: "\(ReleaseNotes.repositoryURLString)/blob/main/LICENSE")!
+    private static let noticeURL = URL(string: "\(ReleaseNotes.repositoryURLString)/blob/main/NOTICE.md")!
     private static let omniWMURL = URL(string: "https://github.com/BarutSRB/OmniWM")!
 
     private var versionText: String {
@@ -28,14 +35,14 @@ struct AboutSettingsTab: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 8) {
                 header
                 sponsorShowcase
                 githubLinks
                 licenseAndAttributionSection
             }
-            .padding(20)
-            .frame(maxWidth: 760, alignment: .topLeading)
+            .padding(14)
+            .frame(maxWidth: 740, alignment: .topLeading)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -47,7 +54,7 @@ struct AboutSettingsTab: View {
     private var header: some View {
         HStack(alignment: .center, spacing: 16) {
             NehirLogo()
-                .frame(width: 132, height: 54)
+                .frame(width: 112, height: 46)
                 .accessibilityLabel("Nehir")
 
             Text(versionText)
@@ -59,21 +66,21 @@ struct AboutSettingsTab: View {
     }
 
     private var sponsorShowcase: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 8) {
             Spacer(minLength: 0)
 
             Image(systemName: "heart.circle.fill")
-                .font(.system(size: 44, weight: .semibold))
+                .font(.system(size: 34, weight: .semibold))
                 .foregroundStyle(.pink)
                 .symbolRenderingMode(.hierarchical)
 
-            VStack(spacing: 6) {
+            VStack(spacing: 4) {
                 Text("Sponsor Showcase")
-                    .font(.title3.weight(.semibold))
+                    .font(.callout.weight(.semibold))
                 Text(
                     "This space is reserved for the people and organizations who support Nehir. There are no sponsors yet — become the first one and help keep development moving."
                 )
-                .font(.subheadline)
+                .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
@@ -87,19 +94,19 @@ struct AboutSettingsTab: View {
                     Label("Spread the word", systemImage: "megaphone.fill")
                 }
                 .buttonStyle(.bordered)
-                .controlSize(.regular)
+                .controlSize(.small)
 
                 Link(destination: Self.sponsorsURL) {
                     Label("Sponsor Nehir", systemImage: "heart.fill")
                 }
                 .buttonStyle(.borderedProminent)
-                .controlSize(.regular)
+                .controlSize(.small)
             }
 
             Spacer(minLength: 0)
         }
-        .padding(20)
-        .frame(maxWidth: .infinity, minHeight: 210)
+        .padding(14)
+        .frame(maxWidth: .infinity, minHeight: 152)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 22, style: .continuous)
@@ -108,7 +115,7 @@ struct AboutSettingsTab: View {
     }
 
     private var githubLinks: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 6) {
             Text("GitHub")
                 .font(.headline)
 
@@ -140,25 +147,26 @@ struct AboutSettingsTab: View {
 
     private var licenseAndAttributionSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("License & Attribution")
-                .font(.headline)
-
-            HStack(alignment: .top, spacing: 10) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("License")
+                    .font(.headline)
                 AboutInfoCard(
-                    title: "GPL-2.0-only",
-                    caption: "Nehir is free software distributed under the GNU General Public License v2.0-only.",
+                    title: "GPL-2.0-only free software",
+                    caption: "Distributed with no warranty. You can inspect, modify, and share Nehir under GPL v2 terms.",
                     iconName: "doc.text",
                     tint: .secondary,
                     linkTitle: "View License",
                     url: Self.licenseURL
                 )
-                AboutInfoCard(
-                    title: "Based on OmniWM",
-                    caption: "Nehir builds on the original OmniWM work by BarutSRB and is maintained independently.",
-                    iconName: "arrow.triangle.branch",
-                    tint: .purple,
-                    linkTitle: "View OmniWM",
-                    url: Self.omniWMURL
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("OmniWM Attribution")
+                    .font(.headline)
+                AboutAttributionCard(
+                    noticeURL: Self.noticeURL,
+                    upstreamURL: Self.omniWMURL,
+                    upstreamSponsorsURL: Self.upstreamSponsorsURL
                 )
             }
         }
@@ -174,37 +182,87 @@ private struct AboutInfoCard: View {
     let url: URL
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .top, spacing: 8) {
-                Image(systemName: iconName)
+        HStack(alignment: .center, spacing: 10) {
+            Image(systemName: iconName)
+                .font(.callout.weight(.semibold))
+                .foregroundStyle(tint)
+                .frame(width: 22)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                Text(caption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 12)
+
+            Link(linkTitle, destination: url)
+                .font(.caption.weight(.semibold))
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, minHeight: 68, alignment: .leading)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(Color.secondary.opacity(0.15), lineWidth: 1)
+        }
+    }
+}
+
+private struct AboutAttributionCard: View {
+    let noticeURL: URL
+    let upstreamURL: URL
+    let upstreamSponsorsURL: URL
+
+    private let sponsorTooltip = "This fork brought some unspoken traction and misunderstanding. " +
+        "Sponsoring BarutSRB is a direct way to acknowledge the original OmniWM work."
+    private let attributionText = "Nehir is an independent GPL fork of OmniWM by BarutSRB. " +
+        "Source headers and NOTICE.md preserve that lineage while Nehir-specific changes are attributed separately."
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: "arrow.triangle.branch")
                     .font(.callout.weight(.semibold))
-                    .foregroundStyle(tint)
-                    .frame(width: 20)
+                    .foregroundStyle(.purple)
+                    .frame(width: 22)
 
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(title)
-                        .font(.callout.weight(.medium))
-                    Text(caption)
+                    Text("Built from OmniWM")
+                        .font(.subheadline.weight(.semibold))
+                    Text(attributionText)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
 
-            Spacer(minLength: 0)
+            HStack(spacing: 8) {
+                Link("Notice", destination: noticeURL)
+                    .buttonStyle(.bordered)
+                Link("OmniWM", destination: upstreamURL)
+                    .buttonStyle(.bordered)
 
-            HStack {
+                Link(destination: upstreamSponsorsURL) {
+                    Label("Share some love to BarutSRB", systemImage: "heart.fill")
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.purple)
+                .help(Text(sponsorTooltip))
+
                 Spacer(minLength: 0)
-                Link(linkTitle, destination: url)
-                    .font(.caption.weight(.medium))
             }
+            .controlSize(.small)
         }
         .padding(12)
-        .frame(maxWidth: .infinity, minHeight: 96, alignment: .topLeading)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(Color.secondary.opacity(0.15), lineWidth: 1)
+                .strokeBorder(Color.purple.opacity(0.22), lineWidth: 1)
         }
     }
 }
@@ -218,7 +276,7 @@ private struct AboutLinkCard: View {
 
     var body: some View {
         Link(destination: url) {
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 8) {
                     Image(systemName: iconName)
                         .font(.callout.weight(.semibold))
@@ -239,8 +297,8 @@ private struct AboutLinkCard: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            .padding(12)
-            .frame(maxWidth: .infinity, minHeight: 82, alignment: .topLeading)
+            .padding(10)
+            .frame(maxWidth: .infinity, minHeight: 68, alignment: .topLeading)
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 14, style: .continuous)

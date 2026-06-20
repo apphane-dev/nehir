@@ -1,3 +1,9 @@
+// SPDX-FileCopyrightText: 2026 BarutSRB
+// SPDX-FileCopyrightText: 2026 Aleksei Gurianov and Nehir contributors
+// SPDX-FileComment: Provenance=upstream-derived; Upstream-Project=OmniWM; Upstream-Author=BarutSRB; Nehir-Changes-Since=2026; See=NOTICE.md
+//
+// SPDX-License-Identifier: GPL-2.0-only
+
 import Foundation
 import NehirIPC
 
@@ -284,6 +290,10 @@ enum CLICompletionGenerator {
             "ping",
             "version",
             "help",
+            "license",
+            "legal",
+            "attribution",
+            "about",
             "completion",
             "command",
             "query",
