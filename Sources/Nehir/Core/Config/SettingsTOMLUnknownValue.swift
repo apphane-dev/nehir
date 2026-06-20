@@ -117,7 +117,9 @@ enum SettingsTOMLUnknownValue: Codable, Equatable, Sendable {
 
 struct SettingsTOMLDynamicKey: CodingKey, ExpressibleByStringLiteral {
     var stringValue: String
-    var intValue: Int? { nil }
+    var intValue: Int? {
+        nil
+    }
 
     init(stringValue: String) {
         self.stringValue = stringValue

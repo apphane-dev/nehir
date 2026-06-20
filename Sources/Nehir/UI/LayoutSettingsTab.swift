@@ -12,18 +12,34 @@ struct LayoutSettingsTab: View {
     @State private var draftOuterGapTop: Double?
     @State private var draftOuterGapBottom: Double?
 
-    private var effectiveGapSize: Double { draftGapSize ?? settings.gapSize }
-    private var effectiveOuterGapLeft: Double { draftOuterGapLeft ?? settings.outerGapLeft }
-    private var effectiveOuterGapRight: Double { draftOuterGapRight ?? settings.outerGapRight }
-    private var effectiveOuterGapTop: Double { draftOuterGapTop ?? settings.outerGapTop }
-    private var effectiveOuterGapBottom: Double { draftOuterGapBottom ?? settings.outerGapBottom }
+    private var effectiveGapSize: Double {
+        draftGapSize ?? settings.gapSize
+    }
+
+    private var effectiveOuterGapLeft: Double {
+        draftOuterGapLeft ?? settings.outerGapLeft
+    }
+
+    private var effectiveOuterGapRight: Double {
+        draftOuterGapRight ?? settings.outerGapRight
+    }
+
+    private var effectiveOuterGapTop: Double {
+        draftOuterGapTop ?? settings.outerGapTop
+    }
+
+    private var effectiveOuterGapBottom: Double {
+        draftOuterGapBottom ?? settings.outerGapBottom
+    }
 
     var body: some View {
         Form {
             MonitorScopeSection(
                 selectedMonitor: $selectedMonitor,
                 monitors: connectedMonitors,
-                hasOverrides: { settings.niriSettings(for: $0) != nil || settings.gapSettings(for: $0)?.hasOverrides == true },
+                hasOverrides: {
+                    settings.niriSettings(for: $0) != nil || settings.gapSettings(for: $0)?.hasOverrides == true
+                },
                 reset: { monitor in
                     settings.removeGapSettings(for: monitor)
                     settings.removeNiriSettings(for: monitor)
@@ -80,7 +96,9 @@ struct LayoutSettingsTab: View {
                     if !editing { commitGapSizeDraft() }
                 }
             )
-            SettingsCaption("Global default spacing between neighboring tiled windows. Select a monitor above to override this for that display.")
+            SettingsCaption(
+                "Global default spacing between neighboring tiled windows. Select a monitor above to override this for that display."
+            )
         }
 
         Section("Screen Margins") {
@@ -151,7 +169,9 @@ struct LayoutSettingsTab: View {
                     if !editing { commitOuterGapDrafts() }
                 }
             )
-            SettingsCaption("Global default margins for the tiled working area. Select a monitor above to override individual edges for that display.")
+            SettingsCaption(
+                "Global default margins for the tiled working area. Select a monitor above to override individual edges for that display."
+            )
         }
     }
 

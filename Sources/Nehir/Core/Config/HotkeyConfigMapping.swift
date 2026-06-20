@@ -12,18 +12,33 @@ enum HotkeyConfigMapping {
     struct NumberedGroup {
         let section: String
         let key: String
-        let internalIdPattern: String  // e.g., "switchWorkspace.%d"
-        let indexOffset: Int           // offset from 1-based config to internal (0 or 0)
+        let internalIdPattern: String // e.g., "switchWorkspace.%d"
+        let indexOffset: Int // offset from 1-based config to internal (0 or 0)
     }
 
     static let numberedGroups: [NumberedGroup] = [
         NumberedGroup(section: "workspace", key: "switch", internalIdPattern: "switchWorkspace.%d", indexOffset: -1),
         NumberedGroup(section: "workspace", key: "moveTo", internalIdPattern: "moveToWorkspace.%d", indexOffset: -1),
-        NumberedGroup(section: "workspace", key: "moveColumnTo", internalIdPattern: "moveColumnToWorkspace.%d", indexOffset: -1),
-        NumberedGroup(section: "workspace", key: "focusAnywhere", internalIdPattern: "focusWorkspaceAnywhere.%d", indexOffset: -1),
+        NumberedGroup(
+            section: "workspace",
+            key: "moveColumnTo",
+            internalIdPattern: "moveColumnToWorkspace.%d",
+            indexOffset: -1
+        ),
+        NumberedGroup(
+            section: "workspace",
+            key: "focusAnywhere",
+            internalIdPattern: "focusWorkspaceAnywhere.%d",
+            indexOffset: -1
+        ),
         NumberedGroup(section: "focus", key: "column", internalIdPattern: "focusColumn.%d", indexOffset: -1),
-        NumberedGroup(section: "focus", key: "windowInColumn", internalIdPattern: "focusWindowInColumn.%d", indexOffset: 0),
-        NumberedGroup(section: "move", key: "columnToIndex", internalIdPattern: "moveColumnToIndex.%d", indexOffset: 0),
+        NumberedGroup(
+            section: "focus",
+            key: "windowInColumn",
+            internalIdPattern: "focusWindowInColumn.%d",
+            indexOffset: 0
+        ),
+        NumberedGroup(section: "move", key: "columnToIndex", internalIdPattern: "moveColumnToIndex.%d", indexOffset: 0)
     ]
 
     /// Non-numbered singleton mappings: section.key → internalId
@@ -120,7 +135,7 @@ enum HotkeyConfigMapping {
         ("ui", "toggleMoveMouseToFocused", "toggleMoveMouseToFocused"),
         ("ui", "toggleBordersEnabled", "toggleBordersEnabled"),
         ("ui", "togglePreventSleepEnabled", "togglePreventSleepEnabled"),
-        ("ui", "toggleIPCEnabled", "toggleIPCEnabled"),
+        ("ui", "toggleIPCEnabled", "toggleIPCEnabled")
     ]
 
     // MARK: - Lookup caches
@@ -131,14 +146,14 @@ enum HotkeyConfigMapping {
             map["\(s.section).\(s.key)"] = s.internalId
         }
         for g in numberedGroups {
-            for n in 1...9 {
+            for n in 1 ... 9 {
                 let configKey = "\(g.section).\(g.key).\(n)"
                 let internalIdx = n + g.indexOffset
                 let internalId = String(format: g.internalIdPattern, internalIdx)
                 map[configKey] = internalId
             }
         }
-        for n in 1...9 {
+        for n in 1 ... 9 {
             for direction in ["left", "right", "up", "down"] {
                 map["move.windowToWorkspaceOnMonitor.\(n).\(direction)"] =
                     "moveWindowToWorkspaceOnMonitor.\(n - 1).\(direction)"
@@ -174,7 +189,7 @@ enum HotkeyConfigMapping {
         [
             UInt32(kVK_ANSI_1), UInt32(kVK_ANSI_2), UInt32(kVK_ANSI_3),
             UInt32(kVK_ANSI_4), UInt32(kVK_ANSI_5), UInt32(kVK_ANSI_6),
-            UInt32(kVK_ANSI_7), UInt32(kVK_ANSI_8), UInt32(kVK_ANSI_9),
+            UInt32(kVK_ANSI_7), UInt32(kVK_ANSI_8), UInt32(kVK_ANSI_9)
         ]
     }()
 }

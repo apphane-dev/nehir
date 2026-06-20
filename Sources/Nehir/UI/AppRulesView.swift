@@ -87,7 +87,7 @@ struct AppRulesView: View {
                         onCancel: { addDraft = nil }
                     )
                 } else if let ruleId = selectedRuleId,
-                   let ruleIndex = settings.appRules.firstIndex(where: { $0.id == ruleId })
+                          let ruleIndex = settings.appRules.firstIndex(where: { $0.id == ruleId })
                 {
                     AppRuleDetailView(
                         rule: $settings.appRules[ruleIndex],
@@ -426,7 +426,6 @@ struct AppRuleAddPane: View {
 
     var body: some View {
         VStack(spacing: 0) {
-
             Form {
                 Section("Application") {
                     TextField("Bundle ID", text: $draft.bundleId)

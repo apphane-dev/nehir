@@ -143,7 +143,9 @@ final class HotkeyCenter {
         }
     }
 
-    private func registrationFailuresForAction(_ action: HotkeyRegistrationAction) -> [HotkeyRegistrationFailureReason] {
+    private func registrationFailuresForAction(_ action: HotkeyRegistrationAction)
+        -> [HotkeyRegistrationFailureReason]
+    {
         switch action {
         case let .command(command):
             return registrationFailures[command].map { [$0] } ?? []

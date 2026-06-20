@@ -697,98 +697,98 @@ private func makeTestFocusEvent(id: String, title: String) -> IPCEventEnvelope {
 
     @Test func focusSubscriptionStreamsNDJSONEventsFromRealFocusChanges() async throws {
         try await withAXFrameProviderIsolationForTests {
-        let socketPath = makeIPCTestSocketPath()
-        let controller = makeLayoutPlanTestController()
-        AXWindowService.clearTitleCacheForTests()
-        defer {
-            AXWindowService.titleLookupProviderForTests = nil
+            let socketPath = makeIPCTestSocketPath()
+            let controller = makeLayoutPlanTestController()
             AXWindowService.clearTitleCacheForTests()
-            resetSharedControllerStateForTests()
-        }
-
-        let workspaceId = controller.workspaceManager.workspaceId(for: "1", createIfMissing: false)!
-        controller.appInfoCache.storeInfoForTests(pid: 9101, name: "Terminal", bundleId: "com.example.terminal")
-        controller.appInfoCache.storeInfoForTests(pid: 9102, name: "Browser", bundleId: "com.example.browser")
-        AXWindowService.titleLookupProviderForTests = { windowId in
-            switch windowId {
-            case 1301:
-                "Initial Focus"
-            case 1302:
-                "Focused Event Window"
-            default:
-                nil
+            defer {
+                AXWindowService.titleLookupProviderForTests = nil
+                AXWindowService.clearTitleCacheForTests()
+                resetSharedControllerStateForTests()
             }
-        }
-        let initialToken = controller.workspaceManager.addWindow(
-            makeLayoutPlanTestWindow(windowId: 1301),
-            pid: 9101,
-            windowId: 1301,
-            to: workspaceId
-        )
-        #expect(AXWindowService.titlePreferFast(windowId: 1301) == "Initial Focus")
-        let updatedToken = controller.workspaceManager.addWindow(
-            makeLayoutPlanTestWindow(windowId: 1302),
-            pid: 9102,
-            windowId: 1302,
-            to: workspaceId
-        )
-        _ = controller.workspaceManager.setManagedFocus(initialToken, in: workspaceId)
 
-        let server = IPCServer(
-            controller: controller,
-            socketPath: socketPath,
-            sessionToken: ipcServerTestSessionToken
-        )
-        defer {
-            server.stop()
-            try? FileManager.default.removeItem(atPath: socketPath)
-        }
-        try server.start()
-
-        let client = IPCClient(socketPath: socketPath)
-        let connection = try client.openConnection()
-        defer { connection.interrupt() }
-
-        try await connection.send(
-            IPCRequest(
-                id: "sub-1",
-                subscribe: IPCSubscribeRequest(channels: [.focus])
+            let workspaceId = controller.workspaceManager.workspaceId(for: "1", createIfMissing: false)!
+            controller.appInfoCache.storeInfoForTests(pid: 9101, name: "Terminal", bundleId: "com.example.terminal")
+            controller.appInfoCache.storeInfoForTests(pid: 9102, name: "Browser", bundleId: "com.example.browser")
+            AXWindowService.titleLookupProviderForTests = { windowId in
+                switch windowId {
+                case 1301:
+                    "Initial Focus"
+                case 1302:
+                    "Focused Event Window"
+                default:
+                    nil
+                }
+            }
+            let initialToken = controller.workspaceManager.addWindow(
+                makeLayoutPlanTestWindow(windowId: 1301),
+                pid: 9101,
+                windowId: 1301,
+                to: workspaceId
             )
-        )
-        let subscribeResponse = try await connection.readResponse()
-        #expect(subscribeResponse.ok)
-        #expect(subscribeResponse.kind == .subscribe)
-        #expect(subscribeResponse.status == .subscribed)
+            #expect(AXWindowService.titlePreferFast(windowId: 1301) == "Initial Focus")
+            let updatedToken = controller.workspaceManager.addWindow(
+                makeLayoutPlanTestWindow(windowId: 1302),
+                pid: 9102,
+                windowId: 1302,
+                to: workspaceId
+            )
+            _ = controller.workspaceManager.setManagedFocus(initialToken, in: workspaceId)
 
-        let events = await connection.eventStream()
-        var iterator = events.makeAsyncIterator()
-        let initialEvent = try await #require(iterator.next())
-        #expect(initialEvent.channel == .focus)
-        if case let .focusedWindow(payload) = initialEvent.result.payload {
-            #expect(payload.window?.title == "Initial Focus")
-        } else {
-            Issue.record("Expected focused-window initial payload")
-        }
+            let server = IPCServer(
+                controller: controller,
+                socketPath: socketPath,
+                sessionToken: ipcServerTestSessionToken
+            )
+            defer {
+                server.stop()
+                try? FileManager.default.removeItem(atPath: socketPath)
+            }
+            try server.start()
 
-        _ = controller.workspaceManager.setManagedFocus(updatedToken, in: workspaceId)
+            let client = IPCClient(socketPath: socketPath)
+            let connection = try client.openConnection()
+            defer { connection.interrupt() }
 
-        let event = try await #require(iterator.next())
-        #expect(event.channel == .focus)
-        #expect(event.ok)
-        #expect(event.status == .success)
-        #expect(!event.id.isEmpty)
-        if case let .focusedWindow(payload) = event.result.payload {
-            #expect(payload.window?.title == "Focused Event Window")
-            #expect(
-                payload.window?.id == IPCWindowOpaqueID.encode(
-                    pid: updatedToken.pid,
-                    windowId: updatedToken.windowId,
-                    sessionToken: ipcServerTestSessionToken
+            try await connection.send(
+                IPCRequest(
+                    id: "sub-1",
+                    subscribe: IPCSubscribeRequest(channels: [.focus])
                 )
             )
-        } else {
-            Issue.record("Expected focused-window event payload")
-        }
+            let subscribeResponse = try await connection.readResponse()
+            #expect(subscribeResponse.ok)
+            #expect(subscribeResponse.kind == .subscribe)
+            #expect(subscribeResponse.status == .subscribed)
+
+            let events = await connection.eventStream()
+            var iterator = events.makeAsyncIterator()
+            let initialEvent = try await #require(iterator.next())
+            #expect(initialEvent.channel == .focus)
+            if case let .focusedWindow(payload) = initialEvent.result.payload {
+                #expect(payload.window?.title == "Initial Focus")
+            } else {
+                Issue.record("Expected focused-window initial payload")
+            }
+
+            _ = controller.workspaceManager.setManagedFocus(updatedToken, in: workspaceId)
+
+            let event = try await #require(iterator.next())
+            #expect(event.channel == .focus)
+            #expect(event.ok)
+            #expect(event.status == .success)
+            #expect(!event.id.isEmpty)
+            if case let .focusedWindow(payload) = event.result.payload {
+                #expect(payload.window?.title == "Focused Event Window")
+                #expect(
+                    payload.window?.id == IPCWindowOpaqueID.encode(
+                        pid: updatedToken.pid,
+                        windowId: updatedToken.windowId,
+                        sessionToken: ipcServerTestSessionToken
+                    )
+                )
+            } else {
+                Issue.record("Expected focused-window event payload")
+            }
         }
     }
 
@@ -849,88 +849,88 @@ private func makeTestFocusEvent(id: String, title: String) -> IPCEventEnvelope {
 
     @Test func focusSubscriptionDeliversInitialSnapshotBeforeBufferedLiveEvent() async throws {
         try await withAXFrameProviderIsolationForTests {
-        let socketPath = makeIPCTestSocketPath()
-        let controller = makeLayoutPlanTestController()
-        AXWindowService.clearTitleCacheForTests()
-        defer {
-            AXWindowService.titleLookupProviderForTests = nil
+            let socketPath = makeIPCTestSocketPath()
+            let controller = makeLayoutPlanTestController()
             AXWindowService.clearTitleCacheForTests()
-            IPCConnection.setSubscriptionTestHooksForTests(nil)
-            resetSharedControllerStateForTests()
-        }
-
-        let workspaceId = controller.workspaceManager.workspaceId(for: "1", createIfMissing: false)!
-        controller.appInfoCache.storeInfoForTests(pid: 9111, name: "Terminal", bundleId: "com.example.terminal")
-        AXWindowService.titleLookupProviderForTests = { windowId in
-            switch windowId {
-            case 1311:
-                "Initial Focus"
-            default:
-                nil
+            defer {
+                AXWindowService.titleLookupProviderForTests = nil
+                AXWindowService.clearTitleCacheForTests()
+                IPCConnection.setSubscriptionTestHooksForTests(nil)
+                resetSharedControllerStateForTests()
             }
-        }
-        let initialToken = controller.workspaceManager.addWindow(
-            makeLayoutPlanTestWindow(windowId: 1311),
-            pid: 9111,
-            windowId: 1311,
-            to: workspaceId
-        )
-        #expect(AXWindowService.titlePreferFast(windowId: 1311) == "Initial Focus")
-        _ = controller.workspaceManager.setManagedFocus(initialToken, in: workspaceId)
 
-        let server = IPCServer(
-            controller: controller,
-            socketPath: socketPath,
-            sessionToken: ipcServerTestSessionToken
-        )
-        defer {
-            server.stop()
-            try? FileManager.default.removeItem(atPath: socketPath)
-        }
-        try server.start()
-
-        let bridge = try #require(controller.ipcApplicationBridge)
-        let bufferedEvent = makeTestFocusEvent(id: "evt-live", title: "Buffered Live Focus")
-        IPCConnection.setSubscriptionTestHooksForTests(
-            .init(
-                afterSubscribeResponseBeforeEventDelivery: {
-                    await bridge.publishEventEnvelopeForTests(bufferedEvent)
+            let workspaceId = controller.workspaceManager.workspaceId(for: "1", createIfMissing: false)!
+            controller.appInfoCache.storeInfoForTests(pid: 9111, name: "Terminal", bundleId: "com.example.terminal")
+            AXWindowService.titleLookupProviderForTests = { windowId in
+                switch windowId {
+                case 1311:
+                    "Initial Focus"
+                default:
+                    nil
                 }
+            }
+            let initialToken = controller.workspaceManager.addWindow(
+                makeLayoutPlanTestWindow(windowId: 1311),
+                pid: 9111,
+                windowId: 1311,
+                to: workspaceId
             )
-        )
+            #expect(AXWindowService.titlePreferFast(windowId: 1311) == "Initial Focus")
+            _ = controller.workspaceManager.setManagedFocus(initialToken, in: workspaceId)
 
-        let client = IPCClient(socketPath: socketPath)
-        let connection = try client.openConnection()
-        defer { connection.interrupt() }
-
-        try await connection.send(
-            IPCRequest(
-                id: "sub-focus-buffered-ordering",
-                subscribe: IPCSubscribeRequest(channels: [.focus])
+            let server = IPCServer(
+                controller: controller,
+                socketPath: socketPath,
+                sessionToken: ipcServerTestSessionToken
             )
-        )
+            defer {
+                server.stop()
+                try? FileManager.default.removeItem(atPath: socketPath)
+            }
+            try server.start()
 
-        let subscribeResponse = try await connection.readResponse()
-        #expect(subscribeResponse.ok)
-        #expect(subscribeResponse.kind == .subscribe)
-        #expect(subscribeResponse.status == .subscribed)
+            let bridge = try #require(controller.ipcApplicationBridge)
+            let bufferedEvent = makeTestFocusEvent(id: "evt-live", title: "Buffered Live Focus")
+            IPCConnection.setSubscriptionTestHooksForTests(
+                .init(
+                    afterSubscribeResponseBeforeEventDelivery: {
+                        await bridge.publishEventEnvelopeForTests(bufferedEvent)
+                    }
+                )
+            )
 
-        let initialEvent = try await #require(connection.readEvent())
-        #expect(initialEvent.channel == .focus)
-        if case let .focusedWindow(payload) = initialEvent.result.payload {
-            #expect(payload.window?.title == "Initial Focus")
-        } else {
-            Issue.record("Expected initial focused-window payload")
-        }
+            let client = IPCClient(socketPath: socketPath)
+            let connection = try client.openConnection()
+            defer { connection.interrupt() }
 
-        let liveEvent = try await #require(connection.readEvent())
-        #expect(liveEvent.channel == .focus)
-        #expect(liveEvent.id == bufferedEvent.id)
-        if case let .focusedWindow(payload) = liveEvent.result.payload {
-            #expect(payload.window?.title == "Buffered Live Focus")
-        } else {
-            Issue.record("Expected buffered live focused-window payload")
-        }
+            try await connection.send(
+                IPCRequest(
+                    id: "sub-focus-buffered-ordering",
+                    subscribe: IPCSubscribeRequest(channels: [.focus])
+                )
+            )
+
+            let subscribeResponse = try await connection.readResponse()
+            #expect(subscribeResponse.ok)
+            #expect(subscribeResponse.kind == .subscribe)
+            #expect(subscribeResponse.status == .subscribed)
+
+            let initialEvent = try await #require(connection.readEvent())
+            #expect(initialEvent.channel == .focus)
+            if case let .focusedWindow(payload) = initialEvent.result.payload {
+                #expect(payload.window?.title == "Initial Focus")
+            } else {
+                Issue.record("Expected initial focused-window payload")
+            }
+
+            let liveEvent = try await #require(connection.readEvent())
+            #expect(liveEvent.channel == .focus)
+            #expect(liveEvent.id == bufferedEvent.id)
+            if case let .focusedWindow(payload) = liveEvent.result.payload {
+                #expect(payload.window?.title == "Buffered Live Focus")
+            } else {
+                Issue.record("Expected buffered live focused-window payload")
+            }
         }
     }
 

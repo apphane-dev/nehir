@@ -1,7 +1,7 @@
 import CoreGraphics
 import Foundation
-import Testing
 @testable import Nehir
+import Testing
 
 /// Characterization tests for the resize-minimum learner (M1, Gap B).
 ///
@@ -11,8 +11,8 @@ import Testing
 @MainActor
 @Suite
 struct ResizeMinimumLearnerTests {
-
     // MARK: - Learner loop (Gap B #2/#3)
+
     //
     // These drive `handleResizeMinimumFrameApplyResult` directly with a synthetic
     // `AXFrameApplyResult`, bypassing the real racy AX readback. This tests the
@@ -132,41 +132,51 @@ struct ResizeMinimumLearnerTests {
 
         // 1. Height overshoot within threshold -> true (terminal cell-row snap).
         #expect(LayoutRefreshController.isCellQuantizationOvershoot(
-            target: base, observed: CGRect(x: 0, y: 0, width: 100, height: 112)) == true)
+            target: base, observed: CGRect(x: 0, y: 0, width: 100, height: 112)
+        ) == true)
 
         // 2. Width overshoot within threshold (31pt) -> true.
         #expect(LayoutRefreshController.isCellQuantizationOvershoot(
-            target: base, observed: CGRect(x: 0, y: 0, width: 131, height: 100)) == true)
+            target: base, observed: CGRect(x: 0, y: 0, width: 131, height: 100)
+        ) == true)
 
         // 3. Width overshoot past threshold (33pt) -> false (genuine refusal).
         #expect(LayoutRefreshController.isCellQuantizationOvershoot(
-            target: base, observed: CGRect(x: 0, y: 0, width: 133, height: 100)) == false)
+            target: base, observed: CGRect(x: 0, y: 0, width: 133, height: 100)
+        ) == false)
 
         // 4. Pure shrink (no overshoot axis) -> false (handled by the inferred-min path).
         #expect(LayoutRefreshController.isCellQuantizationOvershoot(
-            target: base, observed: CGRect(x: 0, y: 0, width: 90, height: 90)) == false)
+            target: base, observed: CGRect(x: 0, y: 0, width: 90, height: 90)
+        ) == false)
 
         // 5. Pure origin shift (no size overshoot) -> false.
         #expect(LayoutRefreshController.isCellQuantizationOvershoot(
-            target: base, observed: CGRect(x: 33, y: 0, width: 100, height: 100)) == false)
+            target: base, observed: CGRect(x: 33, y: 0, width: 100, height: 100)
+        ) == false)
 
         // 6. Origin shift + height overshoot, both within threshold -> true.
         #expect(LayoutRefreshController.isCellQuantizationOvershoot(
-            target: base, observed: CGRect(x: 12, y: 0, width: 100, height: 112)) == true)
+            target: base, observed: CGRect(x: 12, y: 0, width: 100, height: 112)
+        ) == true)
 
         // 7. Both axes overshoot within threshold -> true.
         #expect(LayoutRefreshController.isCellQuantizationOvershoot(
-            target: base, observed: CGRect(x: 0, y: 0, width: 120, height: 120)) == true)
+            target: base, observed: CGRect(x: 0, y: 0, width: 120, height: 120)
+        ) == true)
 
         // 8. Overshoot present but origin shift past threshold -> false (origin clamps).
         #expect(LayoutRefreshController.isCellQuantizationOvershoot(
-            target: base, observed: CGRect(x: 40, y: 0, width: 100, height: 112)) == false)
+            target: base, observed: CGRect(x: 40, y: 0, width: 100, height: 112)
+        ) == false)
 
         // Threshold boundary itself: exactly 32pt height overshoot is accepted (<=),
         // 33pt is rejected — pins the 32.0 constant.
         #expect(LayoutRefreshController.isCellQuantizationOvershoot(
-            target: base, observed: CGRect(x: 0, y: 0, width: 100, height: 132)) == true)
+            target: base, observed: CGRect(x: 0, y: 0, width: 100, height: 132)
+        ) == true)
         #expect(LayoutRefreshController.isCellQuantizationOvershoot(
-            target: base, observed: CGRect(x: 0, y: 0, width: 100, height: 133)) == false)
+            target: base, observed: CGRect(x: 0, y: 0, width: 100, height: 133)
+        ) == false)
     }
 }

@@ -37,13 +37,13 @@ jobs:
 
     steps:
       - name: Check out Nehir main
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           ref: main
           fetch-depth: 0
 
       - name: Set up mise
-        uses: jdx/mise-action@v2
+        uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac # v2
 
       - name: Plan release from changesets
         id: version
@@ -165,7 +165,7 @@ jobs:
 
       - name: Upload notarization resume artifact
         if: ${{ !inputs.bypass_notarization && inputs.resume_notary_run_id == '' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: nehir-notary-${{ steps.version.outputs.version }}
           path: |
@@ -176,7 +176,7 @@ jobs:
 
       - name: Download notarization resume artifact
         if: ${{ !inputs.bypass_notarization && inputs.resume_notary_run_id != '' }}
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: nehir-notary-${{ steps.version.outputs.version }}
           path: dist
@@ -252,7 +252,7 @@ jobs:
 
       - name: Create Homebrew tap token
         id: tap-token
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@d72941d797fd3113feb6b93fd0dec494b13a2547 # v1
         with:
           app-id: ${{ secrets.TAP_APP_ID }}
           private-key: ${{ secrets.TAP_APP_PRIVATE_KEY }}
@@ -260,7 +260,7 @@ jobs:
           repositories: homebrew-tap
 
       - name: Check out Homebrew tap
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           repository: ${{ env.TAP_REPOSITORY }}
           token: ${{ steps.tap-token.outputs.token }}

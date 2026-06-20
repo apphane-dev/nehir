@@ -1,0 +1,22 @@
+[tasks."raycast:install"]
+description = "Install Raycast extension dependencies"
+dir = "{{ config_root }}/raycast/nehir"
+run = "npm install"
+
+[tasks."raycast:build"]
+description = "Build the Nehir Raycast extension"
+dir = "{{ config_root }}/raycast/nehir"
+depends = ["raycast:install"]
+run = "npm run build"
+
+[tasks."raycast:dev"]
+description = "Run the Nehir Raycast extension in Raycast development mode"
+dir = "{{ config_root }}/raycast/nehir"
+depends = ["raycast:install"]
+run = "npm run dev"
+
+[tasks."raycast:lint"]
+description = "Lint the Nehir Raycast extension"
+dir = "{{ config_root }}/raycast/nehir"
+depends = ["raycast:install"]
+run = "npm run lint"

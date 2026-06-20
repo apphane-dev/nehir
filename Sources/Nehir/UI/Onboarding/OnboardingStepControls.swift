@@ -321,11 +321,13 @@ struct ExperimentalStepControl: View {
                         DeveloperBadge()
                     }
                 }
-                Text("Recommended if you try the features above: lets you capture layout traces from the status bar so issues are easier to diagnose.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.leading, 20)
+                Text(
+                    "Recommended if you try the features above: lets you capture layout traces from the status bar so issues are easier to diagnose."
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.leading, 20)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }

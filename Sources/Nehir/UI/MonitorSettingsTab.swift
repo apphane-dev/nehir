@@ -67,7 +67,9 @@ struct MonitorSettingsTab: View {
                     .onChange(of: settings.mouseWarpEnabled) { _, _ in
                         controller.syncMouseWarpPolicy()
                     }
-                SettingsCaption("When enabled, moves the cursor to the opposite monitor when it reaches a screen edge. Use a diagonal macOS display arrangement to avoid native edge warping and rely only on Nehir's configured warp. Turn this off to rely only on macOS cursor movement.")
+                SettingsCaption(
+                    "When enabled, moves the cursor to the opposite monitor when it reaches a screen edge. Use a diagonal macOS display arrangement to avoid native edge warping and rely only on Nehir's configured warp. Turn this off to rely only on macOS cursor movement."
+                )
 
                 if settings.mouseWarpEnabled {
                     LabeledContent("Axis") {
@@ -96,14 +98,18 @@ struct MonitorSettingsTab: View {
                     }
                     SettingsCaption("How close to the edge (in pixels) before the cursor jumps to the next monitor.")
                 } else {
-                    SettingsCaption("Axis and trigger margin settings are hidden while Mouse Warp is disabled; existing values are preserved.")
+                    SettingsCaption(
+                        "Axis and trigger margin settings are hidden while Mouse Warp is disabled; existing values are preserved."
+                    )
                     if shouldWarnDisabledMouseWarpHasNoFullVerticalSideOverlap {
                         HStack(alignment: .top, spacing: 6) {
                             Image(systemName: "exclamationmark.triangle.fill")
                                 .foregroundStyle(.yellow)
                                 .accessibilityHidden(true)
-                            Text("Some displays do not share a full vertical edge overlap. With Mouse Warp disabled, macOS native cursor movement may only work through the overlapping edge segment, or may not cross between diagonally arranged displays at all.")
-                                .foregroundStyle(.secondary)
+                            Text(
+                                "Some displays do not share a full vertical edge overlap. With Mouse Warp disabled, macOS native cursor movement may only work through the overlapping edge segment, or may not cross between diagonally arranged displays at all."
+                            )
+                            .foregroundStyle(.secondary)
                         }
                         .font(.caption)
                         .accessibilityElement(children: .combine)
@@ -530,10 +536,16 @@ enum MonitorSettingsTabModel {
             for secondIndex in monitors.indices where secondIndex > firstIndex {
                 let firstFrame = monitors[firstIndex].frame
                 let secondFrame = monitors[secondIndex].frame
-                let horizontalOverlap = overlap(firstFrame.minX ... firstFrame.maxX, secondFrame.minX ... secondFrame.maxX)
+                let horizontalOverlap = overlap(
+                    firstFrame.minX ... firstFrame.maxX,
+                    secondFrame.minX ... secondFrame.maxX
+                )
                 guard horizontalOverlap < 1 else { continue }
 
-                let verticalOverlap = overlap(firstFrame.minY ... firstFrame.maxY, secondFrame.minY ... secondFrame.maxY)
+                let verticalOverlap = overlap(
+                    firstFrame.minY ... firstFrame.maxY,
+                    secondFrame.minY ... secondFrame.maxY
+                )
                 let shorterHeight = min(firstFrame.height, secondFrame.height)
                 if verticalOverlap >= max(1, shorterHeight - 1) {
                     return true

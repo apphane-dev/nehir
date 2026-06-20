@@ -121,7 +121,7 @@ enum AppRuleFileStore {
             }
 
             guard let eqIndex = trimmed.firstIndex(of: "=") else { continue }
-            let key = String(trimmed[trimmed.startIndex..<eqIndex]).trimmingCharacters(in: .whitespaces)
+            let key = String(trimmed[trimmed.startIndex ..< eqIndex]).trimmingCharacters(in: .whitespaces)
             let rawValue = String(trimmed[trimmed.index(after: eqIndex)...]).trimmingCharacters(in: .whitespaces)
 
             switch currentSection {
@@ -220,9 +220,9 @@ enum AppRuleFileStore {
             hash &*= 1_099_511_628_211
         }
         var bytes = [UInt8](repeating: 0, count: 16)
-        for i in 0..<8 { bytes[i] = UInt8((hash >> UInt64((7 - i) * 8)) & 0xff) }
+        for i in 0 ..< 8 { bytes[i] = UInt8((hash >> UInt64((7 - i) * 8)) & 0xff) }
         hash = hash &* 6_364_136_223_846_793_005 &+ 1_442_695_040_888_963_407
-        for i in 0..<8 { bytes[i + 8] = UInt8((hash >> UInt64((7 - i) * 8)) & 0xff) }
+        for i in 0 ..< 8 { bytes[i + 8] = UInt8((hash >> UInt64((7 - i) * 8)) & 0xff) }
         bytes[6] = (bytes[6] & 0x0f) | 0x50
         bytes[8] = (bytes[8] & 0x3f) | 0x80
         return UUID(uuid: (

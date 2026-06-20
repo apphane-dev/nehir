@@ -104,7 +104,9 @@ final class NativeFullscreenPlaceholderManager {
         windowsByToken[token]?.collectionBehavior
     }
 
-    func appearanceForTests(_ token: WindowToken) -> (isOpaque: Bool, backgroundColor: NSColor?, contentBackgroundColor: NSColor?)? {
+    func appearanceForTests(_ token: WindowToken)
+        -> (isOpaque: Bool, backgroundColor: NSColor?, contentBackgroundColor: NSColor?)?
+    {
         windowsByToken[token]?.appearanceForTests()
     }
 

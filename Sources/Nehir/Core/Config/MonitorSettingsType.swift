@@ -67,4 +67,3 @@ enum MonitorSettingsStore {
         settings.removeAll { $0.monitorName == monitorName }
     }
 }
-

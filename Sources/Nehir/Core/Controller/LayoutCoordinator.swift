@@ -52,7 +52,6 @@ import Foundation
 
     // Viewport
     func scrollViewport(direction: Direction)
-
 }
 
 // Conformance is free: `NiriLayoutHandler` already implements every requirement

@@ -5,7 +5,33 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
+  lint:
+    name: SwiftLint + SwiftFormat
+    runs-on: macos-26
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Set up mise
+        uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4
+
+      - name: Show linter versions
+        run: |
+          swiftlint --version
+          swiftformat --version
+
+      - name: SwiftFormat check
+        run: mise run format:check
+
+      - name: SwiftLint
+        run: mise run lint
+
   test:
     name: Swift tests
     runs-on: macos-26
@@ -13,10 +39,10 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Set up mise
-        uses: jdx/mise-action@v4
+        uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4
 
       - name: Show toolchain
         run: |

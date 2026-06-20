@@ -885,4 +885,3 @@ private func prepareIPCNiriState(
         #expect(controller.workspaceManager.rememberedTiledFocusToken(in: targetWorkspaceId)?.windowId == 9102)
     }
 }
-

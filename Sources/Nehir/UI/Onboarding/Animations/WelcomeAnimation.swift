@@ -16,7 +16,7 @@ struct WelcomeAnimation: View {
     var body: some View {
         ZStack {
             HStack(spacing: 8) {
-                ForEach(0..<columnCount, id: \.self) { index in
+                ForEach(0 ..< columnCount, id: \.self) { index in
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .fill(index == focusedIndex ? Color.accentColor.opacity(0.5) : Color.accentColor.opacity(0.3))
                         .frame(width: 52, height: 72)
@@ -43,7 +43,7 @@ struct WelcomeAnimation: View {
                 appearedCount = 0
                 focusedIndex = -1
                 offset = 0
-                for index in 0..<columnCount {
+                for index in 0 ..< columnCount {
                     guard isAnimating, !Task.isCancelled else { return }
                     withAnimation(.easeOut(duration: 0.3)) {
                         appearedCount = index + 1
@@ -54,7 +54,7 @@ struct WelcomeAnimation: View {
                 try? await Task.sleep(for: .milliseconds(400))
 
                 // Phase 2: focus + viewport scroll sweep.
-                for index in 0..<columnCount {
+                for index in 0 ..< columnCount {
                     guard isAnimating, !Task.isCancelled else { return }
                     withAnimation(.easeInOut(duration: 0.4)) {
                         focusedIndex = index

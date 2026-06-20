@@ -582,7 +582,6 @@ private func workspaceConfigurations(
         let refreshedEntry = try #require(settings.loadPersistedWindowRestoreCatalog().entries.first)
         #expect(refreshedEntry.restoreIntent.floatingFrame == secondFrame)
     }
-
 }
 
 @Suite struct WorkspaceManagerTests {
@@ -2313,7 +2312,10 @@ private func workspaceConfigurations(
         to: workspace1
     )
     manager.setWorkspace(for: token, to: workspace2)
-    manager.setHiddenState(WindowModel.HiddenState(proportionalPosition: .zero, referenceMonitorId: nil, reason: .layoutTransient(.left)), for: token)
+    manager.setHiddenState(
+        WindowModel.HiddenState(proportionalPosition: .zero, referenceMonitorId: nil, reason: .layoutTransient(.left)),
+        for: token
+    )
     manager.setLayoutReason(.macosHiddenApp, for: token)
     let rekeyedToken = WindowToken(pid: 9701, windowId: 9702)
     _ = manager.rekeyWindow(

@@ -341,90 +341,90 @@ private func setScratchpadTestFrame(
                 )
                 let controller = fixture.controller
 
-            let token = addLayoutPlanTestWindow(
-                on: controller,
-                workspaceId: fixture.primaryWorkspaceId,
-                windowId: 731,
-                pid: 7_731
-            )
-            let visibleToken = addLayoutPlanTestWindow(
-                on: controller,
-                workspaceId: fixture.secondaryWorkspaceId,
-                windowId: 732,
-                pid: 7_732
-            )
-            let initialFrame = CGRect(x: 220, y: 160, width: 620, height: 400)
-            setScratchpadTestFrame(on: controller, token: token, frame: initialFrame)
+                let token = addLayoutPlanTestWindow(
+                    on: controller,
+                    workspaceId: fixture.primaryWorkspaceId,
+                    windowId: 731,
+                    pid: 7_731
+                )
+                let visibleToken = addLayoutPlanTestWindow(
+                    on: controller,
+                    workspaceId: fixture.secondaryWorkspaceId,
+                    windowId: 732,
+                    pid: 7_732
+                )
+                let initialFrame = CGRect(x: 220, y: 160, width: 620, height: 400)
+                setScratchpadTestFrame(on: controller, token: token, frame: initialFrame)
 
-            _ = controller.workspaceManager.setManagedFocus(
-                token,
-                in: fixture.primaryWorkspaceId,
-                onMonitor: fixture.primaryMonitor.id
-            )
-            controller.assignFocusedWindowToScratchpad()
-            _ = controller.workspaceManager.setManagedFocus(
-                visibleToken,
-                in: fixture.secondaryWorkspaceId,
-                onMonitor: fixture.secondaryMonitor.id
-            )
-            _ = controller.workspaceManager.setInteractionMonitor(fixture.secondaryMonitor.id)
+                _ = controller.workspaceManager.setManagedFocus(
+                    token,
+                    in: fixture.primaryWorkspaceId,
+                    onMonitor: fixture.primaryMonitor.id
+                )
+                controller.assignFocusedWindowToScratchpad()
+                _ = controller.workspaceManager.setManagedFocus(
+                    visibleToken,
+                    in: fixture.secondaryWorkspaceId,
+                    onMonitor: fixture.secondaryMonitor.id
+                )
+                _ = controller.workspaceManager.setInteractionMonitor(fixture.secondaryMonitor.id)
 
-            guard let expectedFrame = controller.workspaceManager.resolvedFloatingFrame(
-                for: token,
-                preferredMonitor: fixture.secondaryMonitor
-            ) else {
-                Issue.record("Missing expected frame for async scratchpad focus test")
-                return
-            }
-
-            var pendingCompletion: (() -> Void)?
-            let liveFrame = expectedFrame.offsetBy(dx: fixture.secondaryMonitor.frame.width + 80, dy: 0)
-            AXWindowService.fastFrameProviderForTests = { window in
-                window.windowId == token.windowId ? liveFrame : fallbackFastFrameForTests(window)
-            }
-            controller.axManager.frameApplyAsyncOverrideForTests = { requests, complete in
-                let results = requests.map { request in
-                    AXFrameApplyResult(
-                        requestId: request.requestId,
-                        pid: request.pid,
-                        windowId: request.windowId,
-                        targetFrame: request.frame,
-                        currentFrameHint: request.currentFrameHint,
-                        writeResult: scratchpadTestWriteResult(
-                            targetFrame: request.frame,
-                            currentFrameHint: request.currentFrameHint,
-                            observedFrame: request.frame,
-                            failureReason: .sizeWriteFailed(.attributeUnsupported)
-                        )
-                    )
-                }
-                if requests.contains(where: { $0.windowId == token.windowId && $0.frame == expectedFrame }) {
-                    pendingCompletion = {
-                        complete(results)
-                    }
+                guard let expectedFrame = controller.workspaceManager.resolvedFloatingFrame(
+                    for: token,
+                    preferredMonitor: fixture.secondaryMonitor
+                ) else {
+                    Issue.record("Missing expected frame for async scratchpad focus test")
                     return
                 }
-                complete(results)
-            }
-            defer {
-                AXWindowService.fastFrameProviderForTests = nil
-                controller.axManager.frameApplyAsyncOverrideForTests = nil
-            }
 
-            controller.toggleScratchpadWindow()
+                var pendingCompletion: (() -> Void)?
+                let liveFrame = expectedFrame.offsetBy(dx: fixture.secondaryMonitor.frame.width + 80, dy: 0)
+                AXWindowService.fastFrameProviderForTests = { window in
+                    window.windowId == token.windowId ? liveFrame : fallbackFastFrameForTests(window)
+                }
+                controller.axManager.frameApplyAsyncOverrideForTests = { requests, complete in
+                    let results = requests.map { request in
+                        AXFrameApplyResult(
+                            requestId: request.requestId,
+                            pid: request.pid,
+                            windowId: request.windowId,
+                            targetFrame: request.frame,
+                            currentFrameHint: request.currentFrameHint,
+                            writeResult: scratchpadTestWriteResult(
+                                targetFrame: request.frame,
+                                currentFrameHint: request.currentFrameHint,
+                                observedFrame: request.frame,
+                                failureReason: .sizeWriteFailed(.attributeUnsupported)
+                            )
+                        )
+                    }
+                    if requests.contains(where: { $0.windowId == token.windowId && $0.frame == expectedFrame }) {
+                        pendingCompletion = {
+                            complete(results)
+                        }
+                        return
+                    }
+                    complete(results)
+                }
+                defer {
+                    AXWindowService.fastFrameProviderForTests = nil
+                    controller.axManager.frameApplyAsyncOverrideForTests = nil
+                }
 
-            #expect(pendingCompletion != nil)
-            #expect(recorder.events.isEmpty)
+                controller.toggleScratchpadWindow()
 
-            pendingCompletion?()
+                #expect(pendingCompletion != nil)
+                #expect(recorder.events.isEmpty)
 
-            let delayedReveal = await waitForConditionForTests(timeoutNanoseconds: 5_000_000_000) {
-                controller.axManager.lastAppliedFrame(for: token.windowId) == expectedFrame
-                    && controller.workspaceManager.hiddenState(for: token)?.isScratchpad == true
-            }
+                pendingCompletion?()
 
-            #expect(delayedReveal)
-            #expect(recorder.events.isEmpty)
+                let delayedReveal = await waitForConditionForTests(timeoutNanoseconds: 5_000_000_000) {
+                    controller.axManager.lastAppliedFrame(for: token.windowId) == expectedFrame
+                        && controller.workspaceManager.hiddenState(for: token)?.isScratchpad == true
+                }
+
+                #expect(delayedReveal)
+                #expect(recorder.events.isEmpty)
             }
         }
     }

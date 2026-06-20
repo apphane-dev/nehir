@@ -1,6 +1,6 @@
 import AppKit
-import Testing
 @testable import Nehir
+import Testing
 
 @Suite struct PureLayoutAgreementTests {
     private struct AgreementSnapshot: Equatable {
@@ -158,7 +158,11 @@ import Testing
 
         let clampedActiveColumnIndex = min(max(activeColumnIndex, 0), max(coreColumns.count - 1, 0))
         let pure = CoreWorld(
-            workspaces: [CoreWorkspace(id: workspaceId, columns: coreColumns, activeColumnIndex: clampedActiveColumnIndex)],
+            workspaces: [CoreWorkspace(
+                id: workspaceId,
+                columns: coreColumns,
+                activeColumnIndex: clampedActiveColumnIndex
+            )],
             activeWorkspaceIndex: 0,
             nextColumnID: 100,
             config: PureLayoutConfig(infiniteLoop: infiniteLoop)
@@ -207,6 +211,11 @@ import Testing
         }
     }
 
-    private var workingFrame: CGRect { CGRect(x: 0, y: 0, width: 900, height: 600) }
-    private var gap: CGFloat { 10 }
+    private var workingFrame: CGRect {
+        CGRect(x: 0, y: 0, width: 900, height: 600)
+    }
+
+    private var gap: CGFloat {
+        10
+    }
 }

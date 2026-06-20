@@ -87,7 +87,8 @@ enum PureLayoutReducer {
 
         let currentWindowIndex = result.workspaces[workspaceIndex].columns[activeColumnIndex].activeWindowIndex
         let targetWindowIndex = currentWindowIndex + step
-        guard result.workspaces[workspaceIndex].columns[activeColumnIndex].windows.indices.contains(targetWindowIndex) else {
+        guard result.workspaces[workspaceIndex].columns[activeColumnIndex].windows.indices.contains(targetWindowIndex)
+        else {
             return world
         }
 
@@ -110,7 +111,12 @@ enum PureLayoutReducer {
         guard sourceColumn.windows.indices.contains(sourceColumn.activeWindowIndex) else { return world }
 
         if sourceColumn.windows.count > 1 {
-            return expelFocusedWindow(direction: direction, in: result, workspaceIndex: workspaceIndex, sourceColumnIndex: sourceColumnIndex)
+            return expelFocusedWindow(
+                direction: direction,
+                in: result,
+                workspaceIndex: workspaceIndex,
+                sourceColumnIndex: sourceColumnIndex
+            )
         }
 
         let columns = result.workspaces[workspaceIndex].columns
@@ -124,7 +130,9 @@ enum PureLayoutReducer {
         let neighborID = columns[neighborIndex].id
         let movedWindow = sourceColumn.windows[sourceColumn.activeWindowIndex]
         result.workspaces[workspaceIndex].columns.remove(at: sourceColumnIndex)
-        guard let targetIndexAfterRemoval = result.workspaces[workspaceIndex].columns.firstIndex(where: { $0.id == neighborID }) else {
+        guard let targetIndexAfterRemoval = result.workspaces[workspaceIndex].columns
+            .firstIndex(where: { $0.id == neighborID })
+        else {
             return world
         }
 
@@ -143,7 +151,8 @@ enum PureLayoutReducer {
         var result = world
         guard let step = direction.horizontalStep else { return world }
         let activeWindowIndex = result.workspaces[workspaceIndex].columns[sourceColumnIndex].activeWindowIndex
-        let movedWindow = result.workspaces[workspaceIndex].columns[sourceColumnIndex].windows.remove(at: activeWindowIndex)
+        let movedWindow = result.workspaces[workspaceIndex].columns[sourceColumnIndex].windows
+            .remove(at: activeWindowIndex)
         result.workspaces[workspaceIndex].columns[sourceColumnIndex].clampActiveWindowIndex()
 
         let newColumn = CoreColumn(

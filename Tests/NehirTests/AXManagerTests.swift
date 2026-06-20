@@ -215,7 +215,10 @@ private func axManagerTestWriteResult(
         // The app's snap-back notification must be suppressed for any observed frame (or none),
         // breaking the snap-back -> relayout -> re-enqueue loop.
         let unrelatedObservedFrame = CGRect(x: 10, y: 10, width: 10, height: 10)
-        #expect(controller.axManager.shouldSuppressFrameChangeRelayout(for: token.windowId, observedFrame: unrelatedObservedFrame))
+        #expect(controller.axManager.shouldSuppressFrameChangeRelayout(
+            for: token.windowId,
+            observedFrame: unrelatedObservedFrame
+        ))
         #expect(controller.axManager.shouldSuppressFrameChangeRelayout(for: token.windowId, observedFrame: nil))
     }
 
@@ -306,7 +309,10 @@ private func axManagerTestWriteResult(
 
         // Suppression no longer applies to an unrelated observed frame.
         let unrelatedObservedFrame = CGRect(x: 10, y: 10, width: 10, height: 10)
-        #expect(controller.axManager.shouldSuppressFrameChangeRelayout(for: token.windowId, observedFrame: unrelatedObservedFrame) == false)
+        #expect(controller.axManager.shouldSuppressFrameChangeRelayout(
+            for: token.windowId,
+            observedFrame: unrelatedObservedFrame
+        ) == false)
     }
 
     @Test @MainActor func terminalObserverCompletesImmediatelyWhenTargetFrameAlreadyCached() {

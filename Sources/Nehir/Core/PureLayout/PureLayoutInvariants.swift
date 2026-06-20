@@ -3,7 +3,9 @@ import Foundation
 struct PureLayoutInvariantViolation: Equatable, CustomStringConvertible {
     var message: String
 
-    var description: String { message }
+    var description: String {
+        message
+    }
 }
 
 enum PureLayoutInvariants {
@@ -22,25 +24,44 @@ enum PureLayoutInvariants {
         for (workspaceIndex, workspace) in world.workspaces.enumerated() {
             if workspace.columns.isEmpty {
                 if workspace.activeColumnIndex != nil {
-                    violations.append(.init(message: "empty workspace at index \(workspaceIndex) has activeColumnIndex"))
+                    violations
+                        .append(.init(message: "empty workspace at index \(workspaceIndex) has activeColumnIndex"))
                 }
             } else {
-                if workspace.activeColumnIndex == nil || !workspace.columns.indices.contains(workspace.activeColumnIndex!) {
-                    violations.append(.init(message: "workspace at index \(workspaceIndex) has invalid activeColumnIndex"))
+                if workspace.activeColumnIndex == nil || !workspace.columns.indices
+                    .contains(workspace.activeColumnIndex!)
+                {
+                    violations
+                        .append(.init(message: "workspace at index \(workspaceIndex) has invalid activeColumnIndex"))
                 }
             }
 
             var columnIDs = Set<CoreColumnID>()
             for (columnIndex, column) in workspace.columns.enumerated() {
                 if !columnIDs.insert(column.id).inserted {
-                    violations.append(.init(message: "duplicate column id \(column.id.rawValue) in workspace index \(workspaceIndex)"))
+                    violations
+                        .append(
+                            .init(
+                                message: "duplicate column id \(column.id.rawValue) in workspace index \(workspaceIndex)"
+                            )
+                        )
                 }
                 maxColumnID = max(maxColumnID, column.id.rawValue)
 
                 if column.windows.isEmpty {
-                    violations.append(.init(message: "empty column at workspace index \(workspaceIndex), column index \(columnIndex)"))
+                    violations
+                        .append(
+                            .init(
+                                message: "empty column at workspace index \(workspaceIndex), column index \(columnIndex)"
+                            )
+                        )
                 } else if !column.windows.indices.contains(column.activeWindowIndex) {
-                    violations.append(.init(message: "column at workspace index \(workspaceIndex), column index \(columnIndex) has invalid activeWindowIndex"))
+                    violations
+                        .append(
+                            .init(
+                                message: "column at workspace index \(workspaceIndex), column index \(columnIndex) has invalid activeWindowIndex"
+                            )
+                        )
                 }
 
                 for window in column.windows {

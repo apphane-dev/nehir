@@ -1,7 +1,7 @@
 import CoreGraphics
 import Foundation
-import Testing
 @testable import Nehir
+import Testing
 
 /// Stage 1 (M4) characterization tests for Displays-have-separate-Spaces mode
 /// detection and display diagnostics. The runtime detection path depends on

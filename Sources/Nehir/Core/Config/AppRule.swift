@@ -106,7 +106,7 @@ struct AppRule: Codable, Identifiable, Equatable {
     }
 
     var showAdvancedMatchers: Bool {
-            hasAdvancedMatchers
+        hasAdvancedMatchers
     }
 
     var specificity: Int {

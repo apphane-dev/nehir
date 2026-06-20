@@ -673,7 +673,6 @@ final class IPCQueryRouter {
         }
     }
 
-
     private func ipcManualOverride(from override: ManualWindowOverride) -> IPCManualWindowOverride {
         switch override {
         case .forceTile:

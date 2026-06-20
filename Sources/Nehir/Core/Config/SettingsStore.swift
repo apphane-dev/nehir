@@ -616,7 +616,6 @@ final class SettingsStore {
         workspaceConfigurations.map(\.name)
     }
 
-
     func displayName(for workspaceName: String) -> String {
         workspaceConfigurations.first(where: { $0.name == workspaceName })?.effectiveDisplayName ?? workspaceName
     }
@@ -739,7 +738,8 @@ final class SettingsStore {
 
         for index in rebound.indices where resolvedMonitorByIndex[index] == nil {
             let matches = monitors.filter {
-                !usedMonitorIds.contains($0.id) && $0.name.caseInsensitiveCompare(rebound[index].monitorName) == .orderedSame
+                !usedMonitorIds.contains($0.id) && $0.name
+                    .caseInsensitiveCompare(rebound[index].monitorName) == .orderedSame
             }
             guard matches.count == 1, let match = matches.first else { continue }
             resolvedMonitorByIndex[index] = match

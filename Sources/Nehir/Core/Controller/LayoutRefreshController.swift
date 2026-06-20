@@ -132,7 +132,6 @@ import QuartzCore
         var delayedVerificationScheduled: Bool = false
     }
 
-
     struct LayoutState {
         struct ClosingAnimation {
             let windowId: Int
@@ -810,8 +809,7 @@ import QuartzCore
             if layoutState.isIncrementalRefreshInProgress || layoutState.isImmediateLayoutInProgress {
                 return
             }
-            if !niriHandler.scrollAnimationByDisplay.isEmpty
-            {
+            if !niriHandler.scrollAnimationByDisplay.isEmpty {
                 return
             }
         }
@@ -2455,7 +2453,10 @@ import QuartzCore
 
         // Diagnostic: log every position plan before SkyLight
         for plan in plans {
-            controller.axManager.recordFrameApplyTrace("hidePlan.apply id=\(plan.entry.windowId) requestedOrigin=\(LayoutTrace.point(plan.origin)) frameSize=\(String(format: "%.0fx%.0f", plan.frameSize.width, plan.frameSize.height))")
+            controller.axManager
+                .recordFrameApplyTrace(
+                    "hidePlan.apply id=\(plan.entry.windowId) requestedOrigin=\(LayoutTrace.point(plan.origin)) frameSize=\(String(format: "%.0fx%.0f", plan.frameSize.width, plan.frameSize.height))"
+                )
         }
 
         controller.axManager.applyPositionsViaSkyLight(
@@ -2485,7 +2486,10 @@ import QuartzCore
                 let dx = abs(observedOrigin.x - plan.origin.x)
                 let dy = abs(observedOrigin.y - plan.origin.y)
                 // Diagnostic: log SkyLight result vs requested
-                controller.axManager.recordFrameApplyTrace("hidePlan.verify id=\(plan.entry.windowId) requested=\(LayoutTrace.point(plan.origin)) observed=\(LayoutTrace.point(observedOrigin)) dx=\(String(format: "%.1f", dx)) dy=\(String(format: "%.1f", dy)) fallback=\(dx > verifyEpsilon || dy > verifyEpsilon ? "YES" : "no")")
+                controller.axManager
+                    .recordFrameApplyTrace(
+                        "hidePlan.verify id=\(plan.entry.windowId) requested=\(LayoutTrace.point(plan.origin)) observed=\(LayoutTrace.point(observedOrigin)) dx=\(String(format: "%.1f", dx)) dy=\(String(format: "%.1f", dy)) fallback=\(dx > verifyEpsilon || dy > verifyEpsilon ? "YES" : "no")"
+                    )
                 if dx > verifyEpsilon || dy > verifyEpsilon {
                     fallbackAttempted = true
                     let axResult = AXWindowService.setFrame(plan.entry.axRef, frame: requestedFrame)
@@ -2495,13 +2499,22 @@ import QuartzCore
                         ?? controller.axManager.lastAppliedFrame(for: plan.entry.windowId)
                     // Diagnostic: log AX fallback result
                     if let afterFallback = observedFrame?.origin {
-                        controller.axManager.recordFrameApplyTrace("hidePlan.axFallback id=\(plan.entry.windowId) axResult=\(axResult) requested=\(LayoutTrace.point(plan.origin)) afterFallback=\(LayoutTrace.point(afterFallback))")
+                        controller.axManager
+                            .recordFrameApplyTrace(
+                                "hidePlan.axFallback id=\(plan.entry.windowId) axResult=\(axResult) requested=\(LayoutTrace.point(plan.origin)) afterFallback=\(LayoutTrace.point(afterFallback))"
+                            )
                     } else {
-                        controller.axManager.recordFrameApplyTrace("hidePlan.axFallback id=\(plan.entry.windowId) axResult=\(axResult) afterFallback=nil")
+                        controller.axManager
+                            .recordFrameApplyTrace(
+                                "hidePlan.axFallback id=\(plan.entry.windowId) axResult=\(axResult) afterFallback=nil"
+                            )
                     }
                 }
             } else {
-                controller.axManager.recordFrameApplyTrace("hidePlan.verify id=\(plan.entry.windowId) requested=\(LayoutTrace.point(plan.origin)) observed=nil")
+                controller.axManager
+                    .recordFrameApplyTrace(
+                        "hidePlan.verify id=\(plan.entry.windowId) requested=\(LayoutTrace.point(plan.origin)) observed=nil"
+                    )
             }
 
             let verified = positionPlanPlacementVerified(
@@ -2570,7 +2583,10 @@ import QuartzCore
                 let liveDx = abs(liveFrame.origin.x - origin.x)
                 let liveDy = abs(liveFrame.origin.y - origin.y)
                 if liveDx > moveEpsilon || liveDy > moveEpsilon {
-                    controller.axManager.recordFrameApplyTrace("hidePlan.staleCachedAlreadyHidden id=\(entry.windowId) cached=\(LayoutTrace.rect(frame)) live=\(LayoutTrace.rect(liveFrame)) requested=\(LayoutTrace.point(origin))")
+                    controller.axManager
+                        .recordFrameApplyTrace(
+                            "hidePlan.staleCachedAlreadyHidden id=\(entry.windowId) cached=\(LayoutTrace.rect(frame)) live=\(LayoutTrace.rect(liveFrame)) requested=\(LayoutTrace.point(origin))"
+                        )
                     return .movable(
                         WindowPositionPlan(
                             entry: entry,
@@ -2713,7 +2729,10 @@ import QuartzCore
                 monitors: resolvedHiddenPlacementMonitors
             )
             let reasonStr = reason == .workspaceInactive ? "workspaceInactive" : "scratchpad"
-            controller.axManager.recordFrameApplyTrace("hideOrigin.resolve reason=\(reasonStr) side=\(side) result=\(LayoutTrace.point(wsResult)) frame=\(LayoutTrace.rect(frame))")
+            controller.axManager
+                .recordFrameApplyTrace(
+                    "hideOrigin.resolve reason=\(reasonStr) side=\(side) result=\(LayoutTrace.point(wsResult)) frame=\(LayoutTrace.rect(frame))"
+                )
             return wsResult
         case .layoutTransient:
             let orientation = controller.settings.effectiveOrientation(for: monitor)
@@ -2763,7 +2782,10 @@ import QuartzCore
                     CGPoint(x: orthogonalOrigin, y: monitor.frame.maxY - reveal)
                 }
             }
-            controller.axManager.recordFrameApplyTrace("hideOrigin.resolve experiment=physicalEdge1pt reason=layoutTransient side=\(side) placement=\(LayoutTrace.point(placement.origin)) result=\(LayoutTrace.point(result)) frame=\(LayoutTrace.rect(frame)) monitorFrame=\(LayoutTrace.rect(monitor.frame)) visibleFrame=\(LayoutTrace.rect(monitor.visibleFrame))")
+            controller.axManager
+                .recordFrameApplyTrace(
+                    "hideOrigin.resolve experiment=physicalEdge1pt reason=layoutTransient side=\(side) placement=\(LayoutTrace.point(placement.origin)) result=\(LayoutTrace.point(result)) frame=\(LayoutTrace.rect(frame)) monitorFrame=\(LayoutTrace.rect(monitor.frame)) visibleFrame=\(LayoutTrace.rect(monitor.visibleFrame))"
+                )
             return result
         }
     }
@@ -3423,7 +3445,6 @@ import QuartzCore
         AXWindowService.framePreferFast(entry.axRef)?.origin
     }
 
-
     func markNativeFullscreenRestoredForFrameApply(_ token: WindowToken) {
         nativeFullscreenRestoredFrameApplyTokens.insert(token)
     }
@@ -3628,7 +3649,6 @@ import QuartzCore
             && withinThreshold(target.origin.y, observed.origin.y)
     }
 
-
     private func inferredResizeMinimumSize(
         targetSize: CGSize,
         observedSize: CGSize?,
@@ -3698,29 +3718,29 @@ final class LayoutDiffExecutor {
             return entry
         }
 
-        let placeholderUpdates = diff.nativeFullscreenPlaceholders.compactMap { change -> NativeFullscreenPlaceholderUpdate? in
-            guard let entry = resolveEntry(for: change.token),
-                  entry.workspaceId == plan.workspaceId,
-                  entry.layoutReason == .nativeFullscreen,
-                  controller.workspaceManager.showsNativeFullscreenPlaceholder(for: change.token)
-            else {
-                return nil
+        let placeholderUpdates = diff.nativeFullscreenPlaceholders
+            .compactMap { change -> NativeFullscreenPlaceholderUpdate? in
+                guard let entry = resolveEntry(for: change.token),
+                      entry.workspaceId == plan.workspaceId,
+                      entry.layoutReason == .nativeFullscreen,
+                      controller.workspaceManager.showsNativeFullscreenPlaceholder(for: change.token)
+                else {
+                    return nil
+                }
+                let appInfo = controller.appInfoCache.info(for: entry.pid)
+                return NativeFullscreenPlaceholderUpdate(
+                    token: change.token,
+                    workspaceId: plan.workspaceId,
+                    frame: change.frame,
+                    selected: change.selected,
+                    appName: appInfo?.name,
+                    icon: appInfo?.icon
+                )
             }
-            let appInfo = controller.appInfoCache.info(for: entry.pid)
-            return NativeFullscreenPlaceholderUpdate(
-                token: change.token,
-                workspaceId: plan.workspaceId,
-                frame: change.frame,
-                selected: change.selected,
-                appName: appInfo?.name,
-                icon: appInfo?.icon
-            )
-        }
         controller.nativeFullscreenPlaceholderManager.update(
             placeholders: placeholderUpdates,
             in: plan.workspaceId
         )
-
 
         for change in diff.visibilityChanges {
             switch change {
@@ -4046,7 +4066,6 @@ final class LayoutDiffExecutor {
 
         return controller.workspaceManager.monitors.first(where: { $0.displayId == snapshot.displayId })
     }
-
 }
 
 extension LayoutRefreshController {

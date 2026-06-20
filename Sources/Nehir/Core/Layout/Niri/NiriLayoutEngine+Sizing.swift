@@ -868,7 +868,11 @@ extension NiriLayoutEngine {
         case let .adjustFixed(delta):
             currentWindowPixels + delta
         case let .adjustProportion(delta):
-            ProportionalSize.resolveProportionalSpan(currentProportion + delta / 100, availableSpace: workingFrame.height, gaps: gaps)
+            ProportionalSize.resolveProportionalSpan(
+                currentProportion + delta / 100,
+                availableSpace: workingFrame.height,
+                gaps: gaps
+            )
         }
 
         let minHeightTaken: CGFloat

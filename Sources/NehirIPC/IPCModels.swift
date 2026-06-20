@@ -612,7 +612,6 @@ public enum IPCCommandRequest: Equatable, Sendable {
             return value
         }
 
-
         func requireSizeChange() throws -> IPCSizeChange {
             guard argumentValues.count == 1, case let .sizeChange(change) = argumentValues[0] else {
                 throw IPCCommandRequestConstructionError.invalidArgumentType
@@ -908,7 +907,6 @@ extension IPCCommandRequest: Codable {
         let workspaceNumber: Int
         let direction: IPCDirection
     }
-
 
     private struct IPCResizeArguments: Codable, Equatable, Sendable {
         let direction: IPCDirection

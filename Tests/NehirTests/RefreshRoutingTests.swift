@@ -147,8 +147,7 @@ private func cleanupRefreshTestController(_ controller: WMController) {
 private func makeRefreshTestStatusBarController(_ controller: WMController) -> StatusBarController {
     let statusBarController = StatusBarController(
         settings: controller.settings,
-        controller: controller,
-        
+        controller: controller
     )
     controller.statusBarController = statusBarController
     return statusBarController
@@ -785,7 +784,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
                 for: "1",
                 createIfMissing: false
             ),
-                  let engine = relaunchedController.niriEngine
+                let engine = relaunchedController.niriEngine
             else {
                 Issue.record("Missing relaunched Niri restore fixture")
                 return
@@ -794,14 +793,17 @@ private func syncNiriWorkspaceStatesForRefreshTests(
             let restoredTokenA = WindowToken(pid: getpid(), windowId: 6_201)
             let restoredTokenB = WindowToken(pid: getpid(), windowId: 6_202)
             let restoredTokenC = WindowToken(pid: getpid(), windowId: 6_203)
-            #expect(Set(relaunchedController.workspaceManager.allEntries().compactMap(\.managedReplacementMetadata?.bundleId)) == [bundleId])
-            #expect(Set(relaunchedController.workspaceManager.allEntries().compactMap(\.managedReplacementMetadata?.title)) == Set(titlesByRelaunchedWindowId.values))
+            #expect(Set(relaunchedController.workspaceManager.allEntries()
+                    .compactMap(\.managedReplacementMetadata?.bundleId)) == [bundleId])
+            #expect(Set(relaunchedController.workspaceManager.allEntries()
+                    .compactMap(\.managedReplacementMetadata?.title)) == Set(titlesByRelaunchedWindowId.values))
             #expect(relaunchedController.workspaceManager.consumedBootPersistedWindowRestoreEntryCountForTests() == 3)
-            #expect(workspaceManagerTokenSet(controller: relaunchedController, workspaceId: restoredWorkspaceId) == Set([
-                restoredTokenA,
-                restoredTokenB,
-                restoredTokenC
-            ]))
+            #expect(workspaceManagerTokenSet(controller: relaunchedController, workspaceId: restoredWorkspaceId) ==
+                Set([
+                    restoredTokenA,
+                    restoredTokenB,
+                    restoredTokenC
+                ]))
             #expect(niriColumnTokenSnapshot(controller: relaunchedController, workspaceId: restoredWorkspaceId) == [
                 [restoredTokenA, restoredTokenB],
                 [restoredTokenC]
@@ -877,8 +879,18 @@ private func syncNiriWorkspaceStatesForRefreshTests(
             to: workspaceId,
             mode: .tiling
         )
-        let parentNode = engine.addWindow(token: parentToken, to: workspaceId, afterSelection: nil, focusedToken: parentToken)
-        _ = engine.addWindow(token: siblingToken, to: workspaceId, afterSelection: parentNode.id, focusedToken: parentToken)
+        let parentNode = engine.addWindow(
+            token: parentToken,
+            to: workspaceId,
+            afterSelection: nil,
+            focusedToken: parentToken
+        )
+        _ = engine.addWindow(
+            token: siblingToken,
+            to: workspaceId,
+            afterSelection: parentNode.id,
+            focusedToken: parentToken
+        )
         guard let parentColumn = engine.column(of: parentNode),
               let parentColumnIndex = engine.columnIndex(of: parentColumn, in: workspaceId)
         else {
@@ -1924,69 +1936,74 @@ private func syncNiriWorkspaceStatesForRefreshTests(
 
     @Test @MainActor func hideInactiveWorkspacesSkipsNativeFullscreenRealWindowMoves() async {
         await withAXFrameProviderIsolationForTests {
-        let controller = makeRefreshTestController()
-        defer { cleanupRefreshTestController(controller) }
-        guard let workspaceOne = controller.workspaceManager.workspaceId(for: "1", createIfMissing: false),
-              let workspaceTwo = controller.workspaceManager.workspaceId(for: "2", createIfMissing: false),
-              let monitor = controller.workspaceManager.monitor(for: workspaceTwo)
-        else {
-            Issue.record("Missing inactive workspace fixture")
-            return
-        }
-
-        let token = controller.workspaceManager.addWindow(
-            makeRefreshTestWindow(windowId: 2602),
-            pid: getpid(),
-            windowId: 2602,
-            to: workspaceTwo
-        )
-        _ = controller.workspaceManager.requestNativeFullscreenEnter(token, in: workspaceTwo)
-        _ = controller.workspaceManager.markNativeFullscreenSuspended(token)
-        controller.nativeFullscreenPlaceholderManager.update(
-            placeholders: [
-                NativeFullscreenPlaceholderUpdate(
-                    token: token,
-                    workspaceId: workspaceTwo,
-                    frame: CGRect(x: 200, y: 160, width: 600, height: 420),
-                    selected: false,
-                    appName: "Inactive Full Screen",
-                    icon: nil
-                )
-            ],
-            in: workspaceTwo
-        )
-
-        let previousFastFrameProvider = AXWindowService.fastFrameProviderForTests
-        let previousSetFrameProvider = AXWindowService.setFrameResultProviderForTests
-        let nativeFrame = CGRect(x: monitor.visibleFrame.minX + 40, y: monitor.visibleFrame.minY + 50, width: 620, height: 430)
-        var frameWrites: [CGRect] = []
-        AXWindowService.fastFrameProviderForTests = { axRef in
-            if axRef.windowId == token.windowId {
-                return nativeFrame
+            let controller = makeRefreshTestController()
+            defer { cleanupRefreshTestController(controller) }
+            guard let workspaceOne = controller.workspaceManager.workspaceId(for: "1", createIfMissing: false),
+                  let workspaceTwo = controller.workspaceManager.workspaceId(for: "2", createIfMissing: false),
+                  let monitor = controller.workspaceManager.monitor(for: workspaceTwo)
+            else {
+                Issue.record("Missing inactive workspace fixture")
+                return
             }
-            return previousFastFrameProvider?(axRef)
-        }
-        AXWindowService.setFrameResultProviderForTests = { axRef, frame, currentFrameHint in
-            if axRef.windowId == token.windowId {
-                frameWrites.append(frame)
-            }
-            return previousSetFrameProvider?(axRef, frame, currentFrameHint) ?? makeRefreshFrameWriteResult(
-                targetFrame: frame,
-                currentFrameHint: currentFrameHint,
-                observedFrame: frame
+
+            let token = controller.workspaceManager.addWindow(
+                makeRefreshTestWindow(windowId: 2602),
+                pid: getpid(),
+                windowId: 2602,
+                to: workspaceTwo
             )
-        }
-        defer {
-            AXWindowService.fastFrameProviderForTests = previousFastFrameProvider
-            AXWindowService.setFrameResultProviderForTests = previousSetFrameProvider
-        }
+            _ = controller.workspaceManager.requestNativeFullscreenEnter(token, in: workspaceTwo)
+            _ = controller.workspaceManager.markNativeFullscreenSuspended(token)
+            controller.nativeFullscreenPlaceholderManager.update(
+                placeholders: [
+                    NativeFullscreenPlaceholderUpdate(
+                        token: token,
+                        workspaceId: workspaceTwo,
+                        frame: CGRect(x: 200, y: 160, width: 600, height: 420),
+                        selected: false,
+                        appName: "Inactive Full Screen",
+                        icon: nil
+                    )
+                ],
+                in: workspaceTwo
+            )
 
-        controller.layoutRefreshController.hideInactiveWorkspaces(activeWorkspaceIds: [workspaceOne])
+            let previousFastFrameProvider = AXWindowService.fastFrameProviderForTests
+            let previousSetFrameProvider = AXWindowService.setFrameResultProviderForTests
+            let nativeFrame = CGRect(
+                x: monitor.visibleFrame.minX + 40,
+                y: monitor.visibleFrame.minY + 50,
+                width: 620,
+                height: 430
+            )
+            var frameWrites: [CGRect] = []
+            AXWindowService.fastFrameProviderForTests = { axRef in
+                if axRef.windowId == token.windowId {
+                    return nativeFrame
+                }
+                return previousFastFrameProvider?(axRef)
+            }
+            AXWindowService.setFrameResultProviderForTests = { axRef, frame, currentFrameHint in
+                if axRef.windowId == token.windowId {
+                    frameWrites.append(frame)
+                }
+                return previousSetFrameProvider?(axRef, frame, currentFrameHint) ?? makeRefreshFrameWriteResult(
+                    targetFrame: frame,
+                    currentFrameHint: currentFrameHint,
+                    observedFrame: frame
+                )
+            }
+            defer {
+                AXWindowService.fastFrameProviderForTests = previousFastFrameProvider
+                AXWindowService.setFrameResultProviderForTests = previousSetFrameProvider
+            }
 
-        #expect(frameWrites.isEmpty)
-        #expect(controller.nativeFullscreenPlaceholderManager.snapshotForTests()[token] == nil)
-        #expect(controller.axManager.inactiveWorkspaceWindowIds.contains(token.windowId))
-        #expect(controller.workspaceManager.layoutReason(for: token) == .nativeFullscreen)
+            controller.layoutRefreshController.hideInactiveWorkspaces(activeWorkspaceIds: [workspaceOne])
+
+            #expect(frameWrites.isEmpty)
+            #expect(controller.nativeFullscreenPlaceholderManager.snapshotForTests()[token] == nil)
+            #expect(controller.axManager.inactiveWorkspaceWindowIds.contains(token.windowId))
+            #expect(controller.workspaceManager.layoutReason(for: token) == .nativeFullscreen)
         }
     }
 
@@ -2054,7 +2071,8 @@ private func syncNiriWorkspaceStatesForRefreshTests(
             #expect(restoredNode.id == originalNode.id)
             #expect(restoredColumnIndex == originalColumnIndex)
             #expect(abs(restoredColumn.cachedWidth - originalColumnWidth) < 0.5)
-            #expect(abs(restoredFrame.origin.x - originalFrame.origin.x) <= 2 * CGFloat(controller.workspaceManager.gaps) + 0.5)
+            #expect(abs(restoredFrame.origin.x - originalFrame.origin.x) <= 2 *
+                CGFloat(controller.workspaceManager.gaps) + 0.5)
             #expect(abs(restoredFrame.origin.y - originalFrame.origin.y) < 0.5)
             #expect(abs(restoredFrame.size.width - originalFrame.size.width) < 0.5)
             #expect(abs(restoredFrame.size.height - originalFrame.size.height) < 0.5)
@@ -2137,7 +2155,8 @@ private func syncNiriWorkspaceStatesForRefreshTests(
             #expect(restoredNode.id == originalNode.id)
             #expect(restoredColumnIndex == originalColumnIndex)
             #expect(abs(restoredColumn.cachedWidth - originalColumnWidth) < 0.5)
-            #expect(abs(restoredFrame.origin.x - originalFrame.origin.x) <= 2 * CGFloat(controller.workspaceManager.gaps) + 0.5)
+            #expect(abs(restoredFrame.origin.x - originalFrame.origin.x) <= 2 *
+                CGFloat(controller.workspaceManager.gaps) + 0.5)
             #expect(abs(restoredFrame.origin.y - originalFrame.origin.y) < 0.5)
             #expect(abs(restoredFrame.size.width - originalFrame.size.width) < 0.5)
             #expect(abs(restoredFrame.size.height - originalFrame.size.height) < 0.5)
@@ -2203,7 +2222,8 @@ private func syncNiriWorkspaceStatesForRefreshTests(
             #expect(replacementEntry.handle === originalEntry.handle)
             #expect(replacementNode.id == originalNode.id)
             #expect(replacementColumnIndex == originalColumnIndex)
-            #expect(abs(replacementFrame.origin.x - originalFrame.origin.x) <= 2 * CGFloat(controller.workspaceManager.gaps) + 0.5)
+            #expect(abs(replacementFrame.origin.x - originalFrame.origin.x) <= 2 *
+                CGFloat(controller.workspaceManager.gaps) + 0.5)
             #expect(abs(replacementFrame.origin.y - originalFrame.origin.y) < 0.5)
             #expect(abs(replacementFrame.size.width - originalFrame.size.width) < 0.5)
             #expect(abs(replacementFrame.size.height - originalFrame.size.height) < 0.5)
@@ -2691,7 +2711,8 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         #expect(controller.workspaceManager.entry(for: targetToken) != nil)
     }
 
-    @Test @MainActor func nativeFullscreenExitPreservesInactiveWorkspaceWindowsWhenLifecycleClearsDuringEnumeration() async {
+    @Test @MainActor func nativeFullscreenExitPreservesInactiveWorkspaceWindowsWhenLifecycleClearsDuringEnumeration(
+    ) async {
         let controller = makeRefreshTestController()
         defer { cleanupRefreshTestController(controller) }
 
@@ -3725,13 +3746,13 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         controller.layoutRefreshController.requestImmediateRelayout(reason: .workspaceTransition)
         controller.layoutRefreshController.requestWindowRemoval(
             workspaceId: workspaceId,
-                        removedNodeId: NodeId(),
+            removedNodeId: NodeId(),
             niriOldFrames: [WindowToken(pid: getpid(), windowId: 4011): CGRect(x: 0, y: 0, width: 100, height: 100)],
             shouldRecoverFocus: false
         )
         controller.layoutRefreshController.requestWindowRemoval(
             workspaceId: workspaceId,
-                        removedNodeId: NodeId(),
+            removedNodeId: NodeId(),
             niriOldFrames: [WindowToken(pid: getpid(), windowId: 4012): CGRect(x: 100, y: 0, width: 100, height: 100)],
             shouldRecoverFocus: false
         )

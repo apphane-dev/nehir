@@ -85,7 +85,10 @@ struct DisplayEnvironmentDiagnostics: Equatable {
     /// fixed-Dock-free setups and display arrangements with no vertical overlap
     /// (vertical/diagonal layouts). Separate Spaces detection is shown as state in the
     /// UI, but it does not change or suppress the support recommendation.
-    static func evaluate(monitors: [Monitor], spacesMode _: DisplaySpacesMode = .unavailable) -> DisplayEnvironmentDiagnostics {
+    static func evaluate(
+        monitors: [Monitor],
+        spacesMode _: DisplaySpacesMode = .unavailable
+    ) -> DisplayEnvironmentDiagnostics {
         var issues: [Issue] = []
         issues.append(contentsOf: fixedDockIssues(monitors: monitors))
         issues.append(contentsOf: horizontalArrangementIssues(monitors: monitors))
@@ -100,12 +103,17 @@ struct DisplayEnvironmentDiagnostics: Equatable {
             let insets: [(DockEdge, CGFloat)] = [
                 (.left, visibleFrame.minX - frame.minX),
                 (.right, frame.maxX - visibleFrame.maxX),
-                (.bottom, visibleFrame.minY - frame.minY),
+                (.bottom, visibleFrame.minY - frame.minY)
             ]
 
             return insets.compactMap { edge, inset in
                 guard inset >= threshold else { return nil }
-                return Issue(kind: .fixedDock(monitorId: monitor.id, monitorName: monitor.name, edge: edge, inset: inset))
+                return Issue(kind: .fixedDock(
+                    monitorId: monitor.id,
+                    monitorName: monitor.name,
+                    edge: edge,
+                    inset: inset
+                ))
             }
         }
     }

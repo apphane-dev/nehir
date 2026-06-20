@@ -103,7 +103,7 @@ final class StatusBarMenuBuilder {
         let focusToggle = MenuToggleRowView(
             icon: "cursorarrow.motionlines",
             label: "Focus Follows Mouse  ⚗️",
-            isOn: settings.focusFollowsMouse,
+            isOn: settings.focusFollowsMouse
         ) { [weak self] newValue in
             self?.settings.focusFollowsMouse = newValue
             self?.controller?.setFocusFollowsMouse(newValue)
@@ -116,7 +116,7 @@ final class StatusBarMenuBuilder {
         let bordersToggle = MenuToggleRowView(
             icon: "square.dashed",
             label: "Window Borders  ⚗️",
-            isOn: settings.bordersEnabled,
+            isOn: settings.bordersEnabled
         ) { [weak self] newValue in
             self?.settings.bordersEnabled = newValue
             self?.controller?.setBordersEnabled(newValue)
@@ -129,7 +129,7 @@ final class StatusBarMenuBuilder {
         let workspaceBarToggle = MenuToggleRowView(
             icon: "menubar.rectangle",
             label: "Workspace Bar",
-            isOn: settings.workspaceBarEnabled,
+            isOn: settings.workspaceBarEnabled
         ) { [weak self] newValue in
             self?.settings.workspaceBarEnabled = newValue
             self?.controller?.setWorkspaceBarEnabled(newValue)
@@ -223,7 +223,7 @@ final class StatusBarMenuBuilder {
         let settingsRow = MenuActionRowView(
             icon: "gearshape",
             label: "Settings",
-            showChevron: true,
+            showChevron: true
         ) { [weak self] in
             guard let self, let controller = self.controller else { return }
             SettingsWindowController.shared.show(
@@ -296,7 +296,7 @@ final class StatusBarMenuBuilder {
         let quitRow = MenuActionRowView(
             icon: "power",
             label: "Quit Nehir",
-            isDestructive: true,
+            isDestructive: true
         ) {
             NSApplication.shared.terminate(nil)
         }
@@ -413,7 +413,6 @@ final class MenuInfoRowView: NSView {
 
 @MainActor
 final class MenuToggleSwitchView: NSView {
-
     var isOn: Bool {
         didSet {
             guard oldValue != isOn else { return }

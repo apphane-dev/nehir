@@ -224,7 +224,10 @@ struct TabbedRailLayout: Equatable {
             segmentGap: segmentGap
         )
         guard segmentHeight >= TabbedOverlayMetrics.minimumSegmentHeight else { return 0 }
-        return min(availableHeight, totalHeight(tabCount: tabCount, segmentHeight: segmentHeight, segmentGap: segmentGap))
+        return min(
+            availableHeight,
+            totalHeight(tabCount: tabCount, segmentHeight: segmentHeight, segmentGap: segmentGap)
+        )
     }
 
     static func visualRailRect(in bounds: CGRect) -> CGRect {
@@ -397,7 +400,8 @@ final class TabbedColumnOverlayManager {
         workspaceId: WorkspaceDescriptor.ID,
         columnId: NodeId
     ) -> [TabbedColumnOverlayAccessibilitySnapshot] {
-        overlays[TabbedColumnOverlayKey(workspaceId: workspaceId, columnId: columnId)]?.accessibilitySnapshotForTests() ?? []
+        overlays[TabbedColumnOverlayKey(workspaceId: workspaceId, columnId: columnId)]?
+            .accessibilitySnapshotForTests() ?? []
     }
 
     func performOverlayAccessibilityPressForTests(
@@ -927,7 +931,12 @@ private final class TabbedColumnAccessibilityElement: NSAccessibilityElement {
         tab.visualIndex
     }
 
-    init(parent: AnyObject, tab: TabbedColumnOverlayTabInfo, screenFrame: CGRect, pressAction: @escaping (Int) -> Void) {
+    init(
+        parent: AnyObject,
+        tab: TabbedColumnOverlayTabInfo,
+        screenFrame: CGRect,
+        pressAction: @escaping (Int) -> Void
+    ) {
         parentElement = parent
         self.tab = tab
         self.screenFrame = screenFrame

@@ -653,7 +653,6 @@ enum CLIParser {
         return operation
     }
 
-
     private static func parseSizeChange(_ rawValue: String) throws -> IPCSizeChange {
         let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {

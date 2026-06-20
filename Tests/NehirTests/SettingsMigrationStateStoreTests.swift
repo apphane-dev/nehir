@@ -37,11 +37,23 @@ import Testing
         """.write(to: workspacesURL, atomically: true, encoding: .utf8)
 
         let store = SettingsMigrationStateStore(directory: stateDirectory)
-        #expect(SettingsMigrationDetector.pendingMigrations(configDirectory: configDirectory, stateStore: store, appVersion: "1.2.3").count == 1)
+        #expect(SettingsMigrationDetector.pendingMigrations(
+            configDirectory: configDirectory,
+            stateStore: store,
+            appVersion: "1.2.3"
+        ).count == 1)
 
         try store.postpone(migrationID: "workspaces-array-to-keyed-tables", currentAppVersion: "1.2.3")
-        #expect(SettingsMigrationDetector.pendingMigrations(configDirectory: configDirectory, stateStore: store, appVersion: "1.2.3").isEmpty)
+        #expect(SettingsMigrationDetector.pendingMigrations(
+            configDirectory: configDirectory,
+            stateStore: store,
+            appVersion: "1.2.3"
+        ).isEmpty)
         #expect(SettingsMigrationDetector.applicableMigrations(configDirectory: configDirectory).count == 1)
-        #expect(SettingsMigrationDetector.pendingMigrations(configDirectory: configDirectory, stateStore: store, appVersion: "1.2.4").count == 1)
+        #expect(SettingsMigrationDetector.pendingMigrations(
+            configDirectory: configDirectory,
+            stateStore: store,
+            appVersion: "1.2.4"
+        ).count == 1)
     }
 }

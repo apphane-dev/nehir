@@ -101,7 +101,10 @@ private func assertMovedWindowRevealedInTargetViewport(
     #expect(movedColumnIndex > 0, sourceLocation: sourceLocation)
     #expect(targetState.selectedNodeId == movedNode.id, sourceLocation: sourceLocation)
     #expect(targetState.activeColumnIndex == movedColumnIndex, sourceLocation: sourceLocation)
-    #expect(controller.workspaceManager.rememberedTiledFocusToken(in: workspaceId) == token, sourceLocation: sourceLocation)
+    #expect(
+        controller.workspaceManager.rememberedTiledFocusToken(in: workspaceId) == token,
+        sourceLocation: sourceLocation
+    )
 }
 
 @Suite(.serialized) struct WorkspaceNavigationHandlerTests {
@@ -121,10 +124,18 @@ private func assertMovedWindowRevealedInTargetViewport(
         await waitForLayoutPlanRefreshWork(on: controller)
         controller.syncMonitorsToNiriEngine()
 
-        let targetFirst = addWorkspaceNavigationTestWindow(on: controller, workspaceId: targetWorkspaceId, windowId: 10_101)
+        let targetFirst = addWorkspaceNavigationTestWindow(
+            on: controller,
+            workspaceId: targetWorkspaceId,
+            windowId: 10_101
+        )
         _ = addWorkspaceNavigationTestWindow(on: controller, workspaceId: targetWorkspaceId, windowId: 10_102)
         _ = addWorkspaceNavigationTestWindow(on: controller, workspaceId: targetWorkspaceId, windowId: 10_103)
-        let movedHandle = addWorkspaceNavigationTestWindow(on: controller, workspaceId: sourceWorkspaceId, windowId: 10_104)
+        let movedHandle = addWorkspaceNavigationTestWindow(
+            on: controller,
+            workspaceId: sourceWorkspaceId,
+            windowId: 10_104
+        )
 
         _ = controller.workspaceManager.rememberFocus(targetFirst, in: targetWorkspaceId)
         _ = controller.workspaceManager.setManagedFocus(movedHandle, in: sourceWorkspaceId, onMonitor: monitor.id)

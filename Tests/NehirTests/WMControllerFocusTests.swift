@@ -50,7 +50,6 @@ private func makeFocusTestWindow(windowId: Int = 101) -> AXWindowRef {
     AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: windowId)
 }
 
-
 @MainActor
 private func makeRaiseAllFloatingOperations(
     recorder: RaiseAllFloatingRecorder
@@ -409,10 +408,6 @@ private func waitForFocusRefresh(on controller: WMController) async {
             .raise
         ])
     }
-
-
-
-
 
     @Test @MainActor func focusWindowStartsPendingFocusButDoesNotConfirmDurableFocus() {
         let operations = WindowFocusOperations(
@@ -1521,7 +1516,6 @@ private func waitForFocusRefresh(on controller: WMController) async {
 
         #expect(recorder.events.isEmpty)
     }
-
 
     @Test @MainActor func toggleFocusedWindowFloatingReturnsNotFoundWithoutFocusedTarget() {
         let operations = WindowFocusOperations(

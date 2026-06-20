@@ -109,7 +109,7 @@ private func makeContext(
     @Test func snapPointsAreSortedByOffset() {
         let context = makeContext(widths: [400, 400, 400], gap: 8, viewportWidth: 1000)
         let offsets = context.snapPoints.map(\.offset)
-        for i in 0..<(offsets.count - 1) {
+        for i in 0 ..< (offsets.count - 1) {
             #expect(offsets[i] <= offsets[i + 1] + 0.5) // within pixel tolerance
         }
     }
@@ -118,7 +118,7 @@ private func makeContext(
         // Two columns of same width should produce some deduplicated snap points
         let context = makeContext(widths: [400, 400], gap: 8, viewportWidth: 1000)
         // Check no two snap points are within 0.5 pixels of each other
-        for i in 0..<(context.snapPoints.count - 1) {
+        for i in 0 ..< (context.snapPoints.count - 1) {
             let diff = abs(context.snapPoints[i].offset - context.snapPoints[i + 1].offset)
             if diff < 0.5 {
                 // Same offset is ok if they merged
@@ -144,7 +144,7 @@ private func makeContext(
             SnapPoint(offset: 0, columnIndex: 0, kind: .leftEdge),
             SnapPoint(offset: 100, columnIndex: 0, kind: .rightEdge),
             SnapPoint(offset: 200, columnIndex: 1, kind: .leftEdge),
-            SnapPoint(offset: 300, columnIndex: 1, kind: .rightEdge),
+            SnapPoint(offset: 300, columnIndex: 1, kind: .rightEdge)
         ]
 
         #expect(points.closest(to: 50)?.offset == 0)
@@ -158,7 +158,7 @@ private func makeContext(
             SnapPoint(offset: 0, columnIndex: 0, kind: .leftEdge),
             SnapPoint(offset: 100, columnIndex: 0, kind: .rightEdge),
             SnapPoint(offset: 200, columnIndex: 1, kind: .leftEdge),
-            SnapPoint(offset: 300, columnIndex: 1, kind: .rightEdge),
+            SnapPoint(offset: 300, columnIndex: 1, kind: .rightEdge)
         ]
 
         // Right direction
@@ -344,7 +344,7 @@ private func makeContext(
             gap: 8,
             viewportWidth: 500
         )
-        #expect(bounds == 0...0)
+        #expect(bounds == 0 ... 0)
     }
 }
 

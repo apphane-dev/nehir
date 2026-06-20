@@ -70,12 +70,14 @@ struct AboutSettingsTab: View {
             VStack(spacing: 6) {
                 Text("Sponsor Showcase")
                     .font(.title3.weight(.semibold))
-                Text("This space is reserved for the people and organizations who support Nehir. There are no sponsors yet — become the first one and help keep development moving.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: 520)
+                Text(
+                    "This space is reserved for the people and organizations who support Nehir. There are no sponsors yet — become the first one and help keep development moving."
+                )
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: 520)
             }
 
             HStack(spacing: 10) {
@@ -277,21 +279,70 @@ private struct SpreadTheWordSheet: View {
         let repo = Self.repositoryString
         let shortTitle = Self.shortTitle
 
-        let definitions: [(name: String, caption: String, monogram: String, tint: Color, baseURL: String, queryItems: [(name: String, value: String)])] = [
-            ("X", "Post to your followers", "X", Color(red: 0.06, green: 0.06, blue: 0.07),
-             "https://twitter.com/intent/tweet", [("text", message), ("url", repo)]),
-            ("Bluesky", "Share to your feed", "B", Color(red: 0.0, green: 0.52, blue: 1.0),
-             "https://bsky.app/intent/compose", [("text", "\(message) \(repo)")]),
-            ("Reddit", "r/macapps · r/MacOS · r/windowmanagers", "R", Color(red: 1.0, green: 0.27, blue: 0.0),
-             "https://www.reddit.com/submit", []),
-            ("Hacker News", "Submit to the front page", "Y", Color(red: 1.0, green: 0.4, blue: 0.0),
-             "https://news.ycombinator.com/submitlink", [("u", repo), ("t", shortTitle)]),
-            ("LinkedIn", "Share with your network", "in", Color(red: 0.08, green: 0.37, blue: 0.72),
-             "https://www.linkedin.com/sharing/share-offsite/", [("url", repo)]),
-            ("Telegram", "Send in a chat", "T", Color(red: 0.0, green: 0.5, blue: 0.85),
-             "https://t.me/share/url", [("url", repo), ("text", message)]),
-            ("Email", "Tell a friend", "@", .secondary,
-             "mailto:", [("subject", shortTitle), ("body", "\(message)\n\(repo)")])
+        let definitions: [(
+            name: String,
+            caption: String,
+            monogram: String,
+            tint: Color,
+            baseURL: String,
+            queryItems: [(name: String, value: String)]
+        )] = [
+            (
+                "X",
+                "Post to your followers",
+                "X",
+                Color(red: 0.06, green: 0.06, blue: 0.07),
+                "https://twitter.com/intent/tweet",
+                [("text", message), ("url", repo)]
+            ),
+            (
+                "Bluesky",
+                "Share to your feed",
+                "B",
+                Color(red: 0.0, green: 0.52, blue: 1.0),
+                "https://bsky.app/intent/compose",
+                [("text", "\(message) \(repo)")]
+            ),
+            (
+                "Reddit",
+                "r/macapps · r/MacOS · r/windowmanagers",
+                "R",
+                Color(red: 1.0, green: 0.27, blue: 0.0),
+                "https://www.reddit.com/submit",
+                []
+            ),
+            (
+                "Hacker News",
+                "Submit to the front page",
+                "Y",
+                Color(red: 1.0, green: 0.4, blue: 0.0),
+                "https://news.ycombinator.com/submitlink",
+                [("u", repo), ("t", shortTitle)]
+            ),
+            (
+                "LinkedIn",
+                "Share with your network",
+                "in",
+                Color(red: 0.08, green: 0.37, blue: 0.72),
+                "https://www.linkedin.com/sharing/share-offsite/",
+                [("url", repo)]
+            ),
+            (
+                "Telegram",
+                "Send in a chat",
+                "T",
+                Color(red: 0.0, green: 0.5, blue: 0.85),
+                "https://t.me/share/url",
+                [("url", repo), ("text", message)]
+            ),
+            (
+                "Email",
+                "Tell a friend",
+                "@",
+                .secondary,
+                "mailto:",
+                [("subject", shortTitle), ("body", "\(message)\n\(repo)")]
+            )
         ]
 
         var results: [ShareDestination] = []
@@ -340,7 +391,10 @@ private struct SpreadTheWordSheet: View {
 }
 
 private struct ShareDestination: Identifiable {
-    var id: String { name }
+    var id: String {
+        name
+    }
+
     let name: String
     let caption: String
     let monogram: String

@@ -170,56 +170,56 @@ private func waitForSemaphore(
                     context.destroy()
                 }
 
-            let firstWindow = AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: 9201)
-            let secondWindow = AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: 9202)
-            try await context.installWindowsForTests([firstWindow, secondWindow])
+                let firstWindow = AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: 9201)
+                let secondWindow = AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: 9202)
+                try await context.installWindowsForTests([firstWindow, secondWindow])
 
-            let startedFirstWrite = DispatchSemaphore(value: 0)
-            let releaseFirstWrite = DispatchSemaphore(value: 0)
-            let writtenWindowIds = LockedArray<Int>()
+                let startedFirstWrite = DispatchSemaphore(value: 0)
+                let releaseFirstWrite = DispatchSemaphore(value: 0)
+                let writtenWindowIds = LockedArray<Int>()
 
-            AXWindowService.setFrameResultProviderForTests = { axRef, frame, currentFrameHint in
-                if axRef.windowId == firstWindow.windowId {
-                    startedFirstWrite.signal()
-                    _ = releaseFirstWrite.wait(timeout: .now() + 1)
+                AXWindowService.setFrameResultProviderForTests = { axRef, frame, currentFrameHint in
+                    if axRef.windowId == firstWindow.windowId {
+                        startedFirstWrite.signal()
+                        _ = releaseFirstWrite.wait(timeout: .now() + 1)
+                    }
+                    writtenWindowIds.append(axRef.windowId)
+                    return successfulWriteResult(frame: frame, currentFrameHint: currentFrameHint)
                 }
-                writtenWindowIds.append(axRef.windowId)
-                return successfulWriteResult(frame: frame, currentFrameHint: currentFrameHint)
-            }
 
-            let resultsTask = Task { @MainActor in
-                await awaitFrameBatchResults(
-                    from: context,
-                    frames: [
-                        (
-                            windowId: firstWindow.windowId,
-                            frame: CGRect(x: 40, y: 40, width: 500, height: 320),
-                            currentFrameHint: nil
-                        ),
-                        (
-                            windowId: secondWindow.windowId,
-                            frame: CGRect(x: 560, y: 40, width: 500, height: 320),
-                            currentFrameHint: nil
-                        )
-                    ]
-                )
-            }
+                let resultsTask = Task { @MainActor in
+                    await awaitFrameBatchResults(
+                        from: context,
+                        frames: [
+                            (
+                                windowId: firstWindow.windowId,
+                                frame: CGRect(x: 40, y: 40, width: 500, height: 320),
+                                currentFrameHint: nil
+                            ),
+                            (
+                                windowId: secondWindow.windowId,
+                                frame: CGRect(x: 560, y: 40, width: 500, height: 320),
+                                currentFrameHint: nil
+                            )
+                        ]
+                    )
+                }
 
-            let startWait = Task.detached {
-                waitForSemaphore(startedFirstWrite, timeout: .now() + 5)
-            }
-            guard await startWait.value == .success else {
-                Issue.record("Timed out waiting for the first AX write to begin")
+                let startWait = Task.detached {
+                    waitForSemaphore(startedFirstWrite, timeout: .now() + 5)
+                }
+                guard await startWait.value == .success else {
+                    Issue.record("Timed out waiting for the first AX write to begin")
+                    releaseFirstWrite.signal()
+                    _ = await resultsTask.value
+                    return
+                }
+
+                context.cancelFrameJob(for: firstWindow.windowId)
                 releaseFirstWrite.signal()
-                _ = await resultsTask.value
-                return
-            }
 
-            context.cancelFrameJob(for: firstWindow.windowId)
-            releaseFirstWrite.signal()
-
-            let results = await resultsTask.value
-            let secondResult = results.first { $0.windowId == secondWindow.windowId }
+                let results = await resultsTask.value
+                let secondResult = results.first { $0.windowId == secondWindow.windowId }
 
                 #expect(writtenWindowIds.snapshot().contains(secondWindow.windowId))
                 #expect(secondResult?.writeResult.isVerifiedSuccess == true)
@@ -230,43 +230,43 @@ private func waitForSemaphore(
     @Test @MainActor func cacheMissRefreshesAXWindowRefInsteadOfSkippingWrite() async {
         await withAppAXContextIsolationForTests {
             await withAXFrameProviderIsolationForTests {
-            guard let context = await AppAXContext.makeForTests() else {
-                Issue.record("Failed to create AppAXContext test fixture")
-                return
-            }
-            defer {
-                AXWindowService.axWindowRefProviderForTests = nil
-                AXWindowService.setFrameResultProviderForTests = nil
-                context.destroy()
-            }
+                guard let context = await AppAXContext.makeForTests() else {
+                    Issue.record("Failed to create AppAXContext test fixture")
+                    return
+                }
+                defer {
+                    AXWindowService.axWindowRefProviderForTests = nil
+                    AXWindowService.setFrameResultProviderForTests = nil
+                    context.destroy()
+                }
 
-            let writtenWindowIds = LockedArray<Int>()
-            let lookupWindowIds = LockedArray<UInt32>()
-            let refreshedWindow = AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: 9301)
+                let writtenWindowIds = LockedArray<Int>()
+                let lookupWindowIds = LockedArray<UInt32>()
+                let refreshedWindow = AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: 9301)
 
-            AXWindowService.axWindowRefProviderForTests = { windowId, _ in
-                lookupWindowIds.append(windowId)
-                return windowId == UInt32(refreshedWindow.windowId) ? refreshedWindow : nil
-            }
-            AXWindowService.setFrameResultProviderForTests = { axRef, frame, currentFrameHint in
-                writtenWindowIds.append(axRef.windowId)
-                return successfulWriteResult(frame: frame, currentFrameHint: currentFrameHint)
-            }
+                AXWindowService.axWindowRefProviderForTests = { windowId, _ in
+                    lookupWindowIds.append(windowId)
+                    return windowId == UInt32(refreshedWindow.windowId) ? refreshedWindow : nil
+                }
+                AXWindowService.setFrameResultProviderForTests = { axRef, frame, currentFrameHint in
+                    writtenWindowIds.append(axRef.windowId)
+                    return successfulWriteResult(frame: frame, currentFrameHint: currentFrameHint)
+                }
 
-            let results = await awaitFrameBatchResults(
-                from: context,
-                frames: [
-                    (
-                        windowId: refreshedWindow.windowId,
-                        frame: CGRect(x: 88, y: 96, width: 720, height: 480),
-                        currentFrameHint: nil
-                    )
-                ]
-            )
+                let results = await awaitFrameBatchResults(
+                    from: context,
+                    frames: [
+                        (
+                            windowId: refreshedWindow.windowId,
+                            frame: CGRect(x: 88, y: 96, width: 720, height: 480),
+                            currentFrameHint: nil
+                        )
+                    ]
+                )
 
-            #expect(lookupWindowIds.snapshot() == [UInt32(refreshedWindow.windowId)])
-            #expect(writtenWindowIds.snapshot() == [refreshedWindow.windowId])
-            #expect(results.first?.writeResult.isVerifiedSuccess == true)
+                #expect(lookupWindowIds.snapshot() == [UInt32(refreshedWindow.windowId)])
+                #expect(writtenWindowIds.snapshot() == [refreshedWindow.windowId])
+                #expect(results.first?.writeResult.isVerifiedSuccess == true)
             }
         }
     }

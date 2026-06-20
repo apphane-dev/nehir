@@ -7,7 +7,9 @@ enum OnboardingStep: String, CaseIterable, Identifiable {
     case experimental
     case done
 
-    var id: String { rawValue }
+    var id: String {
+        rawValue
+    }
 
     var title: String {
         switch self {
@@ -47,11 +49,13 @@ enum OnboardingStep: String, CaseIterable, Identifiable {
     /// height for static-icon steps so their content fits the fixed-size window.
     var animationHeight: CGFloat {
         switch self {
-        case .welcome, .navigation:
+        case .welcome,
+             .navigation:
             200
         case .workspaceBar:
             100
-        case .experimental, .done:
+        case .experimental,
+             .done:
             80
         }
     }

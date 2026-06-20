@@ -1,5 +1,5 @@
-@testable import Nehir
 import Carbon
+@testable import Nehir
 import Testing
 
 @Suite struct ActionCatalogTests {
@@ -20,7 +20,10 @@ import Testing
         )
 
         #expect(
-            switchWorkspace.binding == .chord(KeyBinding(keyCode: UInt32(kVK_ANSI_2), modifiers: UInt32(optionKey | cmdKey)))
+            switchWorkspace.binding == .chord(KeyBinding(
+                keyCode: UInt32(kVK_ANSI_2),
+                modifiers: UInt32(optionKey | cmdKey)
+            ))
         )
         #expect(
             moveToWorkspace.binding == .chord(
@@ -118,8 +121,14 @@ import Testing
 
     @Test func allCatalogActionsAreAssignableSearchableConfigurableAndPubliclyInvokable() {
         for spec in ActionCatalog.allSpecs() {
-            #expect(HotkeySettingsDisplayModel.isVisible(bindingId: spec.id, developerModeEnabled: true), "\(spec.id) should be visible in hotkey assignment UI")
-            #expect(HotkeyConfigMapping.configKey(forInternalId: spec.id) != nil, "\(spec.id) should have a TOML config key")
+            #expect(
+                HotkeySettingsDisplayModel.isVisible(bindingId: spec.id, developerModeEnabled: true),
+                "\(spec.id) should be visible in hotkey assignment UI"
+            )
+            #expect(
+                HotkeyConfigMapping.configKey(forInternalId: spec.id) != nil,
+                "\(spec.id) should have a TOML config key"
+            )
             #expect(spec.ipcCommandName != nil, "\(spec.id) should have an IPC/CLI command")
         }
     }
@@ -131,9 +140,11 @@ import Testing
 
         #expect(swap.ipcDescriptor?.path == "command swap-workspace-with-monitor <left|right|up|down>")
         #expect(focusAnywhere.ipcDescriptor?.path == "command switch-workspace anywhere <number>")
-        #expect(moveOnMonitor.ipcDescriptor?.path == "command move-to-workspace on-monitor <number> <left|right|up|down>")
+        #expect(moveOnMonitor.ipcDescriptor?
+            .path == "command move-to-workspace on-monitor <number> <left|right|up|down>")
         #expect(HotkeyConfigMapping.configKey(forInternalId: swap.id) == "workspace.swapWithMonitorLeft")
         #expect(HotkeyConfigMapping.configKey(forInternalId: focusAnywhere.id) == "workspace.focusAnywhere.1")
-        #expect(HotkeyConfigMapping.configKey(forInternalId: moveOnMonitor.id) == "move.windowToWorkspaceOnMonitor.1.left")
+        #expect(HotkeyConfigMapping
+            .configKey(forInternalId: moveOnMonitor.id) == "move.windowToWorkspaceOnMonitor.1.left")
     }
 }

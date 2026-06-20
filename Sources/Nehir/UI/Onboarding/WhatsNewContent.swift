@@ -84,8 +84,12 @@ enum WhatsNewContent {
 
     /// Flattened view of all bullets across sections. Handy for emptiness checks and as a
     /// fallback; the screen itself renders `sections`.
-    static var bullets: [String] { sections.flatMap(\.bullets) }
+    static var bullets: [String] {
+        sections.flatMap(\.bullets)
+    }
 
     /// True when there is no curated content to show.
-    static var isEmpty: Bool { sections.allSatisfy { $0.bullets.isEmpty } }
+    static var isEmpty: Bool {
+        sections.allSatisfy { $0.bullets.isEmpty }
+    }
 }

@@ -514,7 +514,6 @@ final class WindowActionHandler {
         }
     }
 
-
     @discardableResult
     func focusWorkspaceFromBar(named name: String, suppressMouseWarp: Bool = false) -> Bool {
         guard let controller else { return false }

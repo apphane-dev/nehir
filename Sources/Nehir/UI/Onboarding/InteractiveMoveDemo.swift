@@ -18,7 +18,9 @@ final class MoveDemoModel: ObservableObject {
         let id: Int
         /// Visual order, top-to-bottom, for SwiftUI rendering and hit-testing.
         var windows: [Window]
-        var count: Int { windows.count }
+        var count: Int {
+            windows.count
+        }
     }
 
     struct Workspace: Identifiable, Equatable {
@@ -57,7 +59,9 @@ final class MoveDemoModel: ObservableObject {
     let columnSpacing: CGFloat = 8
     let windowSpacing: CGFloat = 3
 
-    var slotWidth: CGFloat { columnWidth + columnSpacing }
+    var slotWidth: CGFloat {
+        columnWidth + columnSpacing
+    }
 
     let paletteActions: [PaletteAction] = [
         PaletteAction(id: "focus.left", title: "Focus Left", bindingID: "focus.left", action: "focus.left"),
@@ -68,11 +72,25 @@ final class MoveDemoModel: ObservableObject {
         PaletteAction(id: "move.right", title: "Move Window Right", bindingID: "move.right", action: "move.right"),
         PaletteAction(id: "move.up", title: "Move Window Up", bindingID: "moveWindowUp", action: "move.up"),
         PaletteAction(id: "move.down", title: "Move Window Down", bindingID: "moveWindowDown", action: "move.down"),
-        PaletteAction(id: "ws.prev", title: "Previous Workspace", bindingID: "switchWorkspace.previous", action: "ws.prev"),
+        PaletteAction(
+            id: "ws.prev",
+            title: "Previous Workspace",
+            bindingID: "switchWorkspace.previous",
+            action: "ws.prev"
+        ),
         PaletteAction(id: "ws.next", title: "Next Workspace", bindingID: "switchWorkspace.next", action: "ws.next")
     ]
 
-    private static let symbols = ["macwindow", "doc.text", "chart.bar", "envelope", "photo", "music.note", "book", "rectangle.3.group"]
+    private static let symbols = [
+        "macwindow",
+        "doc.text",
+        "chart.bar",
+        "envelope",
+        "photo",
+        "music.note",
+        "book",
+        "rectangle.3.group"
+    ]
 
     init() {
         // ws0: 7 columns, one pre-stacked (2 windows) so expel is visible immediately.
@@ -86,11 +104,11 @@ final class MoveDemoModel: ObservableObject {
             Column(id: 6, windows: [Window(id: 7, symbol: Self.symbols[7])])
         ]
         let ws1Symbols = Self.symbols
-        let ws1: [Column] = (0..<4).map { i in
+        let ws1: [Column] = (0 ..< 4).map { i in
             Column(id: 100 + i, windows: [Window(id: 100 + i, symbol: ws1Symbols[i])])
         }
         let ws2Symbols = Self.symbols
-        let ws2: [Column] = (0..<9).map { i in
+        let ws2: [Column] = (0 ..< 9).map { i in
             let symbol = ws2Symbols[(i + 2) % ws2Symbols.count]
             return Column(id: 200 + i, windows: [Window(id: 200 + i, symbol: symbol)])
         }
@@ -112,9 +130,17 @@ final class MoveDemoModel: ObservableObject {
 
     // MARK: Derived
 
-    var workspaces: [Workspace] { Self.makeVisualWorkspaces(from: world, symbolsByWindowID: symbolsByWindowID, labelsByWorkspaceID: workspaceLabelsByID) }
+    var workspaces: [Workspace] {
+        Self.makeVisualWorkspaces(
+            from: world,
+            symbolsByWindowID: symbolsByWindowID,
+            labelsByWorkspaceID: workspaceLabelsByID
+        )
+    }
 
-    var currentWorkspaceIndex: Int { world.activeWorkspaceIndex }
+    var currentWorkspaceIndex: Int {
+        world.activeWorkspaceIndex
+    }
 
     var focusedColumnId: Int {
         guard let workspace = world.activeWorkspace,
@@ -128,7 +154,9 @@ final class MoveDemoModel: ObservableObject {
         world.activeWorkspace?.focusedWindowID ?? 0
     }
 
-    var currentWorkspace: Workspace { workspaces[currentWorkspaceIndex] }
+    var currentWorkspace: Workspace {
+        workspaces[currentWorkspaceIndex]
+    }
 
     private var focusedColumnIndex: Int? {
         world.activeWorkspace?.activeColumnIndex
@@ -138,9 +166,13 @@ final class MoveDemoModel: ObservableObject {
         CGFloat(max(currentWorkspace.columns.count, 1)) * slotWidth - columnSpacing
     }
 
-    var maxScroll: CGFloat { max(0, contentWidth - viewportWidth) }
+    var maxScroll: CGFloat {
+        max(0, contentWidth - viewportWidth)
+    }
 
-    func clampedScroll(_ x: CGFloat) -> CGFloat { min(max(x, 0), maxScroll) }
+    func clampedScroll(_ x: CGFloat) -> CGFloat {
+        min(max(x, 0), maxScroll)
+    }
 
     /// The scroll value that centers `columnId` within the viewport, computed against `columns`
     /// (so callers can pass the post-mutation layout before committing it).
@@ -171,7 +203,10 @@ final class MoveDemoModel: ObservableObject {
         animateFocusIfNeeded { self.scrollX = target }
     }
 
-    private static func makeWorld(fromVisualWorkspaces workspaces: [Workspace], nextColumnID: Int) -> CoreWorld<Int, Int> {
+    private static func makeWorld(
+        fromVisualWorkspaces workspaces: [Workspace],
+        nextColumnID: Int
+    ) -> CoreWorld<Int, Int> {
         CoreWorld(
             workspaces: workspaces.map { workspace in
                 CoreWorkspace(
@@ -206,7 +241,11 @@ final class MoveDemoModel: ObservableObject {
                     Column(
                         id: column.id.rawValue,
                         windows: column.windows.reversed().map { window in
-                            Window(id: window.id, symbol: symbolsByWindowID[window.id] ?? Self.symbols[abs(window.id) % Self.symbols.count])
+                            Window(
+                                id: window.id,
+                                symbol: symbolsByWindowID[window.id] ?? Self
+                                    .symbols[abs(window.id) % Self.symbols.count]
+                            )
                         }
                     )
                 }
@@ -222,11 +261,22 @@ final class MoveDemoModel: ObservableObject {
         return workspace.columns[activeColumnIndex].id.rawValue
     }
 
-    private func commitWorld(_ newWorld: CoreWorld<Int, Int>, resetScroll: Bool = false, scrollToFocusedColumn: Bool = true) {
+    private func commitWorld(
+        _ newWorld: CoreWorld<Int, Int>,
+        resetScroll: Bool = false,
+        scrollToFocusedColumn: Bool = true
+    ) {
         guard newWorld != world || resetScroll else { return }
-        let visualWorkspaces = Self.makeVisualWorkspaces(from: newWorld, symbolsByWindowID: symbolsByWindowID, labelsByWorkspaceID: workspaceLabelsByID)
+        let visualWorkspaces = Self.makeVisualWorkspaces(
+            from: newWorld,
+            symbolsByWindowID: symbolsByWindowID,
+            labelsByWorkspaceID: workspaceLabelsByID
+        )
         let targetColumnID = Self.focusedColumnID(in: newWorld) ?? focusedColumnId
-        let targetScroll = resetScroll ? CGFloat(0) : (scrollToFocusedColumn ? scrollCentering(columns: visualWorkspaces[newWorld.activeWorkspaceIndex].columns, columnId: targetColumnID) : scrollX)
+        let targetScroll = resetScroll ? CGFloat(0) : (scrollToFocusedColumn ? scrollCentering(
+            columns: visualWorkspaces[newWorld.activeWorkspaceIndex].columns,
+            columnId: targetColumnID
+        ) : scrollX)
         animateFocusIfNeeded {
             world = newWorld
             scrollX = targetScroll
@@ -285,7 +335,12 @@ final class MoveDemoModel: ObservableObject {
 
     /// Resolves a hit including the vertical position so stacked windows are individually
     /// selectable. `y` is relative to the track's vertical center.
-    func resolveHit(screenX: CGFloat, screenY: CGFloat, canvasWidth: CGFloat, canvasHeight: CGFloat) -> (columnId: Int, windowIndex: Int)? {
+    func resolveHit(
+        screenX: CGFloat,
+        screenY: CGFloat,
+        canvasWidth: CGFloat,
+        canvasHeight: CGFloat
+    ) -> (columnId: Int, windowIndex: Int)? {
         guard let xy = resolveHit(screenX: screenX, canvasWidth: canvasWidth) else { return nil }
         let column = currentWorkspace.columns.first(where: { $0.id == xy.columnId }) ?? currentWorkspace.columns[0]
         guard column.windows.count > 1 else { return xy }
@@ -383,7 +438,8 @@ final class MoveDemoModel: ObservableObject {
         let col = newWorld.workspaces[newWorld.activeWorkspaceIndex].columns.remove(at: from)
         newWorld.workspaces[newWorld.activeWorkspaceIndex].columns.insert(col, at: to)
         if let activeColumnID,
-           let activeIndex = newWorld.workspaces[newWorld.activeWorkspaceIndex].columns.firstIndex(where: { $0.id == activeColumnID })
+           let activeIndex = newWorld.workspaces[newWorld.activeWorkspaceIndex].columns
+           .firstIndex(where: { $0.id == activeColumnID })
         {
             newWorld.workspaces[newWorld.activeWorkspaceIndex].activeColumnIndex = activeIndex
         }
@@ -398,9 +454,18 @@ final class MoveDemoModel: ObservableObject {
 
     // MARK: Palette
 
-    func togglePalette() { paletteOpen ? closePalette() : openPalette() }
-    func openPalette() { paletteOpen = true; paletteSelection = 0 }
-    func closePalette() { paletteOpen = false }
+    func togglePalette() {
+        paletteOpen ? closePalette() : openPalette()
+    }
+
+    func openPalette() {
+        paletteOpen = true
+        paletteSelection = 0
+    }
+
+    func closePalette() {
+        paletteOpen = false
+    }
 
     func paletteSelectNext() {
         guard paletteOpen else { return }
@@ -469,8 +534,12 @@ struct InteractiveMoveDemo: View {
             hint
         }
         .padding(.horizontal, 16)
-        .onAppear { installKeyMonitor(); installThreeFingerGestureTap() }
-        .onDisappear { removeKeyMonitor(); removeThreeFingerGestureTap() }
+        .onAppear { installKeyMonitor()
+            installThreeFingerGestureTap()
+        }
+        .onDisappear { removeKeyMonitor()
+            removeThreeFingerGestureTap()
+        }
     }
 
     // MARK: Canvas
@@ -543,9 +612,11 @@ struct InteractiveMoveDemo: View {
         let isDragging = column.id == model.dragColumnId
         return VStack(spacing: model.windowSpacing) {
             ForEach(column.windows) { window in
-                windowTile(window,
-                          focused: isFocused && window.id == model.focusedWindowId,
-                          stackCount: column.windows.count)
+                windowTile(
+                    window,
+                    focused: isFocused && window.id == model.focusedWindowId,
+                    stackCount: column.windows.count
+                )
             }
         }
         .padding(3)
@@ -633,8 +704,10 @@ struct InteractiveMoveDemo: View {
                                 .foregroundStyle(.tertiary)
                         }
                         .padding(.horizontal, 10).padding(.vertical, 5)
-                        .background(selected ? Color.accentColor.opacity(0.2) : Color.clear,
-                                    in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        .background(
+                            selected ? Color.accentColor.opacity(0.2) : Color.clear,
+                            in: RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        )
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
@@ -673,10 +746,14 @@ struct InteractiveMoveDemo: View {
 
             if model.paletteOpen {
                 switch Int(event.keyCode) {
-                case kVK_Escape: model.closePalette(); return nil
-                case kVK_UpArrow: model.paletteSelectPrev(); return nil
-                case kVK_DownArrow: model.paletteSelectNext(); return nil
-                case kVK_Return: model.executePaletteSelection(); return nil
+                case kVK_Escape: model.closePalette()
+                    return nil
+                case kVK_UpArrow: model.paletteSelectPrev()
+                    return nil
+                case kVK_DownArrow: model.paletteSelectNext()
+                    return nil
+                case kVK_Return: model.executePaletteSelection()
+                    return nil
                 default: return event
                 }
             }
@@ -684,8 +761,10 @@ struct InteractiveMoveDemo: View {
             // Workspace switch: ⌃⌥⌘ ←/→
             if mods.contains(.control) && mods.contains(.option) && mods.contains(.command) {
                 switch Int(event.keyCode) {
-                case kVK_LeftArrow: model.switchWorkspace(by: -1); return nil
-                case kVK_RightArrow: model.switchWorkspace(by: 1); return nil
+                case kVK_LeftArrow: model.switchWorkspace(by: -1)
+                    return nil
+                case kVK_RightArrow: model.switchWorkspace(by: 1)
+                    return nil
                 default: break
                 }
             }
@@ -714,7 +793,9 @@ struct InteractiveMoveDemo: View {
     }
 
     private func removeKeyMonitor() {
-        if let keyMonitor { NSEvent.removeMonitor(keyMonitor); self.keyMonitor = nil }
+        if let keyMonitor { NSEvent.removeMonitor(keyMonitor)
+            self.keyMonitor = nil
+        }
     }
 
     // MARK: 3-finger trackpad gesture

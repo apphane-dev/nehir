@@ -228,7 +228,7 @@ private func makeViewportGestureContainers(
             columns: columns,
             gap: 10,
             viewportWidth: 200,
-            motion: .disabled,
+            motion: .disabled
         )
 
         #expect(state.activeColumnIndex == 1)
@@ -249,7 +249,7 @@ private func makeViewportGestureContainers(
             gap: 10,
             viewportWidth: 200,
             motion: .disabled,
-            isTrackpad: false,
+            isTrackpad: false
         )
 
         #expect(state.activeColumnIndex == 0)
@@ -277,7 +277,7 @@ private func makeViewportGestureContainers(
             viewportWidth: 500,
             motion: .enabled,
             isTrackpad: true,
-            snapToColumn: false,
+            snapToColumn: false
         )
 
         #expect(state.activeColumnIndex == 0)
@@ -302,7 +302,7 @@ private func makeViewportGestureContainers(
             viewportWidth: 500,
             motion: .enabled,
             isTrackpad: true,
-            snapToColumn: false,
+            snapToColumn: false
         )
 
         #expect(abs(Double(state.viewOffsetPixels.target()) - 150) < 0.001)
@@ -408,7 +408,7 @@ private func makeViewportGestureContainers(
             viewportWidth: 500,
             motion: .enabled,
             isTrackpad: true,
-            snapToColumn: false,
+            snapToColumn: false
         )
 
         #expect(state.activeColumnIndex == 0)
@@ -430,7 +430,7 @@ private func makeViewportGestureContainers(
             viewportWidth: 500,
             motion: .enabled,
             isTrackpad: true,
-            snapToColumn: false,
+            snapToColumn: false
         )
 
         #expect(state.activeColumnIndex == 1)
@@ -451,7 +451,7 @@ private func makeViewportGestureContainers(
             viewportWidth: 500,
             motion: .enabled,
             isTrackpad: true,
-            snapToColumn: false,
+            snapToColumn: false
         )
 
         #expect(state.activeColumnIndex == 4)
@@ -484,7 +484,7 @@ private func makeViewportGestureContainers(
             viewportWidth: 200,
             motion: .disabled,
             isTrackpad: true,
-            snapToColumn: false,
+            snapToColumn: false
         )
 
         #expect(state.activeColumnIndex == 1)
@@ -519,7 +519,7 @@ private func makeViewportGestureContainers(
             gap: 10,
             viewportWidth: 200,
             motion: .disabled,
-            isTrackpad: true,
+            isTrackpad: true
         )
 
         #expect(state.viewOffsetPixels.isGesture)

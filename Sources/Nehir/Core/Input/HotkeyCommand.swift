@@ -96,5 +96,4 @@ enum HotkeyCommand: Codable, Equatable, Hashable {
     var displayName: String {
         ActionCatalog.title(for: self) ?? String(describing: self)
     }
-
 }

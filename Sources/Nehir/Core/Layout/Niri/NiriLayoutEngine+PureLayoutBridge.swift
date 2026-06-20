@@ -100,7 +100,10 @@ extension NiriLayoutEngine {
         }
         guard actual != expected else { return }
 
-        Self.pureLayoutBridgeLogger.error("Niri runtime diverged from PureLayoutReducer. expected=\(String(describing: expected), privacy: .public), actual=\(String(describing: actual), privacy: .public)")
+        Self.pureLayoutBridgeLogger
+            .error(
+                "Niri runtime diverged from PureLayoutReducer. expected=\(String(describing: expected), privacy: .public), actual=\(String(describing: actual), privacy: .public)"
+            )
         assertionFailure("Niri runtime diverged from PureLayoutReducer. expected=\(expected), actual=\(actual)")
     }
 
@@ -184,10 +187,16 @@ extension NiriLayoutEngine {
 
         let displacedToken = beforeColumn.windows[afterActiveWindowIndex].id
         guard displacedToken != window.token else {
-            logUnsupportedPureLayoutMove(direction: direction, reason: "vertical move did not identify displaced window")
+            logUnsupportedPureLayoutMove(
+                direction: direction,
+                reason: "vertical move did not identify displaced window"
+            )
             return PureLayoutMoveDecision(plan: .unsupported, expectedSnapshot: expectedSnapshot)
         }
-        return PureLayoutMoveDecision(plan: .verticalSwap(targetToken: displacedToken), expectedSnapshot: expectedSnapshot)
+        return PureLayoutMoveDecision(
+            plan: .verticalSwap(targetToken: displacedToken),
+            expectedSnapshot: expectedSnapshot
+        )
     }
 
     private func classifyPureLayoutHorizontalMove(
@@ -205,20 +214,32 @@ extension NiriLayoutEngine {
         guard let afterActiveColumnIndex = afterWorkspace.activeColumnIndex,
               afterWorkspace.columns.indices.contains(afterActiveColumnIndex)
         else {
-            logUnsupportedPureLayoutMove(direction: direction, reason: "horizontal consume missing active target column")
+            logUnsupportedPureLayoutMove(
+                direction: direction,
+                reason: "horizontal consume missing active target column"
+            )
             return PureLayoutMoveDecision(plan: .unsupported, expectedSnapshot: expectedSnapshot)
         }
 
         let targetColumnID = afterWorkspace.columns[afterActiveColumnIndex].id.rawValue
         guard beforeWorkspace.columns.indices.contains(targetColumnID) else {
-            logUnsupportedPureLayoutMove(direction: direction, reason: "horizontal consume target does not map to a before column")
+            logUnsupportedPureLayoutMove(
+                direction: direction,
+                reason: "horizontal consume target does not map to a before column"
+            )
             return PureLayoutMoveDecision(plan: .unsupported, expectedSnapshot: expectedSnapshot)
         }
-        return PureLayoutMoveDecision(plan: .horizontalConsume(targetColumnIndexBeforeMove: targetColumnID), expectedSnapshot: expectedSnapshot)
+        return PureLayoutMoveDecision(
+            plan: .horizontalConsume(targetColumnIndexBeforeMove: targetColumnID),
+            expectedSnapshot: expectedSnapshot
+        )
     }
 
     private func logUnsupportedPureLayoutMove(direction: Direction, reason: String) {
-        Self.pureLayoutBridgeLogger.error("Unsupported PureLayout move transform for direction=\(direction.rawValue, privacy: .public): \(reason, privacy: .public)")
+        Self.pureLayoutBridgeLogger
+            .error(
+                "Unsupported PureLayout move transform for direction=\(direction.rawValue, privacy: .public): \(reason, privacy: .public)"
+            )
         assertionFailure("Unsupported PureLayout move transform for direction=\(direction): \(reason)")
     }
 
@@ -226,7 +247,12 @@ extension NiriLayoutEngine {
         _ world: CoreWorld<WorkspaceDescriptor.ID, WindowToken>
     ) -> PureLayoutSnapshot {
         guard let workspace = world.activeWorkspace else {
-            return PureLayoutSnapshot(columns: [], activeColumnIndex: nil, activeWindowIndices: [], focusedWindowID: nil)
+            return PureLayoutSnapshot(
+                columns: [],
+                activeColumnIndex: nil,
+                activeWindowIndices: [],
+                focusedWindowID: nil
+            )
         }
 
         return PureLayoutSnapshot(

@@ -490,7 +490,8 @@ private struct ScratchpadPillView: View {
                 .overlay {
                     Capsule(style: .continuous)
                         .strokeBorder(
-                            item.window.isFocused ? resolvedAccentColor : Color.secondary.opacity(item.isVisible ? 0.36 : 0.22),
+                            item.window.isFocused ? resolvedAccentColor : Color.secondary
+                                .opacity(item.isVisible ? 0.36 : 0.22),
                             lineWidth: item.window.isFocused ? 1.2 : 0.8
                         )
                 }
@@ -863,7 +864,8 @@ private struct WindowListSheet: View {
                 } label: {
                     HStack {
                         Text(windowInfo.title)
-                            .foregroundColor(windowInfo.isFocused ? resolvedPrimaryTextColor : resolvedSecondaryTextColor)
+                            .foregroundColor(windowInfo
+                                .isFocused ? resolvedPrimaryTextColor : resolvedSecondaryTextColor)
                         Spacer()
                         if windowInfo.isFocused {
                             Image(systemName: "checkmark.circle.fill")

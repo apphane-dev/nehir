@@ -10,7 +10,8 @@ enum PureDirection: Equatable {
         switch self {
         case .left: -1
         case .right: 1
-        case .up, .down: nil
+        case .up,
+             .down: nil
         }
     }
 
@@ -20,7 +21,8 @@ enum PureDirection: Equatable {
         switch self {
         case .up: 1
         case .down: -1
-        case .left, .right: nil
+        case .left,
+             .right: nil
         }
     }
 }
