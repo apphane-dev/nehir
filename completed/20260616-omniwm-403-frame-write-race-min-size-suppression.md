@@ -1,5 +1,7 @@
 # OmniWM PR #403 — "Break AX frame-write race loop for min-size apps" — Discovery
 
+**Status:** completed — the recommended one-clause suppression fix shipped on `main` as part of P4 in commit `0162aab4` ("Suppress frame-change relayout after a recent frame-write failure (P4)"). The `recentFrameWriteFailures[windowId] != nil` branch this doc recommended is present at `Sources/Nehir/Core/Ax/AXManager.swift` in `shouldSuppressFrameChangeRelayout`. Implementation record: [`20260619-p4-frame-write-suppression.md`](20260619-p4-frame-write-suppression.md); background concept: [`20260618-upstream-frame-write-failure-suppression.md`](20260618-upstream-frame-write-failure-suppression.md). Moved from `discovery/` on 2026-06-20.
+
 Source PR: https://github.com/BarutSRB/OmniWM/pull/403
 Merge state: **closed without merge** (head branch `dev/combined-fixes`, a 19-commit
 bundle of unrelated fixes; only the final commit is relevant here). Port the concept,
