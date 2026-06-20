@@ -235,7 +235,8 @@ private func prepareIPCQueryRouterNiriState(
         #expect(barMonitor.workspaces.map(\.rawName).contains("2") == false)
         #expect(scratchpad.window.appName == "Scratch App")
         #expect(scratchpad.isVisible == false)
-        #expect(IPCWindowOpaqueID.decode(scratchpad.window.id, expectingSessionToken: ipcQueryRouterSessionToken)?.pid == 7202)
+        #expect(IPCWindowOpaqueID.decode(scratchpad.window.id, expectingSessionToken: ipcQueryRouterSessionToken)?
+            .pid == 7202)
     }
 
     @Test func activeWorkspaceQueryUsesInteractionMonitorSemantics() throws {
@@ -396,6 +397,7 @@ private func prepareIPCQueryRouterNiriState(
             #expect(controller.workspaceBarRefreshDebugState.requestCount == 0)
         }
     }
+
     @Test func windowsQueryFiltersManagedInventoryAndProjectsRequestedFields() {
         let controller = makeLayoutPlanTestController()
         let workspaceId = controller.workspaceManager.workspaceId(for: "1", createIfMissing: false)!

@@ -1,5 +1,5 @@
-import Testing
 @testable import Nehir
+import Testing
 
 @Suite struct PureLayoutReducerTests {
     typealias World = CoreWorld<Int, String>
@@ -102,8 +102,17 @@ import Testing
 
     @Test func switchWorkspaceSelectsDestinationFirstVisibleTile() {
         let workspace0 = CoreWorkspace(id: 0, columns: [column(0, ["A"])], activeColumnIndex: 0)
-        let workspace1 = CoreWorkspace(id: 1, columns: [column(10, ["B-bottom", "B-top"], active: 0)], activeColumnIndex: 0)
-        let world = World(workspaces: [workspace0, workspace1], activeWorkspaceIndex: 0, nextColumnID: 11, config: .init())
+        let workspace1 = CoreWorkspace(
+            id: 1,
+            columns: [column(10, ["B-bottom", "B-top"], active: 0)],
+            activeColumnIndex: 0
+        )
+        let world = World(
+            workspaces: [workspace0, workspace1],
+            activeWorkspaceIndex: 0,
+            nextColumnID: 11,
+            config: .init()
+        )
 
         let moved = assertValid(PureLayoutReducer.switchWorkspace(by: 1, in: world))
 

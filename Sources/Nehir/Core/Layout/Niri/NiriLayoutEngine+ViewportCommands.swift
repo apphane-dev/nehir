@@ -96,10 +96,18 @@ extension NiriLayoutEngine {
                 return false
             }
             if context.fillsViewport(at: viewStart, in: state) {
-                if let centeredStart = context.centeredFillingViewportStart(at: viewStart, in: state, pixelTolerance: pixel),
-                   abs(centeredStart - viewStart) > pixel
+                if let centeredStart = context.centeredFillingViewportStart(
+                    at: viewStart,
+                    in: state,
+                    pixelTolerance: pixel
+                ),
+                    abs(centeredStart - viewStart) > pixel
                 {
-                    let targetOffset = context.targetOffset(forViewportStart: centeredStart, activeColumnIndex: state.activeColumnIndex, in: state)
+                    let targetOffset = context.targetOffset(
+                        forViewportStart: centeredStart,
+                        activeColumnIndex: state.activeColumnIndex,
+                        in: state
+                    )
                     state.animateToOffset(targetOffset, motion: motion, config: animationConfig, scale: scale)
                     return true
                 }

@@ -41,7 +41,8 @@ final class AXManager {
     var currentWindowsAsyncOverride: (@MainActor () async -> [(AXWindowRef, pid_t, Int)])?
     var fullRescanEnumerationOverrideForTests: (@MainActor () async -> FullRescanEnumerationSnapshot)?
     var frameApplyOverrideForTests: (([AXFrameApplicationRequest]) -> [AXFrameApplyResult])?
-    var frameApplyAsyncOverrideForTests: (([AXFrameApplicationRequest], @escaping ([AXFrameApplyResult]) -> Void) -> Void)?
+    var frameApplyAsyncOverrideForTests: (([AXFrameApplicationRequest], @escaping ([AXFrameApplyResult]) -> Void)
+        -> Void)?
 
     private struct PendingFrameObserver {
         var windowId: Int
@@ -746,10 +747,15 @@ final class AXManager {
             let transformed = ScreenCoordinateSpace.toWindowServer(point: $0.origin)
             let display = $0.displayId.map(String.init) ?? "nil"
             let hintedTopLeft = ScreenCoordinateSpace.toWindowServer(point: $0.origin, displayId: $0.displayId)
-            let hintedBottomLeft = ScreenCoordinateSpace.toWindowServer(point: appKitBottomLeftGuess, displayId: $0.displayId)
+            let hintedBottomLeft = ScreenCoordinateSpace.toWindowServer(
+                point: appKitBottomLeftGuess,
+                displayId: $0.displayId
+            )
             let heuristicTransform = ScreenCoordinateSpace.debugDescriptionForClosestAppKitPoint($0.origin)
             let hintedTransform = ScreenCoordinateSpace.debugDescription(for: $0.displayId)
-            recordFrameApplyTrace("SkyLight.move id=\($0.windowId) displayHint=\(display) appKitOrigin=\(LayoutTrace.point($0.origin)) appKitBLGuess=\(LayoutTrace.point(appKitBottomLeftGuess)) windowServer=\(LayoutTrace.point(transformed)) hintedTopLeft=\(LayoutTrace.point(hintedTopLeft)) hintedBottomLeft=\(LayoutTrace.point(hintedBottomLeft)) heuristicTransform=\(heuristicTransform) hintedTransform=\(hintedTransform)")
+            recordFrameApplyTrace(
+                "SkyLight.move id=\($0.windowId) displayHint=\(display) appKitOrigin=\(LayoutTrace.point($0.origin)) appKitBLGuess=\(LayoutTrace.point(appKitBottomLeftGuess)) windowServer=\(LayoutTrace.point(transformed)) hintedTopLeft=\(LayoutTrace.point(hintedTopLeft)) hintedBottomLeft=\(LayoutTrace.point(hintedBottomLeft)) heuristicTransform=\(heuristicTransform) hintedTransform=\(hintedTransform)"
+            )
             return (windowId: UInt32($0.windowId), origin: transformed)
         }
         SkyLight.shared.batchMoveWindows(batchPositions)

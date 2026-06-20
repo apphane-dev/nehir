@@ -26,7 +26,6 @@ private func makeCommandPaletteWindowItem(windowId: Int) -> CommandPaletteWindow
     )
 }
 
-
 @MainActor
 private func makeCommandPaletteSummonAnchor(
     wmController: WMController,
@@ -226,7 +225,6 @@ private func makeCommandPaletteAppSnapshot(
         controller.selectedItemID = expectedSelection
 
         #expect(controller.selectedItemID == expectedSelection)
-
 
         #expect(controller.isVisible)
         #expect(controller.searchText == "Window")
@@ -456,7 +454,6 @@ private func makeCommandPaletteAppSnapshot(
         #expect(controller.selectedMode == .menu)
     }
 
-
     @Test func command1SwitchesBackToWindowsMode() {
         let controller = CommandPaletteController()
         controller.setMenuAvailabilityForTests(
@@ -511,7 +508,6 @@ private func makeCommandPaletteAppSnapshot(
         #expect(controller.selectionTriggerForTests(keyCode: 76, modifierFlags: .shift) == .alternate)
     }
 
-
     @Test func persistedMenuModeFallsBackToWindowsWhenUnavailable() {
         var environment = CommandPaletteEnvironment()
         environment.activateNehir = {}
@@ -531,11 +527,6 @@ private func makeCommandPaletteAppSnapshot(
 
         #expect(controller.selectedMode == .windows)
     }
-
-
-
-
-
 
     @Test func resolveSummonAnchorFallsBackToLastFocusedMemory() {
         let wmController = makeCommandPaletteTestWMController()

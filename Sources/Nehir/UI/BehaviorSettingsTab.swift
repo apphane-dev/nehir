@@ -24,9 +24,9 @@ struct BehaviorSettingsTab: View {
                         ExperimentalBadge()
                     }
                 }
-                    .onChange(of: settings.moveMouseToFocusedWindow) { _, newValue in
-                        controller.setMoveMouseToFocusedWindow(newValue)
-                    }
+                .onChange(of: settings.moveMouseToFocusedWindow) { _, newValue in
+                    controller.setMoveMouseToFocusedWindow(newValue)
+                }
                 SettingsCaption("Warps the cursor to the center of a window when it receives keyboard focus.")
             }
 
@@ -38,7 +38,9 @@ struct BehaviorSettingsTab: View {
                 SettingsCaption("When navigating past the last column, wrap around to the first.")
 
                 Toggle("Follow Window to Workspace", isOn: $settings.focusFollowsWindowToMonitor)
-                SettingsCaption("When moving a window to another workspace, switches your active workspace to follow it.")
+                SettingsCaption(
+                    "When moving a window to another workspace, switches your active workspace to follow it."
+                )
 
                 Picker("Reveal Partial", selection: $settings.revealPartial) {
                     ForEach(RevealPartial.allCases, id: \.self) { policy in
@@ -48,7 +50,9 @@ struct BehaviorSettingsTab: View {
                 .onChange(of: settings.revealPartial) { _, newValue in
                     controller.updateNiriConfig(revealPartial: newValue)
                 }
-                SettingsCaption("Default uses closest snap only when that snap aligns both viewport edges and visible columns fill the viewport; otherwise it centers.")
+                SettingsCaption(
+                    "Default uses closest snap only when that snap aligns both viewport edges and visible columns fill the viewport; otherwise it centers."
+                )
             }
 
             Section("Scroll Gestures") {
@@ -73,7 +77,8 @@ struct BehaviorSettingsTab: View {
                 Toggle("Invert Direction (Natural)", isOn: $settings.gestureInvertDirection)
                     .disabled(!settings.scrollGestureEnabled)
 
-                SettingsCaption(settings.gestureInvertDirection ? "Swipe right = scroll right" : "Swipe right = scroll left")
+                SettingsCaption(settings
+                    .gestureInvertDirection ? "Swipe right = scroll right" : "Swipe right = scroll left")
 
                 Picker("Mouse Scroll Modifier", selection: $settings.scrollModifierKey) {
                     ForEach(ScrollModifierKey.allCases, id: \.self) { key in
@@ -92,7 +97,9 @@ struct BehaviorSettingsTab: View {
                     }
                 }
 
-                SettingsCaption("Hold this modifier combo to resize with right mouse drag, or during a trackpad scroll gesture to bypass snap.")
+                SettingsCaption(
+                    "Hold this modifier combo to resize with right mouse drag, or during a trackpad scroll gesture to bypass snap."
+                )
             }
         }
         .formStyle(.grouped)

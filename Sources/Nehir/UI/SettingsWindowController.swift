@@ -58,7 +58,10 @@ final class SettingsWindowController {
             NotificationCenter.default.removeObserver(willCloseObserverToken)
         }
         willCloseObserverToken = NotificationCenter.default
-            .addObserver(forName: NSWindow.willCloseNotification, object: window, queue: .main) { [weak self, weak controller] _ in
+            .addObserver(forName: NSWindow.willCloseNotification, object: window, queue: .main) { [
+                weak self,
+                weak controller
+            ] _ in
                 MainActor.assumeIsolated {
                     if let willCloseObserverToken = self?.willCloseObserverToken {
                         NotificationCenter.default.removeObserver(willCloseObserverToken)

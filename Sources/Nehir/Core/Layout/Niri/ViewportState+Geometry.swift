@@ -34,7 +34,8 @@ extension Array where Element == SnapPoint {
             return last { $0.offset < offset - pixelTolerance }
         case .right:
             return first { $0.offset > offset + pixelTolerance }
-        case .up, .down:
+        case .up,
+             .down:
             return nil
         }
     }
@@ -149,7 +150,11 @@ struct ViewportSnapContext {
         fillingSpan(at: viewportStart, in: state, pixelTolerance: pixelTolerance) != nil
     }
 
-    func centeredFillingViewportStart(at viewportStart: CGFloat, in state: ViewportState, pixelTolerance: CGFloat = 0.5) -> CGFloat? {
+    func centeredFillingViewportStart(
+        at viewportStart: CGFloat,
+        in state: ViewportState,
+        pixelTolerance: CGFloat = 0.5
+    ) -> CGFloat? {
         guard let span = fillingSpan(at: viewportStart, in: state, pixelTolerance: pixelTolerance) else { return nil }
         let slack = viewportWidth - span.coveredWidth
         let tolerance = max(pixelTolerance, 2 * gap + pixelTolerance)
@@ -163,7 +168,11 @@ struct ViewportSnapContext {
         )
     }
 
-    private func fillingSpan(at viewportStart: CGFloat, in state: ViewportState, pixelTolerance: CGFloat = 0.5) -> (firstStart: CGFloat, lastEnd: CGFloat, coveredWidth: CGFloat)? {
+    private func fillingSpan(
+        at viewportStart: CGFloat,
+        in state: ViewportState,
+        pixelTolerance: CGFloat = 0.5
+    ) -> (firstStart: CGFloat, lastEnd: CGFloat, coveredWidth: CGFloat)? {
         if intentionallyDoesNotFillViewport { return nil }
 
         let viewportEnd = viewportStart + viewportWidth
@@ -223,7 +232,11 @@ struct ViewportSnapContext {
         return targetOffset(forViewportStart: snapPoint.offset, activeColumnIndex: activeIndex, in: state)
     }
 
-    func targetOffset(forViewportStart viewportStart: CGFloat, activeColumnIndex: Int, in state: ViewportState) -> CGFloat {
+    func targetOffset(
+        forViewportStart viewportStart: CGFloat,
+        activeColumnIndex: Int,
+        in state: ViewportState
+    ) -> CGFloat {
         state.boundedViewOffset(
             targetViewStart: viewportStart,
             activeColumnIndex: activeColumnIndex,
@@ -706,7 +719,11 @@ extension ViewportState {
             let columnApproximatelyFillsViewport = abs(width - viewportWidth) <= pixelTolerance
             if !columnApproximatelyFillsViewport {
                 points.append(SnapPoint(offset: bounded(columnX - gap), columnIndex: index, kind: .leftEdge))
-                points.append(SnapPoint(offset: bounded(columnX + width + gap - viewportWidth), columnIndex: index, kind: .rightEdge))
+                points.append(SnapPoint(
+                    offset: bounded(columnX + width + gap - viewportWidth),
+                    columnIndex: index,
+                    kind: .rightEdge
+                ))
             }
             if width > 0.30 * viewportWidth {
                 points.append(SnapPoint(
@@ -756,7 +773,6 @@ extension ViewportState {
         return .clipped(columnStart < viewportStart ? .minimum : .maximum)
     }
 
-
     func computeCenteredOffset(
         columnIndex: Int,
         columns: [NiriContainer],
@@ -784,6 +800,4 @@ extension ViewportState {
             viewportWidth: viewportWidth
         )
     }
-
-
 }

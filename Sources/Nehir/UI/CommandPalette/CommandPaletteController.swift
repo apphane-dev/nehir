@@ -76,7 +76,6 @@ private final class CommandPaletteActionBox: @unchecked Sendable {
     }
 }
 
-
 @MainActor
 struct CommandPaletteEnvironment {
     var frontmostApplication: () -> NSRunningApplication? = { NSWorkspace.shared.frontmostApplication }
@@ -137,7 +136,9 @@ struct CommandPaletteEnvironment {
 }
 
 private final class CommandPalettePanel: NSPanel {
-    override var canBecomeKey: Bool { true }
+    override var canBecomeKey: Bool {
+        true
+    }
 }
 
 @MainActor
@@ -912,12 +913,6 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
         return true
     }
 
-
-
-
-
-
-
     private func currentSelectionList() -> [CommandPaletteSelectionID] {
         switch selectedMode {
         case .windows:
@@ -1371,7 +1366,6 @@ private struct CommandPaletteEmptyStateView: View {
     }
 }
 
-
 private struct CommandPaletteWindowRow: View {
     let item: CommandPaletteWindowItem
     let isSelected: Bool
@@ -1489,4 +1483,3 @@ private struct CommandPaletteCommandRow: View {
         .contentShape(Rectangle())
     }
 }
-

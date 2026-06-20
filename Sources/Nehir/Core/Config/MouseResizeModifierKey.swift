@@ -34,5 +34,4 @@ enum MouseResizeModifierKey: String, CaseIterable, Codable {
         case .controlOptionCommandShift: "Control+Option+Command+Shift"
         }
     }
-
 }

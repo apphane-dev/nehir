@@ -868,7 +868,9 @@ final class MouseEventHandler {
         windowUnderPointer: Int? = nil
     ) -> Bool {
         guard let controller else { return false }
-        traceMouseFocus("mouseDown loc=\(formatPoint(location)) button=\(button) pressedButtons=\(pressedMouseButtonsProvider()) modifiers=\(modifiers.rawValue) moving=\(state.isMoving) resizing=\(state.isResizing)")
+        traceMouseFocus(
+            "mouseDown loc=\(formatPoint(location)) button=\(button) pressedButtons=\(pressedMouseButtonsProvider()) modifiers=\(modifiers.rawValue) moving=\(state.isMoving) resizing=\(state.isResizing)"
+        )
         guard controller.isEnabled else { return false }
         if controller.isOverviewOpen() { return false }
 
@@ -978,7 +980,9 @@ final class MouseEventHandler {
     private func shouldSuppressRightMouseEvent(type: CGEventType) -> Bool {
         guard state.activeInteractionButton == .right else { return false }
         switch type {
-        case .rightMouseDown, .rightMouseDragged, .rightMouseUp:
+        case .rightMouseDown,
+             .rightMouseDragged,
+             .rightMouseUp:
             return state.isResizing
         default:
             return false
@@ -1002,10 +1006,14 @@ final class MouseEventHandler {
             )
         }
         let pressedButtons = pressedMouseButtonsProvider()
-        traceMouseFocus("mouseDrag loc=\(formatPoint(location)) button=\(button) pressedButtons=\(pressedButtons) requirePressedCheck=\(requirePressedButtonCheck) moving=\(state.isMoving) resizing=\(state.isResizing) activeButton=\(String(describing: state.activeInteractionButton))")
+        traceMouseFocus(
+            "mouseDrag loc=\(formatPoint(location)) button=\(button) pressedButtons=\(pressedButtons) requirePressedCheck=\(requirePressedButtonCheck) moving=\(state.isMoving) resizing=\(state.isResizing) activeButton=\(String(describing: state.activeInteractionButton))"
+        )
         if requirePressedButtonCheck {
             guard pressedButtons & button.pressedMask != 0 else {
-                traceMouseFocus("mouseDrag.skip reason=buttonNotPressed loc=\(formatPoint(location)) button=\(button) pressedButtons=\(pressedButtons)")
+                traceMouseFocus(
+                    "mouseDrag.skip reason=buttonNotPressed loc=\(formatPoint(location)) button=\(button) pressedButtons=\(pressedButtons)"
+                )
                 return
             }
         }
@@ -1032,13 +1040,12 @@ final class MouseEventHandler {
                             state.dragGhostController?.showSwapTarget(frame: frame)
                         }
                     } else if let dropFrame = engine.insertionDropzoneFrame(
-                                  targetWindowId: nodeId,
-                                  position: insertPosition,
-                                  in: wsId,
-                                  gaps: controller.workspaceManager.monitor(for: wsId).map { controller.gapSize(for: $0) }
-                                      ?? CGFloat(controller.workspaceManager.gaps)
-                              )
-                    {
+                        targetWindowId: nodeId,
+                        position: insertPosition,
+                        in: wsId,
+                        gaps: controller.workspaceManager.monitor(for: wsId).map { controller.gapSize(for: $0) }
+                            ?? CGFloat(controller.workspaceManager.gaps)
+                    ) {
                         state.dragGhostController?.showSwapTarget(frame: dropFrame)
                     }
                 default:
@@ -1085,7 +1092,9 @@ final class MouseEventHandler {
         if button == .left {
             markRecentFloatingPointerInteractionIfNeeded(at: location, windowUnderPointer: windowUnderPointer)
         }
-        traceMouseFocus("mouseUp loc=\(formatPoint(location)) button=\(button) pressedButtons=\(pressedMouseButtonsProvider()) moving=\(state.isMoving) resizing=\(state.isResizing) activeButton=\(String(describing: state.activeInteractionButton))")
+        traceMouseFocus(
+            "mouseUp loc=\(formatPoint(location)) button=\(button) pressedButtons=\(pressedMouseButtonsProvider()) moving=\(state.isMoving) resizing=\(state.isResizing) activeButton=\(String(describing: state.activeInteractionButton))"
+        )
 
         if state.isMoving {
             guard shouldAcceptInteractionButton(button) else { return }
@@ -1204,7 +1213,9 @@ final class MouseEventHandler {
         guard let controller else { return }
         let policyDecision = controller.focusPolicyEngine.evaluate(.focusFollowsMouse)
         guard policyDecision.allowsFocusChange else {
-            traceMouseFocus("ffm.skip reason=policy policyReason=\(policyDecision.reason ?? "nil") loc=\(formatPoint(location))")
+            traceMouseFocus(
+                "ffm.skip reason=policy policyReason=\(policyDecision.reason ?? "nil") loc=\(formatPoint(location))"
+            )
             return
         }
         guard !controller.workspaceManager.isNonManagedFocusActive else {
@@ -1419,7 +1430,12 @@ final class MouseEventHandler {
             if phase == .ended || phase == .cancelled || activeTouchCount == 0 {
                 state.suppressGestureUntilTouchesEnd = false
             } else {
-                traceGestureSkip(reason: "suppressed", location: location, activeTouches: activeTouchCount, phase: phase)
+                traceGestureSkip(
+                    reason: "suppressed",
+                    location: location,
+                    activeTouches: activeTouchCount,
+                    phase: phase
+                )
                 return
             }
         }
@@ -1498,17 +1514,35 @@ final class MouseEventHandler {
         }
 
         if phase == .began, state.gesturePhase != .idle {
-            traceGestureSkip(reason: "conflict", location: location, requiredFingers: requiredFingers, activeTouches: activeTouchCount, phase: phase)
+            traceGestureSkip(
+                reason: "conflict",
+                location: location,
+                requiredFingers: requiredFingers,
+                activeTouches: activeTouchCount,
+                phase: phase
+            )
             abortActiveGestureIfNeeded()
         }
 
         guard resolveScrollContext(at: location) != nil else {
-            traceGestureSkip(reason: "noScrollContext", location: location, requiredFingers: requiredFingers, activeTouches: activeTouchCount, phase: phase)
+            traceGestureSkip(
+                reason: "noScrollContext",
+                location: location,
+                requiredFingers: requiredFingers,
+                activeTouches: activeTouchCount,
+                phase: phase
+            )
             abortActiveGestureIfNeeded()
             return
         }
         guard !snapshot.touches.isEmpty else {
-            traceGestureSkip(reason: "emptyTouches", location: location, requiredFingers: requiredFingers, activeTouches: activeTouchCount, phase: phase)
+            traceGestureSkip(
+                reason: "emptyTouches",
+                location: location,
+                requiredFingers: requiredFingers,
+                activeTouches: activeTouchCount,
+                phase: phase
+            )
             abortActiveGestureIfNeeded()
             return
         }
@@ -1528,7 +1562,13 @@ final class MouseEventHandler {
             let matcherReason = activeTouchCount > requiredFingers
                 ? "overCount"
                 : (activeTouchCount < requiredFingers ? "underCount" : "malformedTouch")
-            traceGestureSkip(reason: matcherReason, location: location, requiredFingers: requiredFingers, activeTouches: activeTouchCount, phase: phase)
+            traceGestureSkip(
+                reason: matcherReason,
+                location: location,
+                requiredFingers: requiredFingers,
+                activeTouches: activeTouchCount,
+                phase: phase
+            )
             abortActiveGestureIfNeeded()
             return
         }
@@ -1539,7 +1579,13 @@ final class MouseEventHandler {
         switch state.gesturePhase {
         case .idle:
             guard let currentContext = resolveScrollContext(at: location) else {
-                traceGestureSkip(reason: "noScrollContext", location: location, requiredFingers: requiredFingers, activeTouches: activeTouchCount, phase: phase)
+                traceGestureSkip(
+                    reason: "noScrollContext",
+                    location: location,
+                    requiredFingers: requiredFingers,
+                    activeTouches: activeTouchCount,
+                    phase: phase
+                )
                 abortActiveGestureIfNeeded()
                 return
             }
@@ -1572,7 +1618,13 @@ final class MouseEventHandler {
              .committed:
             guard var lockedContext = state.lockedGestureContext else {
                 assertionFailure("Active gesture missing locked context")
-                traceGestureSkip(reason: "noContext", location: location, requiredFingers: requiredFingers, activeTouches: activeTouchCount, phase: phase)
+                traceGestureSkip(
+                    reason: "noContext",
+                    location: location,
+                    requiredFingers: requiredFingers,
+                    activeTouches: activeTouchCount,
+                    phase: phase
+                )
                 abortActiveGestureIfNeeded()
                 return
             }
@@ -1591,7 +1643,13 @@ final class MouseEventHandler {
             }
             let wsId = lockedContext.workspaceId
             guard let monitor = controller.workspaceManager.monitor(byId: lockedContext.monitorId) else {
-                traceGestureSkip(reason: "noMonitor", location: location, requiredFingers: requiredFingers, activeTouches: activeTouchCount, phase: phase)
+                traceGestureSkip(
+                    reason: "noMonitor",
+                    location: location,
+                    requiredFingers: requiredFingers,
+                    activeTouches: activeTouchCount,
+                    phase: phase
+                )
                 abortActiveGestureIfNeeded()
                 return
             }
@@ -1611,7 +1669,13 @@ final class MouseEventHandler {
                 }
 
                 guard abs(cumulativeX) > abs(cumulativeY) else {
-                    traceGestureSkip(reason: "nonHorizontal", location: location, requiredFingers: requiredFingers, activeTouches: activeTouchCount, phase: phase)
+                    traceGestureSkip(
+                        reason: "nonHorizontal",
+                        location: location,
+                        requiredFingers: requiredFingers,
+                        activeTouches: activeTouchCount,
+                        phase: phase
+                    )
                     abortActiveGestureIfNeeded()
                     return
                 }

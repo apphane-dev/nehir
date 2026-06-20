@@ -1,5 +1,5 @@
-@testable import Nehir
 import CoreGraphics
+@testable import Nehir
 import Testing
 
 @Suite @MainActor struct CommandHandlerTests {
@@ -111,7 +111,7 @@ import Testing
             HotkeyCommand.debugDumpRuntimeState,
             .debugResetRuntimeState,
             .debugRestartClearingRuntimeState,
-            .debugToggleTraceCapture,
+            .debugToggleTraceCapture
         ] {
             #expect(CommandHandler.shouldIgnoreCommand(command, isOverviewOpen: true) == false)
         }

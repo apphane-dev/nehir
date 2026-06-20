@@ -837,14 +837,34 @@ struct WindowServerInfo: Equatable, Sendable {
     var parentId: UInt32 = 0
     var title: String?
 
-    static func hasDocumentTag(_ tags: UInt64) -> Bool { (tags & 0x1) != 0 }
-    static func hasFloatingTag(_ tags: UInt64) -> Bool { (tags & 0x2) != 0 }
-    static func hasModalTag(_ tags: UInt64) -> Bool { (tags & 0x8000_0000) != 0 }
+    static func hasDocumentTag(_ tags: UInt64) -> Bool {
+        (tags & 0x1) != 0
+    }
 
-    var hasDocumentTag: Bool { Self.hasDocumentTag(tags) }
-    var hasFloatingTag: Bool { Self.hasFloatingTag(tags) }
-    var hasModalTag: Bool { Self.hasModalTag(tags) }
-    var hasParentWindow: Bool { parentId != 0 }
+    static func hasFloatingTag(_ tags: UInt64) -> Bool {
+        (tags & 0x2) != 0
+    }
+
+    static func hasModalTag(_ tags: UInt64) -> Bool {
+        (tags & 0x8000_0000) != 0
+    }
+
+    var hasDocumentTag: Bool {
+        Self.hasDocumentTag(tags)
+    }
+
+    var hasFloatingTag: Bool {
+        Self.hasFloatingTag(tags)
+    }
+
+    var hasModalTag: Bool {
+        Self.hasModalTag(tags)
+    }
+
+    var hasParentWindow: Bool {
+        parentId != 0
+    }
+
     var hasTransientSurfaceEvidence: Bool {
         hasParentWindow || (hasFloatingTag && !hasDocumentTag)
     }

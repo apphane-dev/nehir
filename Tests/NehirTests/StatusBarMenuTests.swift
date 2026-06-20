@@ -214,8 +214,7 @@ import Testing
     private func makeStatusBarController(for controller: WMController) -> StatusBarController {
         let statusBarController = StatusBarController(
             settings: controller.settings,
-            controller: controller,
-            
+            controller: controller
         )
         controller.statusBarController = statusBarController
         return statusBarController

@@ -160,7 +160,8 @@ private func makeOwnedRegistryTestRegistry(frontmostWindow: @escaping () -> NSWi
 
         manager.updateOverlays([info])
 
-        guard let windowNumber = manager.overlayWindowNumberForTests(workspaceId: workspaceId, columnId: columnId) else {
+        guard let windowNumber = manager.overlayWindowNumberForTests(workspaceId: workspaceId, columnId: columnId)
+        else {
             Issue.record("Expected tabbed overlay window number")
             return
         }
@@ -220,7 +221,8 @@ private func makeOwnedRegistryTestRegistry(frontmostWindow: @escaping () -> NSWi
 
         manager.updateOverlays([info])
 
-        guard let windowNumber = manager.overlayWindowNumberForTests(workspaceId: workspaceId, columnId: columnId) else {
+        guard let windowNumber = manager.overlayWindowNumberForTests(workspaceId: workspaceId, columnId: columnId)
+        else {
             Issue.record("Expected clipped tabbed overlay window number")
             return
         }
@@ -325,7 +327,8 @@ private func makeOwnedRegistryTestRegistry(frontmostWindow: @escaping () -> NSWi
 
         manager.updateOverlays([visibleInfo])
 
-        guard let windowNumber = manager.overlayWindowNumberForTests(workspaceId: workspaceId, columnId: columnId) else {
+        guard let windowNumber = manager.overlayWindowNumberForTests(workspaceId: workspaceId, columnId: columnId)
+        else {
             Issue.record("Expected tabbed overlay window before zero-tab update")
             return
         }

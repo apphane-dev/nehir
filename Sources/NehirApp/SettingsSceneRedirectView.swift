@@ -1,6 +1,6 @@
 import AppKit
-import Observation
 @testable import Nehir
+import Observation
 import SwiftUI
 
 struct SettingsSceneRedirectView: View {
@@ -60,7 +60,7 @@ struct SettingsSceneRedirectView: View {
         didRedirect = true
         SettingsWindowController.shared.show(
             settings: settings,
-            controller: controller,
+            controller: controller
         )
 
         guard let window else { return }

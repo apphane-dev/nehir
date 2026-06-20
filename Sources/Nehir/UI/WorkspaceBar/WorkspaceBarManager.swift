@@ -1,6 +1,6 @@
 import AppKit
-import SwiftUI
 import os
+import SwiftUI
 
 enum WorkspaceBarWindowLevel: String, CaseIterable, Identifiable {
     case normal
@@ -435,7 +435,8 @@ final class WorkspaceBarManager {
             barHeight: geometry.barHeight,
             showTraceCaptureButton: resolved.showTraceButton && (controller?.settings.developerModeEnabled ?? false),
             traceCaptureStatus: controller?.runtimeTraceCaptureStatus ?? .init(isActive: false, startedAt: nil),
-            hasDisplayDiagnosticsWarning: DisplayEnvironmentDiagnostics.evaluate(monitors: monitorProvider()).hasWarnings,
+            hasDisplayDiagnosticsWarning: DisplayEnvironmentDiagnostics.evaluate(monitors: monitorProvider())
+                .hasWarnings,
             accentColor: resolved.accentColor,
             textColor: resolved.textColor
         )
@@ -591,7 +592,8 @@ final class WorkspaceBarManager {
     }
 
     func runtimeFrameTraceDebugDump() -> String {
-        recentFrameTraceRecords.isEmpty ? "workspace-bar frame trace empty" : recentFrameTraceRecords.joined(separator: "\n")
+        recentFrameTraceRecords.isEmpty ? "workspace-bar frame trace empty" : recentFrameTraceRecords
+            .joined(separator: "\n")
     }
 
     func runtimeStateDebugDump(

@@ -50,7 +50,6 @@ struct NehirStoragePathsTests {
     }
 }
 
-
 private func makeSettingsTestMonitor(
     displayId: CGDirectDisplayID,
     name: String,
@@ -175,8 +174,10 @@ private func settingsFileSnapshot(_ url: URL) throws -> SettingsFileSnapshot {
     return SettingsFileSnapshot(
         deviceID: UInt64(statBuffer.st_dev),
         inode: UInt64(statBuffer.st_ino),
-        modificationTimeNanoseconds: Int64(statBuffer.st_mtimespec.tv_sec) * 1_000_000_000 + Int64(statBuffer.st_mtimespec.tv_nsec),
-        statusChangeTimeNanoseconds: Int64(statBuffer.st_ctimespec.tv_sec) * 1_000_000_000 + Int64(statBuffer.st_ctimespec.tv_nsec),
+        modificationTimeNanoseconds: Int64(statBuffer.st_mtimespec.tv_sec) * 1_000_000_000 +
+            Int64(statBuffer.st_mtimespec.tv_nsec),
+        statusChangeTimeNanoseconds: Int64(statBuffer.st_ctimespec.tv_sec) * 1_000_000_000 +
+            Int64(statBuffer.st_ctimespec.tv_nsec),
         fileSize: UInt64(statBuffer.st_size),
         contents: try Data(contentsOf: url)
     )
@@ -298,7 +299,6 @@ struct MonitorSettingsStoreTests {
         #expect(decoded.hotkeysEnabled == false)
         #expect(rawText.localizedCaseInsensitiveContains("restoreCatalog") == false)
     }
-
 }
 
 struct SettingsExportTests {
@@ -505,7 +505,6 @@ struct KeyBindingCodecTests {
         #expect(keypad.humanReadableString == "Control+Option+Command+Keypad 1")
     }
 
-
     @Test func literalAllModifiersUseHyperAlias() {
         let literal = KeyBinding(
             keyCode: UInt32(kVK_Space),
@@ -518,12 +517,30 @@ struct KeyBindingCodecTests {
     }
 
     @Test func compactPunctuationBindingsStillDecode() throws {
-        #expect(KeySymbolMapper.fromHumanReadable("Option+,") == KeyBinding(keyCode: UInt32(kVK_ANSI_Comma), modifiers: UInt32(optionKey)))
-        #expect(KeySymbolMapper.fromHumanReadable("Option+.") == KeyBinding(keyCode: UInt32(kVK_ANSI_Period), modifiers: UInt32(optionKey)))
-        #expect(KeySymbolMapper.fromHumanReadable("Option+-") == KeyBinding(keyCode: UInt32(kVK_ANSI_Minus), modifiers: UInt32(optionKey)))
-        #expect(KeySymbolMapper.fromHumanReadable("Option+=") == KeyBinding(keyCode: UInt32(kVK_ANSI_Equal), modifiers: UInt32(optionKey)))
-        #expect(KeySymbolMapper.fromHumanReadable("Option+`") == KeyBinding(keyCode: UInt32(kVK_ANSI_Grave), modifiers: UInt32(optionKey)))
-        #expect(HotkeyTrigger.fromHumanReadable("Option+,") == .chord(KeyBinding(keyCode: UInt32(kVK_ANSI_Comma), modifiers: UInt32(optionKey))))
+        #expect(KeySymbolMapper.fromHumanReadable("Option+,") == KeyBinding(
+            keyCode: UInt32(kVK_ANSI_Comma),
+            modifiers: UInt32(optionKey)
+        ))
+        #expect(KeySymbolMapper.fromHumanReadable("Option+.") == KeyBinding(
+            keyCode: UInt32(kVK_ANSI_Period),
+            modifiers: UInt32(optionKey)
+        ))
+        #expect(KeySymbolMapper.fromHumanReadable("Option+-") == KeyBinding(
+            keyCode: UInt32(kVK_ANSI_Minus),
+            modifiers: UInt32(optionKey)
+        ))
+        #expect(KeySymbolMapper.fromHumanReadable("Option+=") == KeyBinding(
+            keyCode: UInt32(kVK_ANSI_Equal),
+            modifiers: UInt32(optionKey)
+        ))
+        #expect(KeySymbolMapper.fromHumanReadable("Option+`") == KeyBinding(
+            keyCode: UInt32(kVK_ANSI_Grave),
+            modifiers: UInt32(optionKey)
+        ))
+        #expect(HotkeyTrigger.fromHumanReadable("Option+,") == .chord(KeyBinding(
+            keyCode: UInt32(kVK_ANSI_Comma),
+            modifiers: UInt32(optionKey)
+        )))
     }
 
     @Test func defaultHotkeysCaptureCurrentConfigShape() throws {
@@ -735,7 +752,6 @@ struct HotkeySurfaceTests {
         let displayIds = settings.monitorBarSettings.compactMap(\.monitorDisplayId)
         #expect(Set(displayIds) == [leftMonitor.displayId, rightMonitor.displayId])
     }
-
 }
 
 @Suite(.serialized) @MainActor struct SettingsStoreAppearanceApplyTests {
@@ -776,7 +792,6 @@ struct HotkeySurfaceTests {
             binding.binding.isUnassigned || binding.binding.chordBinding != nil
         })
     }
-
 }
 
 struct SettingsSectionTests {
@@ -797,7 +812,6 @@ struct SettingsSectionTests {
         #expect(state.windowRestoreCatalog == catalog)
     }
 
-
     @Test func commandPaletteLastModeRoundTripsThroughRuntimeStateStore() {
         let defaults = makeTestDefaults()
         let directory = configurationDirectoryForTests(defaults: defaults)
@@ -811,8 +825,6 @@ struct SettingsSectionTests {
         let reloaded = RuntimeStateStore(directory: directory)
         #expect(reloaded.commandPaletteLastMode == .menu)
     }
-
-
 
     @Test func runtimeStatePersistsWithPrivatePermissions() throws {
         let defaults = makeTestDefaults()
@@ -834,8 +846,6 @@ struct SettingsSectionTests {
         #expect(fileMode & 0o777 == 0o600)
     }
 }
-
-
 
 @MainActor struct SettingsFilePersistenceTests {
     @Test func missingFileMaterializesDefaults() {

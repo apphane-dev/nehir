@@ -83,14 +83,20 @@ private func createTimestampedSettingsBackup(for fileURL: URL) throws -> URL {
 extension CanonicalTOMLConfig {
     static var knownKeyPathsLowercased: Set<String> {
         var paths = Set<String>()
-        func add(_ path: String) { paths.insert(path.lowercased()) }
-        func addTable<K: CodingKey & CaseIterable>(_ table: CodingKeys, _: K.Type) where K.AllCases: Sequence, K.AllCases.Element == K {
+        func add(_ path: String) {
+            paths.insert(path.lowercased())
+        }
+        func addTable<K: CodingKey & CaseIterable>(_ table: CodingKeys, _: K.Type) where K.AllCases: Sequence,
+            K.AllCases.Element == K
+        {
             add(table.stringValue)
             for key in K.allCases {
                 add("\(table.stringValue).\(key.stringValue)")
             }
         }
-        func addNested<K: CodingKey & CaseIterable>(_ parent: String, _: K.Type) where K.AllCases: Sequence, K.AllCases.Element == K {
+        func addNested<K: CodingKey & CaseIterable>(_ parent: String, _: K.Type) where K.AllCases: Sequence,
+            K.AllCases.Element == K
+        {
             add(parent)
             for key in K.allCases {
                 add("\(parent).\(key.stringValue)")

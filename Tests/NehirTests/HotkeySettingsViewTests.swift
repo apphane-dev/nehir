@@ -21,8 +21,16 @@ struct HotkeySettingsViewTests {
 
         #expect(HotkeySettingsDisplayModel.numberedGroupDisplayString(for: bindings) == "⌥⌘{N}")
         #expect(HotkeySettingsDisplayModel.numberedGroupHumanReadableString(for: bindings) == "Option+Command+{N}")
-        #expect(HotkeySettingsDisplayModel.matchesSearch("workspace", groupTitle: "Switch Workspace {N}", bindings: bindings))
-        #expect(HotkeySettingsDisplayModel.matchesSearch("Command", groupTitle: "Switch Workspace {N}", bindings: bindings))
+        #expect(HotkeySettingsDisplayModel.matchesSearch(
+            "workspace",
+            groupTitle: "Switch Workspace {N}",
+            bindings: bindings
+        ))
+        #expect(HotkeySettingsDisplayModel.matchesSearch(
+            "Command",
+            groupTitle: "Switch Workspace {N}",
+            bindings: bindings
+        ))
     }
 
     @Test func numberedWorkspaceHotkeysShowCustomWhenPatternDiverges() throws {
@@ -38,7 +46,7 @@ struct HotkeySettingsViewTests {
 
     private func switchWorkspaceDefaults() throws -> [HotkeyBinding] {
         let defaults = HotkeyBindingRegistry.defaults()
-        return try (0..<9).map { index in
+        return try (0 ..< 9).map { index in
             try #require(defaults.first { $0.id == "switchWorkspace.\(index)" })
         }
     }

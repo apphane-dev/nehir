@@ -127,7 +127,12 @@ final class OnboardingWindowController {
             backupURL: backupURL,
             onDismiss: { [weak self] in self?.migrationWindow?.close() }
         )
-        present(existing: migrationWindow, rootView: view, title: "Settings Recovery", size: NSSize(width: 500, height: 580)) {
+        present(
+            existing: migrationWindow,
+            rootView: view,
+            title: "Settings Recovery",
+            size: NSSize(width: 500, height: 580)
+        ) {
             self.migrationWindow = $0
         } onClose: {
             onClose()

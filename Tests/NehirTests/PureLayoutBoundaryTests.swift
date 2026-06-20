@@ -27,8 +27,8 @@ import Testing
             at: root,
             includingPropertiesForKeys: nil
         )?
-        .compactMap { $0 as? URL }
-        .filter { $0.pathExtension == "swift" } ?? []
+            .compactMap { $0 as? URL }
+            .filter { $0.pathExtension == "swift" } ?? []
 
         #expect(!files.isEmpty)
         for file in files {

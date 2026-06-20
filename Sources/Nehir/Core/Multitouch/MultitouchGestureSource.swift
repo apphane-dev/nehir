@@ -28,7 +28,7 @@ final class MultitouchGestureSource {
         let timestamp: Double
     }
 
-    nonisolated(unsafe) static weak var shared: MultitouchGestureSource?
+    @MainActor weak static var shared: MultitouchGestureSource?
 
     var onSnapshot: ((MouseEventHandler.GestureEventSnapshot) -> Void)?
 

@@ -4,7 +4,9 @@ struct UnknownSettingsKeysIssue: Identifiable, Equatable {
     let fileURL: URL
     let keyPaths: [String]
 
-    var id: String { Self.postponeID(fileURL: fileURL) }
+    var id: String {
+        Self.postponeID(fileURL: fileURL)
+    }
 
     static func postponeID(fileURL: URL) -> String {
         "unknown-settings-keys:\(fileURL.path)"

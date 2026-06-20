@@ -109,7 +109,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusBarController = StatusBarController(
             settings: settings,
             controller: controller,
-            cliManager: cliManager,
+            cliManager: cliManager
         )
         controller.statusBarController = statusBarController
         settings.onIPCEnabledChanged = { [weak self, weak controller] isEnabled in
@@ -158,7 +158,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                    appVersion: appVersion,
                    lastSeenVersion: onboardingStore.lastSeenVersion,
                    hasContent: !WhatsNewContent.isEmpty
-               ) {
+               )
+            {
                 DispatchQueue.main.async {
                     OnboardingWindowController.shared.showWhatsNew(
                         version: appVersion,

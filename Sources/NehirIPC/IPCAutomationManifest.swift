@@ -734,11 +734,32 @@ public enum IPCAutomationManifest {
         command(["scratchpad", "toggle"], name: .scratchpadToggle, summary: "Show or hide the scratchpad window."),
         command(["open-menu-anywhere"], name: .openMenuAnywhere, summary: "Open the menu surface anywhere."),
         command(["open-settings"], name: .openSettings, summary: "Open the Nehir settings window."),
-        command(["debug", "dump-runtime-state"], name: .debugDumpRuntimeState, summary: "Dump runtime debugging state to the clipboard and unified log."),
-        command(["debug", "reset-runtime-state"], name: .debugResetRuntimeState, summary: "Clear runtime debugging state and rebootstrap from a startup-style rescan."),
-        command(["debug", "restart-clearing-runtime-state"], name: .debugRestartClearingRuntimeState, summary: "Clear runtime debugging state, relaunch the app, and exit the current process."),
-        command(["debug", "trace", "toggle"], name: .debugToggleTraceCapture, summary: "Start runtime debugging trace capture, or stop and export the active capture."),
-        command(["debug", "trace", "toggle"], name: .debugToggleTraceCapture, summary: "Ensure trace capture is in the desired state (idempotent).", arguments: [traceDesiredStateArgument]),
+        command(
+            ["debug", "dump-runtime-state"],
+            name: .debugDumpRuntimeState,
+            summary: "Dump runtime debugging state to the clipboard and unified log."
+        ),
+        command(
+            ["debug", "reset-runtime-state"],
+            name: .debugResetRuntimeState,
+            summary: "Clear runtime debugging state and rebootstrap from a startup-style rescan."
+        ),
+        command(
+            ["debug", "restart-clearing-runtime-state"],
+            name: .debugRestartClearingRuntimeState,
+            summary: "Clear runtime debugging state, relaunch the app, and exit the current process."
+        ),
+        command(
+            ["debug", "trace", "toggle"],
+            name: .debugToggleTraceCapture,
+            summary: "Start runtime debugging trace capture, or stop and export the active capture."
+        ),
+        command(
+            ["debug", "trace", "toggle"],
+            name: .debugToggleTraceCapture,
+            summary: "Ensure trace capture is in the desired state (idempotent).",
+            arguments: [traceDesiredStateArgument]
+        ),
         command(
             ["toggle-workspace-bar"],
             name: .toggleWorkspaceBar,
@@ -751,11 +772,27 @@ public enum IPCAutomationManifest {
             summary: "Toggle native macOS fullscreen."
         ),
         command(["toggle-overview"], name: .toggleOverview, summary: "Toggle the overview surface."),
-        command(["toggle-focus-follows-mouse"], name: .toggleFocusFollowsMouse, summary: "Toggle focus-follows-mouse behavior."),
-        command(["toggle-focus-follows-window-to-monitor"], name: .toggleFocusFollowsWindowToMonitor, summary: "Toggle following a window when it moves to another monitor."),
-        command(["toggle-move-mouse-to-focused"], name: .toggleMoveMouseToFocused, summary: "Toggle moving the cursor to the focused window."),
+        command(
+            ["toggle-focus-follows-mouse"],
+            name: .toggleFocusFollowsMouse,
+            summary: "Toggle focus-follows-mouse behavior."
+        ),
+        command(
+            ["toggle-focus-follows-window-to-monitor"],
+            name: .toggleFocusFollowsWindowToMonitor,
+            summary: "Toggle following a window when it moves to another monitor."
+        ),
+        command(
+            ["toggle-move-mouse-to-focused"],
+            name: .toggleMoveMouseToFocused,
+            summary: "Toggle moving the cursor to the focused window."
+        ),
         command(["toggle-borders"], name: .toggleBordersEnabled, summary: "Toggle window border rendering."),
-        command(["toggle-prevent-sleep"], name: .togglePreventSleepEnabled, summary: "Toggle display sleep prevention."),
+        command(
+            ["toggle-prevent-sleep"],
+            name: .togglePreventSleepEnabled,
+            summary: "Toggle display sleep prevention."
+        ),
         command(["toggle-ipc"], name: .toggleIPCEnabled, summary: "Toggle the IPC server.")
     ]
 

@@ -650,7 +650,10 @@ final class WorkspaceManager {
         sessionState.focus.isNonManagedFocusActive = focusSession.isNonManagedFocusActive
         sessionState.focus.isAppFullscreenActive = focusSession.isAppFullscreenActive
         assignInteractionMonitorId(focusSession.interactionMonitorId, reason: "applyReconciledFocusSession")
-        assignPreviousInteractionMonitorId(focusSession.previousInteractionMonitorId, reason: "applyReconciledFocusSession")
+        assignPreviousInteractionMonitorId(
+            focusSession.previousInteractionMonitorId,
+            reason: "applyReconciledFocusSession"
+        )
     }
 
     @discardableResult
@@ -3088,7 +3091,6 @@ final class WorkspaceManager {
     func setInferredResizeMinimumSize(_ size: CGSize?, for token: WindowToken) {
         windows.setInferredResizeMinimumSize(size, for: token)
     }
-
 
     @discardableResult
     func moveWorkspaceToMonitor(_ workspaceId: WorkspaceDescriptor.ID, to targetMonitorId: Monitor.ID) -> Bool {

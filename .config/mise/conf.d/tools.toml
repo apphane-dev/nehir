@@ -1,0 +1,12 @@
+# Standalone developer tools, pinned for reproducible local + CI runs.
+#
+# Swift is intentionally NOT installed by mise. On macOS it comes from Xcode
+# (selected via .swift-version / xcrun); the core `swift` backend would instead
+# download a swift.org toolchain that shadows Xcode. `disable_tools` tells mise
+# to leave Swift to that system toolchain.
+[settings]
+disable_tools = ["swift"]
+
+[tools]
+swiftlint = "0.63.3"
+swiftformat = "0.61.1"

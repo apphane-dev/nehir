@@ -7,7 +7,9 @@ enum RevealPartial: String, CaseIterable, Codable, Identifiable {
     case snapClosest
     case snapCenter
 
-    var id: String { rawValue }
+    var id: String {
+        rawValue
+    }
 
     var displayName: String {
         switch self {
@@ -43,7 +45,11 @@ enum LoneWindowPolicy: Equatable, Identifiable, Codable {
         case "centered":
             self = .centered(maxWidthFraction: try container.decode(Double.self, forKey: .maxWidthFraction))
         default:
-            throw DecodingError.dataCorruptedError(forKey: .kind, in: container, debugDescription: "unknown lone window policy \(kind)")
+            throw DecodingError.dataCorruptedError(
+                forKey: .kind,
+                in: container,
+                debugDescription: "unknown lone window policy \(kind)"
+            )
         }
     }
 

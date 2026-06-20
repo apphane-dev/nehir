@@ -61,7 +61,9 @@ enum WorkspacesTOMLCodec {
                 guard let monitorName = extractString(row.values["monitorName"]),
                       let displayIdRaw = row.values["monitorDisplayId"],
                       let displayId = UInt32(displayIdRaw.trimmingCharacters(in: .whitespaces))
-                else { assignment = .main; break }
+                else { assignment = .main
+                    break
+                }
                 let anchorPoint = parseAnchorPoint(
                     x: row.values["monitorAnchorX"],
                     y: row.values["monitorAnchorY"]
@@ -113,7 +115,8 @@ enum WorkspacesTOMLCodec {
                 rows.append(Row(name: extractString(currentValues["name"]), values: currentValues))
             case let .keyedWorkspace(name):
                 rows.append(Row(name: name, values: currentValues))
-            case .none, .ignored:
+            case .none,
+                 .ignored:
                 break
             }
             currentValues = [:]
@@ -141,9 +144,11 @@ enum WorkspacesTOMLCodec {
 
     private static func shouldCollectValues(in kind: SectionKind) -> Bool {
         switch kind {
-        case .legacyWorkspace, .keyedWorkspace:
+        case .legacyWorkspace,
+             .keyedWorkspace:
             return true
-        case .none, .ignored:
+        case .none,
+             .ignored:
             return false
         }
     }
@@ -153,7 +158,9 @@ enum WorkspacesTOMLCodec {
             return .legacyWorkspace
         }
 
-        guard line.hasPrefix("["), line.hasSuffix("]"), !line.hasPrefix("[["), !line.hasSuffix("]]"), line.count >= 2 else {
+        guard line.hasPrefix("["), line.hasSuffix("]"), !line.hasPrefix("[["), !line.hasSuffix("]]"),
+              line.count >= 2
+        else {
             return .ignored
         }
 
@@ -176,7 +183,8 @@ enum WorkspacesTOMLCodec {
         // TOML 1.0 bare keys allow only ASCII A-Z a-z 0-9 _ -. Unicode letters/numerals
         // (é, α, superscripts, etc.) must be emitted quoted.
         guard value.allSatisfy({
-            ("a"..."z").contains($0) || ("A"..."Z").contains($0) || ("0"..."9").contains($0) || $0 == "_" || $0 == "-"
+            ("a" ... "z").contains($0) || ("A" ... "Z").contains($0) || ("0" ... "9")
+                .contains($0) || $0 == "_" || $0 == "-"
         }), !value.isEmpty else {
             return quoted(value)
         }

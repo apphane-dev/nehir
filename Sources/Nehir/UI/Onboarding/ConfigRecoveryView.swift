@@ -21,12 +21,14 @@ struct ConfigRecoveryView: View {
                     .foregroundStyle(.primary)
                     .multilineTextAlignment(.center)
 
-                Text("Nehir found invalid or unsupported settings before startup. The file was not rewritten automatically.")
-                    .font(.system(size: 14, weight: .regular))
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .lineSpacing(4)
+                Text(
+                    "Nehir found invalid or unsupported settings before startup. The file was not rewritten automatically."
+                )
+                .font(.system(size: 14, weight: .regular))
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .lineSpacing(4)
             }
             .padding(.horizontal, 40)
             .padding(.top, 36)

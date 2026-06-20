@@ -59,7 +59,6 @@ struct GeneralSettingsTab: View {
                 }
 
                 SettingsCaption("Controls the appearance of menus and workspace bar")
-
             }
 
             Section("Status Bar") {
@@ -102,7 +101,6 @@ struct GeneralSettingsTab: View {
             ConfigurationFilesSection(settings: settings) { action in
                 performAction(action)
             }
-
         }
         .formStyle(.grouped)
         .overlay {
@@ -274,14 +272,18 @@ private enum DefaultColumnWidthMode: String, CaseIterable, Identifiable {
     case balanced
     case custom
 
-    var id: String { rawValue }
+    var id: String {
+        rawValue
+    }
 }
 
 private enum LoneWindowMode: String, CaseIterable, Identifiable {
     case fill
     case centered
 
-    var id: String { rawValue }
+    var id: String {
+        rawValue
+    }
 }
 
 private enum LoneWindowOverrideMode: String, CaseIterable, Identifiable {
@@ -289,7 +291,9 @@ private enum LoneWindowOverrideMode: String, CaseIterable, Identifiable {
     case fill
     case centered
 
-    var id: String { rawValue }
+    var id: String {
+        rawValue
+    }
 }
 
 private struct StableSettingsControlRow<Content: View>: View {
@@ -318,7 +322,9 @@ private struct PercentTextField: View {
     @State private var draft = ""
     @FocusState private var isFocused: Bool
 
-    private var clampedValue: Int { value.clamped(to: range) }
+    private var clampedValue: Int {
+        value.clamped(to: range)
+    }
 
     var body: some View {
         HStack {
@@ -425,7 +431,9 @@ struct GlobalNiriSettingsSection: View {
                 }
             }
 
-            SettingsCaption("Applies when a column is created or reset. Existing columns are not resized by this setting.")
+            SettingsCaption(
+                "Applies when a column is created or reset. Existing columns are not resized by this setting."
+            )
         }
 
         Section("Single-Window Default") {
@@ -450,7 +458,9 @@ struct GlobalNiriSettingsSection: View {
                 }
             }
 
-            SettingsCaption("Applies only while a workspace has exactly one normal, non-tabbed window. Manual width changes override it.")
+            SettingsCaption(
+                "Applies only while a workspace has exactly one normal, non-tabbed window. Manual width changes override it."
+            )
         }
 
         Section("Resize Presets") {
@@ -570,7 +580,9 @@ struct MonitorNiriSettingsSection: View {
             },
             set: { newPercent in
                 updateSetting {
-                    $0.loneWindowPolicy = .centered(maxWidthFraction: Double(newPercent.clamped(to: 10 ... 100)) / 100.0)
+                    $0
+                        .loneWindowPolicy =
+                        .centered(maxWidthFraction: Double(newPercent.clamped(to: 10 ... 100)) / 100.0)
                 }
             }
         )
@@ -586,7 +598,9 @@ struct MonitorNiriSettingsSection: View {
                 onChange: { newValue in updateSetting { $0.balancedColumnCount = Int(newValue) } },
                 onReset: { updateSetting { $0.balancedColumnCount = nil } }
             )
-            SettingsCaption("Overrides the Balanced column count on this monitor. Used only when Default Column Width is Balanced.")
+            SettingsCaption(
+                "Overrides the Balanced column count on this monitor. Used only when Default Column Width is Balanced."
+            )
         }
 
         Section("Monitor Single-Window Default") {
@@ -620,7 +634,9 @@ struct MonitorNiriSettingsSection: View {
                 }
             }
 
-            SettingsCaption("Use Global inherits the main setting. Fill or Centered overrides only this monitor's single-window default.")
+            SettingsCaption(
+                "Use Global inherits the main setting. Fill or Centered overrides only this monitor's single-window default."
+            )
         }
     }
 }

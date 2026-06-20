@@ -224,7 +224,9 @@ struct HotkeySettingsView: View {
                     }
                 }
 
-                SettingsCaption("Shortcuts are stored as physical key combinations. Hyper+… means Ctrl+Option+Shift+Command.")
+                SettingsCaption(
+                    "Shortcuts are stored as physical key combinations. Hyper+… means Ctrl+Option+Shift+Command."
+                )
 
                 if !hasSearchMatches {
                     Text("No matching hotkeys.")
@@ -380,9 +382,11 @@ struct HotkeySettingsView: View {
     }
 
     private func handleChordCaptured(actionId: String, newBinding: KeyBinding) {
-        handleTriggerCaptured(actionId: actionId, newTrigger: newBinding.isUnassigned ? .unassigned : .chord(newBinding))
+        handleTriggerCaptured(
+            actionId: actionId,
+            newTrigger: newBinding.isUnassigned ? .unassigned : .chord(newBinding)
+        )
     }
-
 
     private func handleNumberedGroupCaptured(groupId: String, newBinding: KeyBinding) {
         guard let group = groupForNumberedGroupID(groupId) else { return }
@@ -474,7 +478,7 @@ struct HotkeySettingsView: View {
         _ group: HotkeyConfigMapping.NumberedGroup,
         triggerForDigit: (Int) -> HotkeyTrigger
     ) -> [HotkeyTriggerMapping] {
-        (0..<9).map { digitIndex in
+        (0 ..< 9).map { digitIndex in
             HotkeyTriggerMapping(
                 id: internalID(for: group, digitIndex: digitIndex),
                 trigger: triggerForDigit(digitIndex)
@@ -501,7 +505,7 @@ struct HotkeySettingsView: View {
     }
 
     private func bindingsForNumberedGroup(_ group: HotkeyConfigMapping.NumberedGroup) -> [HotkeyBinding] {
-        (0..<9).compactMap { digitIndex in
+        (0 ..< 9).compactMap { digitIndex in
             let id = internalID(for: group, digitIndex: digitIndex)
             return visibleHotkeyBindings.first { $0.id == id }
         }
@@ -509,7 +513,7 @@ struct HotkeySettingsView: View {
 
     private func isNumberedGroupMember(_ bindingId: String) -> Bool {
         HotkeyConfigMapping.numberedGroups.contains { group in
-            (0..<9).contains { digitIndex in
+            (0 ..< 9).contains { digitIndex in
                 internalID(for: group, digitIndex: digitIndex) == bindingId
             }
         }
@@ -632,10 +636,10 @@ private struct HotkeyNumberedGroupRow: View {
                     binding: representativeBinding,
                     commandName: group.title,
                     displayText: HotkeySettingsDisplayModel.numberedGroupDisplayString(
-                        for: group.bindings,
+                        for: group.bindings
                     ),
                     accessibilityText: HotkeySettingsDisplayModel.numberedGroupHumanReadableString(
-                        for: group.bindings,
+                        for: group.bindings
                     ),
                     canRemove: !group.bindings.allSatisfy(\.binding.isUnassigned),
                     isRecording: recordingTarget == .numberedGroup(group.id),
@@ -659,7 +663,9 @@ private struct HotkeyNumberedGroupRow: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .accessibilityValue("Shortcut \(HotkeySettingsDisplayModel.numberedGroupHumanReadableString(for: group.bindings))")
+        .accessibilityValue(
+            "Shortcut \(HotkeySettingsDisplayModel.numberedGroupHumanReadableString(for: group.bindings))"
+        )
     }
 
     private var representativeBinding: HotkeyTrigger {

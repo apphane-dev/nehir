@@ -356,7 +356,9 @@ struct WorkspaceDetailPane: View {
                     connectedMonitors: connectedMonitors
                 )
 
-                SettingsCaption("Main follows the current main display. Secondary follows the first non-main display. Specific Display pins this workspace to the selected monitor when available.")
+                SettingsCaption(
+                    "Main follows the current main display. Secondary follows the first non-main display. Specific Display pins this workspace to the selected monitor when available."
+                )
             }
 
             Section {
@@ -435,7 +437,9 @@ struct WorkspaceAddPane: View {
                     connectedMonitors: connectedMonitors
                 )
 
-                SettingsCaption("Main follows the current main display. Secondary follows the first non-main display. Specific Display pins this workspace to the selected monitor when available.")
+                SettingsCaption(
+                    "Main follows the current main display. Secondary follows the first non-main display. Specific Display pins this workspace to the selected monitor when available."
+                )
             }
 
             Section {

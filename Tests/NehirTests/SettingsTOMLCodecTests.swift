@@ -113,8 +113,14 @@ private extension String {
 
         // Seed one unknown key under [general] and another under [niri].
         let seeded = output
-            .replacingOccurrences(of: "hotkeysEnabled = true", with: "hotkeysEnabled = true\nfutureSetting = \"keep-me\"")
-            .replacingOccurrences(of: "balancedColumnCount = 2", with: "balancedColumnCount = 2\nfutureNiriSetting = true")
+            .replacingOccurrences(
+                of: "hotkeysEnabled = true",
+                with: "hotkeysEnabled = true\nfutureSetting = \"keep-me\""
+            )
+            .replacingOccurrences(
+                of: "balancedColumnCount = 2",
+                with: "balancedColumnCount = 2\nfutureNiriSetting = true"
+            )
 
         // Decode (unknown keys captured), mutate a known value, re-encode.
         var decoded = try SettingsTOMLCodec.decode(Data(seeded.utf8))

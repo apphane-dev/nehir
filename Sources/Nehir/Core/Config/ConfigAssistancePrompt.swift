@@ -42,12 +42,24 @@ enum ConfigAssistancePrompt {
 
         switch kind {
         case .unknownKeys:
-            lines.append("These keys are valid TOML and Nehir preserves them on save, but this version ignores them because they are not part of the current settings schema.")
-            lines.append("Please consult the Nehir release notes/changelog to discover whether they were renamed, replaced, or removed, then suggest current settings.toml entries with equivalent behavior.")
+            lines
+                .append(
+                    "These keys are valid TOML and Nehir preserves them on save, but this version ignores them because they are not part of the current settings schema."
+                )
+            lines
+                .append(
+                    "Please consult the Nehir release notes/changelog to discover whether they were renamed, replaced, or removed, then suggest current settings.toml entries with equivalent behavior."
+                )
         case .loadFailure:
-            lines.append("Nehir could not safely load this file. Please identify the invalid or unsupported entries, consult the Nehir release notes/changelog, and suggest a corrected settings.toml that preserves equivalent behavior where possible.")
+            lines
+                .append(
+                    "Nehir could not safely load this file. Please identify the invalid or unsupported entries, consult the Nehir release notes/changelog, and suggest a corrected settings.toml that preserves equivalent behavior where possible."
+                )
         case .enforcedMigration:
-            lines.append("This file uses a config format that this version no longer accepts. Please consult the Nehir release notes/changelog and migrate it to the current format while preserving equivalent behavior.")
+            lines
+                .append(
+                    "This file uses a config format that this version no longer accepts. Please consult the Nehir release notes/changelog and migrate it to the current format while preserving equivalent behavior."
+                )
         }
         lines.append("")
         lines.append("Start with this release page:")

@@ -15,7 +15,10 @@ struct DisplayDiagnosticsSettingsTab: View {
     @State private var migrationError: String?
     @State private var unknownKeysConfirmation: String?
     @State private var unknownKeysError: String?
-    @State private var traceCaptureStatus: WMController.RuntimeTraceCaptureStatus = .init(isActive: false, startedAt: nil)
+    @State private var traceCaptureStatus: WMController.RuntimeTraceCaptureStatus = .init(
+        isActive: false,
+        startedAt: nil
+    )
     @State private var recentTraces: [TraceFile] = []
     @State private var traceCopyStatus: String?
     @State private var runtimeActionStatus: String?
@@ -59,14 +62,21 @@ struct DisplayDiagnosticsSettingsTab: View {
 
                 if !axGranted {
                     Button("Open System Settings") {
-                        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+                        if let url =
+                            URL(
+                                string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
+                            )
+                        {
                             NSWorkspace.shared.open(url)
                         }
                     }
                 }
             }
 
-            if !applicableSettingsIssues.isEmpty || migrationConfirmation != nil || migrationError != nil || unknownKeysConfirmation != nil || unknownKeysError != nil {
+            if !applicableSettingsIssues
+                .isEmpty || migrationConfirmation != nil || migrationError != nil || unknownKeysConfirmation != nil ||
+                unknownKeysError != nil
+            {
                 Section("Settings Configuration") {
                     ForEach(applicableSettingsIssues) { issue in
                         switch issue {
@@ -115,13 +125,15 @@ struct DisplayDiagnosticsSettingsTab: View {
 
             Section("Status") {
                 HStack(alignment: .top, spacing: 10) {
-                    Image(systemName: diagnostics.hasWarnings ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
+                    Image(systemName: diagnostics
+                        .hasWarnings ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
                         .foregroundStyle(diagnostics.hasWarnings ? .yellow : .green)
                         .font(.title3)
                         .accessibilityHidden(true)
 
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(diagnostics.hasWarnings ? "Recommendations need attention" : "Display environment looks good")
+                        Text(diagnostics
+                            .hasWarnings ? "Recommendations need attention" : "Display environment looks good")
                             .font(.headline)
                         Text(statusMessage)
                             .foregroundStyle(.secondary)
@@ -134,14 +146,24 @@ struct DisplayDiagnosticsSettingsTab: View {
             }
 
             Section("Display and Dock Recommendations") {
-                SettingsCaption("Nehir currently supports an auto-hide Dock and display arrangements with no vertical overlap: vertical or diagonal layouts in macOS System Settings. A diagonal arrangement is recommended when you want to avoid macOS' native cross-display edge warp and rely only on Nehir's configured Mouse Warp.")
-                Label("Displays have separate Spaces: \(displaySpacesMode.displayName)", systemImage: displaySpacesMode.systemImage)
-                    .foregroundStyle(.secondary)
-                SettingsCaption("Separate Spaces is detected for visibility only; Nehir does not enforce it or change display-arrangement recommendations based on it yet.")
+                SettingsCaption(
+                    "Nehir currently supports an auto-hide Dock and display arrangements with no vertical overlap: vertical or diagonal layouts in macOS System Settings. A diagonal arrangement is recommended when you want to avoid macOS' native cross-display edge warp and rely only on Nehir's configured Mouse Warp."
+                )
+                Label(
+                    "Displays have separate Spaces: \(displaySpacesMode.displayName)",
+                    systemImage: displaySpacesMode.systemImage
+                )
+                .foregroundStyle(.secondary)
+                SettingsCaption(
+                    "Separate Spaces is detected for visibility only; Nehir does not enforce it or change display-arrangement recommendations based on it yet."
+                )
 
                 if diagnostics.issues.isEmpty {
-                    Label("No fixed Dock or unsupported vertical display overlap detected.", systemImage: "checkmark.circle")
-                        .foregroundStyle(.green)
+                    Label(
+                        "No fixed Dock or unsupported vertical display overlap detected.",
+                        systemImage: "checkmark.circle"
+                    )
+                    .foregroundStyle(.green)
                 } else {
                     ForEach(diagnostics.issues) { issue in
                         DiagnosticIssueView(issue: issue)
@@ -170,7 +192,9 @@ struct DisplayDiagnosticsSettingsTab: View {
                 .onChange(of: settings.developerModeEnabled) { _, _ in
                     controller.updateWorkspaceBarSettings()
                 }
-                SettingsCaption("Shows debug commands in the palette, hotkey settings, and enables IPC debug endpoints.")
+                SettingsCaption(
+                    "Shows debug commands in the palette, hotkey settings, and enables IPC debug endpoints."
+                )
             }
 
             if settings.developerModeEnabled {
@@ -181,7 +205,9 @@ struct DisplayDiagnosticsSettingsTab: View {
         }
         .formStyle(.grouped)
         .onAppear(perform: refresh)
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didChangeScreenParametersNotification)) { _ in
+        .onReceive(NotificationCenter.default
+            .publisher(for: NSApplication.didChangeScreenParametersNotification))
+        { _ in
             refresh()
         }
         .onReceive(NotificationCenter.default.publisher(for: .settingsMigrationStateDidChange)) { _ in
@@ -277,7 +303,9 @@ struct DisplayDiagnosticsSettingsTab: View {
                     .foregroundStyle(.green)
             }
 
-            SettingsCaption("Reset rebuilds runtime state from a fresh rescan. Restart Clearing State relaunches Nehir after the same cleanup and can enable tracing from startup.")
+            SettingsCaption(
+                "Reset rebuilds runtime state from a fresh rescan. Restart Clearing State relaunches Nehir after the same cleanup and can enable tracing from startup."
+            )
         } header: {
             HStack(spacing: 6) {
                 Text("Runtime State")
@@ -562,7 +590,9 @@ private struct TraceFile: Identifiable {
     let modificationDate: Date
     let size: Int64
 
-    var id: URL { url }
+    var id: URL {
+        url
+    }
 }
 
 /// A single debug command rendered as a row: its title, the currently
@@ -608,9 +638,12 @@ private struct SettingsMigrationWarningView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Label(migration.descriptor.title, systemImage: isPostponed ? "info.circle.fill" : "exclamationmark.triangle.fill")
-                .font(.headline)
-                .foregroundStyle(isPostponed ? Color.secondary : Color.yellow)
+            Label(
+                migration.descriptor.title,
+                systemImage: isPostponed ? "info.circle.fill" : "exclamationmark.triangle.fill"
+            )
+            .font(.headline)
+            .foregroundStyle(isPostponed ? Color.secondary : Color.yellow)
 
             if isPostponed {
                 Text("Reminder hidden until the next Nehir update. You can still migrate now.")
@@ -673,17 +706,22 @@ private struct UnknownSettingsKeysWarningView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Label("Unrecognized settings keys", systemImage: isPostponed ? "info.circle.fill" : "exclamationmark.triangle.fill")
-                .font(.headline)
-                .foregroundStyle(isPostponed ? Color.secondary : Color.yellow)
+            Label(
+                "Unrecognized settings keys",
+                systemImage: isPostponed ? "info.circle.fill" : "exclamationmark.triangle.fill"
+            )
+            .font(.headline)
+            .foregroundStyle(isPostponed ? Color.secondary : Color.yellow)
 
             if isPostponed {
                 Text("Reminder hidden until the next Nehir update. The keys are still preserved in settings.toml.")
                     .foregroundStyle(.secondary)
             }
 
-            Text("settings.toml contains valid TOML keys that this Nehir version does not use. Nehir will keep them in the file when saving, but they do not affect current behavior.")
-                .foregroundStyle(.secondary)
+            Text(
+                "settings.toml contains valid TOML keys that this Nehir version does not use. Nehir will keep them in the file when saving, but they do not affect current behavior."
+            )
+            .foregroundStyle(.secondary)
 
             Text("File: \(issue.fileURL.path)")
                 .font(.caption.monospaced())

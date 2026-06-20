@@ -97,7 +97,8 @@ struct CanonicalTOMLConfig: Codable, Equatable {
         var unknownFields: [String: SettingsTOMLUnknownValue] = [:]
 
         enum CodingKeys: String, CodingKey, CaseIterable {
-            case balancedColumnCount, infiniteLoop, revealPartial, loneWindowMaxWidth, columnWidthPresets, defaultColumnWidth
+            case balancedColumnCount, infiniteLoop, revealPartial, loneWindowMaxWidth, columnWidthPresets,
+                 defaultColumnWidth
         }
     }
 
@@ -122,7 +123,13 @@ struct CanonicalTOMLConfig: Codable, Equatable {
                 case red, green, blue, alpha
             }
 
-            init(red: Double, green: Double, blue: Double, alpha: Double, unknownFields: [String: SettingsTOMLUnknownValue] = [:]) {
+            init(
+                red: Double,
+                green: Double,
+                blue: Double,
+                alpha: Double,
+                unknownFields: [String: SettingsTOMLUnknownValue] = [:]
+            ) {
                 self.red = red
                 self.green = green
                 self.blue = blue
@@ -153,7 +160,9 @@ struct CanonicalTOMLConfig: Codable, Equatable {
         var unknownFields: [String: SettingsTOMLUnknownValue] = [:]
 
         enum CodingKeys: String, CodingKey, CaseIterable {
-            case enabled, showLabels, showFloatingWindows, showTraceButton, windowLevel, position, notchAware, deduplicateAppIcons, hideEmptyWorkspaces, reserveLayoutSpace, height, backgroundOpacity, xOffset, yOffset, labelFontSize, accentColor, textColor
+            case enabled, showLabels, showFloatingWindows, showTraceButton, windowLevel, position, notchAware,
+                 deduplicateAppIcons, hideEmptyWorkspaces, reserveLayoutSpace, height, backgroundOpacity, xOffset,
+                 yOffset, labelFontSize, accentColor, textColor
         }
 
         struct Color: Codable, Equatable {
@@ -167,7 +176,13 @@ struct CanonicalTOMLConfig: Codable, Equatable {
                 case red, green, blue, alpha
             }
 
-            init(red: Double, green: Double, blue: Double, alpha: Double, unknownFields: [String: SettingsTOMLUnknownValue] = [:]) {
+            init(
+                red: Double,
+                green: Double,
+                blue: Double,
+                alpha: Double,
+                unknownFields: [String: SettingsTOMLUnknownValue] = [:]
+            ) {
                 self.red = red
                 self.green = green
                 self.blue = blue
@@ -198,7 +213,8 @@ struct CanonicalTOMLConfig: Codable, Equatable {
         var unknownFields: [String: SettingsTOMLUnknownValue] = [:]
 
         enum CodingKeys: String, CodingKey, CaseIterable {
-            case scrollEnabled, scrollSensitivity, scrollModifierKey, mouseResizeModifierKey, fingerCount, invertDirection
+            case scrollEnabled, scrollSensitivity, scrollModifierKey, mouseResizeModifierKey, fingerCount,
+                 invertDirection
         }
     }
 
@@ -426,7 +442,11 @@ extension CanonicalTOMLConfig {
         gaps = try container.decodeWithDefault(Gaps.self, forKey: .gaps, default: d.gaps)
         niri = try container.decodeWithDefault(Niri.self, forKey: .niri, default: d.niri)
         borders = try container.decodeWithDefault(Borders.self, forKey: .borders, default: d.borders)
-        workspaceBar = try container.decodeWithDefault(WorkspaceBar.self, forKey: .workspaceBar, default: d.workspaceBar)
+        workspaceBar = try container.decodeWithDefault(
+            WorkspaceBar.self,
+            forKey: .workspaceBar,
+            default: d.workspaceBar
+        )
         gestures = try container.decodeWithDefault(Gestures.self, forKey: .gestures, default: d.gestures)
         statusBar = try container.decodeWithDefault(StatusBar.self, forKey: .statusBar, default: d.statusBar)
         appearance = try container.decodeWithDefault(Appearance.self, forKey: .appearance, default: d.appearance)
@@ -452,10 +472,22 @@ extension CanonicalTOMLConfig.General {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let d = CanonicalTOMLConfig.defaults().general
         hotkeysEnabled = try container.decodeWithDefault(Bool.self, forKey: .hotkeysEnabled, default: d.hotkeysEnabled)
-        preventSleepEnabled = try container.decodeWithDefault(Bool.self, forKey: .preventSleepEnabled, default: d.preventSleepEnabled)
+        preventSleepEnabled = try container.decodeWithDefault(
+            Bool.self,
+            forKey: .preventSleepEnabled,
+            default: d.preventSleepEnabled
+        )
         ipcEnabled = try container.decodeWithDefault(Bool.self, forKey: .ipcEnabled, default: d.ipcEnabled)
-        developerModeEnabled = try container.decodeWithDefault(Bool.self, forKey: .developerModeEnabled, default: d.developerModeEnabled)
-        ignoreMonitorIdentity = try container.decodeWithDefault(Bool.self, forKey: .ignoreMonitorIdentity, default: d.ignoreMonitorIdentity)
+        developerModeEnabled = try container.decodeWithDefault(
+            Bool.self,
+            forKey: .developerModeEnabled,
+            default: d.developerModeEnabled
+        )
+        ignoreMonitorIdentity = try container.decodeWithDefault(
+            Bool.self,
+            forKey: .ignoreMonitorIdentity,
+            default: d.ignoreMonitorIdentity
+        )
         unknownFields = try SettingsTOMLUnknownValue.decodeUnknownFields(from: decoder, excluding: CodingKeys.self)
     }
 
@@ -475,8 +507,16 @@ extension CanonicalTOMLConfig.Focus {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let d = CanonicalTOMLConfig.defaults().focus
         followsMouse = try container.decodeWithDefault(Bool.self, forKey: .followsMouse, default: d.followsMouse)
-        moveMouseToFocusedWindow = try container.decodeWithDefault(Bool.self, forKey: .moveMouseToFocusedWindow, default: d.moveMouseToFocusedWindow)
-        followsWindowToMonitor = try container.decodeWithDefault(Bool.self, forKey: .followsWindowToMonitor, default: d.followsWindowToMonitor)
+        moveMouseToFocusedWindow = try container.decodeWithDefault(
+            Bool.self,
+            forKey: .moveMouseToFocusedWindow,
+            default: d.moveMouseToFocusedWindow
+        )
+        followsWindowToMonitor = try container.decodeWithDefault(
+            Bool.self,
+            forKey: .followsWindowToMonitor,
+            default: d.followsWindowToMonitor
+        )
         unknownFields = try SettingsTOMLUnknownValue.decodeUnknownFields(from: decoder, excluding: CodingKeys.self)
     }
 
@@ -552,7 +592,11 @@ extension CanonicalTOMLConfig.Niri {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let d = CanonicalTOMLConfig.defaults().niri
-        balancedColumnCount = try container.decodeWithDefault(Int.self, forKey: .balancedColumnCount, default: d.balancedColumnCount)
+        balancedColumnCount = try container.decodeWithDefault(
+            Int.self,
+            forKey: .balancedColumnCount,
+            default: d.balancedColumnCount
+        )
         infiniteLoop = try container.decodeWithDefault(Bool.self, forKey: .infiniteLoop, default: d.infiniteLoop)
         revealPartial = try container.decodeWithDefault(String.self, forKey: .revealPartial, default: d.revealPartial)
         loneWindowMaxWidth = try container.decodeIfPresent(Double.self, forKey: .loneWindowMaxWidth)
@@ -619,16 +663,40 @@ extension CanonicalTOMLConfig.WorkspaceBar {
         let d = CanonicalTOMLConfig.defaults().workspaceBar
         enabled = try container.decodeWithDefault(Bool.self, forKey: .enabled, default: d.enabled)
         showLabels = try container.decodeWithDefault(Bool.self, forKey: .showLabels, default: d.showLabels)
-        showFloatingWindows = try container.decodeWithDefault(Bool.self, forKey: .showFloatingWindows, default: d.showFloatingWindows)
-        showTraceButton = try container.decodeWithDefault(Bool.self, forKey: .showTraceButton, default: d.showTraceButton)
+        showFloatingWindows = try container.decodeWithDefault(
+            Bool.self,
+            forKey: .showFloatingWindows,
+            default: d.showFloatingWindows
+        )
+        showTraceButton = try container.decodeWithDefault(
+            Bool.self,
+            forKey: .showTraceButton,
+            default: d.showTraceButton
+        )
         windowLevel = try container.decodeWithDefault(String.self, forKey: .windowLevel, default: d.windowLevel)
         position = try container.decodeWithDefault(String.self, forKey: .position, default: d.position)
         notchAware = try container.decodeWithDefault(Bool.self, forKey: .notchAware, default: d.notchAware)
-        deduplicateAppIcons = try container.decodeWithDefault(Bool.self, forKey: .deduplicateAppIcons, default: d.deduplicateAppIcons)
-        hideEmptyWorkspaces = try container.decodeWithDefault(Bool.self, forKey: .hideEmptyWorkspaces, default: d.hideEmptyWorkspaces)
-        reserveLayoutSpace = try container.decodeWithDefault(Bool.self, forKey: .reserveLayoutSpace, default: d.reserveLayoutSpace)
+        deduplicateAppIcons = try container.decodeWithDefault(
+            Bool.self,
+            forKey: .deduplicateAppIcons,
+            default: d.deduplicateAppIcons
+        )
+        hideEmptyWorkspaces = try container.decodeWithDefault(
+            Bool.self,
+            forKey: .hideEmptyWorkspaces,
+            default: d.hideEmptyWorkspaces
+        )
+        reserveLayoutSpace = try container.decodeWithDefault(
+            Bool.self,
+            forKey: .reserveLayoutSpace,
+            default: d.reserveLayoutSpace
+        )
         height = try container.decodeWithDefault(Double.self, forKey: .height, default: d.height)
-        backgroundOpacity = try container.decodeWithDefault(Double.self, forKey: .backgroundOpacity, default: d.backgroundOpacity)
+        backgroundOpacity = try container.decodeWithDefault(
+            Double.self,
+            forKey: .backgroundOpacity,
+            default: d.backgroundOpacity
+        )
         xOffset = try container.decodeWithDefault(Double.self, forKey: .xOffset, default: d.xOffset)
         yOffset = try container.decodeWithDefault(Double.self, forKey: .yOffset, default: d.yOffset)
         labelFontSize = try container.decodeWithDefault(Double.self, forKey: .labelFontSize, default: d.labelFontSize)
@@ -663,7 +731,12 @@ extension CanonicalTOMLConfig.WorkspaceBar {
 extension CanonicalTOMLConfig.WorkspaceBar.Color {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        let d = CanonicalTOMLConfig.defaults().workspaceBar.accentColor ?? CanonicalTOMLConfig.WorkspaceBar.Color(red: 0, green: 0, blue: 0, alpha: 1)
+        let d = CanonicalTOMLConfig.defaults().workspaceBar.accentColor ?? CanonicalTOMLConfig.WorkspaceBar.Color(
+            red: 0,
+            green: 0,
+            blue: 0,
+            alpha: 1
+        )
         red = try container.decodeWithDefault(Double.self, forKey: .red, default: d.red)
         green = try container.decodeWithDefault(Double.self, forKey: .green, default: d.green)
         blue = try container.decodeWithDefault(Double.self, forKey: .blue, default: d.blue)
@@ -686,11 +759,27 @@ extension CanonicalTOMLConfig.Gestures {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let d = CanonicalTOMLConfig.defaults().gestures
         scrollEnabled = try container.decodeWithDefault(Bool.self, forKey: .scrollEnabled, default: d.scrollEnabled)
-        scrollSensitivity = try container.decodeWithDefault(Double.self, forKey: .scrollSensitivity, default: d.scrollSensitivity)
-        scrollModifierKey = try container.decodeWithDefault(String.self, forKey: .scrollModifierKey, default: d.scrollModifierKey)
-        mouseResizeModifierKey = try container.decodeWithDefault(String.self, forKey: .mouseResizeModifierKey, default: d.mouseResizeModifierKey)
+        scrollSensitivity = try container.decodeWithDefault(
+            Double.self,
+            forKey: .scrollSensitivity,
+            default: d.scrollSensitivity
+        )
+        scrollModifierKey = try container.decodeWithDefault(
+            String.self,
+            forKey: .scrollModifierKey,
+            default: d.scrollModifierKey
+        )
+        mouseResizeModifierKey = try container.decodeWithDefault(
+            String.self,
+            forKey: .mouseResizeModifierKey,
+            default: d.mouseResizeModifierKey
+        )
         fingerCount = try container.decodeWithDefault(Int.self, forKey: .fingerCount, default: d.fingerCount)
-        invertDirection = try container.decodeWithDefault(Bool.self, forKey: .invertDirection, default: d.invertDirection)
+        invertDirection = try container.decodeWithDefault(
+            Bool.self,
+            forKey: .invertDirection,
+            default: d.invertDirection
+        )
         unknownFields = try SettingsTOMLUnknownValue.decodeUnknownFields(from: decoder, excluding: CodingKeys.self)
     }
 
@@ -710,7 +799,11 @@ extension CanonicalTOMLConfig.StatusBar {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let d = CanonicalTOMLConfig.defaults().statusBar
-        showWorkspaceName = try container.decodeWithDefault(Bool.self, forKey: .showWorkspaceName, default: d.showWorkspaceName)
+        showWorkspaceName = try container.decodeWithDefault(
+            Bool.self,
+            forKey: .showWorkspaceName,
+            default: d.showWorkspaceName
+        )
         showAppNames = try container.decodeWithDefault(Bool.self, forKey: .showAppNames, default: d.showAppNames)
         useWorkspaceId = try container.decodeWithDefault(Bool.self, forKey: .useWorkspaceId, default: d.useWorkspaceId)
         unknownFields = try SettingsTOMLUnknownValue.decodeUnknownFields(from: decoder, excluding: CodingKeys.self)

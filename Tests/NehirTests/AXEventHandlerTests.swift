@@ -1548,8 +1548,18 @@ private func waitUntilAXEventTest(
             return
         }
 
-        let focusedNode = engine.addWindow(token: focusedToken, to: workspaceId, afterSelection: nil, focusedToken: focusedToken)
-        _ = engine.addWindow(token: otherToken, to: workspaceId, afterSelection: focusedNode.id, focusedToken: focusedToken)
+        let focusedNode = engine.addWindow(
+            token: focusedToken,
+            to: workspaceId,
+            afterSelection: nil,
+            focusedToken: focusedToken
+        )
+        _ = engine.addWindow(
+            token: otherToken,
+            to: workspaceId,
+            afterSelection: focusedNode.id,
+            focusedToken: focusedToken
+        )
         for column in engine.columns(in: workspaceId) {
             column.cachedWidth = 900
             column.cachedHeight = 800
@@ -1611,7 +1621,12 @@ private func waitUntilAXEventTest(
             windowId: 9811,
             to: workspaceId
         )
-        let targetNode = engine.addWindow(token: targetToken, to: workspaceId, afterSelection: nil, focusedToken: targetToken)
+        let targetNode = engine.addWindow(
+            token: targetToken,
+            to: workspaceId,
+            afterSelection: nil,
+            focusedToken: targetToken
+        )
         for column in engine.columns(in: workspaceId) {
             column.cachedWidth = 900
             column.cachedHeight = 800
@@ -3524,7 +3539,8 @@ private func waitUntilAXEventTest(
             width: 400,
             height: 300
         ))
-        #expect(controller.workspaceManager.nativeFullscreenRecord(for: replacementToken)?.currentToken == replacementToken)
+        #expect(controller.workspaceManager.nativeFullscreenRecord(for: replacementToken)?
+            .currentToken == replacementToken)
     }
 
     @Test @MainActor func nativeFullscreenPlaceholderPanelStaysOutOfFullscreenSpaces() {
@@ -3767,7 +3783,8 @@ private func waitUntilAXEventTest(
         controller.axEventHandler.handleRemoved(token: removedToken)
 
         #expect(controller.nativeFullscreenPlaceholderManager.snapshotForTests()[removedToken] == nil)
-        #expect(controller.workspaceManager.nativeFullscreenRecord(for: removedToken)?.availability == .temporarilyUnavailable)
+        #expect(controller.workspaceManager.nativeFullscreenRecord(for: removedToken)?
+            .availability == .temporarilyUnavailable)
     }
 
     @Test @MainActor func workspaceDidActivateApplicationRevealsRestoredManagedWindowOnInteractionWorkspace() {
@@ -5239,9 +5256,6 @@ private func waitUntilAXEventTest(
             .workspaceId == secondaryWorkspaceId)
     }
 
-
-
-
     @Test @MainActor func structuralReplacementDestroyThenCreateFlushesWithinSingleGraceWindow() async {
         let controller = makeAXEventTestController(trackedBundleId: currentTestBundleId())
         guard let workspaceId = controller.interactionWorkspace()?.id else {
@@ -5786,7 +5800,6 @@ private func waitUntilAXEventTest(
         #expect(updatedRightFrame.approximatelyEqual(to: originalRightFrame, tolerance: 0.5))
         #expect(controller.workspaceManager.niriViewportState(for: workspaceId).selectedNodeId == oldNode.id)
     }
-
 
     @Test @MainActor func browserReplacementRekeysManagedWindowWithoutGrowingColumnsOrBarEntries() async {
         let controller = makeAXEventTestController(trackedBundleId: "com.google.Chrome")
@@ -6441,7 +6454,6 @@ private func waitUntilAXEventTest(
 
         #expect(controller.workspaceManager.entry(for: token) == nil)
     }
-
 
     @Test @MainActor func floatingCreatedWindowStaysTrackedAndKeepsWorkspaceAssignment() async {
         let controller = makeAXEventTestController()
@@ -7456,8 +7468,14 @@ private func waitUntilAXEventTest(
             let controller = makeAXEventTestController(
                 trackedBundleId: bundleId,
                 workspaceConfigurations: [
-                    WorkspaceConfiguration(name: "1", monitorAssignment: .specificDisplay(OutputId(from: primaryMonitor))),
-                    WorkspaceConfiguration(name: "6", monitorAssignment: .specificDisplay(OutputId(from: secondaryMonitor)))
+                    WorkspaceConfiguration(
+                        name: "1",
+                        monitorAssignment: .specificDisplay(OutputId(from: primaryMonitor))
+                    ),
+                    WorkspaceConfiguration(
+                        name: "6",
+                        monitorAssignment: .specificDisplay(OutputId(from: secondaryMonitor))
+                    )
                 ]
             )
             controller.workspaceManager.applyMonitorConfigurationChange([primaryMonitor, secondaryMonitor])
@@ -9146,8 +9164,18 @@ private func waitUntilAXEventTest(
             return
         }
 
-        let parentNode = engine.addWindow(token: parentToken, to: workspaceId, afterSelection: nil, focusedToken: parentToken)
-        _ = engine.addWindow(token: siblingToken, to: workspaceId, afterSelection: parentNode.id, focusedToken: parentToken)
+        let parentNode = engine.addWindow(
+            token: parentToken,
+            to: workspaceId,
+            afterSelection: nil,
+            focusedToken: parentToken
+        )
+        _ = engine.addWindow(
+            token: siblingToken,
+            to: workspaceId,
+            afterSelection: parentNode.id,
+            focusedToken: parentToken
+        )
         guard let parentColumn = engine.column(of: parentNode),
               let parentColumnIndex = engine.columnIndex(of: parentColumn, in: workspaceId)
         else {
@@ -9599,40 +9627,40 @@ private func waitUntilAXEventTest(
 
     @Test @MainActor func handleRemovedPidPathInvalidatesCachedTitle() async {
         await withAXFrameProviderIsolationForTests {
-        AXWindowService.clearTitleCacheForTests()
-        defer {
-            AXWindowService.titleLookupProviderForTests = nil
-            AXWindowService.timeSourceForTests = nil
             AXWindowService.clearTitleCacheForTests()
-        }
+            defer {
+                AXWindowService.titleLookupProviderForTests = nil
+                AXWindowService.timeSourceForTests = nil
+                AXWindowService.clearTitleCacheForTests()
+            }
 
-        let controller = makeAXEventTestController()
-        guard let workspaceId = controller.interactionWorkspace()?.id else {
-            Issue.record("Missing active workspace")
-            return
-        }
+            let controller = makeAXEventTestController()
+            guard let workspaceId = controller.interactionWorkspace()?.id else {
+                Issue.record("Missing active workspace")
+                return
+            }
 
-        var lookupCount = 0
-        AXWindowService.timeSourceForTests = { 100 }
-        AXWindowService.titleLookupProviderForTests = { _ in
-            lookupCount += 1
-            return lookupCount == 1 ? "Before Remove" : "After Remove"
-        }
+            var lookupCount = 0
+            AXWindowService.timeSourceForTests = { 100 }
+            AXWindowService.titleLookupProviderForTests = { _ in
+                lookupCount += 1
+                return lookupCount == 1 ? "Before Remove" : "After Remove"
+            }
 
-        let token = controller.workspaceManager.addWindow(
-            AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: 905),
-            pid: getpid(),
-            windowId: 905,
-            to: workspaceId
-        )
+            let token = controller.workspaceManager.addWindow(
+                AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: 905),
+                pid: getpid(),
+                windowId: 905,
+                to: workspaceId
+            )
 
-        #expect(AXWindowService.titlePreferFast(windowId: 905) == "Before Remove")
+            #expect(AXWindowService.titlePreferFast(windowId: 905) == "Before Remove")
 
-        controller.axEventHandler.handleRemoved(pid: getpid(), winId: 905)
+            controller.axEventHandler.handleRemoved(pid: getpid(), winId: 905)
 
-        #expect(controller.workspaceManager.entry(for: token) == nil)
-        #expect(AXWindowService.titlePreferFast(windowId: 905) == "After Remove")
-        #expect(lookupCount == 2)
+            #expect(controller.workspaceManager.entry(for: token) == nil)
+            #expect(AXWindowService.titlePreferFast(windowId: 905) == "After Remove")
+            #expect(lookupCount == 2)
         }
     }
 
@@ -10097,7 +10125,8 @@ private func waitUntilAXEventTest(
         })
     }
 
-    @Test @MainActor func focusedUntrackedStandardWindowAdmissionSynthesizesCreatePlacementContextWhenCGSCreateHasNotArrived() async {
+    @Test @MainActor func focusedUntrackedStandardWindowAdmissionSynthesizesCreatePlacementContextWhenCGSCreateHasNotArrived(
+    ) async {
         let controller = makeAXEventTestController()
         guard let monitor = controller.monitorForInteraction(),
               let focusedWorkspaceId = controller.workspaceManager.workspaceId(for: "1", createIfMissing: false),

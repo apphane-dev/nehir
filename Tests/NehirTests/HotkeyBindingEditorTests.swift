@@ -90,7 +90,7 @@ private func makeHotkeyEditorDefaults() -> UserDefaults {
         let conflictingBinding = KeyBinding(keyCode: UInt32(kVK_ANSI_1), modifiers: UInt32(controlKey))
         settings.updateBinding(for: "move.left", newBinding: conflictingBinding)
 
-        let mappings = (0..<9).map { index in
+        let mappings = (0 ..< 9).map { index in
             HotkeyTriggerMapping(
                 id: "switchWorkspace.\(index)",
                 trigger: .chord(
@@ -121,7 +121,7 @@ private func makeHotkeyEditorDefaults() -> UserDefaults {
         let conflictingBinding = KeyBinding(keyCode: UInt32(kVK_ANSI_1), modifiers: UInt32(controlKey))
         settings.updateBinding(for: "move.left", newBinding: conflictingBinding)
 
-        let mappings = (0..<9).map { index in
+        let mappings = (0 ..< 9).map { index in
             HotkeyTriggerMapping(
                 id: "switchWorkspace.\(index)",
                 trigger: .chord(

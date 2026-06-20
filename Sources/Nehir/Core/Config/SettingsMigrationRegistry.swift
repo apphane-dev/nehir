@@ -34,7 +34,9 @@ struct PendingSettingsMigration: Identifiable, Equatable {
     let descriptor: SettingsMigrationDescriptor
     let fileURL: URL
 
-    var id: String { descriptor.id }
+    var id: String {
+        descriptor.id
+    }
 }
 
 enum SettingsMigrationDetector {

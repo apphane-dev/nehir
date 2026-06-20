@@ -549,7 +549,8 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
         }
         let expectedWindow = windows[activeColumn.activeTileIdx.clamped(to: 0 ... (windows.count - 1))]
         #expect(after.selectedNodeId == expectedWindow.id)
-        #expect(fixture.controller.workspaceManager.rememberedTiledFocusToken(in: fixture.workspaceId) == expectedWindow.token)
+        #expect(fixture.controller.workspaceManager.rememberedTiledFocusToken(in: fixture.workspaceId) == expectedWindow
+            .token)
         #expect(fixture.controller.workspaceManager.confirmedManagedFocusToken == focusedTokenBeforeScroll)
     }
 
@@ -2131,8 +2132,8 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
         guard let focusedNode = engine.findNode(for: focusedHandle),
               let focusedFrame = focusedNode.renderedFrame ?? focusedNode.frame,
               let staleHoverNode = engine.columns(in: workspaceId)
-                  .flatMap(\.windowNodes)
-                  .first(where: { $0.token != focusedHandle.token }),
+              .flatMap(\.windowNodes)
+              .first(where: { $0.token != focusedHandle.token }),
               let staleHoverFrame = staleHoverNode.renderedFrame ?? staleHoverNode.frame
         else {
             Issue.record("Missing node frames for stale queued focus-follow regression test")
@@ -2177,8 +2178,8 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
         guard let focusedNode = engine.findNode(for: focusedHandle),
               let focusedFrame = focusedNode.renderedFrame ?? focusedNode.frame,
               let otherNode = engine.columns(in: workspaceId)
-                  .flatMap(\.windowNodes)
-                  .first(where: { $0.token != focusedHandle.token }),
+              .flatMap(\.windowNodes)
+              .first(where: { $0.token != focusedHandle.token }),
               let otherFrame = otherNode.renderedFrame ?? otherNode.frame
         else {
             Issue.record("Missing node frames for pending focus-follow reassertion regression test")
@@ -2581,7 +2582,12 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
             focusedHandle: firstHandle
         )
         _ = controller.workspaceManager.setManagedFocus(floatingHandle, in: workspaceId, onMonitor: monitor.id)
-        let floatingFrame = CGRect(x: monitor.visibleFrame.midX - 100, y: monitor.visibleFrame.midY - 80, width: 200, height: 160)
+        let floatingFrame = CGRect(
+            x: monitor.visibleFrame.midX - 100,
+            y: monitor.visibleFrame.midY - 80,
+            width: 200,
+            height: 160
+        )
         controller.workspaceManager.updateFloatingGeometry(
             frame: floatingFrame,
             for: floatingToken,
@@ -2656,7 +2662,12 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
         )
         _ = controller.workspaceManager.setManagedFocus(firstHandle, in: workspaceId, onMonitor: monitor.id)
         controller.workspaceManager.updateFloatingGeometry(
-            frame: CGRect(x: monitor.visibleFrame.midX - 100, y: monitor.visibleFrame.midY - 80, width: 200, height: 160),
+            frame: CGRect(
+                x: monitor.visibleFrame.midX - 100,
+                y: monitor.visibleFrame.midY - 80,
+                width: 200,
+                height: 160
+            ),
             for: floatingToken,
             restoreToFloating: true
         )
@@ -3109,5 +3120,4 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
         let viewportTraces = controller.runtimeViewportTraceRecordsForTests()
         #expect(viewportTraces.contains { $0.contains("reason=touch_scroll_gesture_abort") })
     }
-
 }

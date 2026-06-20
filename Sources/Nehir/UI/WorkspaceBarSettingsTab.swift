@@ -75,7 +75,9 @@ private struct GlobalBarSettingsSection: View {
                     .onChange(of: settings.workspaceBarShowTraceButton) { _, _ in
                         controller.updateWorkspaceBarSettings()
                     }
-                    .help("Adds a workspace bar button that starts or stops runtime trace capture for debugging reports.")
+                    .help(
+                        "Adds a workspace bar button that starts or stops runtime trace capture for debugging reports."
+                    )
                 }
 
                 Toggle("Group Windows by App", isOn: $settings.workspaceBarDeduplicateAppIcons)
@@ -87,7 +89,6 @@ private struct GlobalBarSettingsSection: View {
                     .onChange(of: settings.workspaceBarHideEmptyWorkspaces) { _, _ in
                         controller.updateWorkspaceBarSettings()
                     }
-
             }
         }
 
@@ -121,7 +122,9 @@ private struct GlobalBarSettingsSection: View {
                     .onChange(of: settings.workspaceBarReserveLayoutSpace) { _, _ in
                         controller.updateWorkspaceBarSettings()
                     }
-                SettingsCaption("Prevents tiled windows from appearing behind the bar. For finer control, adjust the top margin in Layout settings.")
+                SettingsCaption(
+                    "Prevents tiled windows from appearing behind the bar. For finer control, adjust the top margin in Layout settings."
+                )
             }
 
             Section("Position Offset") {
@@ -192,7 +195,8 @@ private struct GlobalBarSettingsSection: View {
         Binding(
             get: { settings.workspaceBarAccentColor != nil },
             set: { enabled in
-                settings.workspaceBarAccentColor = enabled ? settings.workspaceBarAccentColor ?? defaultAccentColor : nil
+                settings.workspaceBarAccentColor = enabled ? settings
+                    .workspaceBarAccentColor ?? defaultAccentColor : nil
                 debouncedAppearanceSync()
             }
         )
@@ -366,7 +370,9 @@ private struct MonitorBarSettingsSection: View {
                 onChange: { newValue in updateSetting { $0.reserveLayoutSpace = newValue } },
                 onReset: { updateSetting { $0.reserveLayoutSpace = nil } }
             )
-            .help("Prevents tiled windows from appearing behind the bar. For finer control, adjust the top margin in Layout settings.")
+            .help(
+                "Prevents tiled windows from appearing behind the bar. For finer control, adjust the top margin in Layout settings."
+            )
         }
 
         Section("Position Offset") {

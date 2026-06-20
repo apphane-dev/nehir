@@ -461,7 +461,7 @@ private func assertRoundTrip<T: Codable & Equatable>(_ value: T) throws {
 
         #expect(descriptors.map(\.path) == [
             "command debug trace toggle",
-            "command debug trace toggle <active|inactive>",
+            "command debug trace toggle <active|inactive>"
         ])
     }
 

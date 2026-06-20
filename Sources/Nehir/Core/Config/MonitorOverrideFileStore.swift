@@ -35,7 +35,8 @@ enum MonitorOverrideFileStore {
             keys[MonitorKey(name: item.monitorName, displayId: item.monitorDisplayId), default: .init()].gaps = item
         }
         for item in orientation {
-            keys[MonitorKey(name: item.monitorName, displayId: item.monitorDisplayId), default: .init()].orientation = item
+            keys[MonitorKey(name: item.monitorName, displayId: item.monitorDisplayId), default: .init()]
+                .orientation = item
         }
         for item in niri {
             keys[MonitorKey(name: item.monitorName, displayId: item.monitorDisplayId), default: .init()].niri = item
@@ -49,11 +50,17 @@ enum MonitorOverrideFileStore {
 
     static func read(from directory: URL) -> Documents {
         let fm = FileManager.default
-        guard let contents = try? fm.contentsOfDirectory(at: directory, includingPropertiesForKeys: [.nameKey], options: [.skipsHiddenFiles]) else {
+        guard let contents = try? fm.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: [.nameKey],
+            options: [.skipsHiddenFiles]
+        ) else {
             return Documents(bar: [], gaps: [], orientation: [], niri: [])
         }
         var result = Documents(bar: [], gaps: [], orientation: [], niri: [])
-        for fileURL in contents.filter({ $0.pathExtension == "toml" }).sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
+        for fileURL in contents.filter({ $0.pathExtension == "toml" })
+            .sorted(by: { $0.lastPathComponent < $1.lastPathComponent })
+        {
             guard let content = try? String(contentsOf: fileURL, encoding: .utf8),
                   let document = decode(content)
             else { continue }
@@ -189,7 +196,8 @@ enum MonitorOverrideFileStore {
                 monitorName: name,
                 monitorDisplayId: displayId,
                 monitorAnchorPoint: anchorPoint,
-                balancedColumnCount: niri["balancedColumnCount"].flatMap { Int($0.trimmingCharacters(in: .whitespaces)) },
+                balancedColumnCount: niri["balancedColumnCount"]
+                    .flatMap { Int($0.trimmingCharacters(in: .whitespaces)) },
                 loneWindowPolicy: loneWindowPolicy
             )
         }
@@ -220,7 +228,8 @@ enum MonitorOverrideFileStore {
                 monitorName: name,
                 monitorDisplayId: displayId,
                 monitorAnchorPoint: anchorPoint,
-                orientation: orientation["orientation"].flatMap(extractString).flatMap(Monitor.Orientation.init(rawValue:))
+                orientation: orientation["orientation"].flatMap(extractString)
+                    .flatMap(Monitor.Orientation.init(rawValue:))
             )
         }
 
@@ -228,7 +237,8 @@ enum MonitorOverrideFileStore {
     }
 
     private static func sanitizedFilename(for key: MonitorKey) -> String {
-        let base = key.name.lowercased().replacingOccurrences(of: " ", with: "-").filter { $0.isLetter || $0.isNumber || $0 == "-" }
+        let base = key.name.lowercased().replacingOccurrences(of: " ", with: "-")
+            .filter { $0.isLetter || $0.isNumber || $0 == "-" }
         return (base.isEmpty ? "monitor" : base) + ".toml"
     }
 

@@ -159,7 +159,9 @@ final class MouseWarpHandler: NSObject {
     private func handleMouseWarpMoved(at location: CGPoint) {
         guard let controller else { return }
         guard !state.isWarping else {
-            traceMouseWarp("warp.skip reason=cooldown loc=\(formatPoint(location)) last=\(formatMonitorId(state.lastMonitorId))")
+            traceMouseWarp(
+                "warp.skip reason=cooldown loc=\(formatPoint(location)) last=\(formatMonitorId(state.lastMonitorId))"
+            )
             return
         }
         guard controller.isEnabled else {
@@ -175,7 +177,9 @@ final class MouseWarpHandler: NSObject {
         let axis = controller.settings.mouseWarpAxis
         let effectiveOrder = controller.settings.effectiveMouseWarpMonitorOrder(for: monitors, axis: axis)
         guard effectiveOrder.count >= 2 else {
-            traceMouseWarp("warp.skip reason=noEffectiveOrder axis=\(axis.rawValue) loc=\(formatPoint(location)) monitors=\(formatMonitors(monitors)) configured=\(controller.settings.mouseWarpMonitorOrder)")
+            traceMouseWarp(
+                "warp.skip reason=noEffectiveOrder axis=\(axis.rawValue) loc=\(formatPoint(location)) monitors=\(formatMonitors(monitors)) configured=\(controller.settings.mouseWarpMonitorOrder)"
+            )
             return
         }
 
@@ -199,7 +203,9 @@ final class MouseWarpHandler: NSObject {
                     margin: margin
                 )
             }
-            traceMouseWarp("warp.outside loc=\(formatPoint(location)) axis=\(axis.rawValue) last=\(formatMonitor(lastMonitor)) order=\(effectiveOrder) attempted=\(attemptedWarp)")
+            traceMouseWarp(
+                "warp.outside loc=\(formatPoint(location)) axis=\(axis.rawValue) last=\(formatMonitor(lastMonitor)) order=\(effectiveOrder) attempted=\(attemptedWarp)"
+            )
             if attemptedWarp {
                 return
             }
@@ -240,7 +246,9 @@ final class MouseWarpHandler: NSObject {
                     } else {
                         false
                     }
-                    traceMouseWarp("warp.monitorChanged loc=\(formatPoint(location)) axis=\(axis.rawValue) from=\(formatMonitor(lastMonitor)) to=\(formatMonitor(currentMonitor)) crossed=\(mouseWarpLocationCrossedAxis(location, from: lastMonitor, axis: axis)) attempted=\(attemptedWarp)")
+                    traceMouseWarp(
+                        "warp.monitorChanged loc=\(formatPoint(location)) axis=\(axis.rawValue) from=\(formatMonitor(lastMonitor)) to=\(formatMonitor(currentMonitor)) crossed=\(mouseWarpLocationCrossedAxis(location, from: lastMonitor, axis: axis)) attempted=\(attemptedWarp)"
+                    )
                     if attemptedWarp {
                         return
                     }
@@ -261,7 +269,9 @@ final class MouseWarpHandler: NSObject {
             monitors: monitors,
             axis: axis
         ) else {
-            traceMouseWarp("warp.skip reason=currentNotInOrder loc=\(formatPoint(location)) axis=\(axis.rawValue) current=\(formatMonitor(currentMonitor)) order=\(effectiveOrder)")
+            traceMouseWarp(
+                "warp.skip reason=currentNotInOrder loc=\(formatPoint(location)) axis=\(axis.rawValue) current=\(formatMonitor(currentMonitor)) order=\(effectiveOrder)"
+            )
             return
         }
 
@@ -276,7 +286,9 @@ final class MouseWarpHandler: NSObject {
                 margin: margin
             )
             if attemptedWarp {
-                traceMouseWarp("warp.edgeAttempt loc=\(formatPoint(location)) axis=horizontal current=\(formatMonitor(currentMonitor)) index=\(currentIndex) order=\(effectiveOrder) attempted=true")
+                traceMouseWarp(
+                    "warp.edgeAttempt loc=\(formatPoint(location)) axis=horizontal current=\(formatMonitor(currentMonitor)) index=\(currentIndex) order=\(effectiveOrder) attempted=true"
+                )
             }
         case .vertical:
             let attemptedWarp = mouseWarpAttemptVerticalWarp(
@@ -288,7 +300,9 @@ final class MouseWarpHandler: NSObject {
                 margin: margin
             )
             if attemptedWarp {
-                traceMouseWarp("warp.edgeAttempt loc=\(formatPoint(location)) axis=vertical current=\(formatMonitor(currentMonitor)) index=\(currentIndex) order=\(effectiveOrder) attempted=true")
+                traceMouseWarp(
+                    "warp.edgeAttempt loc=\(formatPoint(location)) axis=vertical current=\(formatMonitor(currentMonitor)) index=\(currentIndex) order=\(effectiveOrder) attempted=true"
+                )
             }
         }
     }
@@ -485,7 +499,9 @@ final class MouseWarpHandler: NSObject {
             margin: margin
         )
 
-        traceMouseWarp("warp.perform target=\(formatMonitor(targetMonitor)) edge=\(edge) axis=\(axis.rawValue) ratio=\(String(format: "%.3f", transferRatio)) dest=\(formatPoint(destination)) margin=\(margin)")
+        traceMouseWarp(
+            "warp.perform target=\(formatMonitor(targetMonitor)) edge=\(edge) axis=\(axis.rawValue) ratio=\(String(format: "%.3f", transferRatio)) dest=\(formatPoint(destination)) margin=\(margin)"
+        )
 
         state.isWarping = true
         state.lastMonitorId = targetMonitor.id

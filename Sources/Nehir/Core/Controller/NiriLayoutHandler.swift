@@ -185,7 +185,11 @@ enum NiriWindowMoveResult {
            let token = controller.workspaceManager.confirmedManagedFocusToken,
            !controller.shouldSuppressMouseMoveToFocusedWindow(for: token)
         {
-            controller.moveMouseToWindow(token, preferredFrame: controller.preferredKeyboardFocusFrame(for: token), reason: "niriAnimationSettled")
+            controller.moveMouseToWindow(
+                token,
+                preferredFrame: controller.preferredKeyboardFocusFrame(for: token),
+                reason: "niriAnimationSettled"
+            )
         }
     }
 
@@ -588,7 +592,8 @@ enum NiriWindowMoveResult {
         if usesCenteredLoneWindow, shouldResolveLoneWindowViewport {
             // Capture the lone window's previously resolved width before re-preparing so we
             // can detect a policy/size/monitor change (not just an initial setup).
-            let previousSingleWindowWidth = pass.engine.singleWindowLayoutContext(in: pass.wsId)?.container.cachedWidth ?? 0
+            let previousSingleWindowWidth = pass.engine.singleWindowLayoutContext(in: pass.wsId)?.container
+                .cachedWidth ?? 0
             let geometry = pass.engine.prepareSingleWindowViewport(
                 in: pass.wsId,
                 workingFrame: pass.insetFrame,
@@ -655,8 +660,12 @@ enum NiriWindowMoveResult {
                 )
                 let viewStart = context.currentViewStart(in: state)
                 let pixel = 1.0 / max(pass.engine.displayScale(in: pass.wsId), 1.0)
-                if let centeredStart = context.centeredFillingViewportStart(at: viewStart, in: state, pixelTolerance: pixel),
-                   abs(centeredStart - viewStart) > pixel
+                if let centeredStart = context.centeredFillingViewportStart(
+                    at: viewStart,
+                    in: state,
+                    pixelTolerance: pixel
+                ),
+                    abs(centeredStart - viewStart) > pixel
                 {
                     let activeIndex = state.activeColumnIndex.clamped(to: 0 ... max(0, columns.count - 1))
                     state.viewOffsetPixels = .static(context.targetOffset(
@@ -1047,7 +1056,11 @@ enum NiriWindowMoveResult {
             guard let workspace = controller.workspaceManager.activeWorkspaceOrFirst(on: monitor.id)
             else { continue }
 
-            infos.append(contentsOf: tabbedColumnOverlayInfos(engine: engine, workspaceId: workspace.id, monitor: monitor))
+            infos.append(contentsOf: tabbedColumnOverlayInfos(
+                engine: engine,
+                workspaceId: workspace.id,
+                monitor: monitor
+            ))
         }
 
         controller.tabbedOverlayManager.updateOverlays(infos, forceOrdering: forceOrdering)
@@ -1700,7 +1713,8 @@ enum NiriWindowMoveResult {
                 gaps: gaps
             )
             let viewOffsetChanged = abs(state.viewOffsetPixels.target() - previousViewOffsetTarget) > 0.5
-            guard state.viewOffsetPixels.isAnimating || viewOffsetChanged || state.selectedNodeId != previousSelectedNodeId else { return }
+            guard state.viewOffsetPixels.isAnimating || viewOffsetChanged || state
+                .selectedNodeId != previousSelectedNodeId else { return }
 
             let focusToken = state.selectedNodeId != previousSelectedNodeId ? selectedWindow?.token : nil
             controller.layoutRefreshController.requestRefresh(reason: .layoutCommand) { [weak controller] in
@@ -2409,4 +2423,3 @@ struct NodeActivationOptions {
         return hasPendingAnimationWork(state: state)
     }
 }
-

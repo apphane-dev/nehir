@@ -320,7 +320,6 @@ final class IPCCommandRouter {
         return currentMonitorId == previousMonitorId ? .notFound : .executed
     }
 
-
     private func switchWorkspace(using command: HotkeyCommand) -> ExternalCommandResult {
         let previousWorkspaceId = controller.interactionWorkspace()?.id
         let result = controller.commandHandler.performCommand(command)

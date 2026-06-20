@@ -229,95 +229,95 @@ import Testing
 @Suite @MainActor struct AXWindowTitleCacheTests {
     @Test func titleCacheReusesLookupWithinTTL() async {
         await withAXFrameProviderIsolationForTests {
-        AXWindowService.clearTitleCacheForTests()
-        defer {
-            AXWindowService.titleLookupProviderForTests = nil
-            AXWindowService.timeSourceForTests = nil
             AXWindowService.clearTitleCacheForTests()
-        }
+            defer {
+                AXWindowService.titleLookupProviderForTests = nil
+                AXWindowService.timeSourceForTests = nil
+                AXWindowService.clearTitleCacheForTests()
+            }
 
-        let now: TimeInterval = 10
-        var lookups: [UInt32] = []
-        AXWindowService.timeSourceForTests = { now }
-        AXWindowService.titleLookupProviderForTests = { windowId in
-            lookups.append(windowId)
-            return "Window \(windowId)"
-        }
+            let now: TimeInterval = 10
+            var lookups: [UInt32] = []
+            AXWindowService.timeSourceForTests = { now }
+            AXWindowService.titleLookupProviderForTests = { windowId in
+                lookups.append(windowId)
+                return "Window \(windowId)"
+            }
 
-        #expect(AXWindowService.titlePreferFast(windowId: 12) == "Window 12")
-        #expect(AXWindowService.titlePreferFast(windowId: 12) == "Window 12")
-        #expect(lookups == [12])
+            #expect(AXWindowService.titlePreferFast(windowId: 12) == "Window 12")
+            #expect(AXWindowService.titlePreferFast(windowId: 12) == "Window 12")
+            #expect(lookups == [12])
         }
     }
 
     @Test func titleCacheRefreshesAfterTTLExpires() async {
         await withAXFrameProviderIsolationForTests {
-        AXWindowService.clearTitleCacheForTests()
-        defer {
-            AXWindowService.titleLookupProviderForTests = nil
-            AXWindowService.timeSourceForTests = nil
             AXWindowService.clearTitleCacheForTests()
-        }
+            defer {
+                AXWindowService.titleLookupProviderForTests = nil
+                AXWindowService.timeSourceForTests = nil
+                AXWindowService.clearTitleCacheForTests()
+            }
 
-        var now: TimeInterval = 20
-        var lookupCount = 0
-        AXWindowService.timeSourceForTests = { now }
-        AXWindowService.titleLookupProviderForTests = { _ in
-            lookupCount += 1
-            return "Title \(lookupCount)"
-        }
+            var now: TimeInterval = 20
+            var lookupCount = 0
+            AXWindowService.timeSourceForTests = { now }
+            AXWindowService.titleLookupProviderForTests = { _ in
+                lookupCount += 1
+                return "Title \(lookupCount)"
+            }
 
-        #expect(AXWindowService.titlePreferFast(windowId: 24) == "Title 1")
-        now += 0.6
-        #expect(AXWindowService.titlePreferFast(windowId: 24) == "Title 2")
-        #expect(lookupCount == 2)
+            #expect(AXWindowService.titlePreferFast(windowId: 24) == "Title 1")
+            now += 0.6
+            #expect(AXWindowService.titlePreferFast(windowId: 24) == "Title 2")
+            #expect(lookupCount == 2)
         }
     }
 
     @Test func titleCacheStoresNilResultsWithinTTL() async {
         await withAXFrameProviderIsolationForTests {
-        AXWindowService.clearTitleCacheForTests()
-        defer {
-            AXWindowService.titleLookupProviderForTests = nil
-            AXWindowService.timeSourceForTests = nil
             AXWindowService.clearTitleCacheForTests()
-        }
+            defer {
+                AXWindowService.titleLookupProviderForTests = nil
+                AXWindowService.timeSourceForTests = nil
+                AXWindowService.clearTitleCacheForTests()
+            }
 
-        let now: TimeInterval = 30
-        var lookupCount = 0
-        AXWindowService.timeSourceForTests = { now }
-        AXWindowService.titleLookupProviderForTests = { _ in
-            lookupCount += 1
-            return nil
-        }
+            let now: TimeInterval = 30
+            var lookupCount = 0
+            AXWindowService.timeSourceForTests = { now }
+            AXWindowService.titleLookupProviderForTests = { _ in
+                lookupCount += 1
+                return nil
+            }
 
-        #expect(AXWindowService.titlePreferFast(windowId: 36) == nil)
-        #expect(AXWindowService.titlePreferFast(windowId: 36) == nil)
-        #expect(lookupCount == 1)
+            #expect(AXWindowService.titlePreferFast(windowId: 36) == nil)
+            #expect(AXWindowService.titlePreferFast(windowId: 36) == nil)
+            #expect(lookupCount == 1)
         }
     }
 
     @Test func explicitTitleInvalidationForcesReload() async {
         await withAXFrameProviderIsolationForTests {
-        AXWindowService.clearTitleCacheForTests()
-        defer {
-            AXWindowService.titleLookupProviderForTests = nil
-            AXWindowService.timeSourceForTests = nil
             AXWindowService.clearTitleCacheForTests()
-        }
+            defer {
+                AXWindowService.titleLookupProviderForTests = nil
+                AXWindowService.timeSourceForTests = nil
+                AXWindowService.clearTitleCacheForTests()
+            }
 
-        let now: TimeInterval = 40
-        var lookupCount = 0
-        AXWindowService.timeSourceForTests = { now }
-        AXWindowService.titleLookupProviderForTests = { _ in
-            lookupCount += 1
-            return "Lookup \(lookupCount)"
-        }
+            let now: TimeInterval = 40
+            var lookupCount = 0
+            AXWindowService.timeSourceForTests = { now }
+            AXWindowService.titleLookupProviderForTests = { _ in
+                lookupCount += 1
+                return "Lookup \(lookupCount)"
+            }
 
-        #expect(AXWindowService.titlePreferFast(windowId: 48) == "Lookup 1")
-        AXWindowService.invalidateCachedTitle(windowId: 48)
-        #expect(AXWindowService.titlePreferFast(windowId: 48) == "Lookup 2")
-        #expect(lookupCount == 2)
+            #expect(AXWindowService.titlePreferFast(windowId: 48) == "Lookup 1")
+            AXWindowService.invalidateCachedTitle(windowId: 48)
+            #expect(AXWindowService.titlePreferFast(windowId: 48) == "Lookup 2")
+            #expect(lookupCount == 2)
         }
     }
 }

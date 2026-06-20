@@ -814,7 +814,6 @@ final class WindowModel {
         }
     }
 
-
     func resetRuntimeStateForDebug() {
         missingDetectionCountByToken.removeAll()
 

@@ -1,7 +1,7 @@
 import AppKit
 import Foundation
-import QuartzCore
 @testable import Nehir
+import QuartzCore
 
 extension NiriLayoutEngine {
     func animateColumnsForRemoval(

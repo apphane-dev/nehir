@@ -68,6 +68,30 @@ mise run dev
 - Swift 6 strict concurrency
 - `@MainActor` for all UI and controller code
 - SwiftLint rules in `.swiftlint.yml`
+- SwiftFormat rules in `.swiftformat`
+
+### Lint and format
+
+SwiftLint and SwiftFormat are enforced in CI on every push and pull request.
+Both tools are pinned in `.config/mise/conf.d/tools.toml`, so `mise` delivers
+the exact versions used in CI with no separate install step.
+
+Swift itself is **not** managed by mise — on macOS it comes from Xcode
+(selected via `.swift-version` / `xcrun`). The config marks this explicitly
+with `disable_tools = ["swift"]`, so mise never tries to download a
+swift.org toolchain.
+
+```bash
+mise run format        # apply SwiftFormat
+mise run format:check  # fail if anything is unformatted (what CI runs)
+mise run lint          # run SwiftLint
+mise run check         # format:check + lint + build + test
+```
+
+SwiftFormat owns formatting; SwiftLint flags anything it would change in
+`.swiftlint.yml` to avoid conflicts. CI runs `format:check` (any unformatted
+file fails) and `lint` (error-level violations fail; warnings are reported but
+non-blocking). Run `mise run format` before pushing.
 
 ## Changesets
 

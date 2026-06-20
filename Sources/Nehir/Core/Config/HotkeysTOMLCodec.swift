@@ -64,7 +64,7 @@ enum HotkeysTOMLCodec {
         into lines: inout [String]
     ) {
         var values: [String] = []
-        for n in 1...9 {
+        for n in 1 ... 9 {
             let key = "\(group.section).\(group.key).\(n)"
             values.append(bindings[key] ?? "Unassigned")
         }
@@ -83,7 +83,7 @@ enum HotkeysTOMLCodec {
         }
 
         // Remove from map
-        for n in 1...9 {
+        for n in 1 ... 9 {
             bindings.removeValue(forKey: "\(group.section).\(group.key).\(n)")
         }
     }
@@ -100,8 +100,8 @@ enum HotkeysTOMLCodec {
             if value == "Unassigned" { return nil }
             let digit = digitNames[idx]
             guard let range = value.range(of: digit, options: .backwards) else { return nil }
-            let p = String(value[value.startIndex..<range.lowerBound])
-            let s = String(value[range.upperBound..<value.endIndex])
+            let p = String(value[value.startIndex ..< range.lowerBound])
+            let s = String(value[range.upperBound ..< value.endIndex])
             if let existingPrefix = prefix, existingPrefix != p { return nil }
             if let existingSuffix = suffix, existingSuffix != s { return nil }
             prefix = p
@@ -160,7 +160,7 @@ enum HotkeysTOMLCodec {
 
             // Key = "value"
             guard let eqIndex = trimmed.firstIndex(of: "=") else { continue }
-            var rawKey = String(trimmed[trimmed.startIndex..<eqIndex]).trimmingCharacters(in: .whitespaces)
+            var rawKey = String(trimmed[trimmed.startIndex ..< eqIndex]).trimmingCharacters(in: .whitespaces)
             let rawValue = String(trimmed[trimmed.index(after: eqIndex)...]).trimmingCharacters(in: .whitespaces)
 
             // Strip quotes from key if present (for dotted keys like "switch.3")
@@ -195,8 +195,9 @@ enum HotkeysTOMLCodec {
                 } else {
                     // Could be a numbered group with value "Unassigned" (collapsed form)
                     for group in HotkeyConfigMapping.numberedGroups
-                        where group.section == currentSection && group.key == rawKey {
-                        for n in 1...9 {
+                        where group.section == currentSection && group.key == rawKey
+                    {
+                        for n in 1 ... 9 {
                             let expandedKey = "\(currentSection).\(rawKey).\(n)"
                             if let id = HotkeyConfigMapping.internalId(forConfigKey: expandedKey) {
                                 overrides[id] = value

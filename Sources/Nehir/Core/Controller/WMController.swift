@@ -134,6 +134,7 @@ final class WMController {
         }
         return manager
     }()
+
     @ObservationIgnored
     private(set) lazy var focusBorderController = FocusBorderController(controller: self)
     @ObservationIgnored
@@ -179,12 +180,16 @@ final class WMController {
     /// Narrow layout-command surface for command logic. Prefer this over the
     /// 41-method concrete `niriLayoutHandler` so the command boundary is an
     /// auditable type, not a code-review hope.
-    var layoutCoordinator: LayoutCoordinator { niriLayoutHandler }
+    var layoutCoordinator: LayoutCoordinator {
+        niriLayoutHandler
+    }
 
     /// Narrow seam for interactive-mode cancellation and focus-dependent reads,
     /// so handlers depend on the protocol rather than reaching into `niriEngine`.
     /// `WMController` itself conforms; see `FocusCoordinator.swift`.
-    var focusCoordinator: FocusCoordinator { self }
+    var focusCoordinator: FocusCoordinator {
+        self
+    }
 
     @ObservationIgnored
     private(set) lazy var serviceLifecycleManager = ServiceLifecycleManager(controller: self)
@@ -209,7 +214,8 @@ final class WMController {
     @ObservationIgnored
     var warpMouseCursorPosition: (CGPoint) -> Void = { CGWarpMouseCursorPosition($0) }
     @ObservationIgnored
-    var unmanagedWindowServerWindowFramesProvider: @MainActor (Set<Int>) -> [CGRect] = WMController.visibleUnmanagedWindowServerFrames
+    var unmanagedWindowServerWindowFramesProvider: @MainActor (Set<Int>) -> [CGRect] = WMController
+        .visibleUnmanagedWindowServerFrames
     @ObservationIgnored
     var unmanagedOverlayWindowServerWindowCoversOverride: (@MainActor (CGPoint) -> Bool)?
     @ObservationIgnored
@@ -511,7 +517,8 @@ final class WMController {
             requestFocusProjectionRefreshScheduling()
         case .settingsProjection:
             requestSettingsProjectionRefreshScheduling()
-        case .layoutProjection, .displayProjection:
+        case .layoutProjection,
+             .displayProjection:
             break
         }
     }
@@ -1267,9 +1274,10 @@ final class WMController {
         }
 
         if preferManagedFocusPlacement {
-            if let target = managedFocusPlacementTarget(createPlacementContext?.activeFocusRequestWorkspaceId,
-                                                        createPlacementContext?.activeFocusRequestMonitorId)
-            {
+            if let target = managedFocusPlacementTarget(
+                createPlacementContext?.activeFocusRequestWorkspaceId,
+                createPlacementContext?.activeFocusRequestMonitorId
+            ) {
                 return target
             }
 
@@ -1327,9 +1335,10 @@ final class WMController {
                 )
             }
 
-            if let target = managedFocusPlacementTarget(createPlacementContext?.focusedWorkspaceId,
-                                                        createPlacementContext?.focusedMonitorId)
-            {
+            if let target = managedFocusPlacementTarget(
+                createPlacementContext?.focusedWorkspaceId,
+                createPlacementContext?.focusedMonitorId
+            ) {
                 return target
             }
         }
@@ -1384,15 +1393,17 @@ final class WMController {
         }
 
         if !preferManagedFocusPlacement {
-            if let target = managedFocusPlacementTarget(createPlacementContext?.activeFocusRequestWorkspaceId,
-                                                        createPlacementContext?.activeFocusRequestMonitorId)
-            {
+            if let target = managedFocusPlacementTarget(
+                createPlacementContext?.activeFocusRequestWorkspaceId,
+                createPlacementContext?.activeFocusRequestMonitorId
+            ) {
                 return target
             }
 
-            if let target = managedFocusPlacementTarget(createPlacementContext?.focusedWorkspaceId,
-                                                        createPlacementContext?.focusedMonitorId)
-            {
+            if let target = managedFocusPlacementTarget(
+                createPlacementContext?.focusedWorkspaceId,
+                createPlacementContext?.focusedMonitorId
+            ) {
                 return target
             }
         }
@@ -1823,7 +1834,9 @@ final class WMController {
         return true
     }
 
-    private func scratchpadTarget(on monitorId: Monitor.ID? = nil) -> (workspaceId: WorkspaceDescriptor.ID, monitor: Monitor)? {
+    private func scratchpadTarget(on monitorId: Monitor
+        .ID? = nil) -> (workspaceId: WorkspaceDescriptor.ID, monitor: Monitor)?
+    {
         guard let monitor = monitorId.flatMap({ workspaceManager.monitor(byId: $0) }) ?? monitorForInteraction(),
               let workspaceId = workspaceManager.activeWorkspaceOrFirst(on: monitor.id)?.id
         else {
@@ -2034,7 +2047,6 @@ final class WMController {
             return false
         }
     }
-
 
     func trackedModeForLifecycle(
         decision: WindowDecision,
@@ -2416,8 +2428,10 @@ final class WMController {
         return columns.enumerated().map { colIdx, column in
             let windows = column.windowNodes.map { window -> String in
                 let token = window.token
-                let current = currentPlan.frames[token].map(compactRect) ?? currentPlan.hidden[token].map { "hide:\($0)" } ?? "nil"
-                let target = targetPlan.frames[token].map(compactRect) ?? targetPlan.hidden[token].map { "hide:\($0)" } ?? "nil"
+                let current = currentPlan.frames[token].map(compactRect) ?? currentPlan.hidden[token]
+                    .map { "hide:\($0)" } ?? "nil"
+                let target = targetPlan.frames[token].map(compactRect) ?? targetPlan.hidden[token]
+                    .map { "hide:\($0)" } ?? "nil"
                 let last = axManager.lastAppliedFrame(for: token.windowId).map(compactRect) ?? "nil"
                 let entry = workspaceManager.entry(for: token)
                 let live = entry.flatMap { try? AXWindowService.frame($0.axRef) }.map(compactRect) ?? "nil"
@@ -2581,9 +2595,10 @@ final class WMController {
     private func focusTargetDebugDump() -> String {
         let interactionWorkspaceId = interactionWorkspace()?.id
         let selectedToken: WindowToken? = if let workspaceId = interactionWorkspaceId,
-                                            let engine = niriEngine,
-                                            let selectedNodeId = workspaceManager.niriViewportState(for: workspaceId).selectedNodeId,
-                                            let selectedWindow = engine.findNode(by: selectedNodeId) as? NiriWindow
+                                             let engine = niriEngine,
+                                             let selectedNodeId = workspaceManager.niriViewportState(for: workspaceId)
+                                             .selectedNodeId,
+                                             let selectedWindow = engine.findNode(by: selectedNodeId) as? NiriWindow
         {
             selectedWindow.token
         } else {
@@ -3059,7 +3074,8 @@ final class WMController {
             copyDebugTextToPasteboard(fileURL.path)
             Self.runtimeDebugLogger.info("Wrote runtime trace capture to \(fileURL.path, privacy: .public)")
         } catch {
-            Self.runtimeDebugLogger.error("Failed to write runtime trace capture: \(error.localizedDescription, privacy: .public)")
+            Self.runtimeDebugLogger
+                .error("Failed to write runtime trace capture: \(error.localizedDescription, privacy: .public)")
             return .internalError
         }
 
@@ -3121,7 +3137,8 @@ final class WMController {
             try process.run()
             return true
         } catch {
-            Self.runtimeDebugLogger.error("Failed to spawn relaunch helper: \(error.localizedDescription, privacy: .public)")
+            Self.runtimeDebugLogger
+                .error("Failed to spawn relaunch helper: \(error.localizedDescription, privacy: .public)")
             return false
         }
     }
@@ -3618,7 +3635,8 @@ final class WMController {
 
         for operation in rescuePlan.operations {
             guard let entry = workspaceManager.entry(for: operation.token) else { continue }
-            let wasWorkspaceInactiveHidden = workspaceManager.hiddenState(for: operation.token)?.workspaceInactive == true
+            let wasWorkspaceInactiveHidden = workspaceManager.hiddenState(for: operation.token)?
+                .workspaceInactive == true
             if !wasWorkspaceInactiveHidden {
                 workspaceManager.updateFloatingGeometry(
                     frame: operation.targetFrame,
@@ -3787,7 +3805,9 @@ final class WMController {
         }
         let frameSource = preferredFrame == nil ? "ax" : "preferred"
         guard let frame = preferredFrame ?? AXWindowService.framePreferFast(entry.axRef) else {
-            recordRuntimeMouseTrace("moveMouseToFocused.skip reason=noFrame source=\(reason) token=\(token) frameSource=\(frameSource)")
+            recordRuntimeMouseTrace(
+                "moveMouseToFocused.skip reason=noFrame source=\(reason) token=\(token) frameSource=\(frameSource)"
+            )
             return
         }
 
@@ -3803,13 +3823,17 @@ final class WMController {
 
         guard centerOnScreen else {
             if isRuntimeTraceCaptureActive {
-                recordRuntimeMouseTrace("moveMouseToFocused.skip reason=centerOffscreen source=\(reason) token=\(token) dest=\(formatTracePoint(center))")
+                recordRuntimeMouseTrace(
+                    "moveMouseToFocused.skip reason=centerOffscreen source=\(reason) token=\(token) dest=\(formatTracePoint(center))"
+                )
             }
             return
         }
         guard pressedButtons == 0 else {
             if isRuntimeTraceCaptureActive {
-                recordRuntimeMouseTrace("moveMouseToFocused.skip reason=mouseButtonPressed source=\(reason) token=\(token) pressedButtons=\(pressedButtons) dest=\(formatTracePoint(center))")
+                recordRuntimeMouseTrace(
+                    "moveMouseToFocused.skip reason=mouseButtonPressed source=\(reason) token=\(token) pressedButtons=\(pressedButtons) dest=\(formatTracePoint(center))"
+                )
             }
             return
         }
@@ -3817,7 +3841,9 @@ final class WMController {
         let windowServerCenter = ScreenCoordinateSpace.toWindowServer(point: center)
         warpMouseCursorPosition(windowServerCenter)
         if isRuntimeTraceCaptureActive {
-            recordRuntimeMouseTrace("moveMouseToFocused.perform source=\(reason) token=\(token) dest=\(formatTracePoint(center)) windowServerDest=\(formatTracePoint(windowServerCenter)) pressedButtons=\(pressedButtons)")
+            recordRuntimeMouseTrace(
+                "moveMouseToFocused.perform source=\(reason) token=\(token) dest=\(formatTracePoint(center)) windowServerDest=\(formatTracePoint(windowServerCenter)) pressedButtons=\(pressedButtons)"
+            )
         }
     }
 
@@ -3825,10 +3851,14 @@ final class WMController {
         let center = monitor.visibleFrame.center
         let pressedButtons = NSEvent.pressedMouseButtons
         guard pressedButtons == 0 else {
-            recordRuntimeMouseTrace("moveMouseToMonitor.skip reason=mouseButtonPressed monitor=\(monitor.displayId) dest=\(formatTracePoint(center)) pressedButtons=\(pressedButtons)")
+            recordRuntimeMouseTrace(
+                "moveMouseToMonitor.skip reason=mouseButtonPressed monitor=\(monitor.displayId) dest=\(formatTracePoint(center)) pressedButtons=\(pressedButtons)"
+            )
             return
         }
-        recordRuntimeMouseTrace("moveMouseToMonitor.perform monitor=\(monitor.displayId) frame=\(formatTraceRect(monitor.visibleFrame)) dest=\(formatTracePoint(center)) pressedButtons=\(pressedButtons)")
+        recordRuntimeMouseTrace(
+            "moveMouseToMonitor.perform monitor=\(monitor.displayId) frame=\(formatTraceRect(monitor.visibleFrame)) dest=\(formatTracePoint(center)) pressedButtons=\(pressedButtons)"
+        )
         warpMouseCursorPosition(
             ScreenCoordinateSpace.toWindowServer(point: center, displayId: monitor.displayId)
         )
@@ -3923,7 +3953,6 @@ extension WMController {
         }
         return changed
     }
-
 
     func focusWindow(_ token: WindowToken) {
         guard let entry = workspaceManager.entry(for: token) else { return }

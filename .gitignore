@@ -41,3 +41,5 @@ STABILITY_IMPROVEMENTS.md
 /BACKPORT-LEDGER.md
 /BACKPORT-TRIAGE.tsv
 !.config
+!.config/mise/
+!.config/mise/**

@@ -11,7 +11,9 @@ struct OnboardingStepView<Animation: View, Control: View>: View {
     let onBack: () -> Void
     var onOpenSettings: (() -> Void)? = nil
 
-    private var canGoBack: Bool { stepIndex > 0 }
+    private var canGoBack: Bool {
+        stepIndex > 0
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -46,7 +48,7 @@ struct OnboardingStepView<Animation: View, Control: View>: View {
 
             VStack(spacing: 14) {
                 HStack(spacing: 7) {
-                    ForEach(0..<stepCount, id: \.self) { index in
+                    ForEach(0 ..< stepCount, id: \.self) { index in
                         Capsule()
                             .fill(index == stepIndex ? Color.accentColor : Color.secondary.opacity(0.25))
                             .frame(width: index == stepIndex ? 16 : 6, height: 6)
