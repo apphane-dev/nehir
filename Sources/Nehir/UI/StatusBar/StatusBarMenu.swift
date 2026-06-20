@@ -212,6 +212,8 @@ final class StatusBarMenuBuilder {
         switch issue {
         case .softMigration: return "arrow.triangle.2.circlepath"
         case .unknownKeys: return "questionmark.circle"
+        case .hotkeyConflict,
+             .hotkeyAdvisory: return "keyboard"
         }
     }
 
@@ -222,6 +224,10 @@ final class StatusBarMenuBuilder {
         case .unknownKeys(let unknownKeys):
             let suffix = unknownKeys.keyPaths.count == 1 ? "key" : "keys"
             return "\(unknownKeys.keyPaths.count) unrecognized settings \(suffix)"
+        case .hotkeyConflict(let conflict):
+            return "\(conflict.commandDisplayName) hotkey conflict"
+        case .hotkeyAdvisory(let advisory):
+            return "\(advisory.commandDisplayName) hotkey advisory"
         }
     }
 

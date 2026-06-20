@@ -28,7 +28,7 @@ struct SettingsView: View {
 
     var body: some View {
         NavigationSplitView {
-            SettingsSidebar(selection: $navigation.selectedSection)
+            SettingsSidebar(selection: $navigation.selectedSection, controller: controller, settings: settings)
         } detail: {
             SettingsDetailView(
                 section: navigation.selectedSection,

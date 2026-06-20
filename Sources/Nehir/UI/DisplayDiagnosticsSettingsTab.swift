@@ -104,6 +104,10 @@ struct DisplayDiagnosticsSettingsTab: View {
                                 onPostpone: { postponeUnknownKeys(issue) },
                                 onClean: { cleanUnknownKeys(issue) }
                             )
+                        case .hotkeyConflict(let issue):
+                            HotkeyConflictWarningView(conflict: issue)
+                        case .hotkeyAdvisory(let issue):
+                            HotkeyConflictWarningView(advisory: issue)
                         }
                     }
 
@@ -496,7 +500,9 @@ struct DisplayDiagnosticsSettingsTab: View {
 
     private func refreshSettingsIssues() {
         applicableSettingsIssues = SettingsDiagnosticsDetector.applicableIssues(
-            configDirectory: configDirectory
+            configDirectory: configDirectory,
+            hotkeyFailures: controller.hotkeyRegistrationFailures,
+            hotkeyBindings: settings.hotkeyBindings
         )
     }
 
@@ -777,6 +783,62 @@ private struct UnknownSettingsKeysWarningView: View {
             }
         }
         .padding(.vertical, 4)
+    }
+}
+
+/// Advisory-only diagnostics rows for global-hotkey conflicts and curated default-chord
+/// advisories. Remediation is manual (reassign the chord in the Hotkeys tab or clear the
+/// conflicting macOS shortcut), so these rows have no action buttons.
+private struct HotkeyConflictWarningView: View {
+    private enum Content {
+        case conflict(HotkeyConflictIssue)
+        case advisory(HotkeyAdvisoryIssue)
+    }
+
+    private let content: Content
+
+    init(conflict: HotkeyConflictIssue) {
+        content = .conflict(conflict)
+    }
+
+    init(advisory: HotkeyAdvisoryIssue) {
+        content = .advisory(advisory)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            switch content {
+            case .conflict(let issue):
+                Label("\(issue.commandDisplayName) hotkey conflict", systemImage: "exclamationmark.triangle.fill")
+                    .font(.headline)
+                    .foregroundStyle(Color.yellow)
+                Text(
+                    "The chord \(issue.chordDisplayString) for \(issue.commandDisplayName) could not be registered: \(reasonPhrase(issue.reason))."
+                )
+                .foregroundStyle(.secondary)
+                Text(issue.remediation)
+                    .font(.callout.weight(.semibold))
+            case .advisory(let issue):
+                Label(
+                    "\(issue.commandDisplayName) hotkey may overlap a system shortcut",
+                    systemImage: "exclamationmark.bubble.fill"
+                )
+                .font(.headline)
+                .foregroundStyle(Color.yellow)
+                Text(issue.advisoryText)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func reasonPhrase(_ reason: HotkeyRegistrationFailureReason) -> String {
+        switch reason {
+        case .systemReserved:
+            return "reserved by macOS or another app"
+        case .duplicateBinding:
+            return "another Nehir command uses the same chord"
+        }
     }
 }
 

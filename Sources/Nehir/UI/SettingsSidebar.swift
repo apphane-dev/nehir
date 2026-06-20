@@ -8,6 +8,8 @@ import SwiftUI
 
 struct SettingsSidebar: View {
     @Binding var selection: SettingsSection
+    var controller: WMController
+    @Bindable var settings: SettingsStore
 
     @State private var diagnosticsIssueCount = 0
 
@@ -41,6 +43,15 @@ struct SettingsSidebar: View {
         .onReceive(NotificationCenter.default.publisher(for: .settingsMigrationStateDidChange)) { _ in
             refreshDiagnostics()
         }
+        .onChange(of: settings.hotkeyBindings) { _, _ in
+            // Keep the badge fresh when a hotkey is reassigned/unassigned/cleared in
+            // the Hotkeys tab. `HotkeyCenter.registrationFailures` is not observable,
+            // but it is always updated synchronously inside the same
+            // `controller.updateHotkeyBindings(...)` call that follows a binding
+            // mutation, so observing the binding fires at the right moment and
+            // `refreshDiagnostics()` then reads both values current.
+            refreshDiagnostics()
+        }
     }
 
     @ViewBuilder
@@ -64,7 +75,10 @@ struct SettingsSidebar: View {
     private func refreshDiagnostics() {
         let diagIssues = DisplayEnvironmentDiagnostics.current().issues.count
         let axIssue = AccessibilityPermissionMonitor.shared.isGranted ? 0 : 1
-        let settingsIssues = SettingsDiagnosticsDetector.pendingIssues().count
+        let settingsIssues = SettingsDiagnosticsDetector.pendingIssues(
+            hotkeyFailures: controller.hotkeyRegistrationFailures,
+            hotkeyBindings: settings.hotkeyBindings
+        ).count
         diagnosticsIssueCount = diagIssues + axIssue + settingsIssues
     }
 }
