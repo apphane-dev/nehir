@@ -1,9 +1,11 @@
 [tasks."format"]
 description = "Format code with SwiftFormat"
+depends = ["license"]
 run = "swiftformat ."
 
 [tasks."format:check"]
 description = "Check formatting without modifying files"
+depends = ["license:check"]
 run = "swiftformat --lint ."
 
 [tasks."lint"]

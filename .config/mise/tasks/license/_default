@@ -1,0 +1,135 @@
+#!/usr/bin/env python3
+#MISE description="Update generated SPDX source headers from .provenance.json"
+"""Generate maintainable SPDX headers from .provenance.json.
+
+Headers carry stable legal facts only (copyright, license, provenance category).
+Per-file upstream commit detail is intentionally NOT rendered here; it lives in
+the non-rendering ``upstreamCommits`` map of the manifest and in the provenance
+audit on the ``plans`` branch. This keeps headers uniform and low-maintenance.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import subprocess
+import sys
+from fnmatch import fnmatch
+from pathlib import Path
+from typing import Any
+
+ROOT = Path(subprocess.check_output(["git", "rev-parse", "--show-toplevel"], text=True).strip())
+MANIFEST = ROOT / ".provenance.json"
+
+SPDX_HEADER_RE = re.compile(
+    r"\A(?:(?:// SPDX-(?:FileCopyrightText|FileContributor|FileComment|License-Identifier):[^\n]*\n)|(?://\s*\n))+"
+)
+
+
+def load_manifest() -> dict[str, Any]:
+    with MANIFEST.open(encoding="utf-8") as manifest_file:
+        return json.load(manifest_file)
+
+
+def tracked_files() -> list[Path]:
+    result = subprocess.run(
+        ["git", "ls-files"],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return [ROOT / line for line in result.stdout.splitlines() if line]
+
+
+def matches_any(path: str, patterns: list[str]) -> bool:
+    return any(fnmatch(path, pattern) for pattern in patterns)
+
+
+def matching_entries(manifest: dict[str, Any]) -> dict[Path, dict[str, Any]]:
+    entries: dict[Path, dict[str, Any]] = {}
+    relative_files = [(path, path.relative_to(ROOT).as_posix()) for path in tracked_files()]
+
+    for rule in manifest.get("rules", []):
+        patterns = rule.get("paths", [])
+        for path, relative in relative_files:
+            if matches_any(relative, patterns):
+                entries[path] = rule
+
+    for override in manifest.get("overrides", []):
+        patterns = override.get("paths", [])
+        for path, relative in relative_files:
+            if matches_any(relative, patterns):
+                merged = dict(entries.get(path, {}))
+                merged.update(override)
+                entries[path] = merged
+
+    return dict(sorted(entries.items(), key=lambda item: item[0].relative_to(ROOT).as_posix()))
+
+
+def render_header(entry: dict[str, Any]) -> str:
+    lines: list[str] = []
+
+    for item in entry.get("copyright", []):
+        lines.append(f"// SPDX-FileCopyrightText: {item}")
+
+    for item in entry.get("contributors", []):
+        lines.append(f"// SPDX-FileContributor: {item}")
+
+    file_comment = entry.get("fileComment")
+    if file_comment:
+        lines.append(f"// SPDX-FileComment: {file_comment}")
+
+    lines.append("//")
+    lines.append(f"// SPDX-License-Identifier: {entry['license']}")
+    lines.append("")
+    return "\n".join(lines) + "\n"
+
+
+def split_leading_sentinel(text: str) -> tuple[str, str]:
+    """Keep shebang or swift-tools-version as the first physical line."""
+    if text.startswith("#!") or text.startswith("// swift-tools-version:"):
+        newline_index = text.find("\n")
+        if newline_index == -1:
+            return text + "\n", ""
+        return text[: newline_index + 1], text[newline_index + 1 :]
+    return "", text
+
+
+def update_text(text: str, entry: dict[str, Any]) -> str:
+    sentinel, body = split_leading_sentinel(text)
+    body = SPDX_HEADER_RE.sub("", body, count=1).lstrip("\n")
+    return sentinel + render_header(entry) + body
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--check", action="store_true", help="fail if any header is stale")
+    args = parser.parse_args()
+
+    manifest = load_manifest()
+    stale: list[str] = []
+
+    for path, entry in matching_entries(manifest).items():
+        original = path.read_text(encoding="utf-8")
+        updated = update_text(original, entry)
+        if updated == original:
+            continue
+        relative = path.relative_to(ROOT).as_posix()
+        stale.append(relative)
+        if not args.check:
+            path.write_text(updated, encoding="utf-8")
+
+    if stale:
+        action = "would update" if args.check else "updated"
+        for relative in stale:
+            print(f"{action}: {relative}")
+        return 1 if args.check else 0
+
+    print("SPDX headers are up to date.")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
