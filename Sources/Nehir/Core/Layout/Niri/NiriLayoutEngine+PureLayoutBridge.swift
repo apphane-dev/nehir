@@ -1,7 +1,10 @@
 import AppKit
 import Foundation
+import OSLog
 
 extension NiriLayoutEngine {
+    private static let pureLayoutBridgeLogger = Logger(subsystem: "com.nehir", category: "pure-layout-bridge")
+
     struct PureLayoutSnapshot: Equatable {
         var columns: [[WindowToken]]
         var activeColumnIndex: Int?
@@ -79,24 +82,9 @@ extension NiriLayoutEngine {
         case unsupported
     }
 
-    func pureLayoutExpectedMoveSnapshot(
-        _ window: NiriWindow,
-        direction: Direction,
-        in workspaceId: WorkspaceDescriptor.ID,
-        allowEdgeWrap: Bool
-    ) -> PureLayoutSnapshot? {
-        guard let pureDirection = PureDirection(direction: direction, orientation: .horizontal),
-              let before = pureLayoutWorld(
-                  in: workspaceId,
-                  selectedWindow: window,
-                  infiniteLoop: allowEdgeWrap && effectiveInfiniteLoop(in: workspaceId)
-              )
-        else {
-            return nil
-        }
-
-        let after = PureLayoutReducer.moveFocusedWindow(pureDirection, in: before)
-        return Self.pureLayoutSnapshot(after)
+    struct PureLayoutMoveDecision: Equatable {
+        var plan: PureLayoutMovePlan
+        var expectedSnapshot: PureLayoutSnapshot?
     }
 
     func assertPureLayoutSnapshotMatches(
@@ -110,12 +98,16 @@ extension NiriLayoutEngine {
             selectedWindow: selectedWindow,
             infiniteLoop: effectiveInfiniteLoop(in: workspaceId)
         ) else {
+            Self.pureLayoutBridgeLogger.error("Niri runtime could not be snapshotted after pure layout operation")
             assertionFailure("Niri runtime could not be snapshotted after pure layout operation")
             return
         }
 
         let actual = Self.pureLayoutSnapshot(actualWorld)
-        assert(actual == expected, "Niri runtime diverged from PureLayoutReducer. expected=\(expected), actual=\(actual)")
+        guard actual != expected else { return }
+
+        Self.pureLayoutBridgeLogger.error("Niri runtime diverged from PureLayoutReducer. expected=\(String(describing: expected), privacy: .public), actual=\(String(describing: actual), privacy: .public)")
+        assertionFailure("Niri runtime diverged from PureLayoutReducer. expected=\(expected), actual=\(actual)")
     }
 
     /// Uses `PureLayoutReducer` as the focused-window move decision engine and
@@ -123,12 +115,12 @@ extension NiriLayoutEngine {
     /// owns tree mutation, viewport state, and animation, but the choice of
     /// no-op / vertical swap / horizontal expel / horizontal consume comes from
     /// the shared pure model.
-    func pureLayoutMovePlan(
+    func pureLayoutMoveDecision(
         _ window: NiriWindow,
         direction: Direction,
         in workspaceId: WorkspaceDescriptor.ID,
         allowEdgeWrap: Bool
-    ) -> PureLayoutMovePlan {
+    ) -> PureLayoutMoveDecision {
         guard let pureDirection = PureDirection(direction: direction, orientation: .horizontal),
               let before = pureLayoutWorld(
                   in: workspaceId,
@@ -139,13 +131,17 @@ extension NiriLayoutEngine {
               let beforeActiveColumnIndex = beforeWorkspace.activeColumnIndex,
               beforeWorkspace.columns.indices.contains(beforeActiveColumnIndex)
         else {
-            return .unsupported
+            return PureLayoutMoveDecision(plan: .unsupported, expectedSnapshot: nil)
         }
 
         let after = PureLayoutReducer.moveFocusedWindow(pureDirection, in: before)
-        guard after != before else { return .noChange }
+        let expectedSnapshot = Self.pureLayoutSnapshot(after)
+        guard after != before else {
+            return PureLayoutMoveDecision(plan: .noChange, expectedSnapshot: expectedSnapshot)
+        }
         guard let afterWorkspace = after.activeWorkspace else {
-            return .unsupported
+            logUnsupportedPureLayoutMove(direction: direction, reason: "missing after workspace")
+            return PureLayoutMoveDecision(plan: .unsupported, expectedSnapshot: expectedSnapshot)
         }
 
         if pureDirection.horizontalStep == nil {
@@ -153,36 +149,48 @@ extension NiriLayoutEngine {
                   afterWorkspace.columns.indices.contains(afterActiveColumnIndex),
                   afterActiveColumnIndex == beforeActiveColumnIndex
             else {
-                return .unsupported
+                logUnsupportedPureLayoutMove(direction: direction, reason: "vertical move changed active column")
+                return PureLayoutMoveDecision(plan: .unsupported, expectedSnapshot: expectedSnapshot)
             }
 
             let beforeColumn = beforeWorkspace.columns[beforeActiveColumnIndex]
             let afterActiveWindowIndex = afterWorkspace.columns[afterActiveColumnIndex].activeWindowIndex
             guard beforeColumn.windows.indices.contains(afterActiveWindowIndex) else {
-                return .unsupported
+                logUnsupportedPureLayoutMove(direction: direction, reason: "vertical target index outside before column")
+                return PureLayoutMoveDecision(plan: .unsupported, expectedSnapshot: expectedSnapshot)
             }
 
             let displacedToken = beforeColumn.windows[afterActiveWindowIndex].id
-            guard displacedToken != window.token else { return .unsupported }
-            return .verticalSwap(targetToken: displacedToken)
-        }
-
-        if afterWorkspace.columns.count == beforeWorkspace.columns.count + 1 {
-            return .horizontalExpel
-        }
-
-        if afterWorkspace.columns.count == beforeWorkspace.columns.count - 1,
-           let afterActiveColumnIndex = afterWorkspace.activeColumnIndex,
-           afterWorkspace.columns.indices.contains(afterActiveColumnIndex)
-        {
-            let targetColumnID = afterWorkspace.columns[afterActiveColumnIndex].id.rawValue
-            guard beforeWorkspace.columns.indices.contains(targetColumnID) else {
-                return .unsupported
+            guard displacedToken != window.token else {
+                logUnsupportedPureLayoutMove(direction: direction, reason: "vertical move did not identify displaced window")
+                return PureLayoutMoveDecision(plan: .unsupported, expectedSnapshot: expectedSnapshot)
             }
-            return .horizontalConsume(targetColumnIndexBeforeMove: targetColumnID)
+            return PureLayoutMoveDecision(plan: .verticalSwap(targetToken: displacedToken), expectedSnapshot: expectedSnapshot)
         }
 
-        return .unsupported
+        let sourceColumn = beforeWorkspace.columns[beforeActiveColumnIndex]
+        if sourceColumn.windows.count > 1 {
+            return PureLayoutMoveDecision(plan: .horizontalExpel, expectedSnapshot: expectedSnapshot)
+        }
+
+        guard let afterActiveColumnIndex = afterWorkspace.activeColumnIndex,
+              afterWorkspace.columns.indices.contains(afterActiveColumnIndex)
+        else {
+            logUnsupportedPureLayoutMove(direction: direction, reason: "horizontal consume missing active target column")
+            return PureLayoutMoveDecision(plan: .unsupported, expectedSnapshot: expectedSnapshot)
+        }
+
+        let targetColumnID = afterWorkspace.columns[afterActiveColumnIndex].id.rawValue
+        guard beforeWorkspace.columns.indices.contains(targetColumnID) else {
+            logUnsupportedPureLayoutMove(direction: direction, reason: "horizontal consume target does not map to a before column")
+            return PureLayoutMoveDecision(plan: .unsupported, expectedSnapshot: expectedSnapshot)
+        }
+        return PureLayoutMoveDecision(plan: .horizontalConsume(targetColumnIndexBeforeMove: targetColumnID), expectedSnapshot: expectedSnapshot)
+    }
+
+    private func logUnsupportedPureLayoutMove(direction: Direction, reason: String) {
+        Self.pureLayoutBridgeLogger.error("Unsupported PureLayout move transform for direction=\(direction.rawValue, privacy: .public): \(reason, privacy: .public)")
+        assertionFailure("Unsupported PureLayout move transform for direction=\(direction): \(reason)")
     }
 
     private static func pureLayoutSnapshot(

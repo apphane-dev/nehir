@@ -482,15 +482,13 @@ extension NiriLayoutEngine {
     ) -> Bool {
         guard direction == .left || direction == .right else { return false }
 
-        let purePlan = pureLayoutMovePlan(
+        let pureDecision = pureLayoutMoveDecision(
             window,
             direction: direction,
             in: workspaceId,
             allowEdgeWrap: allowEdgeWrap
         )
-        let pureExpected = purePlan == .unsupported
-            ? nil
-            : pureLayoutExpectedMoveSnapshot(window, direction: direction, in: workspaceId, allowEdgeWrap: allowEdgeWrap)
+        let purePlan = pureDecision.plan
 
         switch purePlan {
         case .noChange:
@@ -506,7 +504,7 @@ extension NiriLayoutEngine {
                 gaps: gaps
             )
             if moved {
-                assertPureLayoutSnapshotMatches(pureExpected, selectedWindow: window, in: workspaceId)
+                assertPureLayoutSnapshotMatches(pureDecision.expectedSnapshot, selectedWindow: window, in: workspaceId)
             }
             return moved
         case .horizontalConsume,
@@ -635,7 +633,7 @@ extension NiriLayoutEngine {
         )
 
         if case .horizontalConsume = purePlan {
-            assertPureLayoutSnapshotMatches(pureExpected, selectedWindow: window, in: workspaceId)
+            assertPureLayoutSnapshotMatches(pureDecision.expectedSnapshot, selectedWindow: window, in: workspaceId)
         }
 
         return true
