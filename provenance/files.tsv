@@ -1,0 +1,336 @@
+rel	final_cat	source	evidence
+Package.swift	2	round1	Package.swift @ ee9b4f0 | Renames throughout plus GhosttyKit binary target dropped; package skeleton preserved.
+Sources/Nehir/App/AppBootstrapPlanner.swift	1	round1	Sources/OmniWM/App/AppBootstrapPlanner.swift @ ee9b4f0 | Diff is only the generated SPDX header block.
+Sources/Nehir/App/AppCLIManager.swift	1	round1	Sources/OmniWM/App/AppCLIManager.swift @ ee9b4f0 | Only SPDX header plus OmniWM->Nehir and omniwmctl->nehirctl renames.
+Sources/Nehir/App/AppDelegate.swift	3	round1	Sources/OmniWM/App/AppDelegate.swift @ ee9b4f0 | Rewritten: onboarding/config-recovery added, updater and hidden-bar removed, tracing toggle.
+Sources/Nehir/App/OwnedWindowRegistry.swift	1	round1	Sources/OmniWM/App/OwnedWindowRegistry.swift @ ee9b4f0 | Diff is only the generated SPDX header block.
+Sources/Nehir/Core/Config/AppRule.swift	2	round1	Sources/OmniWM/Core/Config/AppRule.swift @ ee9b4f0 | Removed legacy .off case, alwaysFloat field, manual Codable; structure preserved.
+Sources/Nehir/Core/Config/AppRuleFileStore.swift	5	round1+confirmed	R2: origin -S/grep 'AppRuleFileStore','writeInactiveSamples','apprules.d','pip-floating' all empty; basename absent -> invented in Nehir
+Sources/Nehir/Core/Config/AppearanceMode.swift	2	round1	Sources/OmniWM/Core/Config/AppearanceMode.swift @ ee9b4f0 | Added AppearanceModeApplier injectable test seam; enum unchanged.
+Sources/Nehir/Core/Config/BuiltInSettingsDefaults.swift	3	round1	Sources/OmniWM/Core/Config/BuiltInSettingsDefaults.swift @ ee9b4f0 | Most content changed: app rules and niri layout assignments removed, snap fractions changed.
+Sources/Nehir/Core/Config/CanonicalTOMLConfig.swift	3	round1	Sources/OmniWM/Core/Config/CanonicalTOMLConfig.swift @ ee9b4f0 | Schema heavily rewritten; ~584 add/~537 del, most lines changed.
+Sources/Nehir/Core/Config/ConfigAssistancePrompt.swift	5	round1+confirmed	R2: origin -S/grep 'ConfigAssistancePrompt','AssistanceKind','enforcedMigration' all empty; basename absent -> invented in Nehir
+Sources/Nehir/Core/Config/ConfigMismatchDetector.swift	5	round1+confirmed	R2: origin -S/grep 'detectUnknownKeys','detectConfigMismatches','cleanUnknownSettingsKeys' all empty; basename absent -> invented in Nehir
+Sources/Nehir/Core/Config/GestureFingerCount.swift	1	round1	Sources/OmniWM/Core/Config/GestureFingerCount.swift @ ee9b4f0 | Diff is only the generated SPDX header block.
+Sources/Nehir/Core/Config/HotkeyConfigMapping.swift	5	round1+confirmed	R2: origin grep 'HotkeyConfigMapping','numberedGroups' empty; 'focusWorkspaceAnywhere' hit is upstream HotkeyCommand enum case, not the mapping -> clean
+Sources/Nehir/Core/Config/HotkeysTOMLCodec.swift	5	round1+confirmed	R2: origin -S/grep 'HotkeysTOMLCodec','detectDigitPattern','emitNumberedGroup' all empty; basename absent -> invented in Nehir
+Sources/Nehir/Core/Config/MonitorBarSettings.swift	2	round1	Sources/OmniWM/Core/Config/MonitorBarSettings.swift @ ee9b4f0 | Added monitorAnchorPoint and showTraceButton fields plus defaults.
+Sources/Nehir/Core/Config/MonitorGapSettings.swift	4	round1+confirmed	R2: origin dacccb8 (Barut, Jun17, NEWER_THAN_BASE ee9b4f0, REACHABLE) has MonitorGapSettings.swift; Nehir extended it with anchor/gapSize -> borrow confirmed
+Sources/Nehir/Core/Config/MonitorNiriSettings.swift	3	round1	Sources/OmniWM/Core/Config/MonitorNiriSettings.swift @ ee9b4f0 | Niri option fields swapped (maxVisibleColumns/etc -> balancedColumnCount/loneWindowPolicy).
+Sources/Nehir/Core/Config/MonitorOrientationSettings.swift	2	round1	Sources/OmniWM/Core/Config/MonitorOrientationSettings.swift @ ee9b4f0 | Added monitorAnchorPoint field; rest unchanged.
+Sources/Nehir/Core/Config/MonitorOverrideFileStore.swift	5	round1+confirmed	R2: origin -S/grep 'MonitorOverrideFileStore','matchAnchorPoint' empty; basename absent -> invented in Nehir
+Sources/Nehir/Core/Config/MonitorSettingsType.swift	2	round1	Sources/OmniWM/Core/Config/MonitorSettingsType.swift @ ee9b4f0 | Added monitorAnchorPoint property and reformatted get() signature.
+Sources/Nehir/Core/Config/MouseResizeModifierKey.swift	1	round1	Sources/OmniWM/Core/Config/MouseResizeModifierKey.swift @ ee9b4f0 | Diff is only SPDX header plus one blank-line whitespace change.
+Sources/Nehir/Core/Config/MouseWarpAxis.swift	1	round1	Sources/OmniWM/Core/Config/MouseWarpAxis.swift @ ee9b4f0 | Diff is only the generated SPDX header block.
+Sources/Nehir/Core/Config/NehirStoragePaths.swift	1	round1	Sources/OmniWM/Core/Config/OmniWMStoragePaths.swift @ ee9b4f0 | Rename of OmniWMStoragePaths; SPDX plus OmniWM->Nehir/omniwm->nehir tokens.
+Sources/Nehir/Core/Config/OnboardingStateStore.swift	5	round1+confirmed	R2: origin -S/grep 'OnboardingStateStore','onboarding-version','hasCompletedOnboarding' empty; basename absent -> invented in Nehir
+Sources/Nehir/Core/Config/RuntimeStateStore.swift	3	round1	Sources/OmniWM/Core/Config/RuntimeStateStore.swift @ ee9b4f0 | Removed quake-terminal/updater/hidden-bar state and legacy import; large deletion.
+Sources/Nehir/Core/Config/ScrollModifierKey.swift	1	round1	Sources/OmniWM/Core/Config/ScrollModifierKey.swift @ ee9b4f0 | Diff is only the generated SPDX header block.
+Sources/Nehir/Core/Config/SettingsDiagnosticsIssue.swift	5	round1+confirmed	R2: origin -S/grep 'SettingsDiagnosticsIssue','UnknownSettingsKeysIssue','applicableIssues' empty; basename absent -> invented in Nehir
+Sources/Nehir/Core/Config/SettingsExport.swift	3	round1	Sources/OmniWM/Core/Config/SettingsExport.swift @ ee9b4f0 | Field set rewritten: dwindle/clipboard/quake/updater removed, new fields added.
+Sources/Nehir/Core/Config/SettingsFilePersistence.swift	3	round1	Sources/OmniWM/Core/Config/SettingsFilePersistence.swift @ ee9b4f0 | Extended with hotkeys/workspaces/apprules/monitors aux files and watchers.
+Sources/Nehir/Core/Config/SettingsMigrationRegistry.swift	5	round1+confirmed	R2: origin -S/grep 'SettingsMigrationRegistry','workspacesArrayToKeyedTables','WorkspacesConfigMigration' empty; basename absent -> invented in Nehir
+Sources/Nehir/Core/Config/SettingsMigrationStateStore.swift	5	round1+confirmed	R2: origin -S/grep 'SettingsMigrationStateStore','SettingsMigrationPostponeRecord','settings-migration-state.json' empty; basename absent -> invented in Nehir
+Sources/Nehir/Core/Config/SettingsStore.swift	3	round1	Sources/OmniWM/Core/Config/SettingsStore.swift @ ee9b4f0 | Heavily rewritten; ~294 add/~389 del, many fields and behaviors changed.
+Sources/Nehir/Core/Config/SettingsTOMLCodec.swift	2	round1	Sources/OmniWM/Core/Config/SettingsTOMLCodec.swift @ ee9b4f0 | Removed keyNotFound recovery branch plus OmniWM->Nehir rename.
+Sources/Nehir/Core/Config/SettingsTOMLUnknownValue.swift	5	round1+confirmed	R2: origin -S/grep 'SettingsTOMLUnknownValue','SettingsTOMLDynamicKey','decodeUnknownFields' empty; basename absent -> invented in Nehir
+Sources/Nehir/Core/Config/WindowCapabilityProfile.swift	1	round1	Sources/OmniWM/Core/Config/WindowCapabilityProfile.swift @ ee9b4f0 | Diff is only the generated SPDX header block.
+Sources/Nehir/Core/Config/WorkspaceConfig.swift	3	round1	Sources/OmniWM/Core/Config/WorkspaceConfig.swift @ ee9b4f0 | Removed LayoutType enum/field; added FNV stable-UUID generator.
+Sources/Nehir/Core/Config/WorkspacesTOMLCodec.swift	5	round1+confirmed	R2: origin -S/grep 'WorkspacesTOMLCodec','containsLegacyWorkspaceArray' empty; basename absent -> invented in Nehir
+Sources/NehirApp/NehirApp.swift	1	round1	Sources/OmniWMApp/OmniWMApp.swift @ ee9b4f0 | Rename of OmniWMApp; SPDX plus OmniWM->Nehir import/struct rename.
+Sources/NehirApp/SettingsSceneRedirectView.swift	2	round1	Sources/OmniWMApp/SettingsSceneRedirectView.swift @ ee9b4f0 | Renames plus removed updateCoordinator parameter.
+Sources/Nehir/Core/Controller/AXEventHandler.swift	2	round1	Sources/OmniWM/Core/Controller/AXEventHandler.swift @ ee9b4f0 | 148/149 upstream methods survive; added window-close focus recovery + managed-admission tracking.
+Sources/Nehir/Core/Controller/CommandHandler.swift	3	round1	Sources/OmniWM/Core/Controller/CommandHandler.swift @ ee9b4f0 | Helpers gutted; Dwindle removed; dispatch now delegates to new LayoutCoordinator protocol.
+Sources/Nehir/Core/Controller/Direction.swift	1	round1	Sources/OmniWM/Core/Controller/Direction.swift @ ee9b4f0 | Diff is only the generated SPDX header block.
+Sources/Nehir/Core/Controller/FocusCoordinator.swift	3	round1+reclassified	R2: Method tokens interactiveMoveCancel/clearInteractiveResize/focusedNode hit origin at base; protocol name itself empty -> Nehir abstraction derived from upstream API
+Sources/Nehir/Core/Controller/FocusNotifications.swift	2	round1	Sources/OmniWM/Core/Controller/FocusNotifications.swift @ ee9b4f0 | OmniWM->Nehir rename plus confirmedManagedFocusToken and workspace-resolution reordering.
+Sources/Nehir/Core/Controller/KeyboardFocusLifecycleCoordinator.swift	2	round1	Sources/OmniWM/Core/Controller/KeyboardFocusLifecycleCoordinator.swift @ ee9b4f0 | Added ConfirmedManagedRequest tracking and rekey/reset handling; rest unchanged.
+Sources/Nehir/Core/Controller/LayoutCoordinator.swift	3	round1+reclassified	R2: Method tokens consumeOrExpelWindow/cycleWindowWidth/focusWindowInColumn/expandColumnToAvailableWidth hit origin at base; protocol name empty -> derived abstraction
+Sources/Nehir/Core/Controller/LayoutRefreshController.swift	2	round1	Sources/OmniWM/Core/Controller/LayoutRefreshController.swift @ ee9b4f0 | Dwindle/resize-placeholder removed; resize-minimum handling + tracing added; pipeline preserved.
+Sources/Nehir/Core/Controller/LayoutTrace.swift	5	round1+confirmed	R2: All distinctive tokens empty in origin: LayoutTrace, NEHIR_LAYOUT_TRACE, layout-trace, com.nehir -> invented in Nehir
+Sources/Nehir/Core/Controller/MouseEventHandler.swift	2	round1	Sources/OmniWM/Core/Controller/MouseEventHandler.swift @ ee9b4f0 | 64/66 methods survive; added floating-window/FFM pointer handling, multitouch, tracing.
+Sources/Nehir/Core/Controller/MouseWarpHandler.swift	2	round1	Sources/OmniWM/Core/Controller/MouseWarpHandler.swift @ ee9b4f0 | Tap option changed to .defaultTap; extensive traceMouseWarp logging added; core preserved.
+Sources/Nehir/Core/Controller/NativeFullscreenPlaceholderManager.swift	1	round1	Sources/OmniWM/Core/Controller/NativeFullscreenPlaceholderManager.swift @ ee9b4f0 | Diff is only SPDX header plus a signature line-wrap.
+Sources/Nehir/Core/Controller/NiriLayoutHandler.swift	2	round1	Sources/OmniWM/Core/Controller/NiriLayoutHandler.swift @ ee9b4f0 | Navigation methods migrated in from CommandHandler; centering replaced by scrollViewport; structure preserved.
+Sources/Nehir/Core/Controller/RefreshReason.swift	3	round1	Sources/OmniWM/Core/Controller/RefreshReason.swift @ ee9b4f0 | Two switches collapsed to table-driven routing; requestRoute/relayoutSchedulingPolicy API renamed.
+Sources/Nehir/Core/Controller/ServiceLifecycleManager.swift	2	round1	Sources/OmniWM/Core/Controller/ServiceLifecycleManager.swift @ ee9b4f0 | Secure-input/dwindle/resize-placeholder removed; requestRefresh rename plus multitouch/onboarding guards.
+Sources/Nehir/Core/Controller/WMCommandTarget.swift	5	round1+confirmed	R2: All distinctive tokens empty in origin: WMCommandTarget, confirmedManagedFocus, frontmostManagedFallback, layoutSelection -> invented in Nehir
+Sources/Nehir/Core/Controller/WMController.swift	2	round1	Sources/OmniWM/Core/Controller/WMController.swift @ ee9b4f0 | Dwindle/Clipboard/Quake/ResizePlaceholder/HiddenBar removed; debug dumps + managed-command-target added.
+Sources/Nehir/Core/Controller/WindowActionHandler.swift	2	round1	Sources/OmniWM/Core/Controller/WindowActionHandler.swift @ ee9b4f0 | Dwindle summon branch/layoutType removed; interactionWorkspace rename + suppressMouseWarp additions.
+Sources/Nehir/Core/Controller/WorkspaceNavigationHandler.swift	2	round1	Sources/OmniWM/Core/Controller/WorkspaceNavigationHandler.swift @ ee9b4f0 | OmniWMIPC->NehirIPC; added prepareMovedWindowTargetViewport, reveal relayout, monitor handoff.
+Sources/Nehir/Core/Layout/DNode.swift	1	round1	Sources/OmniWM/Core/Layout/DNode.swift @ ee9b4f0 | Diff is only the generated SPDX header block.
+Sources/Nehir/Core/Layout/LayoutBoundary.swift	2	round1	Sources/OmniWM/Core/Layout/LayoutBoundary.swift @ ee9b4f0 | Removed resizePlaceholder/Dwindle structs and animation case; focus-token fields renamed.
+Sources/Nehir/Core/Layout/Niri/DragGhostController.swift	1	round1	Sources/OmniWM/Core/Layout/Niri/DragGhostController.swift @ ee9b4f0 | Diff is only the generated SPDX header block.
+Sources/Nehir/Core/Layout/Niri/DragGhostWindow.swift	1	round1	Sources/OmniWM/Core/Layout/Niri/DragGhostWindow.swift @ ee9b4f0 | Diff is only the generated SPDX header block.
+Sources/Nehir/Core/Layout/Niri/InteractiveMove.swift	1	round1	Sources/OmniWM/Core/Layout/Niri/InteractiveMove.swift @ ee9b4f0 | Diff is only the generated SPDX header block.
+Sources/Nehir/Core/Layout/Niri/InteractiveResize.swift	1	round1	Sources/OmniWM/Core/Layout/Niri/InteractiveResize.swift @ ee9b4f0 | Diff is only the generated SPDX header block.
+Sources/Nehir/Core/Layout/Niri/NiriConstraintSolver.swift	2	round1	Sources/OmniWM/Core/Layout/Niri/NiriConstraintSolver.swift @ ee9b4f0 | Gap accounting rewritten (count+1 -> count-1, tabbed usable-space change).
+Sources/Nehir/Core/Layout/Niri/NiriLayout.swift	2	round1	Sources/OmniWM/Core/Layout/Niri/NiriLayout.swift @ ee9b4f0 | Single-window path reworked to viewport-geometry; stack-overflow tabbed added; pipeline preserved.
+Sources/Nehir/Core/Layout/Niri/NiriLayoutEngine+Animation.swift	2	round1	Sources/OmniWM/Core/Layout/Niri/NiriLayoutEngine+Animation.swift @ ee9b4f0 | Gap model updated; isEffectivelyTabbed; singleWindowViewportGeometry; animateChangedWindows signature changed.
+Sources/Nehir/Core/Layout/Niri/NiriLayoutEngine+ColumnOps.swift	2	round1	Sources/OmniWM/Core/Layout/Niri/NiriLayoutEngine+ColumnOps.swift @ ee9b4f0 | PureLayout move-decision dispatch + orientation params; resolveProportionalSpan; structure preserved.
+Sources/Nehir/Core/Layout/Niri/NiriLayoutEngine+InteractiveMove.swift	2	round1	Sources/OmniWM/Core/Layout/Niri/NiriLayoutEngine+InteractiveMove.swift @ ee9b4f0 | Removed centerMode/alwaysCenterSingleColumn params from transitionToColumn call.
+Sources/Nehir/Core/Layout/Niri/NiriLayoutEngine+InteractiveResize.swift	2	round1	Sources/OmniWM/Core/Layout/Niri/NiriLayoutEngine+InteractiveResize.swift @ ee9b4f0 | SPDX plus one preservesUnsnappedGestureOffset=false line added.
+Sources/Nehir/Core/Layout/Niri/NiriLayoutEngine+Monitors.swift	2	round1	Sources/OmniWM/Core/Layout/Niri/NiriLayoutEngine+Monitors.swift @ ee9b4f0 | Settings accessors swapped (maxVisibleColumns/etc -> defaultColumnWidth/loneWindowPolicy); workspaceMonitorIndex cache.
+Sources/Nehir/Core/Layout/Niri/NiriLayoutEngine+PureLayoutBridge.swift	5	round1+confirmed	R2: All tokens empty in origin: PureLayoutSnapshot, pureLayoutFocusTarget, PureLayoutMoveDecision, pure-layout-bridge -> invented in Nehir
+Sources/Nehir/Core/Layout/Niri/NiriLayoutEngine+Restore.swift	1	round1	Sources/OmniWM/Core/Layout/Niri/NiriLayoutEngine+Restore.swift @ ee9b4f0 | Diff is only the generated SPDX header block.
+Sources/Nehir/Core/Layout/Niri/NiriLayoutEngine+Sizing.swift	2	round1	Sources/OmniWM/Core/Layout/Niri/NiriLayoutEngine+Sizing.swift @ ee9b4f0 | Resize tracing helpers added; gap model + snap-context visibility integration; core preserved.
+Sources/Nehir/Core/Layout/Niri/NiriLayoutEngine+TabbedMode.swift	3	round1	Sources/OmniWM/Core/Layout/Niri/NiriLayoutEngine+TabbedMode.swift @ ee9b4f0 | toggleColumnTabbed rewritten with overflow branching; stack-overflow split subsystem added.
+Sources/Nehir/Core/Layout/Niri/NiriLayoutEngine+ViewportCommands.swift	3	round1	Sources/OmniWM/Core/Layout/Niri/NiriLayoutEngine+ViewportCommands.swift @ ee9b4f0 | centerColumn/centerVisibleColumns replaced by scrollViewport/scrollToReveal snap-context API.
+Sources/Nehir/Core/Layout/Niri/NiriLayoutEngine+WindowOps.swift	3	round1	Sources/OmniWM/Core/Layout/Niri/NiriLayoutEngine+WindowOps.swift @ ee9b4f0 | moveWindow reworked to PureLayout-decision-driven flow with snapshot assertions.
+Sources/Nehir/Core/Layout/Niri/NiriLayoutEngine+Windows.swift	2	round1	Sources/OmniWM/Core/Layout/Niri/NiriLayoutEngine+Windows.swift @ ee9b4f0 | Extracted clampColumnWidthToBounds; lone-window override logic; rekeyWindow duplicate handling.
+Sources/Nehir/Core/Layout/Niri/NiriLayoutEngine+WorkspaceOps.swift	2	round1	Sources/OmniWM/Core/Layout/Niri/NiriLayoutEngine+WorkspaceOps.swift @ ee9b4f0 | SPDX plus lone-window width-override clearing blocks added.
+Sources/Nehir/Core/Layout/Niri/NiriLayoutEngine.swift	2	round1	Sources/OmniWM/Core/Layout/Niri/NiriLayoutEngine.swift @ ee9b4f0 | Config enums swapped (CenterFocusedColumn->RevealPartial, etc.); tracing + workspaceMonitorIndex; engine preserved.
+Sources/Nehir/Core/Layout/Niri/NiriMonitor.swift	2	round1	Sources/OmniWM/Core/Layout/Niri/NiriMonitor.swift @ ee9b4f0 | Orientation init changed to honor injected nil instead of autoOrientation fallback.
+Sources/Nehir/Core/Layout/Niri/NiriNavigation.swift	2	round1	Sources/OmniWM/Core/Layout/Niri/NiriNavigation.swift @ ee9b4f0 | isEffectivelyTabbed; ensureContainerVisible replaced by scrollToReveal; pureLayoutFocusTarget dispatch.
+Sources/Nehir/Core/Layout/Niri/NiriNode.swift	2	round1	Sources/OmniWM/Core/Layout/Niri/NiriNode.swift @ ee9b4f0 | Added resolveProportionalSpan, loneWindowLayoutWidthOverride, isEffectivelyTabbed; renamed relaxed method.
+Sources/Nehir/Core/Layout/Niri/NiriOverviewSnapshot.swift	1	round1	Sources/OmniWM/Core/Layout/Niri/NiriOverviewSnapshot.swift @ ee9b4f0 | Diff is only the generated SPDX header block.
+Sources/Nehir/Core/Layout/Niri/NiriSizeChange.swift	1	round1	Sources/OmniWM/Core/Layout/Niri/NiriSizeChange.swift @ ee9b4f0 | Diff is only the generated SPDX header block.
+Sources/Nehir/Core/Layout/Niri/SwapTargetOverlay.swift	1	round1	Sources/OmniWM/Core/Layout/Niri/SwapTargetOverlay.swift @ ee9b4f0 | Diff is only the generated SPDX header block.
+Sources/Nehir/Core/Layout/Niri/TabbedColumnOverlay.swift	1	round1	Sources/OmniWM/Core/Layout/Niri/TabbedColumnOverlay.swift @ ee9b4f0 | Diff is only SPDX header plus cosmetic line-wrapping.
+Sources/Nehir/Core/Layout/Niri/ViewportState+Animation.swift	2	round1	Sources/OmniWM/Core/Layout/Niri/ViewportState+Animation.swift @ ee9b4f0 | Added preservesUnsnappedGestureOffset=false resets across animation entry points.
+Sources/Nehir/Core/Layout/Niri/ViewportState+ColumnTransitions.swift	3	round1	Sources/OmniWM/Core/Layout/Niri/ViewportState+ColumnTransitions.swift @ ee9b4f0 | ensureContainerVisible removed; transitionToColumn/shiftViewport reworked to snap-context model.
+Sources/Nehir/Core/Layout/Niri/ViewportState+Geometry.swift	3	round1	Sources/OmniWM/Core/Layout/Niri/ViewportState+Geometry.swift @ ee9b4f0 | Snap-point subsystem added; computeVisibleOffset offset-computation entry points replaced.
+Sources/Nehir/Core/Layout/Niri/ViewportState+Gestures.swift	3	round1	Sources/OmniWM/Core/Layout/Niri/ViewportState+Gestures.swift @ ee9b4f0 | findSnapPointsAndTarget/correctedGestureTargetOffset removed; snap-context model drives gestures.
+Sources/Nehir/Core/Layout/Niri/ViewportState.swift	2	round1	Sources/OmniWM/Core/Layout/Niri/ViewportState.swift @ ee9b4f0 | Added preservesUnsnappedGestureOffset and FFM focus-token/timestamp fields.
+Sources/Nehir/Core/Layout/SideHiding.swift	2	round1	Sources/OmniWM/Core/Layout/SideHiding.swift @ ee9b4f0 | Placement resolver reworked to multi-candidate vertical-lane optimization.
+Sources/Nehir/Core/Animation/AnimationClock.swift	1	round1	ee9b4f0:Sources/OmniWM/Core/Animation/AnimationClock.swift | diff is only SPDX header block
+Sources/Nehir/Core/Animation/CubicAnimation.swift	1	round1	ee9b4f0:Sources/OmniWM/Core/Animation/CubicAnimation.swift | diff is only SPDX header block
+Sources/Nehir/Core/Animation/MotionPolicy.swift	2	round1	ee9b4f0:Sources/OmniWM/Core/Animation/MotionPolicy.swift | removed animationsEnabled config; snapshot returns .enabled
+Sources/Nehir/Core/Animation/MoveAnimation.swift	1	round1	ee9b4f0:Sources/OmniWM/Core/Animation/MoveAnimation.swift | diff is only SPDX header block
+Sources/Nehir/Core/Animation/SpringAnimation.swift	1	round1	ee9b4f0:Sources/OmniWM/Core/Animation/SpringAnimation.swift | diff is only SPDX header block
+Sources/Nehir/Core/Animation/SwipeTracker.swift	1	round1	ee9b4f0:Sources/OmniWM/Core/Animation/SwipeTracker.swift | diff is only SPDX header block
+Sources/Nehir/Core/AppInfoCache.swift	1	round1	ee9b4f0:Sources/OmniWM/Core/AppInfoCache.swift | diff is only SPDX header block
+Sources/Nehir/Core/Ax/AXManager.swift	2	round1	ee9b4f0:Sources/OmniWM/Core/Ax/AXManager.swift | original intact; added debug dump/reset/frame-trace methods
+Sources/Nehir/Core/Ax/AXTrustedPrompt.swift	1	round1	ee9b4f0:Sources/OmniWM/Core/Ax/AXTrustedPrompt.swift | diff is only SPDX header block
+Sources/Nehir/Core/Ax/AXWindow.swift	2	round1	ee9b4f0:Sources/OmniWM/Core/Ax/AXWindow.swift | original intact; added static role() helper
+Sources/Nehir/Core/Ax/AccessibilityPermissionMonitor.swift	1	round1	ee9b4f0:Sources/OmniWM/Core/Ax/AccessibilityPermissionMonitor.swift | diff is only SPDX header block
+Sources/Nehir/Core/Ax/AppAXContext.swift	2	round1	ee9b4f0:Sources/OmniWM/Core/Ax/AppAXContext.swift | original intact; added RawAXNotificationRecorder + thread rename
+Sources/Nehir/Core/Ax/AppThreadToken.swift	1	round1	ee9b4f0:Sources/OmniWM/Core/Ax/AppThreadToken.swift | diff is only SPDX header block
+Sources/Nehir/Core/Ax/DefaultFloatingApps.swift	1	round1	ee9b4f0:Sources/OmniWM/Core/Ax/DefaultFloatingApps.swift | diff is only SPDX header block
+Sources/Nehir/Core/Ax/RawAXNotificationTrace.swift	5	round1+confirmed	R2: tokens 'RawAXNotificationRecorder','ax notification trace empty' empty on origin/main; upstream has ReconcileTraceRecorder only (mirrored type) -> invented in Nehir
+Sources/Nehir/Core/Ax/RunLoopJob.swift	1	round1	ee9b4f0:Sources/OmniWM/Core/Ax/RunLoopJob.swift | diff is only SPDX header block
+Sources/Nehir/Core/Ax/Thread+RunLoop.swift	1	round1	ee9b4f0:Sources/OmniWM/Core/Ax/Thread+RunLoop.swift | diff is only SPDX header block
+Sources/Nehir/Core/Ax/ThreadGuardedValue.swift	1	round1	ee9b4f0:Sources/OmniWM/Core/Ax/ThreadGuardedValue.swift | diff is only SPDX header block
+Sources/Nehir/Core/Border/BorderConfig.swift	1	round1	ee9b4f0:Sources/OmniWM/Core/Border/BorderConfig.swift | diff is only SPDX header block
+Sources/Nehir/Core/Border/BorderManager.swift	2	round1	ee9b4f0:Sources/OmniWM/Core/Border/BorderManager.swift | added disableBorder() that destroys window; wasEnabled guard
+Sources/Nehir/Core/Border/BorderWindow.swift	1	round1	ee9b4f0:Sources/OmniWM/Core/Border/BorderWindow.swift | diff is only SPDX header block
+Sources/Nehir/Core/Border/FocusBorderController.swift	2	round1	ee9b4f0:Sources/OmniWM/Core/Border/FocusBorderController.swift | renamed lastAXConfirmedTarget->visualFocusTarget; added test hook
+Sources/Nehir/Core/CommandPaletteMode.swift	2	round1	ee9b4f0:Sources/OmniWM/Core/CommandPaletteMode.swift | clipboard->commands enum case (removed Clipboard feature)
+Sources/Nehir/Core/Input/ActionCatalog.swift	3	round1	ee9b4f0:Sources/OmniWM/Core/Input/ActionCatalog.swift | 594 changed lines; removed dwindle/clipboard/quake + reorg
+Sources/Nehir/Core/Input/DefaultHotkeyBindings.swift	1	round1	ee9b4f0:Sources/OmniWM/Core/Input/DefaultHotkeyBindings.swift | diff is only SPDX header block
+Sources/Nehir/Core/Input/HotkeyBinding.swift	3	round1	ee9b4f0:Sources/OmniWM/Core/Input/HotkeyBinding.swift | removed hyper/sequence subsystem; 52% of file deleted
+Sources/Nehir/Core/Input/HotkeyCommand.swift	2	round1	ee9b4f0:Sources/OmniWM/Core/Input/HotkeyCommand.swift | removed LayoutCompatibility/niri cmds; added scrollViewport
+Sources/Nehir/Core/Input/Hotkeys.swift	3	round1	ee9b4f0:Sources/OmniWM/Core/Input/Hotkeys.swift | removed sequence/hyper registration; 79% of file deleted
+Sources/Nehir/Core/Input/KeySymbolMapper.swift	2	round1	ee9b4f0:Sources/OmniWM/Core/Input/KeySymbolMapper.swift | removed usesHyper; renamed hyperModifiers->realHyperModifiers
+Sources/Nehir/Core/Input/NiriScrollTracker.swift	1	round1	ee9b4f0:Sources/OmniWM/Core/Input/NiriScrollTracker.swift | diff is only SPDX header block
+Sources/Nehir/Core/LockScreen/LockScreenObserver.swift	1	round1	ee9b4f0:Sources/OmniWM/Core/LockScreen/LockScreenObserver.swift | diff is only SPDX header block
+Sources/Nehir/Core/Menu/MenuAnywhereFetcher.swift	1	round1	ee9b4f0:Sources/OmniWM/Core/Menu/MenuAnywhereFetcher.swift | diff is only SPDX header block
+Sources/Nehir/Core/Menu/MenuExtractor.swift	1	round1	ee9b4f0:Sources/OmniWM/Core/Menu/MenuExtractor.swift | diff is only SPDX header block
+Sources/Nehir/Core/Menu/MenuItemModel.swift	1	round1	ee9b4f0:Sources/OmniWM/Core/Menu/MenuItemModel.swift | diff is only SPDX header block
+Sources/Nehir/Core/Monitor/DisplayConfigurationObserver.swift	1	round1	ee9b4f0:Sources/OmniWM/Core/Monitor/DisplayConfigurationObserver.swift | diff is only SPDX header block
+Sources/Nehir/Core/Monitor/DisplayEnvironmentDiagnostics.swift	5	round1+confirmed	R2: tokens 'DisplayEnvironmentDiagnostics','horizontalDisplayArrangement','DockEdge','fixedDock' empty on origin/main -> invented in Nehir
+Sources/Nehir/Core/Monitor/Monitor.swift	1	round1	ee9b4f0:Sources/OmniWM/Core/Monitor/Monitor.swift | diff is only SPDX header block
+Sources/Nehir/Core/Monitor/MonitorDescription.swift	2	round1	ee9b4f0:Sources/OmniWM/Core/Monitor/MonitorDescription.swift | added ignoreIdentity param threading to resolveMonitor
+Sources/Nehir/Core/Monitor/MonitorRestoreAssignments.swift	2	round1	ee9b4f0:Sources/OmniWM/Core/Monitor/MonitorRestoreAssignments.swift | added ignoreIdentity position-fallback restore branch
+Sources/Nehir/Core/Monitor/OutputId.swift	2	round1	ee9b4f0:Sources/OmniWM/Core/Monitor/OutputId.swift | original struct preserved; added anchorPoint restore + custom Hashable
+Sources/Nehir/Core/Multitouch/MultitouchBinding.swift	4	round1+confirmed	R2: Created by Barut at 06eb42d (reachable, newer than ee9b4f0); MTRegisterContactFrameCallback/MultitouchBinding present at origin tip; near-identical
+Sources/Nehir/Core/Multitouch/MultitouchGestureSource.swift	4	round1+confirmed	R2: Created by Barut at 06eb42d (reachable, newer than ee9b4f0); MultitouchGestureSource + multitouchTouchStride=96 match at origin tip
+Sources/Nehir/Core/Overview/OverviewAnimator.swift	1	round1	ee9b4f0:Sources/OmniWM/Core/Overview/OverviewAnimator.swift | diff is only SPDX header block
+Sources/Nehir/Core/Overview/OverviewController.swift	2	round1	ee9b4f0:Sources/OmniWM/Core/Overview/OverviewController.swift | removed motion/niri-layout guards; scroll sign flip
+Sources/Nehir/Core/Overview/OverviewInputHandler.swift	1	round1	ee9b4f0:Sources/OmniWM/Core/Overview/OverviewInputHandler.swift | diff is only SPDX header block
+Sources/Nehir/Core/Overview/OverviewLayoutCalculator.swift	1	round1	ee9b4f0:Sources/OmniWM/Core/Overview/OverviewLayoutCalculator.swift | diff is only SPDX header block
+Sources/Nehir/Core/Overview/OverviewRenderer.swift	1	round1	ee9b4f0:Sources/OmniWM/Core/Overview/OverviewRenderer.swift | diff is only SPDX header block
+Sources/Nehir/Core/Overview/OverviewSearchFilter.swift	1	round1	ee9b4f0:Sources/OmniWM/Core/Overview/OverviewSearchFilter.swift | diff is only SPDX header block
+Sources/Nehir/Core/Overview/OverviewState.swift	1	round1	ee9b4f0:Sources/OmniWM/Core/Overview/OverviewState.swift | diff is only SPDX header block
+Sources/Nehir/Core/Overview/OverviewThumbnailSizing.swift	1	round1	ee9b4f0:Sources/OmniWM/Core/Overview/OverviewThumbnailSizing.swift | diff is only SPDX header block
+Sources/Nehir/Core/Overview/OverviewWindow.swift	1	round1	ee9b4f0:Sources/OmniWM/Core/Overview/OverviewWindow.swift | diff is only SPDX header block
+Sources/Nehir/Core/PrivateAPIs.swift	1	round1	ee9b4f0:Sources/OmniWM/Core/PrivateAPIs.swift | diff is only SPDX header block
+Sources/Nehir/Core/ProjectionInvalidation.swift	5	round1+confirmed	R2: tokens 'ProjectionInvalidation','workspaceProjection','focusProjection','displayProjection' empty on origin/main -> invented in Nehir
+Sources/Nehir/Core/PureLayout/PureDirection.swift	5	round1+confirmed	R2: PureDirection/horizontalStep/verticalStorageStep all empty in origin; upstream Dwindle uses activeTileIdx model -> invented in Nehir
+Sources/Nehir/Core/PureLayout/PureLayoutInvariants.swift	5	round1+confirmed	R2: PureLayoutInvariants/PureLayoutInvariantViolation/CoreWorld all empty in origin (grep and -S) -> invented in Nehir
+Sources/Nehir/Core/PureLayout/PureLayoutModels.swift	5	round1+confirmed	R2: CoreColumnID/CoreWorld/CoreWorkspace/PureLayoutConfig all empty in origin (grep and -S) -> invented in Nehir
+Sources/Nehir/Core/PureLayout/PureLayoutReducer.swift	5	round1+confirmed	R2: PureLayoutReducer/expelFocusedWindow/moveFocusedWindowHorizontal/nextColumnID all empty in origin -> invented in Nehir
+Sources/Nehir/Core/Reconcile/ActionPlan.swift	1	round1	ee9b4f0:Sources/OmniWM/Core/Reconcile/ActionPlan.swift | diff is only SPDX header block
+Sources/Nehir/Core/Reconcile/DebugDump.swift	2	round1	ee9b4f0:Sources/OmniWM/Core/Reconcile/DebugDump.swift | added version header + interaction-monitor trace fields
+Sources/Nehir/Core/Reconcile/EventNormalizer.swift	1	round1	ee9b4f0:Sources/OmniWM/Core/Reconcile/EventNormalizer.swift | diff is only SPDX header block
+Sources/Nehir/Core/Reconcile/FocusPolicyEngine.swift	2	round1	ee9b4f0:Sources/OmniWM/Core/Reconcile/FocusPolicyEngine.swift | added windowCloseFocusRecovery case
+Sources/Nehir/Core/Reconcile/InvariantChecks.swift	1	round1	ee9b4f0:Sources/OmniWM/Core/Reconcile/InvariantChecks.swift | diff is only SPDX header block
+Sources/Nehir/Core/Reconcile/PersistedWindowRestoreCatalog.swift	1	round1	ee9b4f0:Sources/OmniWM/Core/Reconcile/PersistedWindowRestoreCatalog.swift | diff is only SPDX header block
+Sources/Nehir/Core/Reconcile/Planner.swift	1	round1	ee9b4f0:Sources/OmniWM/Core/Reconcile/Planner.swift | diff is only SPDX header block
+Sources/Nehir/Core/Reconcile/ReconcileSnapshot.swift	1	round1	ee9b4f0:Sources/OmniWM/Core/Reconcile/ReconcileSnapshot.swift | diff is only SPDX header block
+Sources/Nehir/Core/Reconcile/ReconcileTrace.swift	2	round1	ee9b4f0:Sources/OmniWM/Core/Reconcile/ReconcileTrace.swift | added preInteractionMonitorId field threading
+Sources/Nehir/Core/Reconcile/ReconcileTxn.swift	2	round1	ee9b4f0:Sources/OmniWM/Core/Reconcile/ReconcileTxn.swift | added preInteractionMonitorId field with docs
+Sources/Nehir/Core/Reconcile/RestorePlanner.swift	2	round1	ee9b4f0:Sources/OmniWM/Core/Reconcile/RestorePlanner.swift | added ignoreMonitorIdentity threading + focus guard
+Sources/Nehir/Core/Reconcile/RuntimeStore.swift	2	round1	ee9b4f0:Sources/OmniWM/Core/Reconcile/RuntimeStore.swift | added preInteractionMonitorId threading
+Sources/Nehir/Core/Reconcile/StateReducer.swift	1	round1	ee9b4f0:Sources/OmniWM/Core/Reconcile/StateReducer.swift | diff is only SPDX header block
+Sources/Nehir/Core/Reconcile/WMEvent.swift	1	round1	ee9b4f0:Sources/OmniWM/Core/Reconcile/WMEvent.swift | diff is only SPDX header block
+Sources/Nehir/Core/Rules/WindowRuleEngine.swift	2	round1	ee9b4f0:Sources/OmniWM/Core/Rules/WindowRuleEngine.swift | added ghostty quick-terminal overlay built-in rule
+Sources/Nehir/Core/SkyLight/CGSEventObserver.swift	1	round1	ee9b4f0:Sources/OmniWM/Core/SkyLight/CGSEventObserver.swift | diff is only SPDX header block
+Sources/Nehir/Core/SkyLight/DisplaySpacesMode.swift	4	round1+confirmed	R2: enum DisplaySpacesMode{enabled,disabled,unavailable} introduced by Barut at ee554c7 in SkyLight.swift (post-base); Nehir extracted+extended with displayName/systemImage
+Sources/Nehir/Core/SkyLight/SkyLight.swift	2	round1	ee9b4f0:Sources/OmniWM/Core/SkyLight/SkyLight.swift | added displaySpacesMode() detection feature
+Sources/Nehir/Core/Sleep/SleepPreventionManager.swift	1	round1	ee9b4f0:Sources/OmniWM/Core/Sleep/SleepPreventionManager.swift | only reason string rebrand OmniWM->Nehir
+Sources/Nehir/Core/Support/BuildVersion.swift	5	round1+confirmed	R2: basename + tokens 'BuildVersion','gitVersionString' empty; upstream uses Bundle+Extensions.appVersion, no BuildVersion enum -> invented in Nehir
+Sources/Nehir/Core/Support/Bundle+Extensions.swift	2	round1	ee9b4f0:Sources/OmniWM/Core/Support/Bundle+Extensions.swift | removed releaseVersion computed property
+Sources/Nehir/Core/Support/CGGeometry+Extensions.swift	2	round1	ee9b4f0:Sources/OmniWM/Core/Support/CGGeometry+Extensions.swift | original intact; added per-display transform/debug helpers
+Sources/Nehir/Core/Support/ParseError.swift	1	round1	ee9b4f0:Sources/OmniWM/Core/Support/ParseError.swift | diff is only SPDX header block
+Sources/Nehir/Core/Surface/SurfaceCoordinator.swift	1	round1	ee9b4f0:Sources/OmniWM/Core/Surface/SurfaceCoordinator.swift | diff is only SPDX header block
+Sources/Nehir/Core/Surface/SurfaceScene.swift	2	round1	ee9b4f0:Sources/OmniWM/Core/Surface/SurfaceScene.swift | removed resizePlaceholder/quake cases
+Sources/Nehir/Core/Workspace/InteractionMonitorWriteTrace.swift	5	round1+confirmed	R2: tokens 'InteractionMonitorWriteRecorder','interaction monitor writes empty' empty on origin/main; upstream has SessionState field but not the recorder -> invented in Nehir
+Sources/Nehir/Core/Workspace/WindowModel.swift	2	round1	ee9b4f0:Sources/OmniWM/Core/Workspace/WindowModel.swift | added WindowVisibility/HiddenReason model + dedup
+Sources/Nehir/Core/Workspace/WindowState.swift	1	round1	ee9b4f0:Sources/OmniWM/Core/Workspace/WindowState.swift | diff is only SPDX header block
+Sources/Nehir/Core/Workspace/WorkspaceEntryOrdering.swift	1	round1	ee9b4f0:Sources/OmniWM/Core/Workspace/WorkspaceEntryOrdering.swift | diff is only SPDX header block
+Sources/Nehir/Core/Workspace/WorkspaceManager.swift	2	round1	ee9b4f0:Sources/OmniWM/Core/Workspace/WorkspaceManager.swift | original core intact; added debug dumps + projection invalidation
+Sources/Nehir/Core/Workspace/WorkspaceName.swift	1	round1	ee9b4f0:Sources/OmniWM/Core/Workspace/WorkspaceName.swift | diff is only SPDX header block
+Sources/Nehir/Core/Workspace/WorkspaceTargetResolver.swift	1	round1	ee9b4f0:Sources/OmniWM/Core/Workspace/WorkspaceTargetResolver.swift | only OmniWMIPC->NehirIPC import rename
+Sources/Nehir/IPC/ExternalCommandResult.swift	2	round1	ee9b4f0:Sources/OmniWM/IPC/ExternalCommandResult.swift | replaced ignoredLayoutMismatch with 3 new failure cases
+Sources/Nehir/IPC/IPCApplicationBridge.swift	2	round1	ee9b4f0:Sources/OmniWM/IPC/IPCApplicationBridge.swift | import rename + changed failure case mapping
+Sources/Nehir/IPC/IPCCommandRouter.swift	2	round1	ee9b4f0:Sources/OmniWM/IPC/IPCCommandRouter.swift | removed dwindle/quake cases; added debug/scroll/toggle commands
+Sources/Nehir/IPC/IPCConnection.swift	1	round1	ee9b4f0:Sources/OmniWM/IPC/IPCConnection.swift | only OmniWMIPC->NehirIPC import rename
+Sources/Nehir/IPC/IPCEventBroker.swift	1	round1	ee9b4f0:Sources/OmniWM/IPC/IPCEventBroker.swift | only OmniWMIPC->NehirIPC import rename
+Sources/Nehir/IPC/IPCQueryRouter.swift	2	round1	ee9b4f0:Sources/OmniWM/IPC/IPCQueryRouter.swift | import rename + focusedToken->confirmedManagedFocusToken
+Sources/Nehir/IPC/IPCRuleProjection.swift	2	round1	ee9b4f0:Sources/OmniWM/IPC/IPCRuleProjection.swift | import rename + removed alwaysFloat/manage init args
+Sources/Nehir/IPC/IPCRuleRouter.swift	1	round1	ee9b4f0:Sources/OmniWM/IPC/IPCRuleRouter.swift | only OmniWMIPC->NehirIPC import rename
+Sources/Nehir/IPC/IPCServer.swift	1	round1	ee9b4f0:Sources/OmniWM/IPC/IPCServer.swift | only import rename + queue label rebrand + whitespace
+Sources/Nehir/UI/AboutSettingsTab.swift	5	round1+confirmed	R2: origin -S/grep 'struct AboutSettingsTab','SpreadTheWordSheet','sponsorShowcase','ShareDestination','AboutInfoCard' empty; basename empty -> invented in Nehir
+Sources/Nehir/UI/AppRuleDraft.swift	2	round1	Sources/OmniWM/UI/AppRuleDraft.swift@ee9b4f0 | Structure identical; only drops usesLegacyAlwaysFloat field/logic + SPDX+rename.
+Sources/Nehir/UI/AppRulesView.swift	2	round1	Sources/OmniWM/UI/AppRulesView.swift@ee9b4f0 | All 11 upstream types kept; AppRuleAddSheet renamed to AppRuleAddPane, localized edits.
+Sources/Nehir/UI/BehaviorSettingsTab.swift	5	round1+confirmed	R2: origin -S/-grep 'BehaviorSettingsTab','RevealPartial','Wrap Navigation at Edges' all empty; only inherited setFocusFollowsMouse/scrollModifierKey fields hit -> invented in Nehir
+Sources/Nehir/UI/BorderSettingsTab.swift	2	round1	Sources/OmniWM/UI/BorderSettingsTab.swift@ee9b4f0 | Single struct preserved; localized default/label edits (17+/11-).
+Sources/Nehir/UI/CommandPalette/CommandPaletteController.swift	3	round1	Sources/OmniWM/UI/CommandPalette/CommandPaletteController.swift@ee9b4f0 | Clipboard feature gutted, CommandPaletteCommandItem/Panel added (146+/348-).
+Sources/Nehir/UI/ConfigurationFilesSection.swift	5	round1+confirmed	R2: origin -S/-grep 'ConfigurationFilesSection','revealConfigFolder','openMainSettingsFile' empty; only inherited SettingsFileAction enum (base ee9b4f0) referenced -> Nehir-only
+Sources/Nehir/UI/DestructiveConfirmationAlert.swift	5	round1+confirmed	R2: origin -S/-grep 'DestructiveConfirmationAlert','confirmRestart','Enable Tracing' all empty across tip+history -> Nehir-only alert helper
+Sources/Nehir/UI/DeveloperBadge.swift	5	round1+confirmed	R2: origin -S/-grep 'DeveloperBadge' empty in tip+history; basename empty -> Nehir-only badge view
+Sources/Nehir/UI/DisplayDiagnosticsSettingsTab.swift	5	round1+confirmed	R2: origin -S/-grep 'DisplayDiagnosticsSettingsTab','DisplayEnvironmentDiagnostics','DebugCommandRow','SettingsDiagnosticsDetector' empty; only inherited DisplaySpacesMode type referenced -> Nehir-only
+Sources/Nehir/UI/ExperimentalBadge.swift	5	round1+confirmed	R2: origin -S/-grep 'ExperimentalBadge' empty in tip+history; basename empty -> Nehir-only badge view
+Sources/Nehir/UI/HotkeySettingsView.swift	3	round1	Sources/OmniWM/UI/HotkeySettingsView.swift@ee9b4f0 | Reorganized into numbered groups, presets/LeaderConflict removed (456+/786-).
+Sources/Nehir/UI/KeyRecorderView.swift	2	round1	Sources/OmniWM/UI/KeyRecorderView.swift@ee9b4f0 | Kept KeyRecorderView/NSView verbatim; only Hyper* types deleted.
+Sources/Nehir/UI/LayoutSettingsTab.swift	5	round1+confirmed	R2: origin -S/-grep 'LayoutSettingsTab','MonitorGapSettingsSection','draftGapSize','commitGapSizeDraft' empty; only inherited MonitorNiriSettingsSection referenced -> Nehir-only
+Sources/Nehir/UI/LiquidGlassStyles.swift	1	round1	Sources/OmniWM/UI/LiquidGlassStyles.swift@ee9b4f0 | Diff is only the SPDX header block (5+/0-).
+Sources/Nehir/UI/MenuAnywhere/MenuAnywhereController.swift	1	round1	Sources/OmniWM/UI/MenuAnywhere/MenuAnywhereController.swift@ee9b4f0 | Only SPDX header + dispatch-queue label rebrand.
+Sources/Nehir/UI/MonitorSettingsTab.swift	2	round1	Sources/OmniWM/UI/MonitorSettingsTab.swift@ee9b4f0 | All 10 types preserved in order; localized additions (114+/57-).
+Sources/Nehir/UI/Onboarding/Animations/StaticStepIcon.swift	5	round1+confirmed	R2: origin -S/-grep 'StaticStepIcon','OnboardingStep' both empty in tip+history; basename empty -> Nehir-only
+Sources/Nehir/UI/Onboarding/Animations/WelcomeAnimation.swift	5	round1+confirmed	R2: origin -S/-grep 'WelcomeAnimation','appearedCount' empty in tip+history; basename empty -> Nehir-only
+Sources/Nehir/UI/Onboarding/Animations/WorkspaceBarAnimation.swift	5	round1+confirmed	R2: origin -S/-grep 'WorkspaceBarAnimation','MockWorkspace','scratchpadPill' empty; only inherited deduplicateAppIcons field referenced -> Nehir-only
+Sources/Nehir/UI/Onboarding/ConfigRecoveryView.swift	5	round1+confirmed	R2: origin -S/-grep 'ConfigRecoveryView','ConfigAssistancePrompt',"Couldn't load settings" all empty -> Nehir-only recovery view
+Sources/Nehir/UI/Onboarding/InteractiveMoveDemo.swift	5	round1+confirmed	R2: origin -S/-grep 'MoveDemoModel','InteractiveMoveDemo','ThreeFingerGestureTapController','PureLayoutReducer','CoreWorld','paletteActions' all empty -> Nehir-only demo
+Sources/Nehir/UI/Onboarding/NehirLogo.swift	5	round1+confirmed	R2: origin -S/-grep 'NehirLogo' empty in tip+history; basename empty -> Nehir-only logo view
+Sources/Nehir/UI/Onboarding/OnboardingStepControls.swift	5	round1+confirmed	R2: origin -S/-grep 'DoneStepLinkCard','DoneStepControl','WorkspaceBarStepControl','NavigationStepControl','ExperimentalStepControl','discussionsURL','sponsorsURL' all empty -> Nehir-only
+Sources/Nehir/UI/Onboarding/OnboardingStepView.swift	5	round1+confirmed	R2: basename + tokens 'OnboardingStepView','continueButtonTitle','animationHeight' all empty on origin/main; no Onboarding* file exists -> invented in Nehir
+Sources/Nehir/UI/Onboarding/OnboardingSteps.swift	5	round1+confirmed	R2: tokens 'OnboardingStep','animationHeight','Meet Nehir','continuous horizontal river' empty on origin/main; no Onboarding* file -> invented in Nehir
+Sources/Nehir/UI/Onboarding/OnboardingView.swift	5	round1+confirmed	R2: tokens 'OnboardingView','OnboardingStateStore','WelcomeAnimation','WorkspaceBarAnimation' empty on origin/main; no Onboarding* file -> invented in Nehir
+Sources/Nehir/UI/Onboarding/OnboardingWindowController.swift	5	round1+confirmed	R2: tokens 'OnboardingWindowController','showWhatsNewReplacingOnboarding','setOnboardingActive' empty on origin/main; no OnboardingWindowController.swift -> invented in Nehir
+Sources/Nehir/UI/Onboarding/ReleaseNotes.swift	5	round1+confirmed	R2: tokens 'ReleaseNotes','repositoryURLString','isPlaceholderVersion' empty on origin/main; only README/UpdateCoordinator mention 'release notes' -> invented in Nehir
+Sources/Nehir/UI/Onboarding/WhatsNewContent.swift	5	round1+confirmed	R2: tokens 'WhatsNewContent','slider.horizontal.3','Settings, rebuilt' empty on origin/main; no WhatsNew* file in origin -> invented in Nehir
+Sources/Nehir/UI/Onboarding/WhatsNewView.swift	5	round1+confirmed	R2: tokens 'WhatsNewView','onRerunOnboarding','settingsWarningsCard','SettingsDiagnosticsIssue' empty on origin/main -> invented in Nehir
+Sources/Nehir/UI/OverridableControls.swift	2	round1	Sources/OmniWM/UI/OverridableControls.swift@ee9b4f0 | All 11 upstream types kept + 3 new Nehir helpers (177+/77-).
+Sources/Nehir/UI/SettingInfo.swift	5	round1+confirmed	R2: basename 'SettingInfo.swift' + token 'SettingInfo' empty on origin/main; no SettingInfo type exists -> invented in Nehir
+Sources/Nehir/UI/SettingsColor+SwiftUI.swift	1	round1	Sources/OmniWM/UI/SettingsColor+SwiftUI.swift@ee9b4f0 | Diff is only the SPDX header block (5+/0-).
+Sources/Nehir/UI/SettingsDetailView.swift	2	round1	Sources/OmniWM/UI/SettingsDetailView.swift@ee9b4f0 | Single struct kept; swaps section cases for Nehir tabs (19+/9-).
+Sources/Nehir/UI/SettingsFileWorkflow.swift	2	round1	Sources/OmniWM/UI/SettingsFileWorkflow.swift@ee9b4f0 | All 3 enums preserved; case renames reveal/open to config-folder/settings-file.
+Sources/Nehir/UI/SettingsSection.swift	2	round1	Sources/OmniWM/UI/SettingsSection.swift@ee9b4f0 | Both enums preserved; case swaps for removed/added tabs (33+/18-).
+Sources/Nehir/UI/SettingsSidebar.swift	2	round1	Sources/OmniWM/UI/SettingsSidebar.swift@ee9b4f0 | Single struct kept; adds diagnostics badge + sidebarRow helper (52+/4-).
+Sources/Nehir/UI/SettingsView.swift	3	round1	Sources/OmniWM/UI/SettingsView.swift@ee9b4f0 | Adds SettingsNavigationModel + CLISettingsSection, reworks plumbing (423+/245-).
+Sources/Nehir/UI/SettingsWindowController.swift	2	round1	Sources/OmniWM/UI/SettingsWindowController.swift@ee9b4f0 | Single class kept; adds navigation/cliManager/observer token (37+/5-).
+Sources/Nehir/UI/StatusBar/StatusBarController.swift	2	round1	Sources/OmniWM/UI/StatusBar/StatusBarController.swift@ee9b4f0 | Class kept; new hand-drawn status icon, drops hiddenBar/updateCoord (50+/40-).
+Sources/Nehir/UI/StatusBar/StatusBarMenu.swift	3	round1	Sources/OmniWM/UI/StatusBar/StatusBarMenu.swift@ee9b4f0 | Guts clipboard/cli/update menu items, adds AppearanceProvider (155+/346-).
+Sources/Nehir/UI/VisualEffectsCompatibility.swift	1	round1	Sources/OmniWM/UI/VisualEffectsCompatibility.swift@ee9b4f0 | Diff is only the SPDX header block (5+/0-).
+Sources/Nehir/UI/WorkspaceBar/WorkspaceBarDataSource.swift	1	round1	Sources/OmniWM/UI/WorkspaceBar/WorkspaceBarDataSource.swift@ee9b4f0 | Diff is only the SPDX header block (5+/0-).
+Sources/Nehir/UI/WorkspaceBar/WorkspaceBarGeometry.swift	1	round1	Sources/OmniWM/UI/WorkspaceBar/WorkspaceBarGeometry.swift@ee9b4f0 | Diff is only the SPDX header block (5+/0-).
+Sources/Nehir/UI/WorkspaceBar/WorkspaceBarManager.swift	2	round1	Sources/OmniWM/UI/WorkspaceBar/WorkspaceBarManager.swift@ee9b4f0 | 3 types kept; adds logger, appearanceProvider, palette/trace callbacks (102+/6-).
+Sources/Nehir/UI/WorkspaceBar/WorkspaceBarPanel.swift	2	round1	Sources/OmniWM/UI/WorkspaceBar/WorkspaceBarPanel.swift@ee9b4f0 | Class kept; adds targetFrame override branch (12+/2-).
+Sources/Nehir/UI/WorkspaceBar/WorkspaceBarProjectionOptions.swift	1	round1	Sources/OmniWM/UI/WorkspaceBar/WorkspaceBarProjectionOptions.swift@ee9b4f0 | Diff is only the SPDX header block (5+/0-).
+Sources/Nehir/UI/WorkspaceBar/WorkspaceBarView.swift	2	round1	Sources/OmniWM/UI/WorkspaceBar/WorkspaceBarView.swift@ee9b4f0 | All 15 types preserved; localized view additions (190+/6-).
+Sources/Nehir/UI/WorkspaceBarSettingsTab.swift	2	round1	Sources/OmniWM/UI/WorkspaceBarSettingsTab.swift@ee9b4f0 | 3 types kept in order; localized default/label edits (68+/38-).
+Sources/Nehir/UI/WorkspacesSettingsTab.swift	3	round1	Sources/OmniWM/UI/WorkspacesSettingsTab.swift@ee9b4f0 | 5 upstream types split into 9, sidebar/detail panes rewritten (316+/185-).
+Sources/NehirCtl/CLICompletionGenerator.swift	3	round1	Sources/OmniWMCtl/CLICompletionGenerator.swift@ee9b4f0 | Rewrites slot-based completion to prefix-based algorithm (74+/164-).
+Sources/NehirCtl/CLIEntry.swift	1	round1	Sources/OmniWMCtl/CLIEntry.swift@ee9b4f0 | Only SPDX header + OmniWMCtlMain->NehirCtlMain enum rename.
+Sources/NehirCtl/CLILegalNotice.swift	5	round1+confirmed	R2: basename + tokens 'CLILegalNotice','nehirctl','derivative fork of OmniWM' empty on origin/main -> invented in Nehir
+Sources/NehirCtl/CLIOutputFormat.swift	2	round1	Sources/OmniWMCtl/CLIOutputFormat.swift@ee9b4f0 | Enum kept; adds single legalNotice case + import rename (7+/1-).
+Sources/NehirCtl/CLIParser.swift	2	round1	Sources/OmniWMCtl/CLIParser.swift@ee9b4f0 | Parser kept; swaps layout parsing for legal/traceDesiredState (46+/23-).
+Sources/NehirCtl/CLIRenderer.swift	2	round1	Sources/OmniWMCtl/CLIRenderer.swift@ee9b4f0 | Renderer kept; drops LAYOUT column, omniwmctl->nehirctl strings (11+/7-).
+Sources/NehirCtl/CLIRuntime.swift	2	round1	Sources/OmniWMCtl/CLIRuntime.swift@ee9b4f0 | Runtime kept; adds legalNotice case + omniwmctl->nehirctl strings (16+/9-).
+Sources/NehirCtl/IPCClient.swift	2	round1	Sources/OmniWMCtl/IPCClient.swift@ee9b4f0 | Client kept; adds IPCClientFileDescriptor guard class (54+/9-).
+Sources/NehirIPC/IPCAutomationManifest.swift	2	round1	Sources/OmniWMIPC/IPCAutomationManifest.swift@ee9b4f0 | Manifest structure kept; removes layoutCompatibility field, adds traceDesiredState.
+Sources/NehirIPC/IPCModels.swift	2	round1	Sources/OmniWMIPC/IPCModels.swift@ee9b4f0 | All 84 types preserved; enum-case swaps for removed/added commands (~11%).
+Sources/NehirIPC/IPCRuleValidator.swift	1	round1	Sources/OmniWMIPC/IPCRuleValidator.swift@ee9b4f0 | Diff is only the SPDX header block (5+/0-).
+Sources/NehirIPC/IPCSocketPath.swift	1	round1	Sources/OmniWMIPC/IPCSocketPath.swift@ee9b4f0 | Only SPDX header + project identifier rebrand (NEHIR_SOCKET, dev.guria.nehir).
+Sources/NehirIPC/IPCWire.swift	1	round1	Sources/OmniWMIPC/IPCWire.swift@ee9b4f0 | Diff is only the SPDX header block (5+/0-).
+Sources/NehirIPC/WorkspaceAddressing.swift	1	round1	Sources/OmniWMIPC/WorkspaceAddressing.swift@ee9b4f0 | Diff is only the SPDX header block (5+/0-).
+Tests/NehirTests/AXEventHandlerTests.swift	2	round1	Tests/OmniWMTests/AXEventHandlerTests.swift @ ee9b4f0 | API renames (activeWorkspace->interactionWorkspace) + localized value/setup edits; 163/161 tests preserved.
+Tests/NehirTests/AXManagerTests.swift	2	round1	Tests/OmniWMTests/AXManagerTests.swift @ ee9b4f0 | Tests wrapped in isolation helper + 2 new frame-write-failure tests; scenarios preserved.
+Tests/NehirTests/AXWindowServiceTests.swift	2	round1	Tests/OmniWMTests/AXWindowServiceTests.swift @ ee9b4f0 | Test bodies wrapped in AX isolation helper + async; 19/19 scenarios preserved.
+Tests/NehirTests/ActionCatalogTests.swift	3	round1	Tests/OmniWMTests/ActionCatalogTests.swift @ ee9b4f0 | Hyper model rewritten (semantic->physical modifiers); removed visibility/vim tests; sim 31%.
+Tests/NehirTests/AppAXContextTests.swift	2	round1	Tests/OmniWMTests/AppAXContextTests.swift @ ee9b4f0 | Identical 7 tests; bodies restructured into isolation helper. suggest-5 is wrong.
+Tests/NehirTests/AppCLIManagerTests.swift	1	round1	Tests/OmniWMTests/AppCLIManagerTests.swift @ ee9b4f0 | Only SPDX + import + Nehir.app/nehirctl/cli-tests rebrand; no logic changes.
+Tests/NehirTests/AppDelegateIPCTests.swift	2	round1	Tests/OmniWMTests/AppDelegateIPCTests.swift @ ee9b4f0 | Removed update-check coordinator test (feature); retained tests near-verbatim.
+Tests/NehirTests/AppRuleDraftTests.swift	1	round1	Tests/OmniWMTests/AppRuleDraftTests.swift @ ee9b4f0 | Diff is only SPDX header + OmniWM->Nehir import rename.
+Tests/NehirTests/BorderWindowTests.swift	2	round1	Tests/OmniWMTests/BorderWindowTests.swift @ ee9b4f0 | One new test (disablingBorderDestroysBackingWindow) added; rest near-identical.
+Tests/NehirTests/CGSEventObserverTests.swift	1	round1	Tests/OmniWMTests/CGSEventObserverTests.swift @ ee9b4f0 | Diff is only SPDX header + import rename.
+Tests/NehirTests/CLICompletionGeneratorTests.swift	2	round1	Tests/OmniWMTests/CLICompletionGeneratorTests.swift @ ee9b4f0 | Expectations updated for nehirctl + removed dwindle commands; localized edits.
+Tests/NehirTests/CLIParserTests.swift	2	round1	Tests/OmniWMTests/CLIParserTests.swift @ ee9b4f0 | API renames + localized expectation edits; 35/35 tests preserved.
+Tests/NehirTests/CLIRendererTests.swift	1	round1	Tests/OmniWMTests/CLIRendererTests.swift @ ee9b4f0 | Only SPDX + import + omniwmctl/OmniWM->nehirctl/Nehir token rebrand.
+Tests/NehirTests/CLIRuntimeTests.swift	2	round1	Tests/OmniWMTests/CLIRuntimeTests.swift @ ee9b4f0 | Localized edits beyond rebrand; 2/2 tests preserved.
+Tests/NehirTests/CommandHandlerTests.swift	2	round1	Tests/OmniWMTests/CommandHandlerTests.swift @ ee9b4f0 | One test added + localized edits; structure preserved.
+Tests/NehirTests/CommandPaletteControllerTests.swift	2	round1	Tests/OmniWMTests/CommandPaletteControllerTests.swift @ ee9b4f0 | Removed clipboard-mode tests (feature removed); retained 20 near-verbatim.
+Tests/NehirTests/ConfigMismatchDetectorTests.swift	5	round1+confirmed	R2: Function-under-test detectConfigMismatches and all test-method names empty in origin; only incidental upstream SettingsTOMLCodec utility referenced -> Nehir-invented
+Tests/NehirTests/DisplayEnvironmentDiagnosticsTests.swift	5	round1+confirmed	R2: DisplayEnvironmentDiagnostics/horizontalDisplayArrangement/fixedDock plus all test names empty in origin (grep and -S) -> invented in Nehir
+Tests/NehirTests/DisplaySpacesModeTests.swift	5	round1+confirmed	R2: origin -S/grep 'displaySpacesModeOverrideForTests','DisplayEnvironmentDiagnostics','struct DisplaySpacesModeTests' all empty; basename empty -> invented in Nehir
+Tests/NehirTests/HotkeyBindingEditorTests.swift	3	round1	Tests/OmniWMTests/HotkeyBindingEditorTests.swift @ ee9b4f0 | Removed sequence/leader tests + new numbered-group test; sim 31%, high turnover.
+Tests/NehirTests/HotkeyCenterTests.swift	3	round1	Tests/OmniWMTests/HotkeyCenterTests.swift @ ee9b4f0 | Whole approach rewritten: CGEvent synthesis tests -> pure registrationPlan logic tests.
+Tests/NehirTests/HotkeySettingsViewTests.swift	3	round1	Tests/OmniWMTests/HotkeySettingsViewTests.swift @ ee9b4f0 | All upstream tests replaced (input-monitoring/vim/visibility -> numbered-workspace/physical-shortcut).
+Tests/NehirTests/IPCCommandRouterTests.swift	2	round1	Tests/OmniWMTests/IPCCommandRouterTests.swift @ ee9b4f0 | API renames + localized edits; 38/39 tests preserved.
+Tests/NehirTests/IPCEventBrokerTests.swift	1	round1	Tests/OmniWMTests/IPCEventBrokerTests.swift @ ee9b4f0 | Diff is only SPDX header + import renames.
+Tests/NehirTests/IPCModelsTests.swift	2	round1	Tests/OmniWMTests/IPCModelsTests.swift @ ee9b4f0 | IPC version bump + new debug-trace command tests; localized additions.
+Tests/NehirTests/IPCQueryRouterTests.swift	2	round1	Tests/OmniWMTests/IPCQueryRouterTests.swift @ ee9b4f0 | API renames + 2 new displays-orientation tests; structure preserved.
+Tests/NehirTests/IPCRuleRouterTests.swift	2	round1	Tests/OmniWMTests/IPCRuleRouterTests.swift @ ee9b4f0 | Beyond rebrand only focusedToken->confirmedManagedFocusToken symbol rename.
+Tests/NehirTests/IPCServerTests.swift	2	round1	Tests/OmniWMTests/IPCServerTests.swift @ ee9b4f0 | close()->interrupt() API adaptation across tests; 23/23 tests preserved.
+Tests/NehirTests/IPCSocketPathTests.swift	1	round1	Tests/OmniWMTests/IPCSocketPathTests.swift @ ee9b4f0 | Only SPDX + import + bundle-id/socket-path rebrand tokens.
+Tests/NehirTests/InteractiveMoveDemoModelTests.swift	5	round1+confirmed	R2: origin -S/grep 'MoveDemoModel','consumeIntoStackedNeighborPlacesConsumedWindowAtVisibleBottom' empty; basename empty -> invented in Nehir
+Tests/NehirTests/KeyRecorderViewTests.swift	3	round1	Tests/OmniWMTests/KeyRecorderViewTests.swift @ ee9b4f0 | Removed HyperTriggerRecorder + configured-hyper tests; chord semantics changed; sim 34%.
+Tests/NehirTests/LayoutPlanTestSupport.swift	1	round1	Tests/OmniWMTests/LayoutPlanTestSupport.swift @ ee9b4f0 | Only SPDX + import + com.omniwm->dev.guria.nehir bundle-id rebrand.
+Tests/NehirTests/LayoutRefreshControllerTests.swift	3	round1	Tests/OmniWMTests/LayoutRefreshControllerTests.swift @ ee9b4f0 | Removed resizePlaceholder tests + new HiddenWindowPlacementResolver tests; sim 38%.
+Tests/NehirTests/MonitorDescriptionTests.swift	1	round1	Tests/OmniWMTests/MonitorDescriptionTests.swift @ ee9b4f0 | Diff is only SPDX header + import rename.
+Tests/NehirTests/MonitorIdentityMatchingTests.swift	5	round1+confirmed	R2: origin -S 'struct MonitorIdentityMatchingTests','outputIdEqualityIgnoresAnchorPoint' empty (OutputId/MonitorBarSettings are upstream prod types in other files); basename empty -> Nehir
+Tests/NehirTests/MonitorRestoreAssignmentsTests.swift	2	round1	Tests/OmniWMTests/MonitorRestoreAssignmentsTests.swift @ ee9b4f0 | One new position-restore test added; rest near-identical.
+Tests/NehirTests/MonitorSettingsTabTests.swift	1	round1	Tests/OmniWMTests/MonitorSettingsTabTests.swift @ ee9b4f0 | Diff is only SPDX header + import rename.
+Tests/NehirTests/MotionTestSupport.swift	2	round1	Tests/OmniWMTests/MotionTestSupport.swift @ ee9b4f0 | Removed Sponsors/CommandPalette/WorkspaceBar helpers (feature changes); rest preserved.
+Tests/NehirTests/MouseEventHandlerTests.swift	3	round1	Tests/OmniWMTests/MouseEventHandlerTests.swift @ ee9b4f0 | 16 new focus-follows-mouse/gesture tests + removed Dwindle tests; sim 41%.
+Tests/NehirTests/MouseWarpHandlerTests.swift	1	round1	Tests/OmniWMTests/MouseWarpHandlerTests.swift @ ee9b4f0 | Only SPDX + import + com.omniwm->dev.guria.nehir bundle-id rebrand.
+Tests/NehirTests/NiriLayoutEngineTests.swift	2	round1	Tests/OmniWMTests/NiriLayoutEngineTests.swift @ ee9b4f0 | API renames (maxVisibleColumns->balancedColumnCount) + new tabbed-column tests; 142/144 preserved.
+Tests/NehirTests/NiriMonitorTests.swift	5	round1+confirmed	R2: origin -S 'struct NiriMonitorTests','updateOutputSizePreservesExistingOrientationWhenCalledWithNil' empty (NiriMonitor prod type exists upstream, test doesn't); basename empty -> Nehir
+Tests/NehirTests/OptimizationCompletionTests.swift	1	round1	Tests/OmniWMTests/OptimizationCompletionTests.swift @ ee9b4f0 | Diff is only SPDX header + import rename.
+Tests/NehirTests/OverviewModalInteractionTests.swift	2	round1	Tests/OmniWMTests/OverviewModalInteractionTests.swift @ ee9b4f0 | API adaptation (motionPolicy removed, activeWorkspace->interactionWorkspace); structure preserved.
+Tests/NehirTests/OverviewProjectionTests.swift	2	round1	Tests/OmniWMTests/OverviewProjectionTests.swift @ ee9b4f0 | Beyond rebrand only maxVisibleColumns->balancedColumnCount API rename.
+Tests/NehirTests/OverviewRendererTests.swift	1	round1	Tests/OmniWMTests/OverviewRendererTests.swift @ ee9b4f0 | Diff is only SPDX header + import rename.
+Tests/NehirTests/OverviewScrollBoundsTests.swift	1	round1	Tests/OmniWMTests/OverviewScrollBoundsTests.swift @ ee9b4f0 | Diff is only SPDX header + import rename.
+Tests/NehirTests/OverviewThumbnailSizingTests.swift	1	round1	Tests/OmniWMTests/OverviewThumbnailSizingTests.swift @ ee9b4f0 | Diff is only SPDX header + import rename.
+Tests/NehirTests/OwnedWindowRegistryTests.swift	2	round1	Tests/OmniWMTests/OwnedWindowRegistryTests.swift @ ee9b4f0 | Removed utility-window test + Sponsors/AppRules refs (features); bundle-id rename.
+Tests/NehirTests/PureLayoutAgreementTests.swift	5	round1+confirmed	R2: origin -S/grep 'PureLayoutAgreementTests','PureLayoutReducer','PureLayoutInvariants' all empty; basename empty -> invented in Nehir
+Tests/NehirTests/PureLayoutBoundaryTests.swift	5	round1+confirmed	R2: origin -S/grep 'struct PureLayoutBoundaryTests','pureLayoutFilesDoNotReferenceRuntimeOrPlatformTypes' empty; basename empty -> invented in Nehir
+Tests/NehirTests/PureLayoutReducerTests.swift	5	round1+confirmed	R2: origin -S/grep 'PureLayoutReducerTests','PureLayoutReducer','PureLayoutInvariants' empty; basename empty -> invented in Nehir
+Tests/NehirTests/ReconcileStateTests.swift	2	round1	Tests/OmniWMTests/ReconcileStateTests.swift @ ee9b4f0 | One new snapshot-dump test added; rest near-identical.
+Tests/NehirTests/RefreshRoutingTests.swift	2	round1	Tests/OmniWMTests/RefreshRoutingTests.swift @ ee9b4f0 | Removed Dwindle refresh tests + API renames; 85/95 tests preserved.
+Tests/NehirTests/ResizeMinimumLearnerTests.swift	5	round1+confirmed	R2: origin -S/grep 'ResizeMinimumLearnerTests','handleResizeMinimumFrameApplyResult','isCellQuantizationOvershoot' empty (AXFrameApplyResult is upstream prod); basename empty -> Nehir
+Tests/NehirTests/RestorePlannerTests.swift	2	round1	Tests/OmniWMTests/RestorePlannerTests.swift @ ee9b4f0 | Two new tests added; rest near-identical.
+Tests/NehirTests/ServiceLifecycleManagerTests.swift	2	round1	Tests/OmniWMTests/ServiceLifecycleManagerTests.swift @ ee9b4f0 | Removed 2 feature tests; retained tests near-verbatim.
+Tests/NehirTests/SettingsMigrationStateStoreTests.swift	5	round1+confirmed	R2: origin -S/grep 'SettingsMigrationStateStore','SettingsMigrationDetector','workspaces-array-to-keyed-tables' empty; basename empty -> invented in Nehir
+Tests/NehirTests/SettingsStoreTests.swift	3	round1	Tests/OmniWMTests/SettingsStoreTests.swift @ ee9b4f0 | Removed QuakeTerminal/Clipboard suites + new NehirStoragePaths suite; sim 39%.
+Tests/NehirTests/SettingsTOMLCodecTests.swift	3	round1	Tests/OmniWMTests/SettingsTOMLCodecTests.swift @ ee9b4f0 | Helpers simplified + 11/22 tests; removed clipboard/quake/workspace tests; sim 13%.
+Tests/NehirTests/SettingsViewTests.swift	2	round1	Tests/OmniWMTests/SettingsViewTests.swift @ ee9b4f0 | Localized edits beyond rebrand; 6/6 tests preserved.
+Tests/NehirTests/SpringAnimationTests.swift	1	round1	Tests/OmniWMTests/SpringAnimationTests.swift @ ee9b4f0 | Diff is only SPDX header + import rename.
+Tests/NehirTests/StatusBarMenuTests.swift	2	round1	Tests/OmniWMTests/StatusBarMenuTests.swift @ ee9b4f0 | Removed update-check/settings-file tests + appearance-provider refactor; 6/11 preserved.
+Tests/NehirTests/TestSharedStateSupport.swift	2	round1	Tests/OmniWMTests/TestSharedStateSupport.swift @ ee9b4f0 | Added AppAXContextIsolationForTests actor + rebrand; extended, not rewritten.
+Tests/NehirTests/ThreadRunLoopTests.swift	1	round1	Tests/OmniWMTests/ThreadRunLoopTests.swift @ ee9b4f0 | Diff is only SPDX header + import rename.
+Tests/NehirTests/TokenCompatibilityTestSupport.swift	2	round1	Tests/OmniWMTests/TokenCompatibilityTestSupport.swift @ ee9b4f0 | Focus-API renames + removed DwindleLayoutEngine helper (feature removed).
+Tests/NehirTests/ViewportGeometryTests.swift	2	round1	Tests/OmniWMTests/ViewportGeometryTests.swift @ ee9b4f0 | API renames + localized value edits; 20/20 tests preserved.
+Tests/NehirTests/ViewportSnapContextTests.swift	5	round1+confirmed	R2: origin -S/grep 'ViewportSnapContext','ComputeSnapGridTests','RevealPartial','boundedViewportStart' empty (SnapPoint prod type exists upstream); basename empty -> Nehir
+Tests/NehirTests/WMControllerFocusTests.swift	2	round1	Tests/OmniWMTests/WMControllerFocusTests.swift @ ee9b4f0 | Removed QuakeTerminal/hiddenBar tests + setup changes + focus-API renames.
+Tests/NehirTests/WMControllerScratchpadTests.swift	2	round1	Tests/OmniWMTests/WMControllerScratchpadTests.swift @ ee9b4f0 | Adapted to result-returning scratchpad API + added assertions; 10/10 preserved.
+Tests/NehirTests/WhatsNewAutoShowTests.swift	5	round1+confirmed	R2: origin -S/grep 'WhatsNewAutoShowTests','shouldAutoShowWhatsNew' empty; basename empty -> invented in Nehir
+Tests/NehirTests/WindowRuleEngineTests.swift	2	round1	Tests/OmniWMTests/WindowRuleEngineTests.swift @ ee9b4f0 | alwaysFloat->layout:.float rule-model change in tests; localized.
+Tests/NehirTests/WorkspaceBarDataSourceTests.swift	2	round1	Tests/OmniWMTests/WorkspaceBarDataSourceTests.swift @ ee9b4f0 | focusedToken->confirmedManagedFocusToken renames across test bodies.
+Tests/NehirTests/WorkspaceBarManagerTests.swift	2	round1	Tests/OmniWMTests/WorkspaceBarManagerTests.swift @ ee9b4f0 | appearanceProvider injection + new constrainFrameRect tests; structure preserved.
+Tests/NehirTests/WorkspaceManagerTests.swift	2	round1	Tests/OmniWMTests/WorkspaceManagerTests.swift @ ee9b4f0 | Many focus-API renames + removed resizePlaceholder test; bodies largely preserved.
+Tests/NehirTests/WorkspaceNavigationHandlerTests.swift	5	round1+confirmed	R2: all 6 file-own tokens (struct/test method/4 local helpers) empty in origin -S; 'installSynchronousFrameApplySuccessOverride' hit is shared LayoutPlanTestSupport.swift util (different file) -> Nehir
+Tests/NehirTests/WorkspacesSettingsTabTests.swift	2	round1	Tests/OmniWMTests/WorkspacesSettingsTabTests.swift @ ee9b4f0 | Beyond rebrand only footer text value changed (10+ -> 1-9).
+Tests/NehirTests/WorkspacesTOMLCodecTests.swift	5	round1+confirmed	R2: origin -S/grep 'WorkspacesTOMLCodecTests','WorkspacesTOMLCodec','WorkspacesConfigMigration','containsLegacyWorkspaceArray' empty; basename empty -> invented in Nehir
