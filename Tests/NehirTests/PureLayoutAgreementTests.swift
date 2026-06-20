@@ -140,11 +140,11 @@ import Testing
                 realColumn.appendChild(window)
                 engine.tokenToNode[token] = window
             }
-            let columnActiveIndex = columnIndex == activeColumnIndex ? activeWindowIndex : min(activeWindowIndex, max(tokens.count - 1, 0))
+            let columnActiveIndex = min(max(activeWindowIndex, 0), max(tokens.count - 1, 0))
             realColumn.setActiveTileIdx(columnActiveIndex)
 
-            if columnIndex == activeColumnIndex, tokens.indices.contains(activeWindowIndex) {
-                selectedToken = tokens[activeWindowIndex]
+            if columnIndex == activeColumnIndex, tokens.indices.contains(columnActiveIndex) {
+                selectedToken = tokens[columnActiveIndex]
             }
 
             coreColumns.append(
@@ -156,15 +156,17 @@ import Testing
             )
         }
 
+        let clampedActiveColumnIndex = min(max(activeColumnIndex, 0), max(coreColumns.count - 1, 0))
         let pure = CoreWorld(
-            workspaces: [CoreWorkspace(id: workspaceId, columns: coreColumns, activeColumnIndex: activeColumnIndex)],
+            workspaces: [CoreWorkspace(id: workspaceId, columns: coreColumns, activeColumnIndex: clampedActiveColumnIndex)],
             activeWorkspaceIndex: 0,
             nextColumnID: 100,
             config: PureLayoutConfig(infiniteLoop: infiniteLoop)
         )
         var state = ViewportState()
-        state.activeColumnIndex = activeColumnIndex
-        let selected = selectedToken ?? coreColumns[activeColumnIndex].windows[activeWindowIndex].id
+        state.activeColumnIndex = clampedActiveColumnIndex
+        let activeColumn = coreColumns[clampedActiveColumnIndex]
+        let selected = selectedToken ?? activeColumn.windows[activeColumn.activeWindowIndex].id
         state.selectedNodeId = engine.findNode(for: selected)?.id
 
         return Fixture(
