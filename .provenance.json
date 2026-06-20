@@ -1,0 +1,106 @@
+{
+  "rules": [
+    {
+      "name": "Swift sources and package manifest shipped with Nehir (upstream-derived default)",
+      "paths": [
+        "Package.swift",
+        "Sources/**/*.swift",
+        "Tests/**/*.swift"
+      ],
+      "license": "GPL-2.0-only",
+      "copyright": [
+        "2026 BarutSRB",
+        "2026 Aleksei Gurianov and Nehir contributors"
+      ],
+      "fileComment": "Provenance=upstream-derived; Upstream-Project=OmniWM; Upstream-Author=BarutSRB; Nehir-Changes-Since=2026; See=NOTICE.md"
+    }
+  ],
+  "overrides": [
+    {
+      "name": "Nehir-original files (no prior existence in OmniWM; provenance audit)",
+      "paths": [
+        "Sources/Nehir/Core/Ax/RawAXNotificationTrace.swift",
+        "Sources/Nehir/Core/Config/AppRuleFileStore.swift",
+        "Sources/Nehir/Core/Config/ConfigAssistancePrompt.swift",
+        "Sources/Nehir/Core/Config/ConfigMismatchDetector.swift",
+        "Sources/Nehir/Core/Config/HotkeyConfigMapping.swift",
+        "Sources/Nehir/Core/Config/HotkeysTOMLCodec.swift",
+        "Sources/Nehir/Core/Config/MonitorOverrideFileStore.swift",
+        "Sources/Nehir/Core/Config/OnboardingStateStore.swift",
+        "Sources/Nehir/Core/Config/SettingsDiagnosticsIssue.swift",
+        "Sources/Nehir/Core/Config/SettingsMigrationRegistry.swift",
+        "Sources/Nehir/Core/Config/SettingsMigrationStateStore.swift",
+        "Sources/Nehir/Core/Config/SettingsTOMLUnknownValue.swift",
+        "Sources/Nehir/Core/Config/WorkspacesTOMLCodec.swift",
+        "Sources/Nehir/Core/Controller/LayoutTrace.swift",
+        "Sources/Nehir/Core/Controller/WMCommandTarget.swift",
+        "Sources/Nehir/Core/Layout/Niri/NiriLayoutEngine+PureLayoutBridge.swift",
+        "Sources/Nehir/Core/Monitor/DisplayEnvironmentDiagnostics.swift",
+        "Sources/Nehir/Core/ProjectionInvalidation.swift",
+        "Sources/Nehir/Core/PureLayout/PureDirection.swift",
+        "Sources/Nehir/Core/PureLayout/PureLayoutInvariants.swift",
+        "Sources/Nehir/Core/PureLayout/PureLayoutModels.swift",
+        "Sources/Nehir/Core/PureLayout/PureLayoutReducer.swift",
+        "Sources/Nehir/Core/Support/BuildVersion.swift",
+        "Sources/Nehir/Core/Workspace/InteractionMonitorWriteTrace.swift",
+        "Sources/Nehir/UI/AboutSettingsTab.swift",
+        "Sources/Nehir/UI/BehaviorSettingsTab.swift",
+        "Sources/Nehir/UI/ConfigurationFilesSection.swift",
+        "Sources/Nehir/UI/DestructiveConfirmationAlert.swift",
+        "Sources/Nehir/UI/DeveloperBadge.swift",
+        "Sources/Nehir/UI/DisplayDiagnosticsSettingsTab.swift",
+        "Sources/Nehir/UI/ExperimentalBadge.swift",
+        "Sources/Nehir/UI/LayoutSettingsTab.swift",
+        "Sources/Nehir/UI/Onboarding/Animations/StaticStepIcon.swift",
+        "Sources/Nehir/UI/Onboarding/Animations/WelcomeAnimation.swift",
+        "Sources/Nehir/UI/Onboarding/Animations/WorkspaceBarAnimation.swift",
+        "Sources/Nehir/UI/Onboarding/ConfigRecoveryView.swift",
+        "Sources/Nehir/UI/Onboarding/InteractiveMoveDemo.swift",
+        "Sources/Nehir/UI/Onboarding/NehirLogo.swift",
+        "Sources/Nehir/UI/Onboarding/OnboardingStepControls.swift",
+        "Sources/Nehir/UI/Onboarding/OnboardingStepView.swift",
+        "Sources/Nehir/UI/Onboarding/OnboardingSteps.swift",
+        "Sources/Nehir/UI/Onboarding/OnboardingView.swift",
+        "Sources/Nehir/UI/Onboarding/OnboardingWindowController.swift",
+        "Sources/Nehir/UI/Onboarding/ReleaseNotes.swift",
+        "Sources/Nehir/UI/Onboarding/WhatsNewContent.swift",
+        "Sources/Nehir/UI/Onboarding/WhatsNewView.swift",
+        "Sources/Nehir/UI/SettingInfo.swift",
+        "Sources/NehirCtl/CLILegalNotice.swift",
+        "Tests/NehirTests/ConfigMismatchDetectorTests.swift",
+        "Tests/NehirTests/DisplayEnvironmentDiagnosticsTests.swift",
+        "Tests/NehirTests/DisplaySpacesModeTests.swift",
+        "Tests/NehirTests/InteractiveMoveDemoModelTests.swift",
+        "Tests/NehirTests/MonitorIdentityMatchingTests.swift",
+        "Tests/NehirTests/NiriMonitorTests.swift",
+        "Tests/NehirTests/PureLayoutAgreementTests.swift",
+        "Tests/NehirTests/PureLayoutBoundaryTests.swift",
+        "Tests/NehirTests/PureLayoutReducerTests.swift",
+        "Tests/NehirTests/ResizeMinimumLearnerTests.swift",
+        "Tests/NehirTests/SettingsMigrationStateStoreTests.swift",
+        "Tests/NehirTests/ViewportSnapContextTests.swift",
+        "Tests/NehirTests/WhatsNewAutoShowTests.swift",
+        "Tests/NehirTests/WorkspaceNavigationHandlerTests.swift",
+        "Tests/NehirTests/WorkspacesTOMLCodecTests.swift"
+      ],
+      "copyright": [
+        "2026 Aleksei Gurianov and Nehir contributors"
+      ],
+      "fileComment": "Provenance=nehir-original; See=NOTICE.md"
+    }
+  ],
+  "upstreamCommits": {
+    "Sources/Nehir/Core/Config/MonitorGapSettings.swift": [
+      {"repo": "https://github.com/BarutSRB/OmniWM", "hash": "dacccb8"}
+    ],
+    "Sources/Nehir/Core/Multitouch/MultitouchBinding.swift": [
+      {"repo": "https://github.com/BarutSRB/OmniWM", "hash": "06eb42d"}
+    ],
+    "Sources/Nehir/Core/Multitouch/MultitouchGestureSource.swift": [
+      {"repo": "https://github.com/BarutSRB/OmniWM", "hash": "06eb42d"}
+    ],
+    "Sources/Nehir/Core/SkyLight/DisplaySpacesMode.swift": [
+      {"repo": "https://github.com/BarutSRB/OmniWM", "hash": "ee554c7"}
+    ]
+  }
+}

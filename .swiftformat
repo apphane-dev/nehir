@@ -11,7 +11,7 @@
 --commas inline
 --trimwhitespace always
 --semicolons never
---header strip
+--header ignore
 
 --disable all
 --enable blankLineAfterImports,blankLinesAroundMark,blankLinesAtEndOfScope,blankLinesAtStartOfScope
