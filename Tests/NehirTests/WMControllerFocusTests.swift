@@ -1535,4 +1535,38 @@ private func waitForFocusRefresh(on controller: WMController) async {
 
         #expect(controller.commandHandler.performCommand(.toggleFocusedWindowFloating) == .notFound)
     }
+
+    // MARK: - Cross-workspace stale pending focus clear
+
+    @Test @MainActor func reassignManagedWindowClearsStalePendingFocus() {
+        let operations = WindowFocusOperations(
+            activateApp: { _ in },
+            focusSpecificWindow: { _, _, _ in },
+            raiseWindow: { _ in }
+        )
+        let fixture = makeTwoMonitorFocusController(windowFocusOperations: operations)
+        let controller = fixture.controller
+
+        let window = makeFocusTestWindow(windowId: 501)
+        let token = controller.workspaceManager.addWindow(
+            window,
+            pid: getpid(),
+            windowId: window.windowId,
+            to: fixture.primaryWorkspaceId
+        )
+
+        // Begin a pending managed-focus request for the token in ws1.
+        _ = controller.focusBridge.beginManagedRequest(
+            token: token,
+            workspaceId: fixture.primaryWorkspaceId
+        )
+        #expect(controller.focusBridge.activeManagedRequest?.token == token)
+        #expect(controller.focusBridge.activeManagedRequest?.workspaceId == fixture.primaryWorkspaceId)
+
+        // Reassign the window to ws2 — the stale pending request targeting ws1
+        // must be cancelled so a late AX confirmation does not pull focus back.
+        controller.reassignManagedWindow(token, to: fixture.secondaryWorkspaceId)
+
+        #expect(controller.focusBridge.activeManagedRequest == nil)
+    }
 }

@@ -916,7 +916,8 @@ enum NiriWindowMoveResult {
             sessionPatch: WorkspaceSessionPatch(
                 workspaceId: pass.wsId,
                 viewportState: state,
-                rememberedFocusToken: rememberedFocusToken
+                rememberedFocusToken: rememberedFocusToken,
+                plannedSelectionRevision: controller?.workspaceManager.selectionRevision(for: pass.wsId)
             ),
             diff: diff,
             animationDirectives: directives
