@@ -46,14 +46,13 @@ Runtime confirmation changes the original hypothesis materially:
   (`Sources/Nehir/Core/Border/FocusBorderController.swift:293-327`). Since
   qutebrowser's undecorated *main* window reports `AXDialog`, this suppression
   hides the border before frame/order rendering matters.
-- The management side is separate: Nehir's heuristic would classify a no-buttons
-  non-standard AX window as `.floating`, and `.floating` is a tracked mode
-  (`Sources/Nehir/Core/Ax/AXWindow.swift:654-679`,
-  `Sources/Nehir/Core/Rules/WindowRuleEngine.swift:67-75`). In this runtime,
-  however, focused admission fell through to `non_managed_fallback_entered`, and
-  the window remained visible-unmanaged. The exact rejection point needs one
-  extra trace/debug field, but the likely path is the focused-admission / stale
-  existing-surface guard in `AXEventHandler` rather than the border subsystem.
+- The management side is separate. A follow-up diagnostic run showed the exact
+  admission rejection point: focused admission reached `prepareCreateCandidate`,
+  evaluated qutebrowser as `disposition=undecided` / `outcome=deferred` because
+  `deferred=attributeFetchFailed`, then emitted
+  `prepare_create_rejected ... reason=untracked_decision` before falling through
+  to `non_managed_fallback_entered`. The non-managed stale-surface suppression
+  guard was not reached for qutebrowser because no prepared candidate existed.
 - **Do not fix this by globally treating `AXDialog` or “no titlebar buttons” as
   tiling-managed.** That would be a high-regression heuristic change. A narrow
   qutebrowser/frameless compatibility path or explicit user rule is reasonable;
@@ -350,21 +349,79 @@ Safer predicates for qutebrowser/frameless compatibility:
 
 ---
 
+## Follow-up focused-admission diagnostic evidence
+
+A later run with focused-admission diagnostics in place captured two focus
+attempts into the same qutebrowser window. In both attempts, the trace sequence
+was:
+
+```text
+activation_source_observed pid=96135 source=workspaceDidActivateApplication
+window_decision token=WindowToken(pid: 96135, windowId: 723) context=focused_admission existingMode=nil disposition=undecided source=heuristic outcome=deferred layout=fallbackLayout deferred=attributeFetchFailed bundleId=org.qutebrowser.qutebrowser titleLength=nil axRole=AXWindow axSubrole=AXDialog hasCloseButton=true hasFullscreenButton=false fullscreenButtonEnabled=nil hasZoomButton=true hasMinimizeButton=true appPolicy=NSApplicationActivationPolicy(rawValue: 0) wsLevel=0 wsTags=0x100082001 wsAttributes=0x3 wsParent=0 wsFrame=(1035.0,839.0,1005.0,490.0)
+prepare_create_rejected window=723 token=Optional(Nehir.WindowToken(pid: 96135, windowId: 723)) context=focused_admission reason=untracked_decision has_window_info=true window_info_pid=96135 fallback_token=Optional(Nehir.WindowToken(pid: 96135, windowId: 723)) has_fallback_ax_ref=true create_context_source=ax_focused_admission_synthesized
+non_managed_fallback_entered pid=96135 source=workspaceDidActivateApplication
+```
+
+The visible-unmanaged snapshot for the same window was:
+
+```text
+windowId=723 pid=96135 owner=qutebrowser bundleId=org.qutebrowser.qutebrowser title=DuckDuckGo Private Search Engine - qutebrowser frame={{1035.0, 839.0}, {1005.0, 490.0}} activationPolicy=NSApplicationActivationPolicy(rawValue: 0) axWindowsCount=1 axContainsWindow=true
+```
+
+The synthesized focused-admission placement context remained attached to the
+window:
+
+```text
+window=723 native_monitor=nil active_focus_request_workspace=nil active_focus_request_monitor=nil focused_workspace=B0C1D521-6D47-4FB9-8FF8-73A456CA9533 focused_monitor=display 1 interaction_monitor=display 1 source=ax_focused_admission_synthesized focused_workspace_source=confirmed_focus recent_pid_workspace=nil
+```
+
+This narrows the tracking failure:
+
+- The immediate blocker is **not**
+  `shouldSuppressUnrequestedAdmissionDuringNonManagedFocus`; no
+  `unrequested_admission_nonmanaged_focus_decision` event was emitted for
+  qutebrowser because `prepareCreateCandidate` never produced a candidate.
+- The blocker is `AXWindowService.heuristicDisposition` returning `.undecided`
+  when `AXWindowFacts.attributeFetchSucceeded == false`
+  (`Sources/Nehir/Core/Ax/AXWindow.swift:647-651` at the time of discovery).
+- The facts are partially usable despite the failed aggregate flag: role,
+  subrole, close/zoom/minimize button presence, app activation policy, and
+  WindowServer metadata were all present. The fullscreen button was absent or
+  malformed (`hasFullscreenButton=false`, `fullscreenButtonEnabled=nil`).
+- This differs from the earlier direct AX probe, which saw all four native
+  button attributes absent. The discrepancy may come from direct single-attribute
+  probes versus `AXUIElementCopyMultipleAttributeValues`, or from qutebrowser's
+  surface state changing. The next diagnostic must record per-attribute result
+  codes/types from the multi-attribute fetch instead of only the aggregate
+  `attributeFetchSucceeded` boolean.
+
 ## Proposed implementation direction
 
 ### 1. Add diagnostics before policy changes
 
-Add trace/debug output for qutebrowser-like admission failures:
+Current diagnostics already identify the focused-admission rejection branch and
+high-level facts:
 
 - `prepareCreateCandidate` nil reason: owned window, missing token, existing
-  entry, failed AX ref, decision untracked/undecided, stabilization retry, etc.
+  entry, failed AX ref, decision untracked/undecided, etc.
 - decision facts for focused admission: bundle id, role/subrole, button facts,
-  activation policy, WindowServer level/layer, parent id, tags, frame.
-- whether `shouldSuppressUnrequestedAdmissionDuringNonManagedFocus` suppressed a
+  activation policy, WindowServer level, attributes/tags, parent id, frame.
+- whether `shouldSuppressUnrequestedAdmissionDuringNonManagedFocus` suppresses a
   prepared candidate and why.
 
-This closes the only remaining gap: why the runtime ended as visible-unmanaged
-instead of tracked-floating.
+The remaining diagnostic gap is more granular: record why
+`AXWindowFacts.attributeFetchSucceeded` is false by capturing per-attribute
+`AXUIElementCopyMultipleAttributeValues` values/results and fullscreen-button
+`AXEnabled` fetch result/type. This should show whether qutebrowser is deferred
+because the fullscreen button attribute is an AX error, `NSNull`, wrong CF type,
+or because another required attribute failed.
+
+Implementation status on 2026-06-21: the diagnostics branch adds an
+`axAttributeDiagnostics=...` field to `window_decision` trace output. It reports
+`multipleResult`, returned value count, per-attribute value classes for
+`role/subrole/title/buttons`, `fullscreenEnabledResult` when queried, and a
+`fetchFailure` label such as `invalid_fullscreen_button_type`. A new runtime
+capture with this build is needed before choosing a policy fix.
 
 ### 2. Border-only compatibility fix
 
