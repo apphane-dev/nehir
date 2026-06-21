@@ -14,6 +14,8 @@ final class BorderManager {
     private var lastAppliedFrame: CGRect?
     private var lastAppliedWindowId: Int?
     private var lastAppliedCornerRadius: CGFloat?
+    private var lastAppliedOrder: SkyLightWindowOrder = .below
+    private var lastAppliedPlacement: BorderPlacement = .outside
     private var cachedCornerRadiusWindowId: Int?
     private var cachedCornerRadius: CGFloat?
     private let borderWindowOperations: BorderWindow.Operations
@@ -55,7 +57,9 @@ final class BorderManager {
     func updateFocusedWindow(
         frame: CGRect,
         windowId: Int?,
-        forceOrdering: Bool = false
+        forceOrdering: Bool = false,
+        order: SkyLightWindowOrder = .below,
+        placement: BorderPlacement = .outside
     ) -> Bool {
         guard config.enabled else { return false }
         guard frame.width > 0, frame.height > 0 else {
@@ -81,13 +85,16 @@ final class BorderManager {
            frame.approximatelyEqual(to: last, tolerance: 0.5)
         {
             if lastRadius == cornerRadius {
-                if forceOrdering || lastWid != windowId {
-                    borderWindow?.reorder(relativeTo: targetWid)
+                if forceOrdering || lastWid != windowId || lastAppliedOrder != order {
+                    borderWindow?.reorder(relativeTo: targetWid, order: order)
                     lastAppliedWindowId = windowId
                     lastAppliedCornerRadius = cornerRadius
+                    lastAppliedOrder = order
                     syncSurfaceRegistration()
                 }
-                return true
+                if lastAppliedPlacement == placement {
+                    return true
+                }
             }
         }
 
@@ -95,7 +102,9 @@ final class BorderManager {
             frame: frame,
             targetWid: targetWid,
             cornerRadius: cornerRadius,
-            forceOrdering: forceOrdering
+            forceOrdering: forceOrdering,
+            order: order,
+            placement: placement
         ) == true else {
             clearCornerRadiusCache()
             return false
@@ -103,6 +112,8 @@ final class BorderManager {
         lastAppliedFrame = frame
         lastAppliedWindowId = windowId
         lastAppliedCornerRadius = cornerRadius
+        lastAppliedOrder = order
+        lastAppliedPlacement = placement
         syncSurfaceRegistration()
         return true
     }
@@ -150,6 +161,8 @@ final class BorderManager {
         lastAppliedFrame = nil
         lastAppliedWindowId = nil
         lastAppliedCornerRadius = nil
+        lastAppliedOrder = .below
+        lastAppliedPlacement = .outside
         clearCornerRadiusCache()
     }
 

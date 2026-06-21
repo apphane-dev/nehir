@@ -23,6 +23,11 @@ private func makeBorderTestContext() -> CGContext? {
 }
 
 @Suite struct BorderWindowTests {
+    @Test func skyLightWindowOrderAboveUsesShowOrderingMode() {
+        #expect(SkyLightWindowOrder.above.rawValue == 1)
+        #expect(SkyLightWindowOrder.below.rawValue == -1)
+    }
+
     @Test @MainActor func moveOnlyUpdateSkipsRedrawAndReorder() {
         var reshapeFrames: [CGRect] = []
         var flushCount = 0
@@ -105,6 +110,80 @@ private func makeBorderTestContext() -> CGContext? {
         #expect(flushCount == 1)
         #expect(moveOnlyCount == 0)
         #expect(orderedTargets == [101, 101])
+    }
+
+    @Test @MainActor func orderingChangeReordersWithoutRedraw() {
+        var flushCount = 0
+        var moveOnlyCount = 0
+        var ordered: [(UInt32, SkyLightWindowOrder)] = []
+        var backingScaleLookups = 0
+
+        let operations = BorderWindow.Operations(
+            createBorderWindow: { _ in 906 },
+            releaseBorderWindow: { _ in },
+            configureWindow: { _, _, _ in },
+            setWindowTags: { _, _ in },
+            createWindowContext: { _ in makeBorderTestContext() },
+            setWindowShape: { _, _ in },
+            flushWindow: { _ in flushCount += 1 },
+            transactionMove: { _, _ in moveOnlyCount += 1 },
+            transactionMoveAndOrder: { _, _, _, targetWid, order in ordered.append((targetWid, order)) },
+            transactionHide: { _ in },
+            backingScaleForFrame: { _ in
+                backingScaleLookups += 1
+                return 2.0
+            }
+        )
+        let manager = BorderManager(
+            config: BorderConfig(enabled: true, width: 4, color: .systemBlue),
+            borderWindowOperations: operations,
+            cornerRadiusProvider: { _ in nil }
+        )
+        defer { manager.cleanup() }
+
+        let frame = CGRect(x: 120, y: 90, width: 800, height: 600)
+        manager.updateFocusedWindow(frame: frame, windowId: 101)
+        manager.updateFocusedWindow(frame: frame, windowId: 101, order: .above)
+
+        #expect(flushCount == 1)
+        #expect(moveOnlyCount == 0)
+        #expect(backingScaleLookups == 1)
+        #expect(ordered.map(\.0) == [101, 101])
+        #expect(ordered.map(\.1) == [.below, .above])
+    }
+
+    @Test @MainActor func placementChangeRedrawsSameTargetFrame() {
+        var reshapeFrames: [CGRect] = []
+        var flushCount = 0
+        var ordered: [(UInt32, SkyLightWindowOrder)] = []
+
+        let operations = BorderWindow.Operations(
+            createBorderWindow: { _ in 908 },
+            releaseBorderWindow: { _ in },
+            configureWindow: { _, _, _ in },
+            setWindowTags: { _, _ in },
+            createWindowContext: { _ in makeBorderTestContext() },
+            setWindowShape: { _, frame in reshapeFrames.append(frame) },
+            flushWindow: { _ in flushCount += 1 },
+            transactionMove: { _, _ in },
+            transactionMoveAndOrder: { _, _, _, targetWid, order in ordered.append((targetWid, order)) },
+            transactionHide: { _ in },
+            backingScaleForFrame: { _ in 2.0 }
+        )
+        let manager = BorderManager(
+            config: BorderConfig(enabled: true, width: 4, color: .systemBlue),
+            borderWindowOperations: operations,
+            cornerRadiusProvider: { _ in nil }
+        )
+        defer { manager.cleanup() }
+
+        let frame = CGRect(x: 120, y: 90, width: 800, height: 600)
+        manager.updateFocusedWindow(frame: frame, windowId: 101)
+        manager.updateFocusedWindow(frame: frame, windowId: 101, order: .above, placement: .inside)
+
+        #expect(flushCount == 2)
+        #expect(reshapeFrames.count == 2)
+        #expect(ordered.map(\.1) == [.below, .above])
     }
 
     @Test @MainActor func radiusChangeRedrawsWithoutReshape() {

@@ -9670,6 +9670,90 @@ private func waitUntilAXEventTest(
         }
     }
 
+    @Test @MainActor func qutebrowserTopLevelAXDialogAllowsFocusedBorder() {
+        let controller = makeAXEventTestController()
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
+            Issue.record("Missing active workspace")
+            return
+        }
+        let windowId = 9_130
+        let axRef = AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: windowId)
+        let token = controller.workspaceManager.addWindow(
+            axRef,
+            pid: 9_129,
+            windowId: windowId,
+            to: workspaceId,
+            mode: .tiling,
+            managedReplacementMetadata: ManagedReplacementMetadata(
+                bundleId: "org.qutebrowser.qutebrowser",
+                workspaceId: workspaceId,
+                mode: .tiling,
+                role: kAXWindowRole as String,
+                subrole: kAXDialogSubrole as String,
+                title: "DuckDuckGo Private Search Engine - qutebrowser",
+                windowLevel: 0,
+                parentWindowId: 0,
+                frame: CGRect(x: 80, y: 90, width: 900, height: 620)
+            )
+        )
+        controller.focusBorderController.windowRoleProviderForTests = { _ in
+            (role: kAXWindowRole as String, subrole: kAXDialogSubrole as String)
+        }
+        defer { controller.focusBorderController.windowRoleProviderForTests = nil }
+
+        controller.setBordersEnabled(true)
+        _ = controller.renderKeyboardFocusBorder(
+            for: controller.managedKeyboardFocusTarget(for: token),
+            preferredFrame: CGRect(x: 80, y: 90, width: 900, height: 620),
+            forceOrdering: true
+        )
+
+        #expect(controller.currentBorderTarget()?.token == token)
+        #expect(lastAppliedBorderWindowId(on: controller) == token.windowId)
+    }
+
+    @Test @MainActor func nonQutebrowserAXDialogStillSuppressesFocusedBorder() {
+        let controller = makeAXEventTestController()
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
+            Issue.record("Missing active workspace")
+            return
+        }
+        let windowId = 9_132
+        let axRef = AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: windowId)
+        let token = controller.workspaceManager.addWindow(
+            axRef,
+            pid: 9_131,
+            windowId: windowId,
+            to: workspaceId,
+            mode: .tiling,
+            managedReplacementMetadata: ManagedReplacementMetadata(
+                bundleId: "com.example.dialog",
+                workspaceId: workspaceId,
+                mode: .tiling,
+                role: kAXWindowRole as String,
+                subrole: kAXDialogSubrole as String,
+                title: "Dialog",
+                windowLevel: 0,
+                parentWindowId: 0,
+                frame: CGRect(x: 80, y: 90, width: 900, height: 620)
+            )
+        )
+        controller.focusBorderController.windowRoleProviderForTests = { _ in
+            (role: kAXWindowRole as String, subrole: kAXDialogSubrole as String)
+        }
+        defer { controller.focusBorderController.windowRoleProviderForTests = nil }
+
+        controller.setBordersEnabled(true)
+        _ = controller.renderKeyboardFocusBorder(
+            for: controller.managedKeyboardFocusTarget(for: token),
+            preferredFrame: CGRect(x: 80, y: 90, width: 900, height: 620),
+            forceOrdering: true
+        )
+
+        #expect(controller.currentBorderTarget()?.token == token)
+        #expect(lastAppliedBorderWindowId(on: controller) == nil)
+    }
+
     @Test @MainActor func unmanagedFocusedDestroyClearsFocusedBorderTarget() {
         let controller = makeAXEventTestController()
         let token = WindowToken(pid: 9_140, windowId: 9141)

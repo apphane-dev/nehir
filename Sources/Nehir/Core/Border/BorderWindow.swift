@@ -7,6 +7,11 @@
 import AppKit
 import QuartzCore
 
+enum BorderPlacement: Equatable {
+    case outside
+    case inside
+}
+
 @MainActor
 final class BorderWindow {
     struct Operations {
@@ -58,6 +63,7 @@ final class BorderWindow {
     private var lastOrderedTargetWid: UInt32 = 0
     private var lastConfiguredScale: CGFloat = 0
     private var currentCornerRadius: CGFloat = 9.0
+    private var currentPlacement: BorderPlacement = .outside
 
     private let padding: CGFloat = 8.0
     private let defaultCornerRadius: CGFloat = 9.0
@@ -78,6 +84,7 @@ final class BorderWindow {
         lastOrderedTargetWid = 0
         currentTargetWid = 0
         currentCornerRadius = defaultCornerRadius
+        currentPlacement = .outside
     }
 
     @discardableResult
@@ -85,25 +92,26 @@ final class BorderWindow {
         frame targetFrame: CGRect,
         targetWid: UInt32,
         cornerRadius: CGFloat = 9.0,
-        forceOrdering: Bool = false
+        forceOrdering: Bool = false,
+        order: SkyLightWindowOrder = .below,
+        placement: BorderPlacement = .outside
     ) -> Bool {
         let borderWidth = config.width
         let scale = operations.backingScaleForFrame(targetFrame)
         let resolvedCornerRadius = max(cornerRadius, 0)
 
-        let borderOffset = -borderWidth - padding
-        var frame = targetFrame.insetBy(dx: borderOffset, dy: borderOffset)
-            .roundedToPhysicalPixels(scale: scale)
+        let geometry = borderGeometry(
+            for: targetFrame,
+            borderWidth: borderWidth,
+            placement: placement,
+            scale: scale
+        )
+        var frame = geometry.frame
 
         origin = ScreenCoordinateSpace.toWindowServer(rect: frame).origin
         frame.origin = .zero
 
-        let drawingBounds = CGRect(
-            x: -borderOffset,
-            y: -borderOffset,
-            width: targetFrame.width,
-            height: targetFrame.height
-        )
+        let drawingBounds = geometry.drawingBounds
 
         let createdWindow: Bool
         if wid == 0 {
@@ -124,23 +132,49 @@ final class BorderWindow {
             reshapeWindow(frame: frame)
             needsRedraw = true
         }
-        if currentCornerRadius != resolvedCornerRadius {
+        if currentCornerRadius != resolvedCornerRadius || currentPlacement != placement {
             needsRedraw = true
         }
         currentTargetFrame = targetFrame
         currentTargetWid = targetWid
         currentFrame = frame
         currentCornerRadius = resolvedCornerRadius
+        currentPlacement = placement
 
         if needsRedraw {
             draw(frame: frame, drawingBounds: drawingBounds)
         }
 
         let needsOrdering = forceOrdering || createdWindow || !isVisible || lastOrderedTargetWid != targetWid
-        move(relativeTo: targetWid, needsOrdering: needsOrdering)
+        move(relativeTo: targetWid, needsOrdering: needsOrdering, order: order)
         isVisible = true
         lastOrderedTargetWid = targetWid
         return true
+    }
+
+    private func borderGeometry(
+        for targetFrame: CGRect,
+        borderWidth: CGFloat,
+        placement: BorderPlacement,
+        scale: CGFloat
+    ) -> (frame: CGRect, drawingBounds: CGRect) {
+        switch placement {
+        case .outside:
+            let borderOffset = -borderWidth - padding
+            let frame = targetFrame.insetBy(dx: borderOffset, dy: borderOffset)
+                .roundedToPhysicalPixels(scale: scale)
+            let drawingBounds = CGRect(
+                x: -borderOffset,
+                y: -borderOffset,
+                width: targetFrame.width,
+                height: targetFrame.height
+            )
+            return (frame, drawingBounds)
+        case .inside:
+            let frame = targetFrame.roundedToPhysicalPixels(scale: scale)
+            let drawingBounds = CGRect(origin: .zero, size: frame.size)
+            return (frame, drawingBounds)
+        }
     }
 
     private func createWindow(frame: CGRect, scale: CGFloat) {
@@ -202,18 +236,22 @@ final class BorderWindow {
         operations.flushWindow(wid)
     }
 
-    private func move(relativeTo targetWid: UInt32, needsOrdering: Bool) {
+    private func move(
+        relativeTo targetWid: UInt32,
+        needsOrdering: Bool,
+        order: SkyLightWindowOrder
+    ) {
         if needsOrdering {
-            operations.transactionMoveAndOrder(wid, origin, orderingLevel, targetWid, .below)
+            operations.transactionMoveAndOrder(wid, origin, orderingLevel, targetWid, order)
             return
         }
 
         operations.transactionMove(wid, origin)
     }
 
-    func reorder(relativeTo targetWid: UInt32) {
+    func reorder(relativeTo targetWid: UInt32, order: SkyLightWindowOrder = .below) {
         guard wid != 0 else { return }
-        move(relativeTo: targetWid, needsOrdering: true)
+        move(relativeTo: targetWid, needsOrdering: true, order: order)
         isVisible = true
         currentTargetWid = targetWid
         lastOrderedTargetWid = targetWid
@@ -238,7 +276,8 @@ final class BorderWindow {
                 update(
                     frame: currentTargetFrame,
                     targetWid: currentTargetWid,
-                    cornerRadius: currentCornerRadius
+                    cornerRadius: currentCornerRadius,
+                    placement: currentPlacement
                 )
             }
         }

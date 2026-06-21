@@ -171,6 +171,35 @@ struct AXWindowFacts: Equatable, Sendable {
     let appPolicy: NSApplication.ActivationPolicy?
     let bundleId: String?
     let attributeFetchSucceeded: Bool
+    let attributeDiagnostics: String?
+
+    init(
+        role: String?,
+        subrole: String?,
+        title: String?,
+        hasCloseButton: Bool,
+        hasFullscreenButton: Bool,
+        fullscreenButtonEnabled: Bool?,
+        hasZoomButton: Bool,
+        hasMinimizeButton: Bool,
+        appPolicy: NSApplication.ActivationPolicy?,
+        bundleId: String?,
+        attributeFetchSucceeded: Bool,
+        attributeDiagnostics: String? = nil
+    ) {
+        self.role = role
+        self.subrole = subrole
+        self.title = title
+        self.hasCloseButton = hasCloseButton
+        self.hasFullscreenButton = hasFullscreenButton
+        self.fullscreenButtonEnabled = fullscreenButtonEnabled
+        self.hasZoomButton = hasZoomButton
+        self.hasMinimizeButton = hasMinimizeButton
+        self.appPolicy = appPolicy
+        self.bundleId = bundleId
+        self.attributeFetchSucceeded = attributeFetchSucceeded
+        self.attributeDiagnostics = attributeDiagnostics
+    }
 }
 
 struct AXWindowHeuristicDisposition: Equatable, Sendable {
@@ -550,6 +579,77 @@ enum AXWindowService {
             &values
         )
 
+        func attributeName(_ index: WindowTypeAttributeIndex) -> String {
+            switch index {
+            case .role:
+                "role"
+            case .subrole:
+                "subrole"
+            case .closeButton:
+                "closeButton"
+            case .fullScreenButton:
+                "fullscreenButton"
+            case .zoomButton:
+                "zoomButton"
+            case .minimizeButton:
+                "minimizeButton"
+            case .title:
+                "title"
+            }
+        }
+
+        func describeAttributeValue(_ value: Any?) -> String {
+            guard let value else { return "nil" }
+            if let error = value as? NSError {
+                return "error:\(error.code)"
+            }
+            if value is NSNull {
+                return "null"
+            }
+            let object = value as AnyObject
+            let typeId = CFGetTypeID(object)
+            if typeId == AXUIElementGetTypeID() {
+                return "axElement"
+            }
+            if let string = value as? String {
+                return "string(len:\(string.count))"
+            }
+            if let bool = value as? Bool {
+                return "bool:\(bool)"
+            }
+            return "type:\(String(describing: type(of: value)))"
+        }
+
+        func makeAttributeDiagnostics(
+            valuesArray: [Any?]?,
+            fetchFailure: String? = nil,
+            enabledResult: AXError? = nil,
+            enabledValue: Any? = nil
+        ) -> String {
+            var parts = ["multipleResult=\(result.rawValue)"]
+            if let valuesArray {
+                parts.append("valueCount=\(valuesArray.count)")
+                let attributeParts = (
+                    WindowTypeAttributeIndex.role.rawValue ... WindowTypeAttributeIndex.title.rawValue
+                )
+                for rawIndex in attributeParts where rawIndex < attributes.count {
+                    guard let index = WindowTypeAttributeIndex(rawValue: rawIndex) else { continue }
+                    let value = valuesArray.indices.contains(rawIndex) ? valuesArray[rawIndex] : nil
+                    parts.append("\(attributeName(index))=\(describeAttributeValue(value))")
+                }
+            } else {
+                parts.append("valueCount=nil")
+            }
+            if let enabledResult {
+                parts.append("fullscreenEnabledResult=\(enabledResult.rawValue)")
+                parts.append("fullscreenEnabled=\(describeAttributeValue(enabledValue))")
+            }
+            if let fetchFailure {
+                parts.append("fetchFailure=\(fetchFailure)")
+            }
+            return parts.joined(separator: ",")
+        }
+
         guard result == .success,
               let valuesArray = values as? [Any?],
               valuesArray.count > WindowTypeAttributeIndex.minimizeButton.rawValue
@@ -565,7 +665,11 @@ enum AXWindowService {
                 hasMinimizeButton: false,
                 appPolicy: appPolicy,
                 bundleId: bundleId,
-                attributeFetchSucceeded: false
+                attributeFetchSucceeded: false,
+                attributeDiagnostics: makeAttributeDiagnostics(
+                    valuesArray: values as? [Any?],
+                    fetchFailure: "multiple_attribute_fetch_failed"
+                )
             )
         }
 
@@ -581,41 +685,41 @@ enum AXWindowService {
 
         let fullscreenButtonElement = attributeValue(.fullScreenButton)
         var attributeFetchSucceeded = true
-        let hasFullscreenButton = hasResolvedAttribute(fullscreenButtonElement)
+        var attributeFetchFailure: String?
+        var fullscreenEnabledResult: AXError?
+        var fullscreenEnabledDiagnosticValue: Any?
+        var hasFullscreenButton = hasResolvedAttribute(fullscreenButtonElement)
 
         var fullscreenButtonEnabled: Bool?
         if hasFullscreenButton, let fullscreenButtonElement {
-            guard CFGetTypeID(fullscreenButtonElement as CFTypeRef) == AXUIElementGetTypeID() else {
-                attributeFetchSucceeded = false
-                return AXWindowFacts(
-                    role: attributeValue(.role) as? String,
-                    subrole: attributeValue(.subrole) as? String,
-                    title: includeTitle ? (attributeValue(.title) as? String) : nil,
-                    hasCloseButton: hasResolvedAttribute(attributeValue(.closeButton)),
-                    hasFullscreenButton: false,
-                    fullscreenButtonEnabled: nil,
-                    hasZoomButton: hasResolvedAttribute(attributeValue(.zoomButton)),
-                    hasMinimizeButton: hasResolvedAttribute(attributeValue(.minimizeButton)),
-                    appPolicy: appPolicy,
-                    bundleId: bundleId,
-                    attributeFetchSucceeded: attributeFetchSucceeded
+            if CFGetTypeID(fullscreenButtonElement as CFTypeRef) == AXUIElementGetTypeID() {
+                let buttonElement = unsafeDowncast(fullscreenButtonElement as AnyObject, to: AXUIElement.self)
+                var enabledValue: CFTypeRef?
+                let enabledResult = AXUIElementCopyAttributeValue(
+                    buttonElement,
+                    kAXEnabledAttribute as CFString,
+                    &enabledValue
                 )
-            }
-            let buttonElement = unsafeDowncast(fullscreenButtonElement as AnyObject, to: AXUIElement.self)
-            var enabledValue: CFTypeRef?
-            let enabledResult = AXUIElementCopyAttributeValue(
-                buttonElement,
-                kAXEnabledAttribute as CFString,
-                &enabledValue
-            )
-            if enabledResult == .success {
-                if let enabledValue {
-                    if let resolvedEnabled = enabledValue as? Bool {
-                        fullscreenButtonEnabled = resolvedEnabled
-                    } else {
-                        attributeFetchSucceeded = false
+                fullscreenEnabledResult = enabledResult
+                fullscreenEnabledDiagnosticValue = enabledValue
+                if enabledResult == .success {
+                    if let enabledValue {
+                        if let resolvedEnabled = enabledValue as? Bool {
+                            fullscreenButtonEnabled = resolvedEnabled
+                        } else {
+                            attributeFetchSucceeded = false
+                            attributeFetchFailure = "invalid_fullscreen_enabled_type"
+                        }
                     }
                 }
+            } else {
+                // Some frameless app windows report a non-error value for the
+                // fullscreen button slot that is not an AXUIElement. Treat that
+                // as an absent fullscreen button instead of discarding otherwise
+                // complete role/subrole/button facts; the heuristic can then
+                // safely classify the surface as floating when appropriate.
+                hasFullscreenButton = false
+                attributeFetchFailure = "invalid_fullscreen_button_type_treated_as_missing"
             }
         }
 
@@ -630,7 +734,13 @@ enum AXWindowService {
             hasMinimizeButton: hasResolvedAttribute(attributeValue(.minimizeButton)),
             appPolicy: appPolicy,
             bundleId: bundleId,
-            attributeFetchSucceeded: attributeFetchSucceeded
+            attributeFetchSucceeded: attributeFetchSucceeded,
+            attributeDiagnostics: makeAttributeDiagnostics(
+                valuesArray: valuesArray,
+                fetchFailure: attributeFetchFailure,
+                enabledResult: fullscreenEnabledResult,
+                enabledValue: fullscreenEnabledDiagnosticValue
+            )
         )
     }
 
