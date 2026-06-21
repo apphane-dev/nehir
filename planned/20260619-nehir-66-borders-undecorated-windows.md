@@ -420,8 +420,39 @@ Implementation status on 2026-06-21: the diagnostics branch adds an
 `axAttributeDiagnostics=...` field to `window_decision` trace output. It reports
 `multipleResult`, returned value count, per-attribute value classes for
 `role/subrole/title/buttons`, `fullscreenEnabledResult` when queried, and a
-`fetchFailure` label such as `invalid_fullscreen_button_type`. A new runtime
-capture with this build is needed before choosing a policy fix.
+`fetchFailure` label such as `invalid_fullscreen_button_type`.
+
+A follow-up runtime capture with those diagnostics closed the gap. The same
+qutebrowser window produced:
+
+```text
+window_decision token=WindowToken(pid: 96135, windowId: 723) context=focused_admission existingMode=nil disposition=undecided source=heuristic outcome=deferred layout=fallbackLayout deferred=attributeFetchFailed bundleId=org.qutebrowser.qutebrowser titleLength=nil axRole=AXWindow axSubrole=AXDialog hasCloseButton=true hasFullscreenButton=false fullscreenButtonEnabled=nil hasZoomButton=true hasMinimizeButton=true appPolicy=NSApplicationActivationPolicy(rawValue: 0) axAttributeDiagnostics=multipleResult=0,valueCount=6,role=string(len:8),subrole=string(len:8),closeButton=type:__NSCFType,fullscreenButton=type:__NSCFType,zoomButton=type:__NSCFType,minimizeButton=type:__NSCFType,fetchFailure=invalid_fullscreen_button_type wsLevel=0 wsTags=0x100082001 wsAttributes=0x3 wsParent=0 wsFrame=(1035.0,839.0,1005.0,490.0)
+prepare_create_rejected window=723 token=Optional(Nehir.WindowToken(pid: 96135, windowId: 723)) context=focused_admission reason=untracked_decision has_window_info=true window_info_pid=96135 fallback_token=Optional(Nehir.WindowToken(pid: 96135, windowId: 723)) has_fallback_ax_ref=true create_context_source=ax_focused_admission_synthesized
+non_managed_fallback_entered pid=96135 source=workspaceDidActivateApplication
+```
+
+Interpretation:
+
+- `AXUIElementCopyMultipleAttributeValues` succeeded (`multipleResult=0`) and
+  returned all six requested values (`valueCount=6`).
+- Role and subrole were usable strings: `AXWindow` / `AXDialog`.
+- The fullscreen button slot returned a non-AX `__NSCFType`, so
+  `collectWindowFacts` labeled the whole facts object as failed via
+  `fetchFailure=invalid_fullscreen_button_type`.
+- Because `attributeFetchSucceeded=false`, `heuristicDisposition` returned
+  `.undecided` before it could reach the existing non-standard-subrole floating
+  branch. That is why focused admission rejected the window as
+  `reason=untracked_decision`.
+
+Recommended tracking fix:
+
+- Treat an invalid/malformed fullscreen-button value as **missing fullscreen
+  button**, not as a fatal aggregate AX facts failure, when the core window facts
+  are otherwise available.
+- Do not change `AXDialog` tiling policy. With the existing heuristic, once the
+  malformed fullscreen button no longer forces `.undecided`, qutebrowser's
+  `AXDialog` subrole should classify as tracked `.floating`, not tiled.
+- Keep explicit user rules as the path for qutebrowser tiling.
 
 ### 2. Border-only compatibility fix
 
