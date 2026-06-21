@@ -1,4 +1,4 @@
-# Nehir #66 — Undecorated qutebrowser is treated as non-managed and border-hidden
+# Nehir #66 — Undecorated qutebrowser tracking and focus-border compatibility
 
 Source issue: https://github.com/Guria/nehir/issues/66 (open, no labels).
 Reporter symptom, inlined (the issue attaches a screen recording and trace file;
@@ -23,45 +23,39 @@ re-verified on 2026-06-21; line numbers may drift.
 
 ## TL;DR
 
-Runtime confirmation changes the original hypothesis materially:
+Runtime confirmation changed the original hypothesis materially and led to a
+three-part narrow fix:
 
-- Undecorated qutebrowser is **not currently tracked** by Nehir. The runtime
-  state shows only three tracked tiled windows and `floating=0`; qutebrowser is
-  listed under **Visible Unmanaged WindowServer Windows**.
-- The focused qutebrowser window is still detected as a keyboard-focus target,
-  but as **non-managed**: `borderTarget=WindowToken(pid: 96135, windowId: 723)`
-  and `nonManaged=true`.
-- The qutebrowser main window is unusual but not elevated: WindowServer/CG data
-  shows `windowId=723`, `pid=96135`, owner `qutebrowser`, bundle
-  `org.qutebrowser.qutebrowser`, title `settings - qutebrowser`, frame
-  `{{1032.0, 97.0}, {1008.0, 1232.0}}`, activation policy `regular` (`0`),
-  CG layer `0`, alpha `1`, onscreen `true`.
-- Accessibility reports the same window as `role=AXWindow`,
-  **`subrole=AXDialog`**, with no close/fullscreen/zoom/minimize button
-  attributes (`AXUIElementCopyAttributeValue` returned `-25212` for each), and
-  AX position/size `(1032.0, 97.0)` / `(1008.0, 1232.0)`.
-- The border is not merely behind the qutebrowser window. Nehir explicitly hides
-  borders for any target whose AX subrole is `AXDialog` via
-  `FocusBorderController.renderEligibility` → `isSystemModalSurface`
-  (`Sources/Nehir/Core/Border/FocusBorderController.swift:293-327`). Since
-  qutebrowser's undecorated *main* window reports `AXDialog`, this suppression
-  hides the border before frame/order rendering matters.
-- The management side is separate. A follow-up diagnostic run showed the exact
-  admission rejection point: focused admission reached `prepareCreateCandidate`,
-  evaluated qutebrowser as `disposition=undecided` / `outcome=deferred` because
-  `deferred=attributeFetchFailed`, then emitted
-  `prepare_create_rejected ... reason=untracked_decision` before falling through
-  to `non_managed_fallback_entered`. The non-managed stale-surface suppression
-  guard was not reached for qutebrowser because no prepared candidate existed.
-- **Do not fix this by globally treating `AXDialog` or “no titlebar buttons” as
-  tiling-managed.** That would be a high-regression heuristic change. A narrow
-  qutebrowser/frameless compatibility path or explicit user rule is reasonable;
-  a broad heuristic relaxation is not.
+- Undecorated qutebrowser's top-level app window is unusual but not elevated:
+  WindowServer/CG data showed owner `qutebrowser`, bundle
+  `org.qutebrowser.qutebrowser`, activation policy `regular` (`0`), CG layer
+  `0`, alpha `1`, and onscreen `true`.
+- Accessibility reports that same top-level app window as `role=AXWindow` and
+  **`subrole=AXDialog`**. That must not cause broad `AXDialog` relaxation,
+  because real sheets/dialogs still need suppression.
+- The first blocker was admission: focused admission reached
+  `prepareCreateCandidate`, evaluated qutebrowser as `disposition=undecided` /
+  `outcome=deferred` because a malformed fullscreen-button AX value poisoned the
+  aggregate facts as `attributeFetchFailed`, then rejected the candidate as
+  `reason=untracked_decision`. The fix treats that malformed fullscreen-button
+  value as a missing fullscreen button when the core facts are otherwise usable,
+  so the existing non-standard-subrole heuristic tracks qutebrowser as floating.
+- The second blocker was border eligibility: qutebrowser's top-level `AXDialog`
+  continued to hit `system_modal_surface`. The fix adds a narrow exemption only
+  for `AXWindow` + `AXDialog` + qutebrowser bundle id + top-level WindowServer
+  facts (`level=0`, `parentId=0`, with live SkyLight fallback when metadata is
+  incomplete/stale). Non-qutebrowser `AXDialog` surfaces remain suppressed.
+- The third blocker was border ordering: qutebrowser needed an inside border
+  ordered above the app surface, but Nehir's `SkyLightWindowOrder.above` raw
+  value was `0`, which is `kCGSOrderOut` (hide). The fix changes `.above` to raw
+  value `1` (`kCGSOrderAbove`) and adds a regression for the constants.
+- **Do not add a built-in qutebrowser force-tiling rule.** Default tracking as
+  floating is the safe compatibility fix; users can still tile qutebrowser via
+  manual override or explicit rules.
 
-Verdict: 🟡 real Nehir-side compatibility bug, but the safe fix is narrow. The
-root cause is not “border window level” for the captured runtime; it is
-(1) qutebrowser's frameless main window reporting `AXDialog`, (2) Nehir hiding
-borders for `AXDialog`, and (3) admission leaving the window non-managed.
+Verdict: ✅ fixed by a narrow Nehir-side compatibility path plus a corrected
+SkyLight ordering constant, without globally relaxing `AXDialog` handling or
+adding a built-in qutebrowser tiling rule.
 
 ---
 
@@ -454,6 +448,13 @@ Recommended tracking fix:
   `AXDialog` subrole should classify as tracked `.floating`, not tiled.
 - Keep explicit user rules as the path for qutebrowser tiling.
 
+Implementation status on 2026-06-21: the source branch treats a non-AX value in
+the fullscreen-button slot as an absent fullscreen button and keeps the rest of
+the facts usable. The diagnostic label changes to
+`invalid_fullscreen_button_type_treated_as_missing`. Runtime confirmation showed
+this lets the existing non-standard-subrole heuristic classify qutebrowser as
+tracked floating; manual override can then tile it when desired.
+
 ### 2. Border-only compatibility fix
 
 Do not remove `AXDialog` suppression globally. Instead, add a predicate that can
@@ -467,9 +468,47 @@ compatibility shim for a known misreported surface. It should not force tiling.
 It should also be tested alongside `ghosttyQuickTerminalOverlay` so Ghostty
 quick terminal remains `unmanaged` and outside the niri layout.
 
-This should make borders show even if the window remains non-managed, because
-non-managed focus targets already flow through `resolveFrame` and
-`BorderManager.updateFocusedWindow` once eligibility allows them.
+Implementation status on 2026-06-21: after runtime confirmation that the
+tracking fix works but borders remain hidden, the source branch adds a narrow
+border compatibility path for tracked qutebrowser windows with `role=AXWindow`,
+`subrole=AXDialog`, `bundleId=org.qutebrowser.qutebrowser`, WindowServer level
+`0`, and parent id `0`. A subsequent trace showed `border_reapplied` was emitted
+for qutebrowser but the border still was not visible, which means eligibility was
+no longer the blocker. Ordering the normal outside border above the qutebrowser
+surface still was not enough, likely because the outside ring can be offscreen or
+covered by neighboring windows when qutebrowser is full-height or tiled at a
+screen edge. The compatibility path now draws this qutebrowser border as an
+**inside overlay** and orders it above the qutebrowser surface only. General
+`AXDialog` and system dialog suppression remains unchanged, and regression
+coverage verifies a non-qutebrowser `AXDialog` still does not apply a border.
+
+Temporary border-surface diagnostics compared Nehir's border window against a
+working JankyBorders border. That comparison showed the immediate blocker was not
+WindowServer z-ordering: when qutebrowser was the `borderTarget`
+(`WindowToken(pid: 96135, windowId: 723)`) and `visualFocusTarget`, Nehir's
+border surface was explicitly hidden: `visible=false`, `targetWid=nil`,
+`lastAppliedWindowId=nil`, `lastAppliedFrame=nil`, with CG reporting
+`onscreen=nil` for Nehir window `1291`. In the same state, JankyBorders owned
+four visible `borders` windows at `layer=0`, `alpha=1.0`, `onscreen=true`,
+including a qutebrowser-aligned bounds rectangle `(510.0,56.0,1036.0,1287.0)`.
+Nehir's hidden border surface still had a higher `level=3`/`layer=3`.
+
+Follow-up diagnostics identified the render reason as `system_modal_surface`
+while qutebrowser was the `visualFocusTarget` and `borderTarget`. That means the
+qutebrowser top-level `AXDialog` exemption did not match during render, so the
+generic modal-surface suppression hid the border. The source fix keeps
+suppression narrow by requiring `AXWindow` + `AXDialog` + qutebrowser bundle id +
+top-level WindowServer facts, but now falls back to a live SkyLight lookup for
+`level=0` and `parentId=0` when the metadata snapshot is incomplete or stale.
+
+A subsequent trace showed that this modal-suppression fix worked: qutebrowser
+updated with `lastAppliedWindowId=723`, `lastAppliedOrder=above`,
+`lastAppliedPlacement=inside`, and `didUpdate=true`. However, WindowServer still
+reported Nehir's border as not onscreen (`attributes=0x0`, CG `onscreen=nil`).
+The remaining cause was the SkyLight ordering constant: Nehir used `0` for
+`.above`, but CGS ordering mode `0` is `kCGSOrderOut` (hide), while
+`kCGSOrderAbove` is `1`. The source branch now corrects `.above` to raw value
+`1` and adds a regression asserting the ordering constants.
 
 ### 3. Tracking/tiling fix as a separate product decision
 
@@ -485,19 +524,17 @@ non-managed focus targets already flow through `resolveFrame` and
 
 ---
 
-## Suggested tests
+## Regression coverage
 
-- Border eligibility: an `AXWindow` with `subrole=AXDialog` normally hides the
-  border; the qutebrowser-compatible predicate allows border update only for a
-  regular top-level layer-0 app window.
-- Heuristic/admission: no-buttons `AXDialog` still defaults to floating, not
-  tiling; explicit user override can force tiling.
-- Non-managed fallback: a focused qutebrowser-compatible existing window is not
-  silently pulled into tracking unless the compatibility rule or explicit user
-  rule allows it.
-- Regression fixtures: sheets/system dialogs remain border-hidden and untracked;
-  Ghostty quick terminal / overlays remain ignored; ordinary decorated windows
-  remain tiled as before.
+- Border eligibility: a qutebrowser top-level `AXWindow`/`AXDialog` with regular
+  WindowServer facts can render a focused border.
+- Border suppression: a non-qutebrowser `AXDialog` still suppresses the focused
+  border.
+- Border mechanics: changing order reorders without redraw, changing placement
+  redraws the same target frame, and `SkyLightWindowOrder.above.rawValue == 1` /
+  `.below.rawValue == -1`.
+- AX facts/admission: malformed fullscreen-button values are treated as missing
+  fullscreen buttons when the rest of the window facts are valid.
 
 ---
 
