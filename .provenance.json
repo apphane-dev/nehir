@@ -80,6 +80,7 @@
         "Tests/NehirTests/SettingsMigrationStateStoreTests.swift",
         "Tests/NehirTests/ViewportSnapContextTests.swift",
         "Tests/NehirTests/WhatsNewAutoShowTests.swift",
+        "Tests/NehirTests/WorkspaceBarGeometryTests.swift",
         "Tests/NehirTests/WorkspaceNavigationHandlerTests.swift",
         "Tests/NehirTests/WorkspacesTOMLCodecTests.swift"
       ],
