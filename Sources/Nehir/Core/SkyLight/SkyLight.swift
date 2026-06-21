@@ -8,7 +8,7 @@ import CoreGraphics
 import Foundation
 
 enum SkyLightWindowOrder: Int32 {
-    case above = 0
+    case above = 1
     case below = -1
 }
 

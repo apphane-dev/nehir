@@ -262,7 +262,9 @@ final class FocusBorderController {
         return borderManager.updateFocusedWindow(
             frame: frame,
             windowId: target.windowId,
-            forceOrdering: forceOrdering
+            forceOrdering: forceOrdering,
+            order: borderOrdering(for: target),
+            placement: borderPlacement(for: target)
         )
     }
 
@@ -290,7 +292,7 @@ final class FocusBorderController {
             return .hide
         }
 
-        if isSystemModalSurface(target.axRef) {
+        if isSystemModalSurface(target) {
             return .hide
         }
 
@@ -316,15 +318,58 @@ final class FocusBorderController {
         return controller.axEventHandler.focusedWindowToken(for: target.pid) == target.token
     }
 
-    private func isSystemModalSurface(_ axRef: AXWindowRef) -> Bool {
-        let attributes = windowRoleProviderForTests?(axRef) ?? (
-            role: AXWindowService.role(axRef),
-            subrole: AXWindowService.subrole(axRef)
+    private func borderOrdering(for target: KeyboardFocusTarget) -> SkyLightWindowOrder {
+        let attributes = windowRoleProviderForTests?(target.axRef) ?? (
+            role: AXWindowService.role(target.axRef),
+            subrole: AXWindowService.subrole(target.axRef)
         )
+        return isQutebrowserFramelessTopLevelWindow(target, attributes: attributes) ? .above : .below
+    }
+
+    private func borderPlacement(for target: KeyboardFocusTarget) -> BorderPlacement {
+        let attributes = windowRoleProviderForTests?(target.axRef) ?? (
+            role: AXWindowService.role(target.axRef),
+            subrole: AXWindowService.subrole(target.axRef)
+        )
+        return isQutebrowserFramelessTopLevelWindow(target, attributes: attributes) ? .inside : .outside
+    }
+
+    private func isSystemModalSurface(_ target: KeyboardFocusTarget) -> Bool {
+        let attributes = windowRoleProviderForTests?(target.axRef) ?? (
+            role: AXWindowService.role(target.axRef),
+            subrole: AXWindowService.subrole(target.axRef)
+        )
+
+        if isQutebrowserFramelessTopLevelWindow(target, attributes: attributes) {
+            return false
+        }
 
         return attributes.role == kAXSheetRole as String
             || attributes.subrole == kAXDialogSubrole as String
             || attributes.subrole == kAXSystemDialogSubrole as String
+    }
+
+    private func isQutebrowserFramelessTopLevelWindow(
+        _ target: KeyboardFocusTarget,
+        attributes: (role: String?, subrole: String?)
+    ) -> Bool {
+        guard attributes.role == kAXWindowRole as String,
+              attributes.subrole == kAXDialogSubrole as String,
+              let metadata = controller?.workspaceManager.entry(for: target.token)?.managedReplacementMetadata,
+              metadata.bundleId == "org.qutebrowser.qutebrowser"
+        else {
+            return false
+        }
+
+        if metadata.windowLevel == 0, metadata.parentWindowId == 0 {
+            return true
+        }
+
+        if let info = SkyLight.shared.queryWindowInfo(UInt32(target.windowId)) {
+            return info.level == 0 && info.parentId == 0
+        }
+
+        return false
     }
 
     private func clearSuppressedManagedTargets(

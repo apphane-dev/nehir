@@ -201,8 +201,8 @@ while earlier traces showed ~34px. The threshold may vary with window size or ti
 | 7 | `isNearViewport` gate in NiriLayout | Bypassed the hide for columns hidden due to neighboring monitor overflow, causing cross-monitor frame leaking | |
 | 8 | `y=-10000` vertical push alone | macOS also clamps y — `y=-10000` becomes `y≈-1034`, leaving ~34px visible | Trace: `hidePlan.verify observed=(1728,-11068)` but live AX shows `liveAXFrame={{1727,-1036},{1626,1068}}` |
 | 9 | `SLSWindowSetShape` with 1×1 offscreen region | No visible effect. Regular app windows override the shape on each draw cycle. Only works on windows created via `SLSNewWindow`. | |
-| 10 | `SLSTransactionOrderWindow` with mode 1 (kCGSOrderOut) | Transaction ordered the window but `isWindowOrderedIn` still returns `true`. Window remains rendered. | Trace: `hidePlan.orderOut id=985 orderedIn=true` |
-| 11 | `SLSOrderWindow` (direct, non-transaction) with mode 1 | Same result — `isWindowOrderedIn` still `true`. Neither transaction nor direct call orders out regular app windows. | Trace: `hidePlan.orderOut id=985 orderedIn=true` |
+| 10 | `SLSTransactionOrderWindow` with order-out mode (`kCGSOrderOut`, raw value `0`) | Transaction ordered the window but `isWindowOrderedIn` still returns `true`. Window remains rendered. | Trace: `hidePlan.orderOut id=985 orderedIn=true` |
+| 11 | `SLSOrderWindow` (direct, non-transaction) with order-out mode (`kCGSOrderOut`, raw value `0`) | Same result — `isWindowOrderedIn` still `true`. Neither transaction nor direct call orders out regular app windows. | Trace: `hidePlan.orderOut id=985 orderedIn=true` |
 | 12 | Stale cache in `applyPositionPlans` | `observedWindowOrigin` returned pre-move position from cache, making SkyLight moves appear to fail or hiding the real clamp result. Fixed for hide verification by reading live WindowServer bounds; useful diagnostic finding, not a hiding approach. | |
 | 13 | Push all hidden windows to x=monitor.maxX (right edge) | With AX fallback this parks windows at the same 1px right-edge position as workspace-inactive hide, but left-hidden windows visibly fly across the screen to get there. Without AX fallback, SkyLight-only moves can leave left-edge clamps. | |
 | 14 | `SLSSetWindowTransform` / `CGSSetWindowTransform` raw near-zero scale | API returns success but does not hide external app pixels reliably. Raw scale pulls windows toward global origin, causing random-width left-edge clamp artifacts. | Trace: `hideTransform.apply ... result=CGError(rawValue: 0)` followed by visible artifacts |
@@ -232,11 +232,11 @@ reintroduce explicit 1px edge parking as a claimed fix without new runtime evide
 hidePlan.orderOut id=985 orderedIn=true
 ```
 
-Both `SLSTransactionOrderWindow(cid, wid, 1, 0)` and `SLSOrderWindow(cid, wid, 1)` are
+Both `SLSTransactionOrderWindow(cid, wid, 0, 0)` and `SLSOrderWindow(cid, wid, 0)` are
 accepted without error but **do not actually order out windows belonging to other processes**.
 The window server appears to protect managed application windows from being ordered out
-by external processes. `kCGSOrderOut` (mode 1) likely only works on windows the caller
-owns (created via `SLSNewWindow`).
+by external processes. `kCGSOrderOut` (raw value `0`) likely only works on windows the
+caller owns (created via `SLSNewWindow`).
 
 ## Pitfalls
 
@@ -272,9 +272,10 @@ their own process override the shape on each draw cycle.
 
 ### `orderWindow(.out)` Does Not Work on External Windows
 
-Both `SLSTransactionOrderWindow` and `SLSOrderWindow` with mode 1 (kCGSOrderOut) are
-silently ignored for windows owned by other processes. `isWindowOrderedIn` continues
-returning `true` after the call. This API only works on windows the caller created.
+Both `SLSTransactionOrderWindow` and `SLSOrderWindow` with order-out mode
+(`kCGSOrderOut`, raw value `0`) are silently ignored for windows owned by other
+processes. `isWindowOrderedIn` continues returning `true` after the call. This API
+only works on windows the caller created.
 
 ### Restore Path for Tiled Windows
 

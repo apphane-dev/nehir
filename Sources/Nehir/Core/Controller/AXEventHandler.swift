@@ -40,6 +40,16 @@ enum ActivationCallOrigin: String {
     case retry
 }
 
+enum PrepareCreateCandidateRejectionReason: String, Equatable {
+    case missingController = "missing_controller"
+    case missingToken = "missing_token"
+    case tokenWindowIdMismatch = "token_window_id_mismatch"
+    case existingEntry = "existing_entry"
+    case ownedWindow = "owned_window"
+    case missingAXRef = "missing_ax_ref"
+    case untrackedDecision = "untracked_decision"
+}
+
 struct NiriCreateFocusTraceEvent: Equatable {
     enum Kind: Equatable {
         case createSeen(windowId: UInt32)
@@ -72,6 +82,26 @@ struct NiriCreateFocusTraceEvent: Equatable {
         case focusConfirmed(token: WindowToken, workspaceId: WorkspaceDescriptor.ID, source: ActivationEventSource)
         case borderReapplied(token: WindowToken, phase: ManagedBorderReapplyPhase)
         case nonManagedFallbackEntered(pid: pid_t, source: ActivationEventSource)
+        case prepareCreateRejected(
+            windowId: UInt32,
+            token: WindowToken?,
+            context: String,
+            reason: PrepareCreateCandidateRejectionReason,
+            hasWindowInfo: Bool,
+            windowInfoPid: pid_t?,
+            fallbackToken: WindowToken?,
+            hasFallbackAXRef: Bool,
+            createContextSource: String?
+        )
+        case unrequestedAdmissionDuringNonManagedFocusDecision(
+            token: WindowToken,
+            suppressed: Bool,
+            reason: String,
+            createContextSource: String?,
+            recentPidWorkspaceId: WorkspaceDescriptor.ID?,
+            hasExplicitWorkspaceAssignment: Bool,
+            activeManagedRequestToken: WindowToken?
+        )
         case windowDecision(
             token: WindowToken,
             context: String,
@@ -85,8 +115,16 @@ struct NiriCreateFocusTraceEvent: Equatable {
             titleLength: Int?,
             axRole: String?,
             axSubrole: String?,
+            hasCloseButton: Bool,
+            hasFullscreenButton: Bool,
+            fullscreenButtonEnabled: Bool?,
+            hasZoomButton: Bool,
+            hasMinimizeButton: Bool,
+            appPolicy: NSApplication.ActivationPolicy?,
+            attributeDiagnostics: String?,
             windowLevel: Int32?,
             windowTags: UInt64?,
+            windowAttributes: UInt32?,
             parentWindowId: UInt32?,
             windowFrame: CGRect?
         )
@@ -170,6 +208,28 @@ extension NiriCreateFocusTraceEvent: CustomStringConvertible {
             "border_reapplied token=\(token) phase=\(phase.rawValue)"
         case let .nonManagedFallbackEntered(pid, source):
             "non_managed_fallback_entered pid=\(pid) source=\(source.rawValue)"
+        case let .prepareCreateRejected(
+            windowId,
+            token,
+            context,
+            reason,
+            hasWindowInfo,
+            windowInfoPid,
+            fallbackToken,
+            hasFallbackAXRef,
+            createContextSource
+        ):
+            "prepare_create_rejected window=\(windowId) token=\(String(describing: token)) context=\(context) reason=\(reason.rawValue) has_window_info=\(hasWindowInfo) window_info_pid=\(windowInfoPid.map(String.init) ?? "nil") fallback_token=\(String(describing: fallbackToken)) has_fallback_ax_ref=\(hasFallbackAXRef) create_context_source=\(createContextSource ?? "nil")"
+        case let .unrequestedAdmissionDuringNonManagedFocusDecision(
+            token,
+            suppressed,
+            reason,
+            createContextSource,
+            recentPidWorkspaceId,
+            hasExplicitWorkspaceAssignment,
+            activeManagedRequestToken
+        ):
+            "unrequested_admission_nonmanaged_focus_decision token=\(token) suppressed=\(suppressed) reason=\(reason) context_source=\(createContextSource ?? "nil") recent_pid_workspace=\(recentPidWorkspaceId?.uuidString ?? "nil") explicit_workspace_assignment=\(hasExplicitWorkspaceAssignment) active_managed_request_token=\(String(describing: activeManagedRequestToken))"
         case let .windowDecision(
             token,
             context,
@@ -183,12 +243,20 @@ extension NiriCreateFocusTraceEvent: CustomStringConvertible {
             titleLength,
             axRole,
             axSubrole,
+            hasCloseButton,
+            hasFullscreenButton,
+            fullscreenButtonEnabled,
+            hasZoomButton,
+            hasMinimizeButton,
+            appPolicy,
+            attributeDiagnostics,
             windowLevel,
             windowTags,
+            windowAttributes,
             parentWindowId,
             windowFrame
         ):
-            "window_decision token=\(token) context=\(context) existingMode=\(existingMode.map { String(describing: $0) } ?? "nil") disposition=\(disposition) source=\(source) outcome=\(outcome) layout=\(layout) deferred=\(deferred ?? "nil") bundleId=\(bundleId ?? "nil") titleLength=\(titleLength.map(String.init) ?? "nil") axRole=\(axRole ?? "nil") axSubrole=\(axSubrole ?? "nil") wsLevel=\(windowLevel.map(String.init) ?? "nil") wsTags=\(windowTags.map { String(format: "0x%llx", $0) } ?? "nil") wsParent=\(parentWindowId.map(String.init) ?? "nil") wsFrame=\(windowFrame.map { "(\($0.origin.x),\($0.origin.y),\($0.size.width),\($0.size.height))" } ?? "nil")"
+            "window_decision token=\(token) context=\(context) existingMode=\(existingMode.map { String(describing: $0) } ?? "nil") disposition=\(disposition) source=\(source) outcome=\(outcome) layout=\(layout) deferred=\(deferred ?? "nil") bundleId=\(bundleId ?? "nil") titleLength=\(titleLength.map(String.init) ?? "nil") axRole=\(axRole ?? "nil") axSubrole=\(axSubrole ?? "nil") hasCloseButton=\(hasCloseButton) hasFullscreenButton=\(hasFullscreenButton) fullscreenButtonEnabled=\(fullscreenButtonEnabled.map(String.init) ?? "nil") hasZoomButton=\(hasZoomButton) hasMinimizeButton=\(hasMinimizeButton) appPolicy=\(appPolicy.map { String(describing: $0) } ?? "nil") axAttributeDiagnostics=\(attributeDiagnostics ?? "nil") wsLevel=\(windowLevel.map(String.init) ?? "nil") wsTags=\(windowTags.map { String(format: "0x%llx", $0) } ?? "nil") wsAttributes=\(windowAttributes.map { String(format: "0x%x", $0) } ?? "nil") wsParent=\(parentWindowId.map(String.init) ?? "nil") wsFrame=\(windowFrame.map { "(\($0.origin.x),\($0.origin.y),\($0.size.width),\($0.size.height))" } ?? "nil")"
         }
     }
 }
@@ -643,10 +711,31 @@ final class AXEventHandler: CGSEventDelegate {
         hasExplicitWorkspaceAssignment: Bool = false
     ) -> Bool {
         guard let controller,
-              controller.workspaceManager.isNonManagedFocusActive,
-              !hasExplicitWorkspaceAssignment,
-              controller.focusBridge.activeManagedRequest?.token != token
+              controller.workspaceManager.isNonManagedFocusActive
         else {
+            return false
+        }
+        let activeManagedRequestToken = controller.focusBridge.activeManagedRequest?.token
+        guard !hasExplicitWorkspaceAssignment else {
+            recordUnrequestedAdmissionDuringNonManagedFocusDecision(
+                token: token,
+                suppressed: false,
+                reason: "explicit_workspace_assignment",
+                createPlacementContext: createPlacementContext,
+                hasExplicitWorkspaceAssignment: hasExplicitWorkspaceAssignment,
+                activeManagedRequestToken: activeManagedRequestToken
+            )
+            return false
+        }
+        guard activeManagedRequestToken != token else {
+            recordUnrequestedAdmissionDuringNonManagedFocusDecision(
+                token: token,
+                suppressed: false,
+                reason: "matches_active_managed_request",
+                createPlacementContext: createPlacementContext,
+                hasExplicitWorkspaceAssignment: hasExplicitWorkspaceAssignment,
+                activeManagedRequestToken: activeManagedRequestToken
+            )
             return false
         }
 
@@ -657,8 +746,61 @@ final class AXEventHandler: CGSEventDelegate {
         // focus is active. Existing AX/WindowServer surfaces without either
         // signal are not reliable placement/focus inputs; admitting them here
         // pulls random apps into the active workspace.
-        return createPlacementContext?.source != "cgs_created"
-            && createPlacementContext?.recentPidWorkspaceId == nil
+        if createPlacementContext?.source == "cgs_created" {
+            recordUnrequestedAdmissionDuringNonManagedFocusDecision(
+                token: token,
+                suppressed: false,
+                reason: "cgs_created_context",
+                createPlacementContext: createPlacementContext,
+                hasExplicitWorkspaceAssignment: hasExplicitWorkspaceAssignment,
+                activeManagedRequestToken: activeManagedRequestToken
+            )
+            return false
+        }
+        if createPlacementContext?.recentPidWorkspaceId != nil {
+            recordUnrequestedAdmissionDuringNonManagedFocusDecision(
+                token: token,
+                suppressed: false,
+                reason: "recent_pid_workspace",
+                createPlacementContext: createPlacementContext,
+                hasExplicitWorkspaceAssignment: hasExplicitWorkspaceAssignment,
+                activeManagedRequestToken: activeManagedRequestToken
+            )
+            return false
+        }
+
+        recordUnrequestedAdmissionDuringNonManagedFocusDecision(
+            token: token,
+            suppressed: true,
+            reason: "stale_unrequested_nonmanaged_focus",
+            createPlacementContext: createPlacementContext,
+            hasExplicitWorkspaceAssignment: hasExplicitWorkspaceAssignment,
+            activeManagedRequestToken: activeManagedRequestToken
+        )
+        return true
+    }
+
+    private func recordUnrequestedAdmissionDuringNonManagedFocusDecision(
+        token: WindowToken,
+        suppressed: Bool,
+        reason: String,
+        createPlacementContext: WindowCreatePlacementContext?,
+        hasExplicitWorkspaceAssignment: Bool,
+        activeManagedRequestToken: WindowToken?
+    ) {
+        recordNiriCreateFocusTrace(
+            .init(
+                kind: .unrequestedAdmissionDuringNonManagedFocusDecision(
+                    token: token,
+                    suppressed: suppressed,
+                    reason: reason,
+                    createContextSource: createPlacementContext?.source,
+                    recentPidWorkspaceId: createPlacementContext?.recentPidWorkspaceId,
+                    hasExplicitWorkspaceAssignment: hasExplicitWorkspaceAssignment,
+                    activeManagedRequestToken: activeManagedRequestToken
+                )
+            )
+        )
     }
 
     func structuralReplacementWorkspaceIdForCreate(
@@ -2013,7 +2155,8 @@ final class AXEventHandler: CGSEventDelegate {
             windowInfo: windowInfo,
             fallbackToken: token,
             fallbackAXRef: axRef,
-            createPlacementContext: createPlacementContext
+            createPlacementContext: createPlacementContext,
+            traceContext: "focused_admission"
         ) else {
             if let windowInfo {
                 _ = scheduleCreatedWindowRetryIfNeeded(
@@ -2837,17 +2980,75 @@ final class AXEventHandler: CGSEventDelegate {
         windowInfo: WindowServerInfo?,
         fallbackToken: WindowToken? = nil,
         fallbackAXRef: AXWindowRef? = nil,
-        createPlacementContext: WindowCreatePlacementContext? = nil
+        createPlacementContext: WindowCreatePlacementContext? = nil,
+        traceContext: String = "create"
     ) -> PreparedCreate? {
-        guard let controller else { return nil }
+        guard let controller else {
+            recordPrepareCreateRejection(
+                windowId: windowId,
+                token: fallbackToken ?? windowInfo.map { WindowToken(pid: pid_t($0.pid), windowId: Int(windowId)) },
+                context: traceContext,
+                reason: .missingController,
+                windowInfo: windowInfo,
+                fallbackToken: fallbackToken,
+                fallbackAXRef: fallbackAXRef,
+                createPlacementContext: createPlacementContext
+            )
+            return nil
+        }
         let ownedWindow = controller.isOwnedWindow(windowNumber: Int(windowId))
         let windowInfoToken = windowInfo.map { WindowToken(pid: pid_t($0.pid), windowId: Int(windowId)) }
         let token = fallbackToken ?? windowInfoToken
-        guard let token,
-              token.windowId == Int(windowId)
-        else { return nil }
-        if controller.workspaceManager.entry(for: token) != nil { return nil }
+        guard let token else {
+            recordPrepareCreateRejection(
+                windowId: windowId,
+                token: nil,
+                context: traceContext,
+                reason: .missingToken,
+                windowInfo: windowInfo,
+                fallbackToken: fallbackToken,
+                fallbackAXRef: fallbackAXRef,
+                createPlacementContext: createPlacementContext
+            )
+            return nil
+        }
+        guard token.windowId == Int(windowId) else {
+            recordPrepareCreateRejection(
+                windowId: windowId,
+                token: token,
+                context: traceContext,
+                reason: .tokenWindowIdMismatch,
+                windowInfo: windowInfo,
+                fallbackToken: fallbackToken,
+                fallbackAXRef: fallbackAXRef,
+                createPlacementContext: createPlacementContext
+            )
+            return nil
+        }
+        if controller.workspaceManager.entry(for: token) != nil {
+            recordPrepareCreateRejection(
+                windowId: windowId,
+                token: token,
+                context: traceContext,
+                reason: .existingEntry,
+                windowInfo: windowInfo,
+                fallbackToken: fallbackToken,
+                fallbackAXRef: fallbackAXRef,
+                createPlacementContext: createPlacementContext
+            )
+            return nil
+        }
         if ownedWindow {
+            recordPrepareCreateRejection(
+                windowId: windowId,
+                token: token,
+                context: traceContext,
+                reason: .ownedWindow,
+                windowInfo: windowInfo,
+                fallbackToken: fallbackToken,
+                fallbackAXRef: fallbackAXRef,
+                createPlacementContext: createPlacementContext
+            )
             discardCreatePlacementContext(windowId: windowId)
             return nil
         }
@@ -2855,7 +3056,19 @@ final class AXEventHandler: CGSEventDelegate {
         guard let axRef = fallbackAXRef?.windowId == Int(windowId)
             ? fallbackAXRef
             : resolveAXWindowRef(windowId: windowId, pid: token.pid)
-        else { return nil }
+        else {
+            recordPrepareCreateRejection(
+                windowId: windowId,
+                token: token,
+                context: traceContext,
+                reason: .missingAXRef,
+                windowInfo: windowInfo,
+                fallbackToken: fallbackToken,
+                fallbackAXRef: fallbackAXRef,
+                createPlacementContext: createPlacementContext
+            )
+            return nil
+        }
 
         let app = NSRunningApplication(processIdentifier: token.pid)
         let bundleId = resolveBundleId(token.pid) ?? app?.bundleIdentifier
@@ -2866,7 +3079,7 @@ final class AXEventHandler: CGSEventDelegate {
             pid: token.pid,
             appFullscreen: appFullscreen,
             windowInfo: matchingWindowInfo,
-            traceContext: "create",
+            traceContext: traceContext,
             existingModeForTrace: nil
         )
 
@@ -2882,7 +3095,19 @@ final class AXEventHandler: CGSEventDelegate {
             )
         }
 
-        guard let trackedMode else { return nil }
+        guard let trackedMode else {
+            recordPrepareCreateRejection(
+                windowId: windowId,
+                token: token,
+                context: traceContext,
+                reason: .untrackedDecision,
+                windowInfo: windowInfo,
+                fallbackToken: fallbackToken,
+                fallbackAXRef: fallbackAXRef,
+                createPlacementContext: createPlacementContext
+            )
+            return nil
+        }
         subscribeToWindows([windowId])
 
         let resolvedBundleId = bundleId ?? evaluation.facts.ax.bundleId
@@ -2934,6 +3159,33 @@ final class AXEventHandler: CGSEventDelegate {
             requiresPostCreateLifecycleVerification: requiresPostCreateLifecycleVerification(
                 trackedMode: trackedMode,
                 facts: evaluation.facts
+            )
+        )
+    }
+
+    private func recordPrepareCreateRejection(
+        windowId: UInt32,
+        token: WindowToken?,
+        context: String,
+        reason: PrepareCreateCandidateRejectionReason,
+        windowInfo: WindowServerInfo?,
+        fallbackToken: WindowToken?,
+        fallbackAXRef: AXWindowRef?,
+        createPlacementContext: WindowCreatePlacementContext?
+    ) {
+        recordNiriCreateFocusTrace(
+            .init(
+                kind: .prepareCreateRejected(
+                    windowId: windowId,
+                    token: token,
+                    context: context,
+                    reason: reason,
+                    hasWindowInfo: windowInfo != nil,
+                    windowInfoPid: windowInfo.map { pid_t($0.pid) },
+                    fallbackToken: fallbackToken,
+                    hasFallbackAXRef: fallbackAXRef != nil,
+                    createContextSource: createPlacementContext?.source
+                )
             )
         )
     }

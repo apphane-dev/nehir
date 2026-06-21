@@ -2231,7 +2231,7 @@ final class WMController {
         context: String,
         existingMode: TrackedWindowMode?
     ) {
-        guard shouldTraceWindowDecision(evaluation) else { return }
+        guard shouldTraceWindowDecision(evaluation, context: context) else { return }
         let windowServer = evaluation.facts.windowServer
         recordNiriCreateFocusTrace(
             .windowDecision(
@@ -2247,16 +2247,41 @@ final class WMController {
                 titleLength: evaluation.facts.ax.title?.count,
                 axRole: evaluation.facts.ax.role,
                 axSubrole: evaluation.facts.ax.subrole,
+                hasCloseButton: evaluation.facts.ax.hasCloseButton,
+                hasFullscreenButton: evaluation.facts.ax.hasFullscreenButton,
+                fullscreenButtonEnabled: evaluation.facts.ax.fullscreenButtonEnabled,
+                hasZoomButton: evaluation.facts.ax.hasZoomButton,
+                hasMinimizeButton: evaluation.facts.ax.hasMinimizeButton,
+                appPolicy: evaluation.facts.ax.appPolicy,
+                attributeDiagnostics: evaluation.facts.ax.attributeDiagnostics,
                 windowLevel: windowServer?.level,
                 windowTags: windowServer?.tags,
+                windowAttributes: windowServer?.attributes,
                 parentWindowId: windowServer?.parentId,
                 windowFrame: windowServer?.frame
             )
         )
     }
 
-    private func shouldTraceWindowDecision(_ evaluation: WindowDecisionEvaluation) -> Bool {
+    private func shouldTraceWindowDecision(_ evaluation: WindowDecisionEvaluation, context: String) -> Bool {
+        if context == "focused_admission" {
+            return true
+        }
         if evaluation.facts.ax.bundleId?.lowercased() == "com.mitchellh.ghostty" {
+            return true
+        }
+        if evaluation.decision.trackedMode == nil {
+            return true
+        }
+        if evaluation.facts.ax.subrole == (kAXDialogSubrole as String) {
+            return true
+        }
+        if !evaluation.facts.ax.hasCloseButton,
+           !evaluation.facts.ax.hasFullscreenButton,
+           !evaluation.facts.ax.hasZoomButton,
+           !evaluation.facts.ax.hasMinimizeButton,
+           evaluation.facts.ax.subrole != (kAXStandardWindowSubrole as String)
+        {
             return true
         }
         if evaluation.decision.disposition == .unmanaged {
