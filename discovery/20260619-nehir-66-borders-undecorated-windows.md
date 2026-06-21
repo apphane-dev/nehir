@@ -68,6 +68,28 @@ borders for `AXDialog`, and (3) admission leaving the window non-managed.
 
 ## Runtime evidence, inlined
 
+Additional maintainer context from the original OmniWM setup: this exact class of
+qutebrowser issue had been worked around with a **user app rule**, not a broad
+built-in heuristic change:
+
+```toml
+id = "B32D878A-3977-48D1-A163-C0798E16886E"
+order = 3
+
+[match]
+bundleId = "org.qutebrowser.qutebrowser"
+titleSubstring = "qutebrowser"
+
+[effect]
+layout = "tile"
+minWidth = 500
+minHeight = 375
+```
+
+That context supports keeping tiling opt-in/user-rule based. It also matches the
+similar upstream ecosystem report the maintainer remembered:
+`nikitabobko/AeroSpace#166`.
+
 A 2026-06-21 runtime capture and live AX/CG probe showed:
 
 ```text
@@ -234,10 +256,14 @@ windows should tile.”
 Reasonable goals:
 
 - Show a focus border around qutebrowser's undecorated main window.
-- Allow qutebrowser users to opt into tiling via an explicit rule/override.
-- If code needs a built-in exception, make it a narrowly-scoped **compatibility**
-  path for qutebrowser's frameless top-level window, not a general layout rule
-  and not a precedent that every app-specific quirk becomes force-tiled.
+- Preserve/support the already-proven workaround shape: qutebrowser users can
+  opt into tiling via an explicit app rule matching
+  `bundleId = "org.qutebrowser.qutebrowser"` and `titleSubstring = "qutebrowser"`,
+  with `layout = "tile"` and suitable minimum size hints.
+- If code needs a built-in exception, make it a narrowly-scoped **border or
+  diagnostics compatibility** path for qutebrowser's frameless top-level window,
+  not a general layout rule and not a precedent that every app-specific quirk
+  becomes force-tiled.
 
 Nehir already has built-in per-app/per-surface policy, but most of it is used to
 **exclude overlays or float known special surfaces**, not to admit suspicious
@@ -308,10 +334,12 @@ Likely regressions:
 
 Safer predicates for qutebrowser/frameless compatibility:
 
-- Prefer explicit user rule / manual override for layout changes.
+- Prefer the explicit user-rule workaround for layout changes; this was already
+  used successfully in the OmniWM era for qutebrowser.
 - If a built-in compatibility path is added, scope it to
   `bundleId == org.qutebrowser.qutebrowser` first rather than a generic
-  “frameless AXDialog” class.
+  “frameless AXDialog” class, and prefer border/diagnostic compatibility over
+  automatic tiling.
 - `role == AXWindow`, `subrole == AXDialog`, no native titlebar buttons.
 - Activation policy is regular (`0`).
 - WindowServer/CG layer is `0`, alpha `1`, onscreen true.
@@ -359,8 +387,9 @@ non-managed focus targets already flow through `resolveFrame` and
 
 - For default behavior, admitting undecorated qutebrowser as **tracked floating**
   is safer than tiling it, but even that should wait for the diagnostics above.
-- If users want tiling, prefer an explicit user rule / manual override for
-  `org.qutebrowser.qutebrowser`.
+- If users want tiling, prefer the explicit user rule / manual override already
+  proven in OmniWM for `org.qutebrowser.qutebrowser` + title substring
+  `qutebrowser`, with min-size hints (`500x375` in the known rule).
 - Do **not** add a built-in qutebrowser force-tiling rule as the first fix. If a
   built-in qutebrowser rule is ever added, it should be opt-in or narrowly
   scoped and tested against qutebrowser dialogs/settings/download prompts so it
