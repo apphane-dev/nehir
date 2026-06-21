@@ -723,4 +723,20 @@ extension NiriLayoutEngine {
 
         return candidates.max { ($0.lastFocusedTime ?? .distantPast) < ($1.lastFocusedTime ?? .distantPast) }
     }
+
+    /// Returns the workspace id whose root contains the given node, or `nil` if
+    /// the node is not present in any workspace root.
+    ///
+    /// Used by the cross-workspace "Focus Previous Window" path to determine
+    /// where the globally most-recently-focused window lives, so the caller can
+    /// switch to that workspace before activating it (instead of re-activating
+    /// the node under the wrong workspace id).
+    func workspaceId(containing nodeId: NodeId) -> WorkspaceDescriptor.ID? {
+        for (candidateWsId, root) in roots {
+            if root.allWindows.contains(where: { $0.id == nodeId }) {
+                return candidateWsId
+            }
+        }
+        return nil
+    }
 }
