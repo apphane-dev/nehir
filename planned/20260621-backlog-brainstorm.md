@@ -1,0 +1,66 @@
+# Backlog brainstorm — 2026-06-21
+
+Source: a handwritten idea list captured from a screenshot on 2026-06-21. This
+document is the canonical store of that raw list. Each idea is being triaged by
+a dedicated discovery agent (one idea per agent, max 3 in parallel, run as
+interactive `pi` tabs in the `plans-only` herdr workspace). Discovery output for
+each idea lands in `discovery/20260621-<slug>.md`.
+
+## UI / UX
+
+- **#1** Better visual feedback on record traces
+- **#15** Drawers? *(open question — what is a "drawer" in Nehir?)*
+- **#18** Right-click actions in the action bar
+- **#19** Challenge window width vs column width (and other column-vs-window semantics)
+- **#27** Separate scrolling layer for floating windows
+- **#28** Per-window floating action panel
+- **#1-related** Better visual feedback on record traces
+
+## Command palette
+
+- **#4** Command palette: fallback to all sources if no results, or use all sources by default
+- **#9** Assign hotkey for an action from the command palette *(related: `discovery/20260619-nehir-48-command-palette-hotkey-conflict.md`, planned `n48-command-palette-hotkey`)*
+- **#11** Fuzzy search in the command palette
+- **#26** Command to create an app rule for the focused window
+- **#29** Command to collect all windows on the current workspace
+
+## Workspaces / window management
+
+- **#2** Modifier + click on a workspace number to move the active window/column
+- **#7** Multiple scratchpad window assignments
+- **#8** Fix target window for commands like toggle floating / scratchpad, etc.
+- **#16** Move workspace between displays *(related: `planned/20260619-nehir-62-move-workspace-to-monitor.md`, `discovery/20260619-nehir-62-move-workspace-to-next-monitor.md`)*
+- **#20** Define expectations and fix niri fullscreen *(related: `discovery/20260617-nehir-69-fullscreen-restore-on-focus.md`)*
+- **#21** Start-gesture-from-unsnapped-position bug
+- **#23** Fix "show workspace" toggle
+
+## Shortcuts / input
+
+- **#22** Make all numbered hotkeys use `{N}` template
+- **#24** Learn niri's Design Principles and check for mismatches
+- **#25** Shortcut presets
+
+## Display / layout
+
+- **#3** Try implementing a virtual display to park offscreen windows without bleed *(related: `noop/20260616-omniwm-349-hidden-window-bleeds-multi-monitor.md`, `noop/20260616-omniwm-235-window-bleed-different-workspace.md`)*
+- **#17** Mission Control quirks
+
+## Config / rules / automation
+
+- **#10** Limit float precision in config values
+- **#13** Scriptable rules
+- **#14** Safe mode
+
+## Integrations / packaging / ops
+
+- **#5** Posthog analytics
+- **#6** Send reports
+- **#12** Official Homebrew tap
+
+## Notes
+
+- "Related" links above are hints, not blockers — each discovery agent re-checks
+  `discovery/`, `planned/`, `completed/`, `noop/` for prior work before writing,
+  and references it rather than duplicating.
+- All discovery docs follow `AGENTS.md`: repo-relative source paths, no trace-log
+  filenames, no machine-specific paths, evidence inlined.
