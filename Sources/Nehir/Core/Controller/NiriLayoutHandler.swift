@@ -1317,6 +1317,35 @@ enum NiriWindowMoveResult {
                 engine.activateWindow(currentId)
             }
 
+            // "Focus Previous Window" (Option-Tab) is a global MRU window switcher
+            // (keywords: "last focused", "recent window"), so the search must span
+            // every workspace — not just the current one. Find the globally
+            // most-recently-focused window first, then decide whether it lives on
+            // the current workspace or a different one.
+            guard let globalPrevious = engine.findMostRecentlyFocusedWindow(
+                excluding: state.selectedNodeId,
+                in: nil
+            ) else {
+                return
+            }
+
+            // When the winner is on a different workspace, switch there and activate
+            // it in its own workspace. Activating it under the current `wsId` would
+            // be incoherent because the node does not belong to this workspace root.
+            if let targetWsId = engine.workspaceId(containing: globalPrevious.id),
+               targetWsId != wsId
+            {
+                controller.workspaceNavigationHandler.activateWorkspace(
+                    targetWsId,
+                    focusing: globalPrevious.token
+                )
+                return
+            }
+
+            // Same-workspace MRU: preserve the existing per-workspace activation
+            // path. The local search returns the same window as the global one in
+            // this branch, and applies the viewport side effects
+            // (`activatePrevColumnOnRemoval`, `ensureSelectionVisible`).
             guard let previousWindow = engine.focusPrevious(
                 currentNodeId: state.selectedNodeId,
                 in: wsId,

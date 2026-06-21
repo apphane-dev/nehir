@@ -459,6 +459,60 @@ final class WorkspaceNavigationHandler {
         )
     }
 
+    /// Activates `targetWorkspaceId` on whichever monitor it belongs to and
+    /// focuses `targetToken` there, moving the interaction monitor with it.
+    ///
+    /// This is the cross-workspace path for "Focus Previous Window": when the
+    /// globally most-recently-focused window lives on another workspace, switch
+    /// to that workspace and activate the window in its own workspace — instead
+    /// of re-activating it under the current workspace id (which would be
+    /// incoherent, since the node does not belong to the current workspace).
+    /// Mirrors the remembered-window restore path used by the other workspace
+    /// switches (`switchWorkspace`, `workspaceBackAndForth`,
+    /// `swapCurrentWorkspaceWithMonitor`).
+    func activateWorkspace(
+        _ targetWorkspaceId: WorkspaceDescriptor.ID,
+        focusing targetToken: WindowToken
+    ) {
+        guard let controller else { return }
+        guard let engine = controller.niriEngine,
+              let targetNode = engine.findNode(for: targetToken)
+        else { return }
+        guard let targetMonitor = controller.workspaceManager.monitorForWorkspace(targetWorkspaceId) else {
+            return
+        }
+        guard engine.workspaceId(containing: targetNode.id) == targetWorkspaceId else {
+            return
+        }
+
+        controller.focusBorderController.hide()
+
+        if let currentWorkspace = controller.interactionWorkspace() {
+            saveNiriViewportState(for: currentWorkspace.id)
+        }
+
+        // Pin the target window as the workspace's focus so the post-switch
+        // handoff activates exactly this window, rather than the workspace's
+        // generic remembered/first candidate.
+        commitWorkspaceSelection(
+            nodeId: targetNode.id,
+            focusedToken: targetToken,
+            in: targetWorkspaceId
+        )
+
+        guard controller.workspaceManager.setActiveWorkspace(targetWorkspaceId, on: targetMonitor.id) else {
+            return
+        }
+        controller.syncMonitorsToNiriEngine()
+
+        controller.layoutRefreshController.commitWorkspaceTransition(
+            affectedWorkspaces: [targetWorkspaceId],
+            reason: .workspaceTransition
+        ) { [weak controller] in
+            controller?.focusWindow(targetToken)
+        }
+    }
+
     private func resolveOrCreateAdjacentWorkspace(
         from workspaceId: WorkspaceDescriptor.ID,
         direction: Direction,

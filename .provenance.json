@@ -70,6 +70,7 @@
         "Tests/NehirTests/ConfigMismatchDetectorTests.swift",
         "Tests/NehirTests/DisplayEnvironmentDiagnosticsTests.swift",
         "Tests/NehirTests/DisplaySpacesModeTests.swift",
+        "Tests/NehirTests/FocusPreviousCrossWorkspaceTests.swift",
         "Tests/NehirTests/InteractiveMoveDemoModelTests.swift",
         "Tests/NehirTests/MonitorIdentityMatchingTests.swift",
         "Tests/NehirTests/NiriMonitorTests.swift",
