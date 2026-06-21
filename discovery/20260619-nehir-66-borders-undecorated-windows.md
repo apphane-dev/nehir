@@ -1,374 +1,396 @@
-# Nehir #66 — Window Borders not rendered for undecorated / frameless apps (qutebrowser)
+# Nehir #66 — Undecorated qutebrowser is treated as non-managed and border-hidden
 
 Source issue: https://github.com/Guria/nehir/issues/66 (open, no labels).
-Reporter symptom, inlined (the issue attaches a screen recording and a trace
-file; per branch rules neither is referenced here):
+Reporter symptom, inlined (the issue attaches a screen recording and trace file;
+per branch rules neither is referenced here):
 
 > Borders are not rendered for some specific applications, like qutebrowser
-> (only problematic app observed so far). Edit: problem does not exist when
-> decorations are NOT hidden, so maybe very qutebrowser-related. Borders ARE
-> displayed when qutebrowser's `window.hide_decoration: global: false` (i.e.
-> native macOS decorations ON). When decorations are hidden (`hide_decoration:
-> global: true`, so qutebrowser draws its own frameless window with no macOS
-> titlebar), Nehir's borders disappear.
+> (only problematic app observed so far). The problem disappears when
+> qutebrowser's `window.hide_decoration: global: false` (native macOS titlebar
+> ON). With `hide_decoration: global: true`, qutebrowser draws an undecorated /
+> frameless window and Nehir's borders disappear.
 
-Maintainer (@Guria, issue comment): the **Show Borders** feature is experimental
-and known to be quirky; the symptom disappears when qutebrowser's window
-decorations are enabled, "which points to an interaction between border
-rendering and undecorated windows."
+Maintainer (@Guria, issue comment): **Show Borders** is experimental and known
+to be quirky; decorated vs undecorated points at an interaction with frameless
+windows.
 
-Scope of this doc: characterize, from source, **why** borders fail for
-undecorated / frameless windows, identify the fix seam, and flag what still
-needs runtime confirmation. All file/line refs were verified against the main
-app worktree; line numbers drift — re-verify before implementing.
+Scope of this doc: characterize the current runtime behavior for undecorated
+qutebrowser, identify why both tracking and borders fail, and spell out safe vs
+risky fix shapes. File/line refs point at the main Nehir source tree and were
+re-verified on 2026-06-21; line numbers may drift.
 
 ---
 
 ## TL;DR
 
-- The border is its own transparent SkyLight window, drawn as a ring **outside**
-  the target frame and ordered **below** the target at a **hard-coded window
-  level of 3** (`Sources/Nehir/Core/Border/BorderWindow.swift:58`, `:201`).
-- The border pipeline does **not** suppress frameless/floating windows on
-  purpose: floating tracked windows do get borders
-  (`noop/20260617-omniwm-223-floating-border-tracking.md` documents the floating
-  frame-change → border refresh path).
-- The one **provable** code-level difference between decorated and undecorated
-  qutebrowser is the window-classification heuristic: a frameless window has no
-  standard titlebar buttons, so `heuristicDisposition` returns `.floating`
-  (`.missingFullscreenButton`) instead of `.managed`
-  (`Sources/Nehir/Core/Ax/AXWindow.swift:521-596`, `:660-692`). Decorated
-  qutebrowser has close/fullscreen/zoom buttons → `.managed`.
-- `.floating` by itself should not hide the border, so the *disappearance* must
-  be a **secondary geometry / ordering effect** specific to the frameless window.
-  Leading hypothesis (H1): the border is ordered at a fixed level 3 below the
-  target with **no awareness of the target's actual window level**; a frameless
-  Qt window that sits at level ≥ 3 (or renders opaque content/shadow to its
-  frame edge) covers the ring. Secondary hypotheses (frame divergence H2,
-  corner-radius clip H3) below.
-- **Fix seam:** make `BorderWindow` order the border relative to the target's
-  *own* window level instead of the constant `3`, and prefer the WindowServer
-  frame for border positioning when the AX-observed frame diverges.
-- **Verdict:** 🟡 Discoverable / likely fixable from Nehir's side — but root
-  cause still needs one runtime read of qutebrowser's window (level, subrole,
-  AX frame vs CGS frame, button set). Open questions enumerated at the end; this
-  is not yet a no-op.
+Runtime confirmation changes the original hypothesis materially:
+
+- Undecorated qutebrowser is **not currently tracked** by Nehir. The runtime
+  state shows only three tracked tiled windows and `floating=0`; qutebrowser is
+  listed under **Visible Unmanaged WindowServer Windows**.
+- The focused qutebrowser window is still detected as a keyboard-focus target,
+  but as **non-managed**: `borderTarget=WindowToken(pid: 96135, windowId: 723)`
+  and `nonManaged=true`.
+- The qutebrowser main window is unusual but not elevated: WindowServer/CG data
+  shows `windowId=723`, `pid=96135`, owner `qutebrowser`, bundle
+  `org.qutebrowser.qutebrowser`, title `settings - qutebrowser`, frame
+  `{{1032.0, 97.0}, {1008.0, 1232.0}}`, activation policy `regular` (`0`),
+  CG layer `0`, alpha `1`, onscreen `true`.
+- Accessibility reports the same window as `role=AXWindow`,
+  **`subrole=AXDialog`**, with no close/fullscreen/zoom/minimize button
+  attributes (`AXUIElementCopyAttributeValue` returned `-25212` for each), and
+  AX position/size `(1032.0, 97.0)` / `(1008.0, 1232.0)`.
+- The border is not merely behind the qutebrowser window. Nehir explicitly hides
+  borders for any target whose AX subrole is `AXDialog` via
+  `FocusBorderController.renderEligibility` → `isSystemModalSurface`
+  (`Sources/Nehir/Core/Border/FocusBorderController.swift:293-327`). Since
+  qutebrowser's undecorated *main* window reports `AXDialog`, this suppression
+  hides the border before frame/order rendering matters.
+- The management side is separate: Nehir's heuristic would classify a no-buttons
+  non-standard AX window as `.floating`, and `.floating` is a tracked mode
+  (`Sources/Nehir/Core/Ax/AXWindow.swift:654-679`,
+  `Sources/Nehir/Core/Rules/WindowRuleEngine.swift:67-75`). In this runtime,
+  however, focused admission fell through to `non_managed_fallback_entered`, and
+  the window remained visible-unmanaged. The exact rejection point needs one
+  extra trace/debug field, but the likely path is the focused-admission / stale
+  existing-surface guard in `AXEventHandler` rather than the border subsystem.
+- **Do not fix this by globally treating `AXDialog` or “no titlebar buttons” as
+  tiling-managed.** That would be a high-regression heuristic change. A narrow
+  qutebrowser/frameless compatibility path or explicit user rule is reasonable;
+  a broad heuristic relaxation is not.
+
+Verdict: 🟡 real Nehir-side compatibility bug, but the safe fix is narrow. The
+root cause is not “border window level” for the captured runtime; it is
+(1) qutebrowser's frameless main window reporting `AXDialog`, (2) Nehir hiding
+borders for `AXDialog`, and (3) admission leaving the window non-managed.
 
 ---
 
-## The border rendering pipeline (where frame + ordering come from)
+## Runtime evidence, inlined
 
-### 1. Focus drives a single border target
+A 2026-06-21 runtime capture and live AX/CG probe showed:
 
-`FocusBorderController.focusChanged(to:preferredFrame:...)` records the
-`visualFocusTarget` and calls `refresh` → `render`
-(`Sources/Nehir/Core/Border/FocusBorderController.swift:43-59`, `:69-90`).
+```text
+-- Focus Targets --
+borderTarget=WindowToken(pid: 96135, windowId: 723) nonManaged=true
 
-The focus target is built by `WMController.keyboardFocusTarget(for:axRef:)`
-(`Sources/Nehir/Core/Controller/WMController.swift:3945-3958`). Its `isManaged`
-flag means **"tracked by Nehir"**, not "tiling":
+-- WorkspaceManager --
+windows total=3 tiled=3 floating=0
+focus focused=nil pending=nil
+interaction ... nonManaged=true lease=true
 
-```swift
-// Sources/Nehir/Core/Controller/WMController.swift:3945
-func keyboardFocusTarget(for token: WindowToken, axRef: AXWindowRef) -> KeyboardFocusTarget {
-    if let entry = workspaceManager.entry(for: token) {
-        return KeyboardFocusTarget(token: token, axRef: entry.axRef,
-                                   workspaceId: entry.workspaceId, isManaged: true)
-    }
-    return KeyboardFocusTarget(token: token, axRef: axRef,
-                               workspaceId: nil, isManaged: false)
-}
+-- Visible Unmanaged WindowServer Windows --
+windowId=723 pid=96135 owner=qutebrowser
+bundleId=org.qutebrowser.qutebrowser
+title=settings - qutebrowser
+frame={{1032.0, 97.0}, {1008.0, 1232.0}}
+activationPolicy=NSApplicationActivationPolicy(rawValue: 0)
+axWindowsCount=1 axContainsWindow=true
 ```
 
-Floating windows are tracked entries too (mode `.floating`), so a floating
-qutebrowser window resolves with `isManaged: true`.
+During the focus transition into qutebrowser, Nehir recorded:
 
-### 2. Eligibility: floating is NOT a reason to hide
-
-`renderEligibility(for:)` only hides for: owned Nehir windows, untracked managed
-targets, suppressed targets, pending native fullscreen, system-modal surfaces
-(`kAXSheetRole` / dialog subroles), app fullscreen, or non-displayable entries
-(`Sources/Nehir/Core/Border/FocusBorderController.swift:283-310`). A plain
-floating window passes as `.update`. So nothing here explains the disappearance.
-
-### 3. Frame resolution
-
-`resolveFrame(for:preferredFrame:preferredFrameSource:)`
-(`Sources/Nehir/Core/Border/FocusBorderController.swift:358-410`):
-
-- tracked target → prefers `pendingFrameWrite`, then the preferred (layout)
-  frame, then `lastAppliedFrame`, then `preferredKeyboardFocusFrame`, then the
-  observed AX frame;
-- untracked target (`isManaged == false`) → `observedFrame(for:)`, which reads
-  `AXWindowService.framePreferFast` → `SkyLight.shared.getWindowBounds(...)`
-  (`Sources/Nehir/Core/Ax/AXWindow.swift:316-320`,
-  `Sources/Nehir/Core/SkyLight/SkyLight.swift:609-618`), falling back to the AX
-  position+size.
-
-`BorderManager.updateFocusedWindow` rejects only zero-size frames
-(`Sources/Nehir/Core/Border/BorderManager.swift:48-53`); any non-zero frame is
-passed through.
-
-### 4. The border window: ring outside the target, ordered below at level 3
-
-```swift
-// Sources/Nehir/Core/Border/BorderWindow.swift:57-58
-private let padding: CGFloat = 8.0
-private let orderingLevel: Int32 = 3
-
-// Sources/Nehir/Core/Border/BorderWindow.swift:88-100
-let borderWidth = config.width
-let scale = operations.backingScaleForFrame(targetFrame)
-let resolvedCornerRadius = max(cornerRadius, 0)
-
-let borderOffset = -borderWidth - padding               // expand outward
-var frame = targetFrame.insetBy(dx: borderOffset, dy: borderOffset)
-    .roundedToPhysicalPixels(scale: scale)
-origin = ScreenCoordinateSpace.toWindowServer(rect: frame).origin
-frame.origin = .zero
-let drawingBounds = CGRect(x: -borderOffset, y: -borderOffset,
-                           width: targetFrame.width, height: targetFrame.height)
+```text
+activation_source_observed pid=96135 source=workspaceDidActivateApplication
+non_managed_fallback_entered pid=96135 source=workspaceDidActivateApplication
 ```
 
-The visible border is the **ring** between the outer (expanded) border window
-rect and `drawingBounds` (the target size), produced by an even-odd clip between
-`frame` and the inner rounded rect (`Sources/Nehir/Core/Border/BorderWindow.swift:166-196`).
-The ring sits entirely **outside** the target frame by `borderWidth + padding`.
+A direct live probe of the same process/window reported:
 
-Ordering — this is the critical line:
+```text
+CG window:
+  kCGWindowNumber: 723
+  kCGWindowOwnerPID: 96135
+  kCGWindowOwnerName: qutebrowser
+  kCGWindowName: settings - qutebrowser
+  kCGWindowLayer: 0
+  kCGWindowAlpha: 1
+  kCGWindowBounds: { X = 1032; Y = 97; Width = 1008; Height = 1232; }
+  kCGWindowIsOnscreen: 1
 
-```swift
-// Sources/Nehir/Core/Border/BorderWindow.swift:197-202
-private func move(relativeTo targetWid: UInt32, needsOrdering: Bool) {
-    if needsOrdering {
-        operations.transactionMoveAndOrder(wid, origin, orderingLevel, targetWid, .below)
-        return
-    }
-    operations.transactionMove(wid, origin)
-}
+AX window:
+  wid=723
+  role=AXWindow
+  subrole=AXDialog
+  title=settings - qutebrowser
+  position=(1032.0, 97.0)
+  size=(1008.0, 1232.0)
+  close button: result=-25212, absent
+  fullscreen button: result=-25212, absent
+  zoom button: result=-25212, absent
+  minimize button: result=-25212, absent
 ```
 
-`transactionMoveAndOrder` sets the border window's level to the supplied
-`level` (= 3) and orders it `.below` (= -1) the target
-(`Sources/Nehir/Core/SkyLight/SkyLight.swift:723-742`):
-
-```swift
-// Sources/Nehir/Core/SkyLight/SkyLight.swift:723-742 (abridged)
-func transactionMoveAndOrder(_ wid: UInt32, origin: CGPoint, level: Int32,
-                             relativeTo targetWid: UInt32, order: SkyLightWindowOrder) {
-    ...
-    if let transactionSetWindowLevel {
-        _ = transactionSetWindowLevel(transaction, wid, level)   // border level = 3
-    }
-    transactionOrderWindow(transaction, wid, order.rawValue, targetWid) // .below
-    _ = transactionCommit(transaction, 0)
-}
-```
-
-`orderingLevel` is a **constant**. The border never queries the target window's
-own level (`SkyLight.queryWindowInfo(windowId).level` exists,
-`Sources/Nehir/Core/SkyLight/SkyLight.swift:519-560`, but `BorderWindow` does
-not call it). It also never reads the target's shape, alpha, or content extent.
-
-The border's own corner radius comes from `SkyLight.cornerRadius(forWindowId:)`
-with a fallback of `9.0` (`Sources/Nehir/Core/Border/BorderManager.swift:17,22,
-132-141`), drawn into both inner and outer rounded paths
-(`Sources/Nehir/Core/Border/BorderWindow.swift:121-127`, `:162-188`).
+So the problem window is a normal onscreen layer-0 app window from WindowServer's
+perspective, but an `AXDialog` with no native titlebar controls from AX's
+perspective.
 
 ---
 
-## Why "decorated vs undecorated" is the fork (provable from source)
+## Why the border disappears
 
-The classification heuristic probes the standard titlebar buttons via a batched
-AX attribute fetch:
+`FocusBorderController.renderEligibility(for:)` hides before attempting frame
+resolution or `BorderManager.updateFocusedWindow`:
 
 ```swift
-// Sources/Nehir/Core/Ax/AXWindow.swift:528-535 (attributes probed)
-kAXRoleAttribute, kAXSubroleAttribute,
-kAXCloseButtonAttribute, kAXFullScreenButtonAttribute,
-kAXZoomButtonAttribute, kAXMinimizeButtonAttribute
+// Sources/Nehir/Core/Border/FocusBorderController.swift:293-295
+if isSystemModalSurface(target.axRef) {
+    return .hide
+}
 ```
 
-`hasFullscreenButton` / `hasCloseButton` / `hasZoomButton` / `hasMinimizeButton`
-are each `hasResolvedAttribute(...)` — true only if the AX child exists and is
-not an `NSError` (`Sources/Nehir/Core/Ax/AXWindow.swift:577-596`).
-
-`heuristicDisposition` then decides managed vs floating
-(`Sources/Nehir/Core/Ax/AXWindow.swift:631-692`):
+`isSystemModalSurface` treats three AX surfaces as modal/system surfaces:
 
 ```swift
-// Sources/Nehir/Core/Ax/AXWindow.swift:648-692 (abridged)
-let hasAnyButton = hasCloseButton || hasFullscreenButton || hasZoomButton || hasMinimizeButton
-...
-if !hasAnyButton, subrole != kAXStandardWindowSubrole {
+// Sources/Nehir/Core/Border/FocusBorderController.swift:319-327
+return attributes.role == kAXSheetRole as String
+    || attributes.subrole == kAXDialogSubrole as String
+    || attributes.subrole == kAXSystemDialogSubrole as String
+```
+
+Because undecorated qutebrowser's main window reports `subrole=AXDialog`, Nehir
+hides the focused border intentionally. This explains why the symptom follows
+`hide_decoration=true`: the frameless Qt/qutebrowser window loses standard
+macOS titlebar controls and exposes itself through AX as a dialog-like surface.
+
+This also means the previous “border ordered below a higher-level frameless
+window” hypothesis is not the leading explanation for the captured runtime:
+qutebrowser's CG layer is `0`, AX/CG frames agree, and the code path hides the
+border before ordering is decisive.
+
+---
+
+## Why it is not tracked as a managed/floating window
+
+There are two meanings of “managed” in this codebase:
+
+1. **Tracked by Nehir**: `WindowDecision.trackedMode` maps `.managed` to
+   `.tiling` and `.floating` to `.floating`; both are tracked
+   (`Sources/Nehir/Core/Rules/WindowRuleEngine.swift:67-75`).
+2. **Tiling-managed**: the heuristic disposition `.managed` specifically means
+   the window is a tiling candidate.
+
+For the captured qutebrowser facts, the generic heuristic would not make it a
+tiling window. It would classify it as floating because it has no native buttons
+and a non-standard subrole:
+
+```swift
+// Sources/Nehir/Core/Ax/AXWindow.swift:654-679 (abridged)
+let hasAnyButton = facts.hasCloseButton
+    || facts.hasFullscreenButton
+    || facts.hasZoomButton
+    || facts.hasMinimizeButton
+
+if !hasAnyButton && facts.subrole != kAXStandardWindowSubrole as String {
     return .floating(reasons: [.noButtonsOnNonStandardSubrole])
 }
-if let subrole, subrole != kAXStandardWindowSubrole {
+
+if let subrole = facts.subrole,
+   subrole != (kAXStandardWindowSubrole as String)
+{
     return .floating(reasons: [.nonStandardSubrole])
 }
-if !hasFullscreenButton {
-    return .floating(reasons: [.missingFullscreenButton])   // <-- undecorated hits this
-}
-if fullscreenButtonEnabled != true {
-    return .floating(reasons: [.disabledFullscreenButton])
-}
-return .managed(reasons: [])
 ```
 
-- **Decorated qutebrowser** (`hide_decoration=false`): the native macOS titlebar
-  exposes close / fullscreen / zoom buttons → `hasFullscreenButton == true` →
-  `.managed` (tiled). The window is positioned by Nehir and the border surrounds
-  the layout frame.
-- **Undecorated qutebrowser** (`hide_decoration=true`): qutebrowser draws a
-  frameless window with no macOS titlebar, so none of the four button attributes
-  resolve → `hasFullscreenButton == false` → `.floating`
-  (`.missingFullscreenButton`, or `.noButtonsOnNonStandardSubrole` if the subrole
-  is also non-standard).
+That floating disposition should still be tracked if the create/admission path
+accepts the window. In the runtime, it did not: the final state shows
+`floating=0`, qutebrowser under visible unmanaged windows, and
+`non_managed_fallback_entered` when qutebrowser was activated.
 
-This is exactly the "decorated vs undecorated" fork the maintainer suspected,
-and it is the only first-order behavioral difference the source guarantees.
-`recordWindowDecisionTrace` confirms these fields are already recorded for
-non-standard / non-level-0 windows
-(`Sources/Nehir/Core/Controller/WMController.swift:2143-2189`):
-`disposition`, `source`, `admissionOutcome`, `layout`, `deferred`, `bundleId`,
-`axRole`, `axSubrole`, `windowLevel`, `windowTags`, `parentWindowId`,
-`windowFrame`.
+The relevant admission path is focused-window admission before non-managed
+fallback (`Sources/Nehir/Core/Controller/AXEventHandler.swift:2003-2047`). If
+`prepareCreateCandidate` returns `nil`, the code schedules retry/reevaluation
+and returns false; the caller then enters non-managed fallback and updates the
+border target as non-managed. Once non-managed focus is active, the stale
+existing-surface guard can suppress later unrequested admission unless the
+context came from a real CGS create event or recent managed pid workspace:
 
----
+```swift
+// Sources/Nehir/Core/Controller/AXEventHandler.swift:640-659 (abridged)
+guard controller.workspaceManager.isNonManagedFocusActive,
+      !hasExplicitWorkspaceAssignment,
+      controller.focusBridge.activeManagedRequest?.token != token
+else { return false }
 
-## Why `.floating` alone does not explain the disappearance
+return createPlacementContext?.source != "cgs_created"
+    && createPlacementContext?.recentPidWorkspaceId == nil
+```
 
-Floating windows are tracked entries, so they take the managed branch of
-`resolveFrame` and are not hidden by `renderEligibility`. Floating frame changes
-actively refresh the focused border
-(`Sources/Nehir/Core/Controller/AXEventHandler.swift:677-705`,
-`:755-799`; `Sources/Nehir/Core/Border/FocusBorderController.swift:92-105`) —
-see `noop/20260617-omniwm-223-floating-border-tracking.md`, which documents that
-floating border tracking is already wired and tested. So a window becoming
-`.floating` instead of `.managed` does not, by itself, turn the border off.
-
-The *disappearance* must therefore come from a **secondary** property of the
-frameless window interacting with the border window's fixed geometry/ordering.
+The captured end state retained a create placement context for window `723` with
+`source=ax_focused_admission_synthesized`, no active focus-request workspace,
+and no recent pid workspace. That is consistent with “focused admission saw an
+existing surface, did not admit it immediately, then non-managed fallback became
+anchored.” It does not yet prove the exact `prepareCreateCandidate` failure
+reason; add a trace at each `nil` return / suppression branch before changing
+admission policy.
 
 ---
 
-## Root-cause hypotheses (ranked, grounded in the code above)
+## Is fixing this reasonable?
 
-### H1 (leading): fixed level-3 ordering with no target-level awareness
+Yes, **if the fix is narrow**. No, if the fix is “all `AXDialog` or no-buttons
+windows should tile.”
 
-The border is committed at `level = 3`, ordered immediately `.below` the target
-(`BorderWindow.swift:58,197-202` → `SkyLight.swift:723-742`). For a normal app
-window at level 0 the ring sits in empty space outside the frame and is visible.
-But the ordering code never reads the target's actual level. If the frameless
-qutebrowser window lives at level ≥ 3 (some Qt/toolkit frameless windows, or
-windows using certain `NSWindow` styles, do not stay at level 0), the border
-ring ends up at or below the target's z-layer and is covered by the target's
-opaque content / shadow even though the ring is geometrically outside the AX
-frame. Because `BorderWindow` does not consult
-`SkyLight.queryWindowInfo(targetWid).level`, it cannot compensate. This matches
-the symptom precisely: decorations ON → level-0 standard window → border ring
-shows; decorations OFF → frameless window at a different level → ring covered.
+Reasonable goals:
 
-### H2: AX-observed frame ≠ WindowServer frame for the frameless window
+- Show a focus border around qutebrowser's undecorated main window.
+- Allow qutebrowser users to opt into tiling via an explicit rule/override.
+- If code needs a built-in exception, make it a narrowly-scoped **compatibility**
+  path for qutebrowser's frameless top-level window, not a general layout rule
+  and not a precedent that every app-specific quirk becomes force-tiled.
 
-For the untracked-target fallback, the border is positioned from
-`observedFrame` = AX position+size, but the SkyLight **ordering** is performed
-against the target's WindowServer identity. Qt frameless windows can report a
-position/size via AX that is offset from the real WindowServer frame (e.g. a
-content rect vs. the full window rect, or a shadow-inclusive bounds). If the
-border is positioned from one frame but z-ordered against a window whose drawn
-pixels follow the other, the ring can land under the window or off-alignment and
-look "not rendered". `resolveFrame`/`observedFrame`
-(`FocusBorderController.swift:358-410`) and `AXWindow.framePreferFast`
-(`AXWindow.swift:316-320`) are the relevant seams.
+Nehir already has built-in per-app/per-surface policy, but most of it is used to
+**exclude overlays or float known special surfaces**, not to admit suspicious
+AX dialogs into tiling. Current built-in categories in
+`Sources/Nehir/Core/Rules/WindowRuleEngine.swift` and
+`Sources/Nehir/Core/Ax/DefaultFloatingApps.swift` are:
 
-### H3: anomalous corner radius breaking the even-odd clip
+- `defaultFloatingApp`: 8 bundle ids, floated by default.
+- `browserPictureInPicture`: Firefox and Zen Browser PiP title rules, floated.
+- `systemTextInputPanel`: 4 Apple text/input panel bundle ids, unmanaged.
+- `cleanShotRecordingOverlay`: CleanShot level-103 recording overlay, floating.
+- `ghosttyQuickTerminalOverlay`: Ghostty non-level-0 quick-terminal overlay,
+  unmanaged.
 
-`resolvedCornerRadius` is read from `SkyLight.cornerRadius(forWindowId:)` with a
-`9.0` fallback (`BorderManager.swift:17,22,132-141`). A frameless window may
-report no radius (→ 9.0 fallback) or an unusual value. A wrong radius would more
-likely *distort* the ring than erase it, so H3 is the weakest of the three, but
-it is on the same draw path (`BorderWindow.swift:162-188`) and cheap to rule
-out.
+So a qutebrowser fix should not be described as “just add another app override”
+without qualification. `ghosttyQuickTerminalOverlay` is an exclusion for a known
+overlay; qutebrowser would be an inclusion/compatibility exception for a real
+main window that AX mislabels as `AXDialog`, which is inherently riskier.
 
-### Not the cause (ruled out by code)
+Not reasonable as a default/global change:
 
-- Not a zero-frame guard: a non-zero AX frame passes `BorderManager.swift:48-53`.
-- Not eligibility suppression of floating windows: `renderEligibility`
-  (`FocusBorderController.swift:283-310`) does not hide floating targets.
-- Not an app/bundle rule: there is no qutebrowser/Qt/frameless-specific rule in
-  `Sources/Nehir` (search for `qutebrowser|frameless|undecorat|hideDecoration`
-  returns nothing).
+- Treat every `AXDialog` as a tileable main window.
+- Treat every no-buttons non-standard AX window as tileable.
+- Remove dialog/sheet border suppression for all apps.
+- Disable the stale non-managed admission guard globally.
 
 ---
 
-## Proposed fix seam
+## Regression risks by fix shape
 
-Primary (addresses H1): in `BorderWindow.move(relativeTo:needsOrdering:)`
-(`Sources/Nehir/Core/Border/BorderWindow.swift:197-205`) and the
-`transactionMoveAndOrder` operation (`BorderWindow.Operations`,
-`BorderWindow.swift:11-31`), read the target's window level via
-`SkyLight.queryWindowInfo(targetWid).level` and order the border directly below
-the target **at the target's own level** (or `targetLevel`, ordering `.below`),
-instead of the hard-coded `orderingLevel = 3`. This keeps the border's z-layer
-locked to the target's regardless of whether the window is a standard level-0
-window or a frameless window at another level. The `queryWindowInfo` API already
-returns `level` (`Sources/Nehir/Core/SkyLight/SkyLight.swift:519-560`).
+### High risk: globally tile `AXDialog` / no-buttons windows
 
-Secondary (addresses H2): in `FocusBorderController.resolveFrame` /
-`observedFrame` (`Sources/Nehir/Core/Border/FocusBorderController.swift:358-410`,
-`:402-410`), when the observed AX frame and the WindowServer frame diverge,
-prefer the WindowServer frame (`SkyLight.getWindowBounds`) for border
-positioning — it is the coordinate space the border is z-ordered against.
+Likely regressions:
 
-Tertiary (product decision, not just borders): if frameless standard windows
-*should* tile, relax the `.missingFullscreenButton` /
-`.noButtonsOnNonStandardSubrole` branches of `heuristicDisposition`
-(`Sources/Nehir/Core/Ax/AXWindow.swift:648-682`). This changes layout scope
-(many borderless utility windows would become tiling candidates), so it should
-only follow an explicit product call, not be bundled into a border fix.
+- Native app dialogs, preference windows, save/open panels, auth prompts, color
+  pickers, find panels, transient Qt/Electron dialogs, and palette-like windows
+  can become tiled columns.
+- Nehir may resize/move surfaces whose semantics are modal or transient,
+  breaking app workflows or causing AX frame-write failures.
+- Focus activation can pull dialog/helper windows into the active workspace,
+  changing workspace selection and stealing focus from the intended managed
+  window.
+- Floating/utility windows that intentionally lack titlebar buttons become
+  indistinguishable from real main windows.
 
----
+### Medium/high risk: globally allow borders on `AXDialog`
 
-## Open questions / confirmation needed (no trace file referenced)
+Likely regressions:
 
-Root cause is *highly likely* H1 but not yet confirmed without one runtime read
-of the live qutebrowser window. To close the gap, enable Developer Mode
-(Diagnostics tab → Record Traces), focus undecorated qutebrowser, and capture a
-short trace. The values that decide H1 vs H2 vs H3 — all of which the existing
-trace already records or can be read from the focused window — are:
+- Borders appear around sheets, modal dialogs, alert panels, and system dialogs
+  where Nehir currently suppresses them to avoid visual noise/confusion.
+- If a dialog is attached to a parent window, the focus border can imply the
+  dialog is a normal workspace target even though Nehir should not manage it.
 
-- **`windowLevel`** of the qutebrowser window (from the `windowDecision` trace
-  entry, `WMController.swift:2160-2189`). If it is anything other than `0`, H1
-  is confirmed.
-- **`axSubrole`** and **`admissionOutcome`/`disposition`** for the window
-  (`WMController.swift:2160-2189`): expect `.floating` with
-  `.missingFullscreenButton` (or `.noButtonsOnNonStandardSubrole`).
-- **AX frame vs WindowServer frame** for the focused window: compare
-  `kAXPositionAttribute`+`kAXSizeAttribute` against
-  `SkyLight.getWindowBounds(windowId)` (`AXWindow.swift:316-320`,
-  `SkyLight.swift:609-618`). A non-trivial divergence implicates H2.
-- Whether the border window is created at all: check
-  `BorderManager.lastAppliedFocusedWindowIdForTests` /
-  `lastAppliedFocusedFrameForTests` (`BorderManager.swift:101-107`) — i.e.
-  whether a non-zero frame was applied. If a frame *is* applied but the border
-  is invisible, the cause is ordering (H1) or frame mismatch (H2), not the
-  pipeline suppressing it.
+### Medium/high risk: weakening non-managed focused admission globally
 
-If runtime inspection shows the qutebrowser window reports a valid level-0
-frame, a standard subrole, AND a correct AX/CGS frame, but borders still vanish,
-then the cause is outside Nehir's observable state (e.g. the app composites over
-the border) and the verdict drops to no-op / wontfix with that evidence. Until
-then this is a fixable border-ordering bug.
+Likely regressions:
+
+- Existing onscreen surfaces discovered during app switch / Space changes can be
+  admitted into the active workspace without a real create signal.
+- Picture-in-picture overlays, helper panels, menu-like windows, and stale app
+  surfaces can be pulled into Nehir tracking because they happened to become AX
+  focused.
+- Workspace placement becomes nondeterministic: admission uses current focus or
+  interaction context instead of the window's original creation context.
+
+### Lower risk: narrow compatibility or explicit rule
+
+Safer predicates for qutebrowser/frameless compatibility:
+
+- Prefer explicit user rule / manual override for layout changes.
+- If a built-in compatibility path is added, scope it to
+  `bundleId == org.qutebrowser.qutebrowser` first rather than a generic
+  “frameless AXDialog” class.
+- `role == AXWindow`, `subrole == AXDialog`, no native titlebar buttons.
+- Activation policy is regular (`0`).
+- WindowServer/CG layer is `0`, alpha `1`, onscreen true.
+- Parent window id is absent/zero if available.
+- Frame is normal-sized and intersects a monitor visible frame.
+- Prefer a real CGS create event for automatic admission; for existing windows,
+  require explicit user rule or a very narrow bundle compatibility path.
 
 ---
 
-## Related prior discovery (do not duplicate)
+## Proposed implementation direction
+
+### 1. Add diagnostics before policy changes
+
+Add trace/debug output for qutebrowser-like admission failures:
+
+- `prepareCreateCandidate` nil reason: owned window, missing token, existing
+  entry, failed AX ref, decision untracked/undecided, stabilization retry, etc.
+- decision facts for focused admission: bundle id, role/subrole, button facts,
+  activation policy, WindowServer level/layer, parent id, tags, frame.
+- whether `shouldSuppressUnrequestedAdmissionDuringNonManagedFocus` suppressed a
+  prepared candidate and why.
+
+This closes the only remaining gap: why the runtime ended as visible-unmanaged
+instead of tracked-floating.
+
+### 2. Border-only compatibility fix
+
+Do not remove `AXDialog` suppression globally. Instead, add a predicate that can
+recognize qutebrowser's top-level regular app window misreported as `AXDialog`,
+or make the behavior opt-in through an explicit compatibility/user rule. For
+that predicate only, allow `renderEligibility` to continue to `.update`.
+
+This is the only app-specific built-in exception that currently looks worth
+considering, and it should be framed like the existing overlay rules: a targeted
+compatibility shim for a known misreported surface. It should not force tiling.
+It should also be tested alongside `ghosttyQuickTerminalOverlay` so Ghostty
+quick terminal remains `unmanaged` and outside the niri layout.
+
+This should make borders show even if the window remains non-managed, because
+non-managed focus targets already flow through `resolveFrame` and
+`BorderManager.updateFocusedWindow` once eligibility allows them.
+
+### 3. Tracking/tiling fix as a separate product decision
+
+- For default behavior, admitting undecorated qutebrowser as **tracked floating**
+  is safer than tiling it, but even that should wait for the diagnostics above.
+- If users want tiling, prefer an explicit user rule / manual override for
+  `org.qutebrowser.qutebrowser`.
+- Do **not** add a built-in qutebrowser force-tiling rule as the first fix. If a
+  built-in qutebrowser rule is ever added, it should be opt-in or narrowly
+  scoped and tested against qutebrowser dialogs/settings/download prompts so it
+  does not tile real transient surfaces.
+
+---
+
+## Suggested tests
+
+- Border eligibility: an `AXWindow` with `subrole=AXDialog` normally hides the
+  border; the qutebrowser-compatible predicate allows border update only for a
+  regular top-level layer-0 app window.
+- Heuristic/admission: no-buttons `AXDialog` still defaults to floating, not
+  tiling; explicit user override can force tiling.
+- Non-managed fallback: a focused qutebrowser-compatible existing window is not
+  silently pulled into tracking unless the compatibility rule or explicit user
+  rule allows it.
+- Regression fixtures: sheets/system dialogs remain border-hidden and untracked;
+  Ghostty quick terminal / overlays remain ignored; ordinary decorated windows
+  remain tiled as before.
+
+---
+
+## Related prior discovery
 
 - `discovery/20260617-omniwm-150-screenshot-bordered-window-blank.md` — border
-  is its own transparent SkyLight window; about screenshot capture, not
-  frameless windows.
-- `noop/20260617-omniwm-223-floating-border-tracking.md` — floating windows DO
-  get borders; cited above to rule out "floating → no border".
+  is its own transparent SkyLight window; about screenshot capture, not this
+  AXDialog suppression.
+- `noop/20260617-omniwm-223-floating-border-tracking.md` — floating tracked
+  windows do get borders; useful to separate “tracked floating” from the current
+  visible-unmanaged state.
 - `noop/20260617-omniwm-362-border-corner-radius.md` — corner radius is already
-  resolved per-window (relevant to H3, already handled for the radius value).
+  resolved per-window; not the leading cause here.
