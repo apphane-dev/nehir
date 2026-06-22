@@ -632,7 +632,7 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
             return
         }
 
-        populateNiriWorkspaceForMouseTests(
+        let focusedHandle = populateNiriWorkspaceForMouseTests(
             controller: controller,
             engine: engine,
             workspaceId: workspaceId,
@@ -643,21 +643,27 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
         controller.layoutRefreshController.requestImmediateRelayout(reason: .workspaceTransition)
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
 
-        let focusedToken = controller.workspaceManager.confirmedManagedFocusToken
-        let entries = controller.workspaceManager.entries(in: workspaceId)
-        let hoverTarget = entries.compactMap { entry -> (WindowModel.Entry, CGPoint)? in
-            guard entry.token != focusedToken,
-                  let node = engine.findNode(for: entry.handle),
-                  let frame = node.renderedFrame ?? node.frame
-            else { return nil }
-            let point = frame.center
-            guard monitor.visibleFrame.contains(point),
-                  engine.hitTestFocusableWindow(point: point, in: workspaceId)?.token == entry.token
-            else { return nil }
-            return (entry, point)
-        }.first
+        let hoverTarget = engine.columns(in: workspaceId)
+            .flatMap(\.windowNodes)
+            .compactMap { node -> (WindowModel.Entry, CGPoint)? in
+                guard node.token != focusedHandle.token,
+                      let entry = controller.workspaceManager.entry(for: node.handle),
+                      let frame = node.renderedFrame ?? node.frame
+                else { return nil }
+
+                let point = frame.center
+                guard engine.hitTestFocusableWindow(point: point, in: workspaceId)?.token == entry.token else {
+                    return nil
+                }
+                return (entry, point)
+            }
+            .first
+
         guard let hoverTarget else {
-            Issue.record("Expected a visible non-focused Niri window for post-animation focus-follow regression test")
+            Issue
+                .record(
+                    "Expected a hit-testable non-focused Niri window for post-animation focus-follow regression test"
+                )
             return
         }
 

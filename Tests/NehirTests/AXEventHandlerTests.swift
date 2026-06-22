@@ -8393,6 +8393,50 @@ private func waitUntilAXEventTest(
         #expect(controller.axManager.lastAppliedFrame(for: 828) != nil)
     }
 
+    @Test @MainActor func transientFloatingCreateDoesNotActivateOrApplyFrameImmediately() async {
+        let controller = makeAXEventTestController()
+        let windowId: UInt32 = 830
+        let pid = getpid()
+        let frame = CGRect(x: 309, y: 583, width: 172, height: 260)
+        var windowServer = WindowServerInfo(id: windowId, pid: pid, level: 101, frame: frame)
+        windowServer.tags = 0x1000c2002
+
+        controller.axEventHandler.windowInfoProvider = { candidateWindowId in
+            candidateWindowId == windowId ? windowServer : nil
+        }
+        controller.axEventHandler.axWindowRefProvider = { candidateWindowId, candidatePid in
+            guard candidateWindowId == windowId, candidatePid == pid else { return nil }
+            return AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: Int(candidateWindowId))
+        }
+        controller.axEventHandler.frameProvider = { _ in frame }
+        controller.axEventHandler.windowFactsProvider = { _, _ in
+            makeAXEventWindowRuleFacts(
+                bundleId: "com.example.transient-popup",
+                subrole: "AXUnknown",
+                hasFullscreenButton: false,
+                fullscreenButtonEnabled: nil,
+                windowServer: windowServer
+            )
+        }
+        defer { controller.axEventHandler.frameProvider = nil }
+
+        controller.axEventHandler.cgsEventObserver(
+            CGSEventObserver.shared,
+            didReceive: .created(windowId: windowId, spaceId: 0)
+        )
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+
+        guard let entry = controller.workspaceManager.entry(forPid: pid, windowId: Int(windowId)) else {
+            Issue.record("Expected transient popup entry")
+            return
+        }
+
+        #expect(entry.mode == .floating)
+        #expect(entry.managedReplacementMetadata?.transientWindowServerEvidence == true)
+        #expect(controller.focusPolicyEngine.activeLease?.owner != .ruleCreatedFloatingWindow)
+        #expect(controller.axManager.lastAppliedFrame(for: Int(windowId)) == nil)
+    }
+
     @Test @MainActor func floatingCreateWithDegradedAxFactsStillAppliesFloatRule() async {
         let controller = makeAXEventTestController()
         controller.windowRuleEngine.rebuild(

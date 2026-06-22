@@ -115,6 +115,46 @@ private func makeWindowRuleFacts(
         #expect(decision.heuristicReasons.isEmpty)
     }
 
+    @Test func floatingTaggedPopupSurfaceOverridesBroadTileRule() {
+        let engine = WindowRuleEngine()
+        let rule = AppRule(
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000000123")!,
+            bundleId: "com.example.browser",
+            layout: .tile,
+            assignToWorkspace: "2",
+            minWidth: 700
+        )
+        engine.rebuild(rules: [rule])
+        var windowServer = WindowServerInfo(
+            id: 3301,
+            pid: 3301,
+            level: 101,
+            frame: CGRect(x: 300, y: 500, width: 180, height: 260)
+        )
+        windowServer.tags = 0x1000c2002
+
+        let decision = engine.decision(
+            for: makeWindowRuleFacts(
+                bundleId: "com.example.browser",
+                role: kAXWindowRole as String,
+                subrole: "AXUnknown",
+                hasFullscreenButton: false,
+                fullscreenButtonEnabled: nil,
+                windowServer: windowServer
+            ),
+            token: nil,
+            appFullscreen: false
+        )
+
+        #expect(decision.disposition == .floating)
+        #expect(decision.layoutDecisionKind == .fallbackLayout)
+        #expect(decision.workspaceName == "2")
+        #expect(decision.ruleEffects.minWidth == 700)
+        #expect(decision.ruleEffects.matchedRuleId == rule.id)
+        #expect(decision.source == .builtInRule("transientWindowServerSurface"))
+        #expect(decision.heuristicReasons.isEmpty)
+    }
+
     @Test func moreSpecificTitleRuleBeatsGenericBundleRule() {
         let engine = WindowRuleEngine()
         let genericRule = AppRule(
