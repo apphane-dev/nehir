@@ -1176,7 +1176,8 @@ final class AXEventHandler: CGSEventDelegate {
         }
         recordRecentManagedAdmission(token: trackedToken, workspaceId: trackedEntry.workspaceId)
 
-        if trackedEntry.mode == .floating {
+        let shouldActivateFloatingCreate = shouldActivateFloatingCreate(candidate, trackedEntry: trackedEntry)
+        if shouldActivateFloatingCreate {
             controller.focusPolicyEngine.beginLease(
                 owner: .ruleCreatedFloatingWindow,
                 reason: "floating_window_create",
@@ -1210,7 +1211,8 @@ final class AXEventHandler: CGSEventDelegate {
             )
         }
 
-        if let floatingTargetFrame,
+        if shouldActivateFloatingCreate,
+           let floatingTargetFrame,
            shouldApplyFloatingCreateFrameImmediately(for: trackedEntry.workspaceId)
         {
             scheduleFloatingCreateFrameApplication(
@@ -1223,7 +1225,7 @@ final class AXEventHandler: CGSEventDelegate {
         } else {
             scheduleAXContextWarmup(for: trackedEntry.pid)
         }
-        if trackedEntry.mode == .floating {
+        if shouldActivateFloatingCreate {
             controller.windowActionHandler.raiseFloatingWindow(trackedToken)
         }
         if candidate.requiresPostCreateLifecycleVerification {
@@ -1235,6 +1237,18 @@ final class AXEventHandler: CGSEventDelegate {
             affectedWorkspaceIds: [trackedEntry.workspaceId]
         )
         scheduleWindowRuleReevaluationIfNeeded(targets: [.pid(trackedEntry.pid)])
+    }
+
+    private func shouldActivateFloatingCreate(
+        _ candidate: PreparedCreate,
+        trackedEntry: WindowModel.Entry
+    ) -> Bool {
+        guard trackedEntry.mode == .floating else { return false }
+
+        // WindowServer transient floating surfaces are native menus/popovers/contextual UI.
+        // They are safe to observe for lifecycle bookkeeping, but forcing an AX focus/raise
+        // or immediate frame write dismisses the menu in apps such as Telegram and Dock (#104).
+        return !candidate.replacementMetadata.transientWindowServerEvidence
     }
 
     private func shouldApplyFloatingCreateFrameImmediately(

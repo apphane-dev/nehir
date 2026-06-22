@@ -204,6 +204,7 @@ struct WindowDecisionDebugSnapshot: Equatable, Sendable {
 final class WindowRuleEngine {
     static let cleanShotBundleId = "pl.maketheweb.cleanshotx"
     static let systemTextInputPanelRuleName = "systemTextInputPanel"
+    private static let transientWindowServerSurfaceRuleName = "transientWindowServerSurface"
     private static let cleanShotRecordingOverlayRuleName = "cleanShotRecordingOverlay"
     private static let ghosttyQuickTerminalRuleName = "ghosttyQuickTerminalOverlay"
     private static let ghosttyBundleId = "com.mitchellh.ghostty"
@@ -355,6 +356,24 @@ final class WindowRuleEngine {
             minHeight: userRule?.rule.minHeight,
             matchedRuleId: userRule?.rule.id
         )
+
+        // Floating-tagged non-document WindowServer surfaces are native popups/menus.
+        // Keep them out of the tiled tree even when a broad user rule matches the app (#98).
+        if facts.ax.attributeFetchSucceeded,
+           let windowServer = facts.windowServer,
+           windowServer.hasFloatingTag,
+           !windowServer.hasDocumentTag
+        {
+            return WindowDecision(
+                disposition: .floating,
+                source: .builtInRule(Self.transientWindowServerSurfaceRuleName),
+                layoutDecisionKind: .fallbackLayout,
+                workspaceName: workspaceName,
+                ruleEffects: effects,
+                heuristicReasons: [],
+                deferredReason: nil
+            )
+        }
 
         if let userRule,
            let userDecision = explicitDecision(
