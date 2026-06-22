@@ -3,9 +3,17 @@
 Source issue: <https://github.com/Guria/nehir/issues/48> (labels: `question`,
 `wontfix`).
 
-All file/line references were verified against the main app worktree
-`/Users/Aleksei_Gurianov/ghq/github.com/guria/nehir` at `7b731a51` ("Move
-remainder to plans branch"). Re-verify before implementing; line numbers drift.
+> **Status — shipped 2026-06-20.** Implemented on branch
+> `patch/nehir-48-command-palette-hotkey-conflict` (commit `009a2b73`, "Surface
+> global-hotkey conflicts in Diagnostics (Nehir #48)"). Both prongs below landed
+> as-proposed, with the as-built deltas noted in **Outcome (as-built)**. Full
+> suite green (1264/1264); new `HotkeyConflictDiagnosticsTests` covers both
+> prongs (11 tests). See that section for the durable record of what shipped.
+
+All file/line references were verified against the main Nehir source tree at
+`7b731a51` ("Move remainder to plans branch"). Re-verify be3fore implementing;
+line numbers drift. As-built citations in the Outcome section are verified
+against the shipped commit `009a2b73`.
 
 ---
 
@@ -172,8 +180,144 @@ private func failureMessage(for reason: HotkeyRegistrationFailureReason) -> Stri
 
 ## Proposal
 
+> Accepted as-proposed. See **Outcome (as-built)** below for what shipped and
+> where it diverged (notably: the detector gained a second `hotkeyBindings:`
+> parameter, and hotkey rows are non-postponable by design).
+
 Small, two-pronged addition to Diagnostics. Both prongs are non-blocking rows in
 the existing Diagnostics tab; neither rewrites any config.
+
+## Outcome (as-built)
+
+Shipped on branch `patch/nehir-48-command-palette-hotkey-conflict` @ `009a2b73`.
+The two prongs map one-to-one to the proposal; the design notes below record the
+as-built shape, the generic-vs-specific split, and the deltas from the proposal.
+
+### What shipped
+
+**New diagnostics model** (`Sources/Nehir/Core/Config/SettingsDiagnosticsIssue.swift`):
+
+- `struct HotkeyConflictIssue` (`:23`) — live Carbon/internal failure row.
+  Carries `actionID`, `command`, `chordDisplayString`, `reason`
+  (`.systemReserved` / `.duplicateBinding`), and a `remediation` string per
+  reason. Stable id `"hotkey-conflict:\(actionID)"`.
+- `struct HotkeyAdvisoryIssue` (`:47`) — curated default-chord advisory row.
+  Carries `actionID`, `command`, `chordDisplayString`, `advisoryText`. Stable id
+  `"hotkey-advisory:\(actionID)"`.
+- `SettingsDiagnosticsIssue` gains `.hotkeyConflict` / `.hotkeyAdvisory`
+  (`:60`–`:61`); `id` switch is exhaustive.
+
+**Detector** (`SettingsDiagnosticsIssue.swift`):
+
+- `applicableIssues(configDirectory:hotkeyFailures:hotkeyBindings:)` (`:82`) and
+  `pendingIssues(...)` (`:93`) gain the two new parameters, both defaulting to
+  empty so all existing config-only callers are byte-identical (guarded by a
+  regression test).
+- Old config logic factored into private `configBasedIssues(configDirectory:)`
+  (`:126`). Two new builders: `hotkeyConflictIssues(failures:bindings:)` (`:138`)
+  and `hotkeyAdvisoryIssues(bindings:)` (`:171`).
+- **Non-postponable by design.** Hotkey rows return a shared sentinel id
+  `nonPostponableID = "hotkey:non-postponable"` (`:124`) from `postponeID(for:)`,
+  which `SettingsMigrationStateStore` never records. They therefore always pass
+  the postponement filter and clear naturally when the chord is fixed — they
+  cannot be hidden the way migrations can.
+
+**Curated catalog** (`Sources/Nehir/Core/Config/HotkeyAdvisoryCatalog.swift`,
+new file):
+
+- `CuratedHotkeyAdvisory` (`:18`) + `enum HotkeyAdvisoryCatalog` (`:24`) with
+  `knownSystemConflicts: [CuratedHotkeyAdvisory]` (`:28`), seeded with exactly
+  one entry — `actionID: "openCommandPalette"` (`:30`) — whose advisory text is
+  the proposal copy verbatim.
+- The advisory fires only while `current.binding == defaultBinding.binding`
+  (both derived from `HotkeyBindingRegistry`, never hardcoded Carbon constants)
+  and the chord is non-unassigned, so reassigning or unassigning suppresses it.
+
+**UI surfacing:**
+
+- `HotkeyConflictWarningView` (private, `DisplayDiagnosticsSettingsTab.swift:792`)
+  renders both rows, advisory-only (no action buttons — remediation is manual).
+- `DisplayDiagnosticsSettingsTab.refreshSettingsIssues()` (`:504`) feeds in
+  `controller.hotkeyRegistrationFailures` + `settings.hotkeyBindings`.
+- `SettingsSidebar` (`SettingsSidebar.swift:69`–`:72`) now takes `controller` +
+  `@Bindable settings` and passes them to `pendingIssues(...)`, so the badge
+  count includes hotkey rows. `SettingsView` threads them in.
+- `WhatsNewView` (`:117`) and `StatusBarMenu` (`:215`) `switch` over
+  `SettingsDiagnosticsIssue` is made exhaustive — `keyboard` icon +
+  `"X hotkey conflict"` / `"X hotkey advisory"` labels.
+
+**Tests** (`Tests/NehirTests/HotkeyConflictDiagnosticsTests.swift`, new file,
+11 `@Test` functions):
+
+- Prong 1: `.systemReserved` → one conflict row; `.duplicateBinding` across
+  `.move(.left)`/`.move(.right)` → two rows; empty failures → no conflict row;
+  a failing command absent from bindings falls back to a non-empty chord string
+  (no crash).
+- Prong 2: advisory fires for the command-palette default chord; disappears
+  after reassign; suppressed when unassigned.
+- Regression / policy: empty hotkey inputs equal the old config-only output
+  (`applicableIssuesPreservesExistingConfigIssuesUnchanged`);
+  `unknownKeys` + `hotkeyConflict` + `hotkeyAdvisory` coexist additively.
+- Badge + postponement: `pendingIssues` count rises by the number of hotkey
+  rows; conflict and advisory share the non-postponable sentinel id.
+
+### Generic vs. command-palette-specific (the key design split)
+
+- **Prong 1 is fully generic.** `HotkeyConflictIssue` is driven by
+  `WMController.hotkeyRegistrationFailures` (`[HotkeyCommand:
+  HotkeyRegistrationFailureReason]`), so every Nehir command that fails Carbon
+  registration — not just Command Palette — surfaces in Diagnostics. The tests
+  prove this with `.move(.left)`, `.move(.right)`, and `.toggleFullscreen`.
+- **Prong 2 is generic infrastructure with a single seeded entry.** The
+  detector iterates the whole catalog; adding coverage for another default is a
+  one-line data change in `HotkeyAdvisoryCatalog.knownSystemConflicts`. The
+  catalog exists precisely because Prong 1 cannot catch co-fire conflicts: when
+  macOS resolves the chord system-wide *despite* a successful Carbon
+  registration, there is no failure record to observe, so the only honest fix
+  is a hand-curated list of known-bad defaults. Issue #48 happened to be the
+  Command Palette default, so that is the single seed.
+
+### Deltas from the proposal
+
+- **Second detector parameter.** The proposal sketched
+  `applicableIssues(configDirectory:hotkeyFailures:)`. The shipped signature adds
+  `hotkeyBindings:` too, because Prong 2 must compare the current chord against
+  the default chord (`HotkeyBindingRegistry.defaults()`) to stay
+  default-scoped. This is the one material design refinement.
+- **Non-postponable sentinel.** Not in the proposal; chosen during
+  implementation so live hotkey rows always remain pending (they clear on fix,
+  not on dismiss). Recorded as a deliberate policy decision.
+- **Exhaustive switches in `WhatsNewView` / `StatusBarMenu`.** The proposal
+  scoped UI to the Diagnostics tab + sidebar badge; making the two
+  `SettingsDiagnosticsIssue` switches exhaustive was a required follow-on from
+  adding enum cases, not extra scope.
+
+### Validation
+
+- `swift build` clean; `swift test` green (commit message records 1264/1264).
+- `HotkeyConflictDiagnosticsTests` 11/11, covering both prongs, the regression
+  guard, and the badge/postponement behavior.
+
+### Post-ship refinement — PR #103 ("Refine hotkey diagnostics refresh")
+
+Prong 2 was later refined by PR #103 (merge `671652c6`, "fixes #48, follow-up
+to #97"). The advisory no longer fires on default-chord match alone; it now
+additionally requires the overlapping macOS shortcut to be **currently
+enabled**, read live from the `com.apple.symbolichotkeys` preference domain.
+The conflicting shortcut is pinned precisely to symbolic-hotkey **ID 65
+("Show Finder search window", default Option-Command-Space)** — the actual
+mechanism behind the reporter's "also opens Finder" symptom, not the generic
+"Input Sources" hedge in the original advisory text. Full findings, the
+macOS preference-domain mechanism, the refresh wiring, and the precision
+boundary (`enabled`-only, not chord-compared) are recorded in
+`discovery/20260622-nehir-103-command-palette-advisory-symbolic-hotkey-gating.md`.
+
+### Follow-ups (out of scope here)
+
+- Extending `HotkeyAdvisoryCatalog` as new co-fire defaults are reported — a
+  data change, not a code change. (PR #103 above was more than a data change:
+  it added the symbolic-hotkey reader + enabled-conjunct gating + refresh
+  triggers; see the discovery doc.)
 
 ### Prong 1 — Surface live registration failures in Diagnostics (+ badge)
 

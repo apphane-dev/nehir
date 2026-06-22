@@ -1,6 +1,6 @@
 # Nehir #68 — Workspace bar overlaps an auto-hidden menu bar
 
-**Status:** planned
+**Status:** completed — shipped in commit `156dad98` on `main` (2026-06-21, "Anchor workspace bar below menu bar under auto-hide #68"). Moved from `planned/` to `completed/`.
 **Source discovery:** `discovery/20260619-nehir-68-workspace-bar-over-autohidden-menu-bar.md`
 **GitHub issue:** #68
 

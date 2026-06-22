@@ -3,19 +3,12 @@
 Discovery (2026-06-19) for GitHub issue **#64 — "Focus follow mouse not
 working"** (labels: `bug`, `help wanted`).
 
-**Verdict: still broken in current source — needs a plan (below).** A decorative,
-click-through overlay such as the standalone "Borders" app is treated by Nehir's
-FFM occlusion logic as a real interactive occluder, so FFM is suppressed
-everywhere the overlay covers and "does nothing". The already-shipped FFM-overlay
-fix (for Ghostty's Quick terminal) does **not** cover this case, because that fix
-keyed on a CGEvent field that reports the *geometrically topmost* window — which
-for a click-through overlay is the overlay itself — and never consults the field
-that distinguishes "window that actually receives clicks" from "window the
-pointer merely overlaps".
+**Verdict: shipped.** Fixed in commit `56573ba2` on `main` (2026-06-19, "Fix focus-follows-mouse blocked by click-through overlays (#64)") by reconciling the two CGEvent fields (the geometrically-topmost window number vs. the event-handling window number): when they diverge (topmost is click-through) the event-handling window is preferred, so a click-through overlay no longer suppresses FFM. Interactive overlays (Ghostty Quick terminal) keep both fields equal and still suppress FFM. Moved from `discovery/` to `completed/`.
 
-All evidence is inlined. Code citations point at the main Nehir worktree
-(`/Users/Aleksei_Gurianov/ghq/github.com/guria/nehir`) and were re-verified on
-2026-06-19; line numbers drift, re-verify before implementing.
+The rest of this document is the original investigation (2026-06-19) kept as the durable record of the root-cause analysis; its earlier "still broken" verdict is superseded by the shipped fix above.
+
+Discovery (2026-06-19) for GitHub issue **#64 — "Focus follow mouse not
+working"** (labels: `bug`, `help wanted`).
 
 ---
 
