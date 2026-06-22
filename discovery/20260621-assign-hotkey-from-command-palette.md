@@ -630,10 +630,12 @@ Strategy-A/Strategy-B spike.
   surface.
 - Discovery: `discovery/20260621-command-palette-fallback-all-sources.md` —
   structural map of `CommandPaletteController` (modes, selection, dispatch) this
-  doc builds on without re-deriving.
+  doc builds on without re-deriving. Its Variant A (fallback on empty) shipped
+  in commit `1aa518bc`; see `completed/20260621-command-palette-fallback-all-sources.md`.
 - Discovery: `discovery/20260619-choru-leader-palette.md` — precedent for adding
   palette modes / `⌘N` shortcuts and for dispatching commands via the catalog.
 - Backlog: `planned/20260621-backlog-brainstorm.md` **#11** (fuzzy search) and
   **#4** (cross-source search) — orthogonal; coordinate only on chord choice.
-  **#22** (`{N}` template) and **#25** (presets) are the reason numbered groups
-  are recommended out of scope for v1.
+  **#4** shipped (commit `1aa518bc`) without claiming a chord, so coordination
+  now applies only to **#11**. **#22** (`{N}` template) and **#25** (presets)
+  are the reason numbered groups are recommended out of scope for v1.

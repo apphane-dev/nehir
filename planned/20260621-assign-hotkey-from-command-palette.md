@@ -3,7 +3,9 @@
 **Status:** planned
 **Source discovery:** `discovery/20260621-assign-hotkey-from-command-palette.md`
 **Related:** `planned/20260621-backlog-brainstorm.md` (idea #9; coordinate chord choice with
-#4 cross-source search and #11 fuzzy search), `completed/20260619-nehir-48-command-palette-hotkey-conflict.md`
+#11 fuzzy search — #4 cross-source search shipped in commit `1aa518bc` without
+claiming a chord, see `completed/20260621-command-palette-fallback-all-sources.md`),
+`completed/20260619-nehir-48-command-palette-hotkey-conflict.md`
 (palette global-summon conflict path — shares `HotkeyBindingEditor`/`SettingsStore` pipeline).
 
 All source references were re-verified against the main Nehir source tree at
@@ -438,4 +440,6 @@ command palette (Commands mode)."
 - Coordination with backlog #4 (cross-source search) and #11 (fuzzy search):
   those change *how/where* matches are found and are orthogonal to *rebinding*
   the selected match, but they may want to claim chords — keep `Tab` for assign
-  and leave `⌘K`/`⌘L`/etc. available for them.
+  and leave `⌘K`/`⌘L`/etc. available for them. Update (2026-06-22): #4 shipped
+  (commit `1aa518bc`) without claiming any chord, so this coordination now
+  applies only to #11 (fuzzy search).

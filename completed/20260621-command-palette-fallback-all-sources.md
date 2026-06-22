@@ -1,6 +1,9 @@
-# Command palette: fallback to all sources if no results
+# Command palette: fallback to all sources if no results — Completed
 
-**Status:** planned (Variant A — fallback on empty; Variant B deferred, see Follow-ups)
+**Status:** completed — Variant A (fallback on empty) shipped in main source commit
+`1aa518bc` ("Add command palette fallback to other sources on empty results",
+2026-06-22), with a `minor` changeset. Variant B (unified `.all` tab) remains
+deferred as a follow-up (see Follow-ups).
 **Source discovery:** `discovery/20260621-command-palette-fallback-all-sources.md`
 **Related:** `planned/20260621-backlog-brainstorm.md` (idea **#4**; co-design with **#11**
 fuzzy search and coordinate chord choice with **#9** assign-hotkey-from-palette),
@@ -13,6 +16,39 @@ All source references were re-verified against the main Nehir source tree at
 (M6)") on 2026-06-22. The tree has advanced past the discovery's `56573ba2`;
 several line numbers drifted and are corrected below. Re-verify before editing;
 line numbers drift.
+
+## How shipped (Variant A)
+
+Landed in commit `1aa518bc` on `main` (2026-06-22), matching Phases 1–4 of the
+Exact implementation plan with minor, justified deviations:
+
+- Phase 1 (model + builder): `CommandPaletteFallbackSection`, the
+  `activeModeFilteredIsEmpty`/`fallbackSections`/`fallbackActive` builders, and
+  the windows → commands → menu fixed section order were added as planned.
+  `CommandPaletteFallbackSection` dropped `Equatable` conformance (its item types
+  are not `Equatable`); this did not affect any call site.
+- Phase 2 (generalized dispatch): `resolvedSelectionAction(for:)` now switches
+  on the selection's source tag (`CommandPaletteSelectionID`) and chooses the
+  lookup list per source via a `section(in:)` helper, so a fallback hit
+  dispatches correctly while the active tab stays selected.
+  `performSelectionAction` is unchanged, as predicted.
+- Phase 3 (view): the empty-state branch became three states (menu loading /
+  fallback sectioned list / true empty state); `statusText` and
+  `isEmptyStateVisible` branch on `fallbackActive`.
+- Phase 4 (test seam): `setFallbackStateForTests` takes a config struct
+  (`CommandPaletteFallbackTestState`, including a `hasLoadedMenuItems` field) to
+  stay within SwiftLint's 5-parameter limit; plus `setCommandItemsForTests`,
+  `currentSelectionListForTests`, and `resolvedSelectionActionKindForTests`.
+
+Tests: 11 new cases in `Tests/NehirTests/CommandPaletteControllerTests.swift`
+(31/31 pass), covering the builder, cross-source dispatch, menu inclusion only
+when loaded, the no-fallback boundaries, and the inactive-path regression.
+
+The deferred follow-ups (Variant B unified `.all` tab, on-demand menu fetch for
+fallback, per-section caps, fuzzy co-design with backlog #11, and chord
+coordination with backlog #9) are unchanged and still listed in Follow-ups.
+Note: Variant A shipped without claiming any new chord, so the #9 chord-budget
+coordination item for A is resolved (only #11 fuzzy remains to coordinate).
 
 ## TL;DR
 

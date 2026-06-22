@@ -11,6 +11,13 @@ on 2026-06-21. Re-verify before implementing; line numbers drift.
 
 This is a discovery document. No source was modified.
 
+**Outcome (2026-06-22):** the recommended **Variant A (fallback on empty)**
+shipped in main source commit `1aa518bc`; see
+`completed/20260621-command-palette-fallback-all-sources.md`. **Variant B**
+(unified `.all` tab / unified-by-default) remains a deferred opt-in follow-up
+contingent on A feedback; the Recommendation and Open Questions below are
+otherwise resolved as written.
+
 ---
 
 ## TL;DR
