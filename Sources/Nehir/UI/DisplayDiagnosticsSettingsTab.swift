@@ -222,6 +222,12 @@ struct DisplayDiagnosticsSettingsTab: View {
         .onReceive(NotificationCenter.default.publisher(for: .settingsMigrationStateDidChange)) { _ in
             refreshSettingsIssues()
         }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            refreshSettingsIssues()
+        }
+        .onChange(of: settings.hotkeyBindings) { _, _ in
+            refreshSettingsIssues()
+        }
     }
 
     @ViewBuilder

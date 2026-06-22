@@ -18,6 +18,7 @@ import Foundation
 struct CuratedHotkeyAdvisory: Equatable {
     let actionID: String
     let command: HotkeyCommand
+    let symbolicHotkeyIDs: Set<Int>
     let advisoryText: String
 }
 
@@ -29,7 +30,8 @@ enum HotkeyAdvisoryCatalog {
         CuratedHotkeyAdvisory(
             actionID: "openCommandPalette",
             command: .openCommandPalette,
-            advisoryText: "Your Command Palette shortcut (Option+Command+Space) can also be claimed by a macOS system shortcut (e.g. Input Sources) or another launcher, which will fire alongside Nehir. If pressing it also opens another app, reassign this Nehir hotkey in Hotkeys, or clear the conflicting shortcut in System Settings → Keyboard → Keyboard Shortcuts."
+            symbolicHotkeyIDs: [65],
+            advisoryText: "Your Command Palette shortcut overlaps the enabled macOS Spotlight → Show Finder search window shortcut, which can fire alongside Nehir. Reassign this Nehir hotkey in Hotkeys, or clear the conflicting shortcut in System Settings → Keyboard → Keyboard Shortcuts."
         )
     ]
 }

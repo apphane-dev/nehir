@@ -90,7 +90,8 @@ import Testing
     @Test func curatedAdvisoryFiresForCommandPaletteDefaultChord() throws {
         let issues = SettingsDiagnosticsDetector.applicableIssues(
             hotkeyFailures: [:],
-            hotkeyBindings: HotkeyBindingRegistry.defaults()
+            hotkeyBindings: HotkeyBindingRegistry.defaults(),
+            enabledSystemHotkeyIDs: [65]
         )
         let advisories = issues.compactMap { issue -> HotkeyAdvisoryIssue? in
             if case .hotkeyAdvisory(let advisory) = issue { return advisory }
@@ -103,6 +104,19 @@ import Testing
         #expect(advisory.actionID == "openCommandPalette")
         #expect(advisory.advisoryText.contains("Command Palette"))
         #expect(advisory.chordDisplayString.isEmpty == false)
+    }
+
+    @Test func curatedAdvisorySuppressedWhenSystemShortcutDisabled() {
+        let issues = SettingsDiagnosticsDetector.applicableIssues(
+            hotkeyFailures: [:],
+            hotkeyBindings: HotkeyBindingRegistry.defaults(),
+            enabledSystemHotkeyIDs: []
+        )
+
+        #expect(issues.allSatisfy { issue in
+            if case .hotkeyAdvisory = issue { return false }
+            return true
+        })
     }
 
     @Test func curatedAdvisoryDisappearsAfterReassign() {
@@ -171,7 +185,8 @@ import Testing
         let issues = SettingsDiagnosticsDetector.applicableIssues(
             configDirectory: configDirectory,
             hotkeyFailures: [.openCommandPalette: .systemReserved],
-            hotkeyBindings: HotkeyBindingRegistry.defaults()
+            hotkeyBindings: HotkeyBindingRegistry.defaults(),
+            enabledSystemHotkeyIDs: [65]
         )
 
         // Existing unknown-keys detection is preserved alongside the new hotkey rows.
@@ -192,7 +207,8 @@ import Testing
         let baseCount = SettingsDiagnosticsDetector.pendingIssues().count
         let withConflict = SettingsDiagnosticsDetector.pendingIssues(
             hotkeyFailures: [.openCommandPalette: .systemReserved, .toggleFullscreen: .duplicateBinding],
-            hotkeyBindings: HotkeyBindingRegistry.defaults()
+            hotkeyBindings: HotkeyBindingRegistry.defaults(),
+            enabledSystemHotkeyIDs: [65]
         ).count
 
         // Two conflicts plus the curated command-palette advisory all flow through the

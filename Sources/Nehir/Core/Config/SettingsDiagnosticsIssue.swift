@@ -92,11 +92,15 @@ enum SettingsDiagnosticsDetector {
     static func applicableIssues(
         configDirectory: URL = SettingsFilePersistence.defaultDirectoryURL,
         hotkeyFailures: [HotkeyCommand: HotkeyRegistrationFailureReason] = [:],
-        hotkeyBindings: [HotkeyBinding] = []
+        hotkeyBindings: [HotkeyBinding] = [],
+        enabledSystemHotkeyIDs: Set<Int> = Self.enabledAppleSymbolicHotkeyIDs()
     ) -> [SettingsDiagnosticsIssue] {
         var issues = configBasedIssues(configDirectory: configDirectory)
         issues.append(contentsOf: hotkeyConflictIssues(failures: hotkeyFailures, bindings: hotkeyBindings))
-        issues.append(contentsOf: hotkeyAdvisoryIssues(bindings: hotkeyBindings))
+        issues.append(contentsOf: hotkeyAdvisoryIssues(
+            bindings: hotkeyBindings,
+            enabledSystemHotkeyIDs: enabledSystemHotkeyIDs
+        ))
         return issues
     }
 
@@ -105,12 +109,14 @@ enum SettingsDiagnosticsDetector {
         stateStore: SettingsMigrationStateStore = SettingsMigrationStateStore(),
         appVersion: String = Bundle.main.appVersion ?? "dev",
         hotkeyFailures: [HotkeyCommand: HotkeyRegistrationFailureReason] = [:],
-        hotkeyBindings: [HotkeyBinding] = []
+        hotkeyBindings: [HotkeyBinding] = [],
+        enabledSystemHotkeyIDs: Set<Int> = Self.enabledAppleSymbolicHotkeyIDs()
     ) -> [SettingsDiagnosticsIssue] {
         applicableIssues(
             configDirectory: configDirectory,
             hotkeyFailures: hotkeyFailures,
-            hotkeyBindings: hotkeyBindings
+            hotkeyBindings: hotkeyBindings,
+            enabledSystemHotkeyIDs: enabledSystemHotkeyIDs
         ).filter { issue in
             !stateStore.isPostponed(migrationID: postponeID(for: issue), currentAppVersion: appVersion)
         }
@@ -179,8 +185,14 @@ enum SettingsDiagnosticsDetector {
     /// for the action (reassigning or unassigning suppresses them — no false positives
     /// on custom chords). The default chord is derived from `HotkeyBindingRegistry` so the
     /// catalog never hardcodes Carbon key constants.
-    private static func hotkeyAdvisoryIssues(bindings: [HotkeyBinding]) -> [SettingsDiagnosticsIssue] {
-        guard !bindings.isEmpty, !HotkeyAdvisoryCatalog.knownSystemConflicts.isEmpty else { return [] }
+    private static func hotkeyAdvisoryIssues(
+        bindings: [HotkeyBinding],
+        enabledSystemHotkeyIDs: Set<Int>
+    ) -> [SettingsDiagnosticsIssue] {
+        guard !bindings.isEmpty,
+              !enabledSystemHotkeyIDs.isEmpty,
+              !HotkeyAdvisoryCatalog.knownSystemConflicts.isEmpty
+        else { return [] }
         let currentByID = Dictionary(
             bindings.map { ($0.id, $0) },
             uniquingKeysWith: { first, _ in first }
@@ -190,7 +202,8 @@ enum SettingsDiagnosticsDetector {
             uniquingKeysWith: { first, _ in first }
         )
         return HotkeyAdvisoryCatalog.knownSystemConflicts.compactMap { advisory in
-            guard let current = currentByID[advisory.actionID],
+            guard !advisory.symbolicHotkeyIDs.isDisjoint(with: enabledSystemHotkeyIDs),
+                  let current = currentByID[advisory.actionID],
                   let defaultBinding = defaultsByID[advisory.actionID],
                   current.binding == defaultBinding.binding,
                   case let .chord(chord) = current.binding,
@@ -203,5 +216,19 @@ enum SettingsDiagnosticsDetector {
                 advisoryText: advisory.advisoryText
             ))
         }
+    }
+
+    private static func enabledAppleSymbolicHotkeyIDs() -> Set<Int> {
+        guard let symbolicHotkeys = UserDefaults(suiteName: "com.apple.symbolichotkeys")?
+            .dictionary(forKey: "AppleSymbolicHotKeys")
+        else { return [] }
+
+        return Set(symbolicHotkeys.compactMap { key, value in
+            guard let id = Int(key),
+                  let entry = value as? [String: Any],
+                  (entry["enabled"] as? Bool) == true
+            else { return nil }
+            return id
+        })
     }
 }
