@@ -60,6 +60,20 @@ enum CommandPaletteSelectionID: Hashable {
     case command(String)
 }
 
+struct CommandPaletteFallbackSection: Identifiable {
+    let source: CommandPaletteMode
+    let windowItems: [CommandPaletteWindowItem]
+    let menuItems: [MenuItemModel]
+    let commandItems: [CommandPaletteCommandItem]
+    var id: CommandPaletteMode {
+        source
+    }
+
+    var isEmpty: Bool {
+        windowItems.isEmpty && menuItems.isEmpty && commandItems.isEmpty
+    }
+}
+
 struct CommandPaletteCommandItem: Identifiable {
     let id: String
     let command: HotkeyCommand
@@ -228,6 +242,70 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
 
     var filteredCommandItems: [CommandPaletteCommandItem] {
         filterCommandItems(commandItems, query: searchText)
+    }
+
+    var activeModeFilteredIsEmpty: Bool {
+        switch selectedMode {
+        case .windows:
+            return filteredWindowItems.isEmpty
+        case .menu:
+            return !isMenuLoading && (!isMenuModeAvailable || filteredMenuItems.isEmpty)
+        case .commands:
+            return filteredCommandItems.isEmpty
+        }
+    }
+
+    var fallbackSections: [CommandPaletteFallbackSection] {
+        let trimmedQuery = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedQuery.isEmpty, activeModeFilteredIsEmpty else {
+            return []
+        }
+
+        var sections: [CommandPaletteFallbackSection] = []
+
+        let matchedWindows = filterWindowItems(windows, query: searchText)
+        if !matchedWindows.isEmpty {
+            sections.append(
+                CommandPaletteFallbackSection(
+                    source: .windows,
+                    windowItems: matchedWindows,
+                    menuItems: [],
+                    commandItems: []
+                )
+            )
+        }
+
+        let matchedCommands = filterCommandItems(commandItems, query: searchText)
+        if !matchedCommands.isEmpty {
+            sections.append(
+                CommandPaletteFallbackSection(
+                    source: .commands,
+                    windowItems: [],
+                    menuItems: [],
+                    commandItems: matchedCommands
+                )
+            )
+        }
+
+        if isMenuModeAvailable, hasLoadedMenuItems {
+            let matchedMenu = filterMenuItems(menuItems, query: searchText)
+            if !matchedMenu.isEmpty {
+                sections.append(
+                    CommandPaletteFallbackSection(
+                        source: .menu,
+                        windowItems: [],
+                        menuItems: matchedMenu,
+                        commandItems: []
+                    )
+                )
+            }
+        }
+
+        return sections
+    }
+
+    var fallbackActive: Bool {
+        !fallbackSections.isEmpty
     }
 
     var isMenuModeAvailable: Bool {
@@ -820,12 +898,14 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
     private func resolvedSelectionAction(
         for trigger: CommandPaletteSelectionTrigger
     ) -> SelectionAction? {
-        switch selectedMode {
-        case .windows:
-            let filtered = filteredWindowItems
+        guard let selectedItemID else { return nil }
+        switch selectedItemID {
+        case .window(let token):
+            let resolvedItems = fallbackActive
+                ? (section(in: .windows)?.windowItems ?? [])
+                : filteredWindowItems
             guard let wmController,
-                  case let .window(token)? = selectedItemID,
-                  let item = filtered.first(where: { $0.id == token })
+                  let item = resolvedItems.first(where: { $0.id == token })
             else {
                 return nil
             }
@@ -836,24 +916,31 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
                 guard let summonAnchor else { return nil }
                 return .summonWindowRight(wmController, item.handle, summonAnchor)
             }
-        case .menu:
-            let filtered = filteredMenuItems
-            guard case let .menu(id)? = selectedItemID,
-                  let item = filtered.first(where: { $0.id == id }),
+        case .menu(let id):
+            let resolvedItems = fallbackActive
+                ? (section(in: .menu)?.menuItems ?? [])
+                : filteredMenuItems
+            guard let item = resolvedItems.first(where: { $0.id == id }),
                   let menuFocusTarget
             else {
                 return nil
             }
             return .pressMenu(menuFocusTarget, item.axElement)
-        case .commands:
+        case .command(let id):
+            let resolvedItems = fallbackActive
+                ? (section(in: .commands)?.commandItems ?? [])
+                : filteredCommandItems
             guard let wmController,
-                  case let .command(id)? = selectedItemID,
-                  let item = filteredCommandItems.first(where: { $0.id == id })
+                  let item = resolvedItems.first(where: { $0.id == id })
             else {
                 return nil
             }
             return .executeCommand(wmController, item.command)
         }
+    }
+
+    private func section(in source: CommandPaletteMode) -> CommandPaletteFallbackSection? {
+        fallbackSections.first { $0.source == source }
     }
 
     private func performSelectionAction(_ action: SelectionAction) {
@@ -920,6 +1007,18 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
     }
 
     private func currentSelectionList() -> [CommandPaletteSelectionID] {
+        if fallbackActive {
+            return fallbackSections.flatMap { fallbackSection -> [CommandPaletteSelectionID] in
+                switch fallbackSection.source {
+                case .windows:
+                    return fallbackSection.windowItems.map { .window($0.id) }
+                case .menu:
+                    return fallbackSection.menuItems.map { .menu($0.id) }
+                case .commands:
+                    return fallbackSection.commandItems.map { .command($0.id) }
+                }
+            }
+        }
         switch selectedMode {
         case .windows:
             return filteredWindowItems.map { CommandPaletteSelectionID.window($0.id) }
@@ -1057,6 +1156,57 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
     var panelForTests: NSPanel? {
         panel
     }
+
+    func setCommandItemsForTests(
+        _ items: [CommandPaletteCommandItem],
+        wmController: WMController
+    ) {
+        self.wmController = wmController
+        commandItems = items
+    }
+
+    struct CommandPaletteFallbackTestState {
+        let wmController: WMController
+        let windows: [CommandPaletteWindowItem]
+        let menuItems: [MenuItemModel]
+        let commands: [CommandPaletteCommandItem]
+        let selectedMode: CommandPaletteMode
+        let selectedItemID: CommandPaletteSelectionID?
+        let hasLoadedMenuItems: Bool
+    }
+
+    func setFallbackStateForTests(_ state: CommandPaletteFallbackTestState) {
+        wmController = state.wmController
+        windows = state.windows
+        menuItems = state.menuItems
+        commandItems = state.commands
+        selectedMode = state.selectedMode
+        selectedItemID = state.selectedItemID
+        hasLoadedMenuItems = state.hasLoadedMenuItems
+    }
+
+    func currentSelectionListForTests() -> [CommandPaletteSelectionID] {
+        currentSelectionList()
+    }
+
+    enum CommandPaletteResolvedActionKindForTests: Equatable {
+        case navigateWindow
+        case summonWindowRight
+        case pressMenu
+        case executeCommand
+    }
+
+    func resolvedSelectionActionKindForTests(
+        trigger: CommandPaletteSelectionTrigger
+    ) -> CommandPaletteResolvedActionKindForTests? {
+        guard let action = resolvedSelectionAction(for: trigger) else { return nil }
+        switch action {
+        case .navigateWindow: return .navigateWindow
+        case .summonWindowRight: return .summonWindowRight
+        case .pressMenu: return .pressMenu
+        case .executeCommand: return .executeCommand
+        }
+    }
 }
 
 private struct CommandPaletteView: View {
@@ -1101,6 +1251,23 @@ private struct CommandPaletteView: View {
 
             if controller.selectedMode == .menu && controller.isMenuLoading {
                 CommandPaletteLoadingView(text: "Loading menu items...")
+            } else if isEmptyStateVisible && controller.fallbackActive {
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVStack(spacing: 0) {
+                            ForEach(controller.fallbackSections) { section in
+                                fallbackSection(section)
+                            }
+                        }
+                    }
+                    .onChange(of: controller.selectedItemID) { _, newValue in
+                        if let newValue {
+                            withAnimation(.easeInOut(duration: 0.1)) {
+                                proxy.scrollTo(newValue, anchor: .center)
+                            }
+                        }
+                    }
+                }
             } else if isEmptyStateVisible {
                 CommandPaletteEmptyStateView(
                     symbolName: emptyStateSymbol,
@@ -1178,28 +1345,23 @@ private struct CommandPaletteView: View {
     }
 
     private var statusText: String {
+        if controller.fallbackActive {
+            return "No \(controller.selectedMode.displayName.lowercased()) matches — showing other sources."
+        }
         switch controller.selectedMode {
         case .windows:
-            CommandPaletteController.windowsStatusText(
+            return CommandPaletteController.windowsStatusText(
                 isSummonRightAvailable: controller.isSummonRightAvailable
             )
         case .menu:
-            controller.menuStatusText
+            return controller.menuStatusText
         case .commands:
-            "Enter executes the selected command."
+            return "Enter executes the selected command."
         }
     }
 
     private var isEmptyStateVisible: Bool {
-        switch controller.selectedMode {
-        case .windows:
-            controller.filteredWindowItems.isEmpty
-        case .menu:
-            !controller.isMenuLoading &&
-                (!controller.isMenuModeAvailable || controller.filteredMenuItems.isEmpty)
-        case .commands:
-            controller.filteredCommandItems.isEmpty
-        }
+        controller.activeModeFilteredIsEmpty
     }
 
     private var emptyStateSymbol: String {
@@ -1224,6 +1386,50 @@ private struct CommandPaletteView: View {
             return controller.searchText.isEmpty ? "No menu items available" : "No menu items found"
         case .commands:
             return controller.searchText.isEmpty ? "No commands available" : "No commands found"
+        }
+    }
+
+    @ViewBuilder
+    private func fallbackSection(_ section: CommandPaletteFallbackSection) -> some View {
+        CommandPaletteFallbackSectionHeader(title: section.source.displayName)
+        switch section.source {
+        case .windows:
+            ForEach(section.windowItems) { item in
+                CommandPaletteWindowRow(
+                    item: item,
+                    isSelected: controller.selectedItemID == .window(item.id),
+                    isSummonRightAvailable: controller.isSummonRightAvailable
+                )
+                .id(CommandPaletteSelectionID.window(item.id))
+                .onTapGesture {
+                    controller.selectedItemID = .window(item.id)
+                    controller.selectCurrent()
+                }
+            }
+        case .menu:
+            ForEach(section.menuItems) { item in
+                CommandPaletteMenuRow(
+                    item: item,
+                    isSelected: controller.selectedItemID == .menu(item.id)
+                )
+                .id(CommandPaletteSelectionID.menu(item.id))
+                .onTapGesture {
+                    controller.selectedItemID = .menu(item.id)
+                    controller.selectCurrent()
+                }
+            }
+        case .commands:
+            ForEach(section.commandItems) { item in
+                CommandPaletteCommandRow(
+                    item: item,
+                    isSelected: controller.selectedItemID == .command(item.id)
+                )
+                .id(CommandPaletteSelectionID.command(item.id))
+                .onTapGesture {
+                    controller.selectedItemID = .command(item.id)
+                    controller.selectCurrent()
+                }
+            }
         }
     }
 }
@@ -1369,6 +1575,20 @@ private struct CommandPaletteEmptyStateView: View {
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+private struct CommandPaletteFallbackSectionHeader: View {
+    let title: String
+
+    var body: some View {
+        Text(title)
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundColor(.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+            .padding(.bottom, 4)
     }
 }
 
