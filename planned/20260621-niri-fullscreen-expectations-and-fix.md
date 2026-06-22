@@ -5,7 +5,10 @@
 **Related:** `discovery/20260617-nehir-69-fullscreen-restore-on-focus.md` (owns
 the #69 bug body), `planned/20260621-backlog-brainstorm.md` idea #20,
 `discovery/20260621-window-width-vs-column-width-semantics.md` (window-node vs
-column-property robustness contrast)
+column-property robustness contrast),
+`planned/20260622-native-fullscreen-toggle-exit-target.md` (separate native
+macOS fullscreen fix), `planned/20260622-fullscreen-behaviour-roadmap.md`
+(coordination roadmap)
 **Prerequisite:** none blocking; coordinates with
 `completed/20260616-unified-config-diagnostics-and-migration-policy.md` if any
 default binding is renamed.
@@ -44,6 +47,19 @@ phases:
 
 Both phases are small. The correct Phase-B toggle behavior depends on the
 Phase-A stickiness decision, so Phase A is decided first.
+
+Follow-up comments on #69 have now resolved the open product question: both
+reporters preferred **option 2, niri-style sticky fullscreen/maximize**. This
+confirms the plan's no-auto-restore direction. The implementation should make
+sticky navigation and toggling reliable; it should not restore a maximized window
+just because focus moves to a neighbour.
+
+This plan is one of **two active fullscreen fix plans**. It covers only the
+layout/tiling `toggleFullscreen` path. The native macOS fullscreen path is tracked
+separately in `planned/20260622-native-fullscreen-toggle-exit-target.md` because
+new evidence shows a distinct command-target bug where toggling while already in
+native fullscreen can enter native fullscreen on another managed window instead
+of exiting the current native-fullscreen record.
 
 ## Discovery corrections / decisions
 
@@ -171,15 +187,17 @@ Decisions encoded by this plan (resolving the discovery's open questions):
 - Do **not** change `toggleColumnFullWidth` — it is a faithful niri
   `maximize-column` (`ActionCatalog.swift:603`, `NiriLayoutEngine+Sizing.swift:625`,
   `NiriNode.swift:393`). Correct and out of scope.
-- Do **not** change `toggleNativeFullscreen` — genuine macOS AX fullscreen
-  (`AXWindow.swift:538`), the only window-aware path. Out of scope except: any
-  Phase-B native-path work must respect
-  `WorkspaceManager.hasPendingNativeFullscreenTransition`
+- Do **not** change `toggleNativeFullscreen` here — genuine macOS AX fullscreen
+  (`AXWindow.swift:538`), the only window-aware path. It now has its own plan:
+  `planned/20260622-native-fullscreen-toggle-exit-target.md`. Any native-path
+  work must respect `WorkspaceManager.hasPendingNativeFullscreenTransition`
   (`WorkspaceManager.swift:1119`).
-- Do **not** bundle the native-path focus storm (lease misattribution to
-  `window_close_focus_recovery`, repeated `window_admitted`, post-exit
-  A↔B↔C `managed_focus_requested`/`managed_focus_confirmed` storm). That is #69's
-  own native workstream and a disjoint failure mode.
+- Do **not** bundle native-path focus/record churn into this tiling plan. The
+  native workstream includes the earlier focus storm evidence (lease
+  misattribution to `window_close_focus_recovery`, repeated `window_admitted`,
+  post-exit A↔B↔C `managed_focus_requested`/`managed_focus_confirmed`) plus new
+  evidence where toggling while already native-fullscreen created multiple native
+  fullscreen records instead of exiting the current one.
 - Do **not** implement G2 (drive `AXFullScreen` from the tiling path). Deferred;
   `toggleNativeFullscreen` already serves real fullscreen.
 - Do **not** add auto-restore-on-focus. Stickiness is the chosen model.
