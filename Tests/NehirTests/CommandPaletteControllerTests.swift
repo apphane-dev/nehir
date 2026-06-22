@@ -60,6 +60,33 @@ private func makeCommandPaletteAppSnapshot(
     )
 }
 
+private func makeCommandPaletteCommandItem(
+    id: String,
+    title: String,
+    searchTerms: [String],
+    command: HotkeyCommand = .toggleFocusedWindowFloating,
+    category: HotkeyCategory = .layout
+) -> CommandPaletteCommandItem {
+    CommandPaletteCommandItem(
+        id: id,
+        command: command,
+        title: title,
+        category: category,
+        bindingDisplay: nil,
+        searchTerms: searchTerms
+    )
+}
+
+private func makeCommandPaletteMenuItem(title: String, parent: String = "View") -> MenuItemModel {
+    MenuItemModel(
+        title: title,
+        fullPath: "\(parent) > \(title)",
+        keyboardShortcut: nil,
+        axElement: AXUIElementCreateSystemWide(),
+        parentTitles: [parent]
+    )
+}
+
 @Suite(.serialized) @MainActor struct CommandPaletteControllerTests {
     @Test func toggleShowsPaletteWhenHidden() {
         var environment = CommandPaletteEnvironment()
@@ -560,5 +587,289 @@ private func makeCommandPaletteAppSnapshot(
 
         #expect(anchor?.token == storedHandle.id)
         #expect(anchor?.workspaceId == workspaceId)
+    }
+
+    @Test func fallbackShowsCommandHitsWhenWindowsModeIsEmpty() {
+        let controller = CommandPaletteController()
+        let wmController = makeCommandPaletteTestWMController()
+        let command = makeCommandPaletteCommandItem(
+            id: "test.float",
+            title: "Toggle Floating",
+            searchTerms: ["float", "toggle floating"]
+        )
+
+        controller.setFallbackStateForTests(.init(
+            wmController: wmController,
+            windows: [],
+            menuItems: [],
+            commands: [command],
+            selectedMode: .windows,
+            selectedItemID: nil,
+            hasLoadedMenuItems: false
+        ))
+        controller.searchText = "float"
+
+        #expect(controller.fallbackActive)
+        #expect(controller.fallbackSections.count == 1)
+        #expect(controller.fallbackSections.first?.source == .commands)
+        #expect(controller.filteredWindowItems.isEmpty)
+        #expect(controller.selectedMode == .windows)
+    }
+
+    @Test func fallbackDispatchesCommandFromWindowsMode() {
+        let controller = CommandPaletteController()
+        let wmController = makeCommandPaletteTestWMController()
+        let command = makeCommandPaletteCommandItem(
+            id: "test.float",
+            title: "Toggle Floating",
+            searchTerms: ["float"]
+        )
+
+        controller.setFallbackStateForTests(.init(
+            wmController: wmController,
+            windows: [],
+            menuItems: [],
+            commands: [command],
+            selectedMode: .windows,
+            selectedItemID: nil,
+            hasLoadedMenuItems: false
+        ))
+        controller.searchText = "float"
+        controller.selectedItemID = .command(command.id)
+
+        let kind = controller.resolvedSelectionActionKindForTests(trigger: .primary)
+
+        #expect(kind == .executeCommand)
+        #expect(controller.selectedMode == .windows)
+    }
+
+    @Test func fallbackOmitsMenuWhenNotLoaded() {
+        let controller = CommandPaletteController()
+        let wmController = makeCommandPaletteTestWMController()
+        controller.setMenuAvailabilityForTests(
+            makeCommandPaletteAppSnapshot(pid: 600, bundleIdentifier: "com.app", localizedName: "App")
+        )
+        let command = makeCommandPaletteCommandItem(
+            id: "test.float",
+            title: "Toggle Floating",
+            searchTerms: ["float"]
+        )
+        let matchingMenu = makeCommandPaletteMenuItem(title: "Float")
+
+        controller.setFallbackStateForTests(.init(
+            wmController: wmController,
+            windows: [],
+            menuItems: [matchingMenu],
+            commands: [command],
+            selectedMode: .windows,
+            selectedItemID: nil,
+            hasLoadedMenuItems: false
+        ))
+        controller.searchText = "float"
+
+        #expect(controller.fallbackActive)
+        #expect(controller.fallbackSections.contains { $0.source == .commands })
+        #expect(!controller.fallbackSections.contains { $0.source == .menu })
+    }
+
+    @Test func fallbackOmitsMenuWhenMenuModeUnavailable() {
+        let controller = CommandPaletteController()
+        let wmController = makeCommandPaletteTestWMController()
+        controller.setMenuAvailabilityForTests(nil)
+        let command = makeCommandPaletteCommandItem(
+            id: "test.float",
+            title: "Toggle Floating",
+            searchTerms: ["float"]
+        )
+        let matchingMenu = makeCommandPaletteMenuItem(title: "Float")
+
+        controller.setFallbackStateForTests(.init(
+            wmController: wmController,
+            windows: [],
+            menuItems: [matchingMenu],
+            commands: [command],
+            selectedMode: .windows,
+            selectedItemID: nil,
+            hasLoadedMenuItems: true
+        ))
+        controller.searchText = "float"
+
+        #expect(controller.fallbackActive)
+        #expect(controller.fallbackSections.contains { $0.source == .commands })
+        #expect(!controller.fallbackSections.contains { $0.source == .menu })
+    }
+
+    @Test func fallbackIncludesMenuWhenAlreadyLoaded() async {
+        let matchingMenu = makeCommandPaletteMenuItem(title: "Float Panel")
+        var environment = CommandPaletteEnvironment()
+        environment.fetchMenuItems = { _ in [matchingMenu] }
+        let controller = CommandPaletteController(environment: environment)
+        let wmController = makeCommandPaletteTestWMController()
+        let target = makeCommandPaletteAppSnapshot(
+            pid: 610,
+            bundleIdentifier: "com.app",
+            localizedName: "App"
+        )
+
+        controller.setMenuLoadingStateForTests(wmController: wmController, target: target)
+        controller.loadMenuItemsForTests()
+
+        for _ in 0 ..< 200 {
+            if controller.menuItems.count == 1, !controller.isMenuLoading {
+                break
+            }
+            try? await Task.sleep(for: .milliseconds(5))
+        }
+
+        #expect(controller.menuItems.count == 1)
+        #expect(!controller.isMenuLoading)
+
+        controller.selectedMode = .windows
+        controller.searchText = "float"
+
+        #expect(controller.fallbackActive)
+        #expect(controller.fallbackSections.contains { $0.source == .menu })
+    }
+
+    @Test func noFallbackWhenActiveModeHasMatches() {
+        let controller = CommandPaletteController()
+        let wmController = makeCommandPaletteTestWMController()
+        let window = makeCommandPaletteWindowItem(windowId: 505)
+        let command = makeCommandPaletteCommandItem(
+            id: "test.window",
+            title: "Some Command",
+            searchTerms: ["window"]
+        )
+
+        controller.setFallbackStateForTests(.init(
+            wmController: wmController,
+            windows: [window],
+            menuItems: [],
+            commands: [command],
+            selectedMode: .windows,
+            selectedItemID: nil,
+            hasLoadedMenuItems: false
+        ))
+        controller.searchText = "Window"
+
+        #expect(!controller.fallbackActive)
+        #expect(controller.currentSelectionListForTests() == [.window(window.id)])
+    }
+
+    @Test func noFallbackWhenQueryIsEmpty() {
+        let controller = CommandPaletteController()
+        let wmController = makeCommandPaletteTestWMController()
+        let command = makeCommandPaletteCommandItem(
+            id: "test.float",
+            title: "Toggle Floating",
+            searchTerms: ["float"]
+        )
+
+        controller.setFallbackStateForTests(.init(
+            wmController: wmController,
+            windows: [],
+            menuItems: [],
+            commands: [command],
+            selectedMode: .windows,
+            selectedItemID: nil,
+            hasLoadedMenuItems: false
+        ))
+        controller.searchText = ""
+
+        #expect(!controller.fallbackActive)
+    }
+
+    @Test func trueEmptyStateWhenAllSourcesEmpty() {
+        let controller = CommandPaletteController()
+        let wmController = makeCommandPaletteTestWMController()
+
+        controller.setFallbackStateForTests(.init(
+            wmController: wmController,
+            windows: [],
+            menuItems: [],
+            commands: [],
+            selectedMode: .windows,
+            selectedItemID: nil,
+            hasLoadedMenuItems: false
+        ))
+        controller.searchText = "zzzz"
+
+        #expect(!controller.fallbackActive)
+        #expect(controller.activeModeFilteredIsEmpty)
+    }
+
+    @Test func fallbackSelectionAdvancesToFirstHit() {
+        let controller = CommandPaletteController()
+        let wmController = makeCommandPaletteTestWMController()
+        let firstCommand = makeCommandPaletteCommandItem(
+            id: "test.alpha",
+            title: "Alpha Float",
+            searchTerms: ["float"]
+        )
+        let secondCommand = makeCommandPaletteCommandItem(
+            id: "test.beta",
+            title: "Beta Float",
+            searchTerms: ["float"]
+        )
+
+        controller.setFallbackStateForTests(.init(
+            wmController: wmController,
+            windows: [],
+            menuItems: [],
+            commands: [firstCommand, secondCommand],
+            selectedMode: .windows,
+            selectedItemID: nil,
+            hasLoadedMenuItems: false
+        ))
+        controller.searchText = "float"
+
+        #expect(controller.fallbackActive)
+        #expect(controller.selectedItemID == .command(firstCommand.id))
+    }
+
+    @Test func resolvedSelectionActionUnchangedWhenFallbackInactiveWindows() {
+        let controller = CommandPaletteController()
+        let wmController = makeCommandPaletteTestWMController()
+        let window = makeCommandPaletteWindowItem(windowId: 707)
+
+        controller.setFallbackStateForTests(.init(
+            wmController: wmController,
+            windows: [window],
+            menuItems: [],
+            commands: [],
+            selectedMode: .windows,
+            selectedItemID: .window(window.id),
+            hasLoadedMenuItems: false
+        ))
+        controller.searchText = "Window"
+
+        #expect(!controller.fallbackActive)
+        let kind = controller.resolvedSelectionActionKindForTests(trigger: .primary)
+        #expect(kind == .navigateWindow)
+    }
+
+    @Test func resolvedSelectionActionUnchangedWhenFallbackInactiveCommands() {
+        let controller = CommandPaletteController()
+        let wmController = makeCommandPaletteTestWMController()
+        let command = makeCommandPaletteCommandItem(
+            id: "test.float",
+            title: "Toggle Floating",
+            searchTerms: ["float"]
+        )
+
+        controller.setFallbackStateForTests(.init(
+            wmController: wmController,
+            windows: [],
+            menuItems: [],
+            commands: [command],
+            selectedMode: .commands,
+            selectedItemID: .command(command.id),
+            hasLoadedMenuItems: false
+        ))
+        controller.searchText = "float"
+
+        #expect(!controller.fallbackActive)
+        let kind = controller.resolvedSelectionActionKindForTests(trigger: .primary)
+        #expect(kind == .executeCommand)
     }
 }
