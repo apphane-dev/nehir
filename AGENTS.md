@@ -31,10 +31,20 @@ when needed with `--contributors handle1,handle2`. Issue reporters count as
 contributors; include their GitHub handle when a change fixes a reported issue.
 Mention the ticket/issue number in the changeset summary when one was involved.
 
+Reference **only the nehir repo's own ticket number** (e.g. `Fixes #92`) in
+changesets and commit messages — a bare `#NN` auto-links to this repository on
+GitHub, so it must point at the nehir issue, not upstream. **Do not** cite
+upstream tickets (e.g. OmniWM `#240`, `BarutSRB/OmniWM#240`) in changesets or
+commit messages; track upstream provenance in the nehir ticket body instead,
+where it belongs.
+
 ## Commit messages
 
 Do not use Conventional Commits formatting (`fix:`, `feat:`, `chore:`, etc.).
 Use concise plain-English commit subjects instead.
+
+As with changesets, reference only the nehir repo's own ticket number (`#NN`)
+never upstream tickets — upstream provenance lives in the ticket body.
 
 ## Discovery documents: do not reference trace log filenames
 
