@@ -22,7 +22,7 @@ if [ -n "$SINCE_TAG" ]; then
     echo "Since tag does not exist: $SINCE_TAG" >&2
     exit 1
   fi
-  CHANGESET_FILES=$(git diff --diff-filter=A --name-only "$SINCE_TAG"..HEAD -- .changeset/)
+  CHANGESET_FILES=$(git diff --diff-filter=AM --name-only "$SINCE_TAG"..HEAD -- .changeset/)
   # Filter to .md files excluding README, resolve to full paths
   INCLUDED_FILES=()
   for f in $CHANGESET_FILES; do
