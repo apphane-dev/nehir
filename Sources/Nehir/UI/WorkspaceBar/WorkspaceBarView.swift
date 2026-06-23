@@ -32,6 +32,7 @@ struct WorkspaceBarWindowItem: Identifiable, Equatable {
     let appName: String
     let icon: NSImage?
     let isFocused: Bool
+    let isSelected: Bool
     let windowCount: Int
     let allWindows: [WorkspaceBarWindowInfo]
 
@@ -41,6 +42,7 @@ struct WorkspaceBarWindowItem: Identifiable, Equatable {
             && lhs.appName == rhs.appName
             && lhs.icon === rhs.icon
             && lhs.isFocused == rhs.isFocused
+            && lhs.isSelected == rhs.isSelected
             && lhs.windowCount == rhs.windowCount
             && lhs.allWindows == rhs.allWindows
     }
@@ -51,6 +53,7 @@ struct WorkspaceBarWindowInfo: Identifiable, Equatable {
     let windowId: Int
     let title: String
     let isFocused: Bool
+    let isSelected: Bool
 }
 
 struct WorkspaceBarScratchpadItem: Identifiable, Equatable {
@@ -312,6 +315,7 @@ private struct WorkspaceItemView: View {
                     window: window,
                     iconSize: iconSize,
                     isFocused: window.isFocused,
+                    isSelected: window.isSelected,
                     isInFocusedWorkspace: item.isFocused,
                     context: .tiled,
                     animationsEnabled: animationsEnabled,
@@ -424,6 +428,7 @@ private struct FloatingWindowsGroupView: View {
                     window: window,
                     iconSize: iconSize,
                     isFocused: window.isFocused,
+                    isSelected: window.isSelected,
                     isInFocusedWorkspace: isInFocusedWorkspace,
                     context: .floating,
                     animationsEnabled: animationsEnabled,
@@ -549,6 +554,7 @@ private struct WindowIconView: View {
     let window: WorkspaceBarWindowItem
     let iconSize: CGFloat
     let isFocused: Bool
+    let isSelected: Bool
     let isInFocusedWorkspace: Bool
     let context: WorkspaceBarWindowContext
     let animationsEnabled: Bool
@@ -589,6 +595,7 @@ private struct WindowIconView: View {
         .buttonStyle(.plain)
         .scaleEffect(scale)
         .animation(animationsEnabled ? .easeInOut(duration: 0.15) : nil, value: isFocused)
+        .animation(animationsEnabled ? .easeInOut(duration: 0.15) : nil, value: isSelected)
         .animation(animationsEnabled ? .easeInOut(duration: 0.1) : nil, value: isHovered)
         .onHover { hovering in
             isHovered = hovering
@@ -611,7 +618,7 @@ private struct WindowIconView: View {
     }
 
     private var opacity: Double {
-        if isFocused {
+        if isFocused || isSelected {
             1.0
         } else if isInFocusedWorkspace {
             0.4
@@ -631,11 +638,15 @@ private struct WindowIconView: View {
     }
 
     private var glowRadius: CGFloat {
-        isFocused ? 4 : 0
+        if isFocused { 4 }
+        else if isSelected { 3 }
+        else { 0 }
     }
 
     private var glowOpacity: Double {
-        isFocused ? 0.5 : 0
+        if isFocused { 0.5 }
+        else if isSelected { 0.22 }
+        else { 0 }
     }
 
     private var accessibilityLabel: String {
@@ -647,7 +658,9 @@ private struct WindowIconView: View {
     }
 
     private var accessibilityValue: String {
-        isFocused ? "Focused" : ""
+        if isFocused { "Focused" }
+        else if isSelected { "Selected" }
+        else { "" }
     }
 }
 
