@@ -1087,7 +1087,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         #expect(controller.workspaceBarRefreshDebugState.executionCount == 1)
     }
 
-    @Test @MainActor func focusOnlyChangesRefreshStatusBarWithoutWorkspaceBarQueue() async {
+    @Test @MainActor func focusChangesRefreshStatusBarAndScheduleWorkspaceBarRefresh() async {
         let controller = makeRefreshTestController()
         controller.settings.workspaceBarEnabled = false
         controller.settings.statusBarShowWorkspaceName = true
@@ -1129,7 +1129,14 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         _ = controller.workspaceManager.setManagedFocus(secondToken, in: workspaceId, onMonitor: monitor.id)
         await controller.waitForStatusBarRefreshForTests()
 
-        #expect(controller.workspaceBarRefreshDebugState.requestCount == 0)
+        // Focus changes now refresh the workspace bar as well as the status
+        // bar: the bar's per-window focus highlight is derived from the
+        // confirmed managed-focus token, so a `.focusProjection` must re-project
+        // the bar rather than piggyback on an unrelated relayout or
+        // workspace-projection event. This closes the click /
+        // focus-follows-mouse stale-highlight gap
+        // (discovery/20260615-workspace-bar-focus-projection-routing.md).
+        #expect(controller.workspaceBarRefreshDebugState.requestCount == 1)
         #expect(statusBarController.statusButtonTitleForTests() == " 1 \u{2013} Second App")
     }
 

@@ -3243,6 +3243,18 @@ final class WorkspaceManager {
             || previousSelection.selectionProgress != state.selectionProgress
         {
             workspaceSession.selectionRevision &+= 1
+            // Reactive lens: the workspace bar (and any other viewport-derived UI)
+            // recomputes from viewport selection, not from the guarded managed-focus
+            // path. Because every live viewport selection write funnels through this
+            // method, emitting the invalidation here means any mutation of
+            // selectedNodeId / activeColumnIndex / selectionProgress refreshes the bar
+            // automatically — there is no "missed call-site" failure class for
+            // viewport-driven UI. Critically this is a workspace (not focus)
+            // invalidation: it re-projects the bar's `isSelected` (parked column)
+            // highlight without touching the managed-focus anchor
+            // (confirmedManagedFocusToken), so the anchor policy that suppresses
+            // `setManagedFocus` under non-managed focus is preserved.
+            invalidateWorkspaceProjection(reason: "viewportSelectionChanged")
         }
 
         sessionState.workspaceSessions[workspaceId] = workspaceSession

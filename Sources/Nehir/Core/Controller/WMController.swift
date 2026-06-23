@@ -545,7 +545,13 @@ final class WMController {
         case .workspaceProjection:
             requestWorkspaceProjectionRefreshScheduling()
         case .focusProjection:
+            // Focus changes are relevant to both the status bar (workspace-name
+            // display) and the workspace bar (per-window focus indicator), so
+            // refresh both surfaces. This closes the family of "focus changed but
+            // the workspace bar didn't move" paths (e.g. click / focus-follows-
+            // mouse confirms) that previously only invalidated the status bar.
             requestFocusProjectionRefreshScheduling()
+            requestWorkspaceProjectionRefreshScheduling()
         case .settingsProjection:
             requestSettingsProjectionRefreshScheduling()
         case .layoutProjection,
@@ -699,6 +705,7 @@ final class WMController {
             appInfoCache: appInfoCache,
             niriEngine: niriEngine,
             focusedToken: workspaceManager.confirmedManagedFocusToken,
+            viewportSelectedToken: viewportSelectedToken(for: monitor),
             settings: settings
         )
     }
@@ -714,8 +721,27 @@ final class WMController {
             appInfoCache: appInfoCache,
             niriEngine: niriEngine,
             focusedToken: workspaceManager.confirmedManagedFocusToken,
+            viewportSelectedToken: viewportSelectedToken(for: monitor),
             settings: settings
         )
+    }
+
+    /// Resolves the window the viewport is parked on for the monitor's active
+    /// workspace, so the workspace bar can highlight the viewport column even
+    /// when managed-focus confirmation is suppressed (a non-managed app holds
+    /// focus). Returns `nil` when there is no engine, no active workspace, or no
+    /// selected node — in which case the bar falls back to managed-focus only.
+    private func viewportSelectedToken(for monitor: Monitor) -> WindowToken? {
+        guard let engine = niriEngine,
+              let workspace = workspaceManager.activeWorkspace(on: monitor.id)
+        else { return nil }
+        let state = workspaceManager.niriViewportState(for: workspace.id)
+        guard let selectedNodeId = state.selectedNodeId,
+              let window = engine.findNode(by: selectedNodeId) as? NiriWindow
+        else {
+            return nil
+        }
+        return window.token
     }
 
     func focusWorkspaceFromBar(named name: String) {

@@ -23,6 +23,7 @@ enum WorkspaceBarDataSource {
         appInfoCache: AppInfoCache,
         niriEngine: NiriLayoutEngine?,
         focusedToken: WindowToken?,
+        viewportSelectedToken: WindowToken? = nil,
         settings: SettingsStore
     ) -> [WorkspaceBarItem] {
         workspaceItems(
@@ -32,6 +33,7 @@ enum WorkspaceBarDataSource {
             appInfoCache: appInfoCache,
             niriEngine: niriEngine,
             focusedToken: focusedToken,
+            viewportSelectedToken: viewportSelectedToken,
             settings: settings
         )
     }
@@ -43,6 +45,7 @@ enum WorkspaceBarDataSource {
         appInfoCache: AppInfoCache,
         niriEngine: NiriLayoutEngine?,
         focusedToken: WindowToken?,
+        viewportSelectedToken: WindowToken? = nil,
         settings: SettingsStore
     ) -> WorkspaceBarProjection {
         WorkspaceBarProjection(
@@ -53,12 +56,14 @@ enum WorkspaceBarDataSource {
                 appInfoCache: appInfoCache,
                 niriEngine: niriEngine,
                 focusedToken: focusedToken,
+                viewportSelectedToken: viewportSelectedToken,
                 settings: settings
             ),
             scratchpad: scratchpadItem(
                 workspaceManager: workspaceManager,
                 appInfoCache: appInfoCache,
                 focusedToken: focusedToken,
+                viewportSelectedToken: viewportSelectedToken,
                 settings: settings
             )
         )
@@ -71,6 +76,7 @@ enum WorkspaceBarDataSource {
         appInfoCache: AppInfoCache,
         niriEngine: NiriLayoutEngine?,
         focusedToken: WindowToken?,
+        viewportSelectedToken: WindowToken?,
         settings: SettingsStore
     ) -> [WorkspaceBarItem] {
         var workspaces = workspaceManager.workspaces(on: monitor.id).map { workspace in
@@ -112,14 +118,16 @@ enum WorkspaceBarDataSource {
                 deduplicate: options.deduplicateAppIcons,
                 useLayoutOrder: useLayoutOrder,
                 appInfoCache: appInfoCache,
-                focusedToken: focusedToken
+                focusedToken: focusedToken,
+                viewportSelectedToken: viewportSelectedToken
             )
             let floatingWindows = createWindowItems(
                 entries: orderedFloatingEntries,
                 deduplicate: options.deduplicateAppIcons,
                 useLayoutOrder: useLayoutOrder,
                 appInfoCache: appInfoCache,
-                focusedToken: focusedToken
+                focusedToken: focusedToken,
+                viewportSelectedToken: viewportSelectedToken
             )
 
             return WorkspaceBarItem(
@@ -137,6 +145,7 @@ enum WorkspaceBarDataSource {
         workspaceManager: WorkspaceManager,
         appInfoCache: AppInfoCache,
         focusedToken: WindowToken?,
+        viewportSelectedToken: WindowToken?,
         settings: SettingsStore
     ) -> WorkspaceBarScratchpadItem? {
         guard let scratchpadToken = workspaceManager.scratchpadToken(),
@@ -146,7 +155,8 @@ enum WorkspaceBarDataSource {
                   deduplicate: false,
                   useLayoutOrder: false,
                   appInfoCache: appInfoCache,
-                  focusedToken: focusedToken
+                  focusedToken: focusedToken,
+                  viewportSelectedToken: viewportSelectedToken
               ).first
         else {
             return nil
@@ -168,21 +178,24 @@ enum WorkspaceBarDataSource {
         deduplicate: Bool,
         useLayoutOrder: Bool,
         appInfoCache: AppInfoCache,
-        focusedToken: WindowToken?
+        focusedToken: WindowToken?,
+        viewportSelectedToken: WindowToken?
     ) -> [WorkspaceBarWindowItem] {
         if deduplicate {
             return createDedupedWindowItems(
                 entries: entries,
                 useLayoutOrder: useLayoutOrder,
                 appInfoCache: appInfoCache,
-                focusedToken: focusedToken
+                focusedToken: focusedToken,
+                viewportSelectedToken: viewportSelectedToken
             )
         }
 
         return createIndividualWindowItems(
             entries: entries,
             appInfoCache: appInfoCache,
-            focusedToken: focusedToken
+            focusedToken: focusedToken,
+            viewportSelectedToken: viewportSelectedToken
         )
     }
 
@@ -190,7 +203,8 @@ enum WorkspaceBarDataSource {
         entries: [WindowModel.Entry],
         useLayoutOrder: Bool,
         appInfoCache: AppInfoCache,
-        focusedToken: WindowToken?
+        focusedToken: WindowToken?,
+        viewportSelectedToken: WindowToken?
     ) -> [WorkspaceBarWindowItem] {
         if useLayoutOrder {
             var groupedByApp: [String: [WindowModel.Entry]] = [:]
@@ -211,13 +225,15 @@ enum WorkspaceBarDataSource {
                 guard let appEntries = groupedByApp[appName], let firstEntry = appEntries.first else { return nil }
                 let appInfo = appInfoCache.info(for: firstEntry.handle.pid)
                 let anyFocused = appEntries.contains { $0.handle.id == focusedToken }
+                let anySelected = appEntries.contains { $0.handle.id == viewportSelectedToken }
 
                 let windowInfos = appEntries.map { entry -> WorkspaceBarWindowInfo in
                     WorkspaceBarWindowInfo(
                         id: entry.handle.id,
                         windowId: entry.windowId,
                         title: windowTitle(for: entry) ?? appName,
-                        isFocused: entry.handle.id == focusedToken
+                        isFocused: entry.handle.id == focusedToken,
+                        isSelected: entry.handle.id == viewportSelectedToken
                     )
                 }
 
@@ -227,6 +243,7 @@ enum WorkspaceBarDataSource {
                     appName: appName,
                     icon: appInfo?.icon,
                     isFocused: anyFocused,
+                    isSelected: anySelected,
                     windowCount: appEntries.count,
                     allWindows: windowInfos
                 )
@@ -241,13 +258,15 @@ enum WorkspaceBarDataSource {
             let firstEntry = appEntries.first!
             let appInfo = appInfoCache.info(for: firstEntry.handle.pid)
             let anyFocused = appEntries.contains { $0.handle.id == focusedToken }
+            let anySelected = appEntries.contains { $0.handle.id == viewportSelectedToken }
 
             let windowInfos = appEntries.map { entry -> WorkspaceBarWindowInfo in
                 WorkspaceBarWindowInfo(
                     id: entry.handle.id,
                     windowId: entry.windowId,
                     title: windowTitle(for: entry) ?? appName,
-                    isFocused: entry.handle.id == focusedToken
+                    isFocused: entry.handle.id == focusedToken,
+                    isSelected: entry.handle.id == viewportSelectedToken
                 )
             }
 
@@ -257,6 +276,7 @@ enum WorkspaceBarDataSource {
                 appName: appName,
                 icon: appInfo?.icon,
                 isFocused: anyFocused,
+                isSelected: anySelected,
                 windowCount: appEntries.count,
                 allWindows: windowInfos
             )
@@ -266,7 +286,8 @@ enum WorkspaceBarDataSource {
     private static func createIndividualWindowItems(
         entries: [WindowModel.Entry],
         appInfoCache: AppInfoCache,
-        focusedToken: WindowToken?
+        focusedToken: WindowToken?,
+        viewportSelectedToken: WindowToken?
     ) -> [WorkspaceBarWindowItem] {
         entries.map { entry in
             let appInfo = appInfoCache.info(for: entry.handle.pid)
@@ -279,13 +300,15 @@ enum WorkspaceBarDataSource {
                 appName: appName,
                 icon: appInfo?.icon,
                 isFocused: entry.handle.id == focusedToken,
+                isSelected: entry.handle.id == viewportSelectedToken,
                 windowCount: 1,
                 allWindows: [
                     WorkspaceBarWindowInfo(
                         id: entry.handle.id,
                         windowId: entry.windowId,
                         title: title,
-                        isFocused: entry.handle.id == focusedToken
+                        isFocused: entry.handle.id == focusedToken,
+                        isSelected: entry.handle.id == viewportSelectedToken
                     )
                 ]
             )
