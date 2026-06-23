@@ -126,19 +126,21 @@ view.
 
 ## Follow-ups still open (out of scope here)
 
-- **Test invariant inversion (do after user confirmation).** `Tests/NehirTests/RefreshRoutingTests.swift:1132`,
-  `focusOnlyChangesRefreshStatusBarWithoutWorkspaceBarQueue`, asserts
-  `workspaceBarRefreshDebugState.requestCount == 0` after a focus-only change.
-  Option B intentionally inverts this (a focus change now also refreshes the
-  workspace bar), so the assertion now sees `requestCount == 1`. Per AGENTS.md,
-  tests are not touched until the fix is confirmed in the user's real repro;
-  once confirmed, update this assertion to the new expectation and add the
-  regression tests in the discovery's "Test coverage gaps" section (gesture end
-  under non-managed focus still moves the bar; anchor policy preserved).
-- **Merge.** This is uncommitted work on branch
-  `refactor-workspace-bar-reactive-viewport-lens`, validated only against the
-  build, lint/format, and the directly-affected suites (115/116 pass; the lone
-  failure is the Option-B invariant above). It is **not** on `main`.
+- **Test invariant updated.** `Tests/NehirTests/RefreshRoutingTests.swift:~1090`, formerly
+  `focusOnlyChangesRefreshStatusBarWithoutWorkspaceBarQueue`, asserted the **old,
+  buggy** behavior — that a focus-only change must *not* refresh the workspace bar
+  (`workspaceBarRefreshDebugState.requestCount == 0`). Option B fixes exactly that
+  gap (the bar's per-window focus highlight is derived from the confirmed
+  managed-focus token, so a `.focusProjection` must re-project the bar), so the
+  test was encoding the bug as intended behavior. It is now renamed to
+  `focusChangesRefreshStatusBarAndScheduleWorkspaceBarRefresh` and asserts
+  `requestCount == 1` after a focus change, with a comment citing the sibling
+  discovery. Full suite green: 1321 tests, 108 suites, 0 failures.
+- **Merge.** This work lives on branch
+  `refactor-workspace-bar-reactive-viewport-lens` (commits `1b343c1d` code +
+  `0ba90144` test), validated against build, lint/format, and the **full** test
+  suite. It is **not** on `main`, and the runtime gesture-freeze fix is still
+  awaiting the user's real-repro confirmation per AGENTS.md.
 - **Re-validate the status-bar freeze under the same gesture.** The discovery's
   "Open questions" notes the status bar is likely frozen for the same reason on
   the same gesture (no `.focusProjection` emitted). The chokepoint publisher
