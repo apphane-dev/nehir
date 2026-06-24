@@ -1,12 +1,31 @@
 # Better visual feedback on record traces
 
-**Status:** planned
+**Status:** superseded/discontinued, 2026-06-24
+**Superseded by:** `completed/20260624-recent-trace-clip-buffer.md`
 **Source discovery:** `discovery/20260621-better-record-trace-visual-feedback.md`
 **Source list:** `planned/20260621-backlog-brainstorm.md`, UI/UX items **#1** and
 **#1-related** ("Better visual feedback on record traces")
 
 All source references were re-verified against the main Nehir source tree on
-2026-06-22. Re-verify before editing; line numbers drift.
+2026-06-22. Line numbers drift.
+
+## Superseded outcome
+
+This workspace-bar visual-feedback plan was intentionally not implemented as
+written. The trace controls were moved out of the workspace bar entirely: the
+workspace bar is now treated as a workspace-navigation surface, while trace
+recording lives in the separate DebugBar shipped by
+`completed/20260624-recent-trace-clip-buffer.md`.
+
+Consequences:
+
+- Do not add pulsing elapsed-time trace UI to `WorkspaceBarView`.
+- Do not add a workspace-bar trace-capture button or preserve the old
+  `showTraceCaptureButton` surface.
+- Keep the useful lesson — trace recording needs visible feedback — but apply it
+  to DebugBar / Diagnostics instead of the workspace bar.
+
+The original plan remains below for provenance only.
 
 ## TL;DR
 
