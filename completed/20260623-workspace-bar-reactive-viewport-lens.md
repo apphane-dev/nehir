@@ -1,7 +1,8 @@
 # Workspace bar reactive lens over viewport selection
 
-**Status:** implemented — on branch `refactor-workspace-bar-reactive-viewport-lens`,
-pending user validation before merge (not yet on `main`)
+**Status:** completed — shipped on `main` in `8900a436` ("Make the workspace bar a
+reactive lens over viewport selection"), a squash of the branch's two commits
+(code + focus-routing test update)
 **Source discovery:** [`discovery/20260622-workspace-bar-freezes-on-gesture-with-non-managed-focus.md`](../discovery/20260622-workspace-bar-freezes-on-gesture-with-non-managed-focus.md)
 **Provenance:** Nehir-original architectural refactor; no upstream OmniWM counterpart.
 
@@ -136,11 +137,12 @@ view.
   `focusChangesRefreshStatusBarAndScheduleWorkspaceBarRefresh` and asserts
   `requestCount == 1` after a focus change, with a comment citing the sibling
   discovery. Full suite green: 1321 tests, 108 suites, 0 failures.
-- **Merge.** This work lives on branch
-  `refactor-workspace-bar-reactive-viewport-lens` (commits `1b343c1d` code +
-  `0ba90144` test), validated against build, lint/format, and the **full** test
-  suite. It is **not** on `main`, and the runtime gesture-freeze fix is still
-  awaiting the user's real-repro confirmation per AGENTS.md.
+- **Shipped.** Merged to `main` as `8900a436`, a squash of the branch's two
+  commits (`1b343c1d` code + `0ba90144` focus-routing test update). Validated
+  against build, lint/format, and the full test suite (1321 tests, 108 suites,
+  0 failures). The in-body code citations above were captured against the branch
+  pre-merge; on `main` they have drifted (e.g. the chokepoint publisher is now at
+  `WorkspaceManager.swift:3336`) — re-verify before editing.
 - **Re-validate the status-bar freeze under the same gesture.** The discovery's
   "Open questions" notes the status bar is likely frozen for the same reason on
   the same gesture (no `.focusProjection` emitted). The chokepoint publisher
