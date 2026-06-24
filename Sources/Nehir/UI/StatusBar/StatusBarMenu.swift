@@ -87,6 +87,7 @@ final class StatusBarMenuBuilder {
         toggleViews["focusFollowsMouse"]?.isOn = settings.focusFollowsMouse
         toggleViews["bordersEnabled"]?.isOn = settings.bordersEnabled
         toggleViews["workspaceBarEnabled"]?.isOn = settings.workspaceBarEnabled
+        toggleViews["debugBarEnabled"]?.isOn = settings.debugBarEnabled
     }
 
     private func createHeaderView() -> NSView {
@@ -144,6 +145,21 @@ final class StatusBarMenuBuilder {
         let workspaceItem = NSMenuItem()
         workspaceItem.view = workspaceBarToggle
         menu.addItem(workspaceItem)
+
+        if settings.developerModeEnabled {
+            let debugBarToggle = MenuToggleRowView(
+                icon: "ladybug",
+                label: "DebugBar",
+                isOn: settings.debugBarEnabled
+            ) { [weak self] newValue in
+                self?.settings.debugBarEnabled = newValue
+                self?.controller?.updateWorkspaceBarSettings()
+            }
+            toggleViews["debugBarEnabled"] = debugBarToggle
+            let debugBarItem = NSMenuItem()
+            debugBarItem.view = debugBarToggle
+            menu.addItem(debugBarItem)
+        }
     }
 
     @discardableResult

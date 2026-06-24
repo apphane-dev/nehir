@@ -288,6 +288,7 @@ public enum IPCCommandName: String, Codable, CaseIterable, Equatable, Sendable {
     case debugResetRuntimeState = "debug-reset-runtime-state"
     case debugRestartClearingRuntimeState = "debug-restart-clearing-runtime-state"
     case debugToggleTraceCapture = "debug-toggle-trace-capture"
+    case debugCaptureRecentTrace = "debug-capture-recent-trace"
     case toggleFocusFollowsMouse = "toggle-focus-follows-mouse"
     case toggleFocusFollowsWindowToMonitor = "toggle-focus-follows-window-to-monitor"
     case toggleMoveMouseToFocused = "toggle-move-mouse-to-focused"
@@ -423,6 +424,7 @@ public enum IPCCommandRequest: Equatable, Sendable {
     case debugResetRuntimeState
     case debugRestartClearingRuntimeState
     case debugToggleTraceCapture(desiredState: IPCTraceDesiredState?)
+    case debugCaptureRecentTrace
     case toggleFocusFollowsMouse
     case toggleFocusFollowsWindowToMonitor
     case toggleMoveMouseToFocused
@@ -582,6 +584,8 @@ public enum IPCCommandRequest: Equatable, Sendable {
             .debugRestartClearingRuntimeState
         case .debugToggleTraceCapture:
             .debugToggleTraceCapture
+        case .debugCaptureRecentTrace:
+            .debugCaptureRecentTrace
         case .toggleFocusFollowsMouse:
             .toggleFocusFollowsMouse
         case .toggleFocusFollowsWindowToMonitor:
@@ -865,6 +869,9 @@ public enum IPCCommandRequest: Equatable, Sendable {
             } else {
                 throw IPCCommandRequestConstructionError.invalidArgumentType
             }
+        case .debugCaptureRecentTrace:
+            try requireNoArguments()
+            self = .debugCaptureRecentTrace
         case .toggleFocusFollowsMouse:
             try requireNoArguments()
             self = .toggleFocusFollowsMouse
@@ -1102,6 +1109,8 @@ extension IPCCommandRequest: Codable {
             } else {
                 self = .debugToggleTraceCapture(desiredState: nil)
             }
+        case .debugCaptureRecentTrace:
+            self = .debugCaptureRecentTrace
         case .toggleFocusFollowsMouse:
             self = .toggleFocusFollowsMouse
         case .toggleFocusFollowsWindowToMonitor:
@@ -1277,6 +1286,8 @@ extension IPCCommandRequest: Codable {
             if let desiredState {
                 try container.encode(IPCTraceDesiredStateArguments(desiredState: desiredState), forKey: .arguments)
             }
+        case .debugCaptureRecentTrace:
+            break
         case .toggleFocusFollowsMouse:
             break
         case .toggleFocusFollowsWindowToMonitor:

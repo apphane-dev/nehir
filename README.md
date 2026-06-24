@@ -87,21 +87,21 @@ You can also find these actions in the macOS **Window** menu. In Mission Control
 
 ## Debugging & Tracing
 
-Trace capture and the other debug commands are gated behind **Developer Mode**. Enable it in the **Diagnostics** tab of Settings — this unlocks the `Debug: …` commands in the command palette and hotkey settings, enables the IPC debug endpoints, and reveals the **Runtime State** and **Recent Traces** panels in that same tab.
+Trace capture and the other debug commands are gated behind **Developer Mode**. Enable it in the **Diagnostics** tab of Settings — this unlocks the `Debug: …` commands in the command palette and hotkey settings, enables the IPC debug endpoints, and reveals the **Debug Actions**, **Background Trace Buffer**, and **Recent Traces** panels in that same tab.
 
 With Developer Mode on, you can start a trace capture from anywhere:
 
+- **DebugBar** — Developer Mode shows a lightweight overlay with record, recent-clip, reset-buffer, and retention controls
 - **Command palette** — *Debug: Toggle Trace Capture* (default hotkey `Ctrl+Option+Cmd+T`)
-- **Custom shortcut** — bind it under Settings → Hotkeys
-- **Workspace bar** — turn on **Show Trace Capture Button** (in the Diagnostics or Workspace Bar settings) for a one-click record button in the bar
-- **CLI / IPC** — `nehirctl command debug trace toggle`; accepts an optional `desiredState` argument (`active`/`inactive`) for idempotent scripting, e.g. `nehirctl command debug trace toggle active`
+- **Custom shortcut** — bind either debug action under Settings → Hotkeys
+- **CLI / IPC** — `nehirctl command debug trace toggle`; accepts an optional `desiredState` argument (`active`/`inactive`) for idempotent scripting, e.g. `nehirctl command debug trace toggle active`; while trace capture is running, `nehirctl command debug capture-recent-trace` exports a retained recent clip
 
 ### Capturing a reproduction
 
 A clean trace covers only the misbehavior, with Nehir's own UI out of the way:
 
 1. Enable **Developer Mode** once, in Settings → Diagnostics.
-2. **Start** trace capture. A custom hotkey or the workspace-bar button (**Show Trace Capture Button**) is ideal here — they fire without the Settings window open.
+2. **Start** trace capture. A custom hotkey or the DebugBar is ideal here — they fire without the Settings window open.
 3. **Close the Settings window.** Nehir-owned windows (Settings, Command Palette, App Rules) change focus and layout behavior, so reproducing with them closed matches how issues actually happen in normal use.
 4. **Reproduce the issue** as you normally would.
 5. **Stop** trace capture. A log bundle is written to:

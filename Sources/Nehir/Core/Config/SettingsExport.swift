@@ -88,6 +88,10 @@ struct SettingsExport: Equatable, Sendable {
     var appearanceMode: String
 
     var developerModeEnabled: Bool
+    var debugBarEnabled: Bool
+    var debugTraceExportCopiesFile: Bool
+    var backgroundTraceRetentionSeconds: TimeInterval
+    var backgroundTraceMaxBytes: Int
 
     /// When enabled, monitor matching during restore ignores the monitor model/name and
     /// resolves displays by layout position (anchor-point geometry) instead, so apps,
@@ -170,6 +174,10 @@ extension SettingsExport {
             statusBarUseWorkspaceId: false,
             appearanceMode: AppearanceMode.dark.rawValue,
             developerModeEnabled: false,
+            debugBarEnabled: true,
+            debugTraceExportCopiesFile: false,
+            backgroundTraceRetentionSeconds: 0,
+            backgroundTraceMaxBytes: 64 * 1024 * 1024,
             ignoreMonitorIdentity: false,
             capabilityOverrides: []
         )

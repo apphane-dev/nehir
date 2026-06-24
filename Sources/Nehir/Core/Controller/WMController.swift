@@ -146,6 +146,8 @@ final class WMController {
     @ObservationIgnored
     private lazy var workspaceBarManager: WorkspaceBarManager = .init()
     @ObservationIgnored
+    private lazy var debugBarManager: DebugBarManager = .init()
+    @ObservationIgnored
     private var workspaceBarRefreshGeneration: UInt64 = 0
     @ObservationIgnored
     private var pendingWorkspaceBarRefreshGeneration: UInt64?
@@ -261,6 +263,12 @@ final class WMController {
     private var runtimeInsertionTraceRecords: [String] = []
     @ObservationIgnored
     private var runtimeMouseTraceRecords: [String] = []
+    @ObservationIgnored
+    private var backgroundTraceBuffer = BackgroundTraceBuffer()
+    @ObservationIgnored
+    private var backgroundTraceDrafts: [BackgroundTraceDraft.ID: BackgroundTraceDraft] = [:]
+    @ObservationIgnored
+    private var backgroundTraceDraftOrder: [BackgroundTraceDraft.ID] = []
 
     var runtimeTraceCaptureStatus: RuntimeTraceCaptureStatus {
         RuntimeTraceCaptureStatus(
@@ -271,6 +279,14 @@ final class WMController {
 
     var isRuntimeTraceCaptureActive: Bool {
         runtimeTraceCaptureSession != nil
+    }
+
+    var isBackgroundTraceBufferEffectivelyEnabled: Bool {
+        settings.developerModeEnabled && isRuntimeTraceCaptureActive
+    }
+
+    var backgroundTraceBufferStatus: BackgroundTraceBufferStatus {
+        backgroundTraceBuffer.status(isEnabled: isBackgroundTraceBufferEffectivelyEnabled)
     }
 
     /// Test-only read access to captured mouse-focus traces. Trace capture must be active.
@@ -392,6 +408,7 @@ final class WMController {
         // remaining live values explicitly so editor saves take effect without
         // an app relaunch.
         updateWorkspaceBarSettings()
+        updateBackgroundTraceBufferConfiguration()
         _ = syncMouseWarpPolicy()
 
         setEnabled(true)
@@ -499,6 +516,7 @@ final class WMController {
         pruneHiddenWorkspaceBarMonitorIds()
         cancelPendingWorkspaceBarRefresh()
         workspaceBarManager.setup(controller: self, settings: settings)
+        debugBarManager.setup(controller: self, settings: settings)
         // isWorkspaceBarVisible gates on onboardingActive, so this is a no-op render while
         // onboarding is active and renders the bar once it completes.
         workspaceBarManager.setEnabled(enabled)
@@ -508,6 +526,7 @@ final class WMController {
     func cleanupUIOnStop() {
         cancelPendingWorkspaceBarRefresh()
         workspaceBarManager.cleanup()
+        debugBarManager.cleanup()
     }
 
     func setPreventSleepEnabled(_ enabled: Bool) {
@@ -534,6 +553,7 @@ final class WMController {
 
         cancelPendingWorkspaceBarRefresh()
         workspaceBarManager.setup(controller: self, settings: settings)
+        debugBarManager.setup(controller: self, settings: settings)
         layoutRefreshController.requestRefresh(reason: .monitorSettingsChanged)
         return true
     }
@@ -672,11 +692,24 @@ final class WMController {
         pruneHiddenWorkspaceBarMonitorIds()
         cancelPendingWorkspaceBarRefresh()
         workspaceBarManager.updateSettings()
+        debugBarManager.setup(controller: self, settings: settings)
         layoutRefreshController.requestRefresh(reason: .monitorSettingsChanged)
     }
 
     func updateWorkspaceBarAppearance() {
         workspaceBarManager.updateAppearance()
+    }
+
+    func updateBackgroundTraceBufferConfiguration() {
+        backgroundTraceBuffer.configure(
+            maxBytes: settings.backgroundTraceMaxBytes,
+            retentionSeconds: settings.backgroundTraceRetentionSeconds
+        )
+        if !isRuntimeTraceCaptureActive {
+            resetBackgroundTraceBuffer()
+        }
+        syncNiriResizeTraceSink()
+        debugBarManager.setup(controller: self, settings: settings)
     }
 
     func updateMonitorOrientations() {
@@ -2406,7 +2439,7 @@ final class WMController {
 
     func syncNiriResizeTraceSink() {
         guard let engine = niriEngine else { return }
-        if runtimeTraceCaptureSession != nil {
+        if isRuntimeTraceCaptureActive {
             engine.resizeTraceSink = { [weak self] message in
                 self?.recordRuntimeResizeTrace(message)
             }
@@ -2416,27 +2449,39 @@ final class WMController {
     }
 
     func recordRuntimeResizeTrace(_ message: String) {
-        guard runtimeTraceCaptureSession != nil else { return }
-        runtimeResizeTraceRecords.append(Date().ISO8601Format() + " " + message)
-        if runtimeResizeTraceRecords.count > 400 {
-            runtimeResizeTraceRecords.removeFirst(runtimeResizeTraceRecords.count - 400)
+        let timestamp = Date()
+        let line = timestamp.ISO8601Format() + " " + message
+        if runtimeTraceCaptureSession != nil {
+            runtimeResizeTraceRecords.append(line)
+            if runtimeResizeTraceRecords.count > 400 {
+                runtimeResizeTraceRecords.removeFirst(runtimeResizeTraceRecords.count - 400)
+            }
         }
+        appendBackgroundTrace(category: .resize, text: line, timestamp: timestamp)
     }
 
     func recordRuntimeMouseTrace(_ message: String) {
-        guard runtimeTraceCaptureSession != nil else { return }
-        runtimeMouseTraceRecords.append(Date().ISO8601Format() + " " + message)
-        if runtimeMouseTraceRecords.count > 400 {
-            runtimeMouseTraceRecords.removeFirst(runtimeMouseTraceRecords.count - 400)
+        let timestamp = Date()
+        let line = timestamp.ISO8601Format() + " " + message
+        if runtimeTraceCaptureSession != nil {
+            runtimeMouseTraceRecords.append(line)
+            if runtimeMouseTraceRecords.count > 400 {
+                runtimeMouseTraceRecords.removeFirst(runtimeMouseTraceRecords.count - 400)
+            }
         }
+        appendBackgroundTrace(category: .mouse, text: line, timestamp: timestamp)
     }
 
     func recordRuntimeInsertionTrace(_ message: String) {
-        guard runtimeTraceCaptureSession != nil else { return }
-        runtimeInsertionTraceRecords.append(Date().ISO8601Format() + " " + message)
-        if runtimeInsertionTraceRecords.count > 400 {
-            runtimeInsertionTraceRecords.removeFirst(runtimeInsertionTraceRecords.count - 400)
+        let timestamp = Date()
+        let line = timestamp.ISO8601Format() + " " + message
+        if runtimeTraceCaptureSession != nil {
+            runtimeInsertionTraceRecords.append(line)
+            if runtimeInsertionTraceRecords.count > 400 {
+                runtimeInsertionTraceRecords.removeFirst(runtimeInsertionTraceRecords.count - 400)
+            }
         }
+        appendBackgroundTrace(category: .insertion, text: line, timestamp: timestamp)
     }
 
     func recordRuntimeViewportTrace(
@@ -2444,7 +2489,7 @@ final class WMController {
         reason: String,
         details: [String] = []
     ) {
-        guard runtimeTraceCaptureSession != nil else { return }
+        guard isRuntimeTraceCaptureActive else { return }
         guard let engine = niriEngine else { return }
 
         let gap = workspaceManager.monitor(for: workspaceId).map { gapSize(for: $0) }
@@ -2467,8 +2512,9 @@ final class WMController {
             gap: gap
         )
 
+        let timestamp = Date()
         let line = ([
-            Date().ISO8601Format(),
+            timestamp.ISO8601Format(),
             "workspace=\(workspaceName)",
             "id=\(workspaceId.uuidString)",
             "reason=\(reason)"
@@ -2490,10 +2536,34 @@ final class WMController {
         ])
         .joined(separator: " ")
 
-        runtimeViewportTraceRecords.append(line)
-        if runtimeViewportTraceRecords.count > 400 {
-            runtimeViewportTraceRecords.removeFirst(runtimeViewportTraceRecords.count - 400)
+        if runtimeTraceCaptureSession != nil {
+            runtimeViewportTraceRecords.append(line)
+            if runtimeViewportTraceRecords.count > 400 {
+                runtimeViewportTraceRecords.removeFirst(runtimeViewportTraceRecords.count - 400)
+            }
         }
+        appendBackgroundTrace(category: .viewport, text: line, timestamp: timestamp)
+    }
+
+    private func appendBackgroundTrace(
+        category: BackgroundTraceCategory,
+        text: String,
+        timestamp: Date = Date()
+    ) {
+        guard isBackgroundTraceBufferEffectivelyEnabled else { return }
+        backgroundTraceBuffer.configure(
+            maxBytes: settings.backgroundTraceMaxBytes,
+            retentionSeconds: settings.backgroundTraceRetentionSeconds,
+            now: timestamp
+        )
+        backgroundTraceBuffer.append(category: category, text: text, timestamp: timestamp)
+    }
+
+    func resetBackgroundTraceBuffer() {
+        backgroundTraceBuffer.clear()
+        backgroundTraceDrafts.removeAll(keepingCapacity: true)
+        backgroundTraceDraftOrder.removeAll(keepingCapacity: true)
+        debugBarManager.update()
     }
 
     private func niriLayoutDecisionLine(
@@ -3026,6 +3096,7 @@ final class WMController {
         let axEventSnapshot = axEventHandler.debugCounters
         let cgsSnapshot = CGSEventObserver.shared.cgsDebugSnapshot()
         let traceCaptureStatus = traceCaptureStatusOverride ?? runtimeTraceCaptureStatus
+        let backgroundTraceEffectiveEnabled = settings.developerModeEnabled && traceCaptureStatus.isActive
 
         var lines: [String] = [
             "WMController runtime state",
@@ -3034,7 +3105,7 @@ final class WMController {
             "focusFollowsMouse=\(focusFollowsMouseEnabled) moveMouseToFocusedWindow=\(moveMouseToFocusedWindowEnabled) mouseWarpEnabled=\(settings.mouseWarpEnabled) mouseWarpPolicyEnabled=\(isMouseWarpPolicyEnabled)",
             "displaySpacesMode=\(SkyLight.shared.displaySpacesMode().rawValue)",
             "isTransferringWindow=\(isTransferringWindow) hiddenAppPIDs=\(hiddenAppPIDs.count) workspaceBarHiddenMonitors=\(hiddenWorkspaceBarMonitorIds.count)",
-            "runtimeTraceCaptureActive=\(traceCaptureStatus.isActive) runtimeTraceStartedAt=\(traceCaptureStatus.startedAt?.ISO8601Format() ?? "nil") viewportTraceRecords=\(runtimeViewportTraceRecords.count) resizeTraceRecords=\(runtimeResizeTraceRecords.count) insertionTraceRecords=\(runtimeInsertionTraceRecords.count) mouseTraceRecords=\(runtimeMouseTraceRecords.count)",
+            "runtimeTraceCaptureActive=\(traceCaptureStatus.isActive) runtimeTraceStartedAt=\(traceCaptureStatus.startedAt?.ISO8601Format() ?? "nil") viewportTraceRecords=\(runtimeViewportTraceRecords.count) resizeTraceRecords=\(runtimeResizeTraceRecords.count) insertionTraceRecords=\(runtimeInsertionTraceRecords.count) mouseTraceRecords=\(runtimeMouseTraceRecords.count) backgroundTraceEnabled=\(backgroundTraceEffectiveEnabled) backgroundTraceEvents=\(backgroundTraceBufferStatus.eventCount) backgroundTraceBytes=\(backgroundTraceBufferStatus.estimatedBytes) backgroundTraceMaxBytes=\(backgroundTraceBufferStatus.maxBytes) backgroundTraceRetentionSeconds=\(String(format: "%.0f", backgroundTraceBufferStatus.retentionSeconds))",
             "workspaceBarRefreshDebugState requestCount=\(workspaceBarRefreshDebugState.requestCount) scheduledCount=\(workspaceBarRefreshDebugState.scheduledCount) executionCount=\(workspaceBarRefreshDebugState.executionCount) isQueued=\(workspaceBarRefreshDebugState.isQueued)",
             "-- Focus Targets --",
             focusTargetDebugDump(),
@@ -3111,8 +3182,12 @@ final class WMController {
             runtimeResizeTraceRecords.removeAll(keepingCapacity: true)
             runtimeInsertionTraceRecords.removeAll(keepingCapacity: true)
             runtimeMouseTraceRecords.removeAll(keepingCapacity: true)
+            backgroundTraceBuffer.clear()
+            backgroundTraceDrafts.removeAll(keepingCapacity: true)
+            backgroundTraceDraftOrder.removeAll(keepingCapacity: true)
             syncNiriResizeTraceSink()
             workspaceBarManager.update()
+            debugBarManager.update()
         }
         mouseEventHandler.handleInputSuppressionBegan()
         mouseEventHandler.resetDebugStateForTests()
@@ -3172,6 +3247,131 @@ final class WMController {
     }
 
     @discardableResult
+    func captureRecentBackgroundTrace(
+        marker: Date = Date(),
+        lookback: TimeInterval = 120,
+        tail: TimeInterval = 0,
+        note: String? = nil
+    ) -> ExternalCommandResult {
+        guard let draft = makeBackgroundTraceDraft(marker: marker) else {
+            Self.runtimeDebugLogger.error("Capture recent trace requested with no background trace draft available")
+            return settings.developerModeEnabled ? .invalidState : .requiresDeveloperMode
+        }
+
+        do {
+            _ = try exportBackgroundTraceClip(
+                draftID: draft.id,
+                marker: marker,
+                lookback: lookback,
+                tail: tail,
+                note: note
+            )
+            return .executed
+        } catch {
+            Self.runtimeDebugLogger
+                .error("Failed to write background trace clip: \(error.localizedDescription, privacy: .public)")
+            return .internalError
+        }
+    }
+
+    func makeBackgroundTraceDraft(marker: Date = Date()) -> BackgroundTraceDraft? {
+        guard isBackgroundTraceBufferEffectivelyEnabled else { return nil }
+        cleanupBackgroundTraceDrafts(now: marker)
+        guard let draft = backgroundTraceBuffer.makeDraft(now: marker) else { return nil }
+        backgroundTraceDrafts[draft.id] = draft
+        backgroundTraceDraftOrder.append(draft.id)
+        cleanupBackgroundTraceDrafts(now: marker)
+        return draft
+    }
+
+    @discardableResult
+    func exportBackgroundTraceClip(
+        draftID: BackgroundTraceDraft.ID,
+        marker: Date,
+        lookback: TimeInterval,
+        tail: TimeInterval,
+        note: String?
+    ) throws -> URL {
+        guard let draft = backgroundTraceDrafts[draftID] else {
+            throw NSError(
+                domain: "NehirBackgroundTrace",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Background trace draft is no longer available."]
+            )
+        }
+        let endedAt = Date()
+        let clip = BackgroundTraceBuffer.selectClip(from: draft, marker: marker, lookback: lookback, tail: tail)
+        let fileURL = backgroundTraceClipFileURL(
+            startedAt: clip.selectedStart,
+            endedAt: clip.selectedEnd,
+            exportedAt: endedAt
+        )
+        let runtimeStateDump = runtimeStateDebugDump(traceLimit: 0)
+        let eventDump = clip.events.isEmpty
+            ? "background trace clip empty"
+            : clip.events.map { event in
+                "[\(event.category.rawValue)] \(event.text)"
+            }.joined(separator: "\n")
+        let categoryCounts = BackgroundTraceCategory.allCases.map { category in
+            "\(category.rawValue)=\(clip.categoryCounts[category] ?? 0)"
+        }.joined(separator: " ")
+        let noteLine = (note?.isEmpty == false) ? note! : ""
+        let retainedRange = "\(draft.retainedStart?.ISO8601Format() ?? "nil")..\(draft.retainedEnd?.ISO8601Format() ?? "nil")"
+        let selectedRange = "\(clip.selectedStart.ISO8601Format())..\(clip.selectedEnd.ISO8601Format())"
+        let body = [
+            "# Nehir runtime trace clip",
+            "captureKind=background-clip",
+            "backgroundBufferEnabled=\(isBackgroundTraceBufferEffectivelyEnabled)",
+            "retainedRange=\(retainedRange)",
+            "selectedRange=\(selectedRange)",
+            "bugMarker=\(marker.ISO8601Format())",
+            String(format: "requestedLookback=%.0fs", clip.requestedLookback),
+            String(format: "requestedTail=%.0fs", clip.requestedTail),
+            "truncatedByTimeRetention=\(clip.truncatedByTimeRetention)",
+            "truncatedByByteCap=\(clip.truncatedByByteCap)",
+            String(format: "backgroundRetentionSeconds=%.0f", settings.backgroundTraceRetentionSeconds),
+            "backgroundMaxBytes=\(settings.backgroundTraceMaxBytes)",
+            "eventCount=\(clip.events.count)",
+            "estimatedBytes=\(clip.estimatedBytes)",
+            "categoryCounts=\(categoryCounts)",
+            "userNote=\(noteLine)",
+            "exportedAt=\(endedAt.ISO8601Format())",
+            "",
+            "## Runtime state at export",
+            runtimeStateDump,
+            "",
+            "## Background trace events",
+            eventDump,
+            ""
+        ].joined(separator: "\n")
+
+        try FileManager.default.createDirectory(
+            at: fileURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try body.write(to: fileURL, atomically: true, encoding: .utf8)
+        copyTraceExportToPasteboard(fileURL)
+        Self.runtimeDebugLogger.info("Wrote background trace clip to \(fileURL.path, privacy: .public)")
+        return fileURL
+    }
+
+    private func cleanupBackgroundTraceDrafts(now: Date = Date()) {
+        let expiration: TimeInterval = 30 * 60
+        backgroundTraceDraftOrder.removeAll { id in
+            guard let draft = backgroundTraceDrafts[id] else { return true }
+            if now.timeIntervalSince(draft.createdAt) > expiration {
+                backgroundTraceDrafts[id] = nil
+                return true
+            }
+            return false
+        }
+        while backgroundTraceDraftOrder.count > 2 {
+            let id = backgroundTraceDraftOrder.removeFirst()
+            backgroundTraceDrafts[id] = nil
+        }
+    }
+
+    @discardableResult
     private func startRuntimeTraceCapture() -> ExternalCommandResult {
         guard runtimeTraceCaptureSession == nil else {
             Self.runtimeDebugLogger.error("Start runtime trace capture requested while a capture is already active")
@@ -3182,6 +3382,9 @@ final class WMController {
         runtimeResizeTraceRecords.removeAll(keepingCapacity: true)
         runtimeInsertionTraceRecords.removeAll(keepingCapacity: true)
         runtimeMouseTraceRecords.removeAll(keepingCapacity: true)
+        backgroundTraceBuffer.clear()
+        backgroundTraceDrafts.removeAll(keepingCapacity: true)
+        backgroundTraceDraftOrder.removeAll(keepingCapacity: true)
         let startedAt = Date()
         let startRuntimeStateDump = runtimeStateDebugDump(
             traceLimit: 0,
@@ -3196,6 +3399,7 @@ final class WMController {
         workspaceManager.resetInteractionMonitorWriteTraceForDebug()
         AppAXContext.resetRawAXNotificationTraceForDebug()
         workspaceBarManager.update()
+        debugBarManager.update()
         return .executed
     }
 
@@ -3276,7 +3480,7 @@ final class WMController {
                 withIntermediateDirectories: true
             )
             try body.write(to: fileURL, atomically: true, encoding: .utf8)
-            copyDebugTextToPasteboard(fileURL.path)
+            copyTraceExportToPasteboard(fileURL)
             Self.runtimeDebugLogger.info("Wrote runtime trace capture to \(fileURL.path, privacy: .public)")
         } catch {
             Self.runtimeDebugLogger
@@ -3289,8 +3493,12 @@ final class WMController {
         runtimeResizeTraceRecords.removeAll(keepingCapacity: true)
         runtimeInsertionTraceRecords.removeAll(keepingCapacity: true)
         runtimeMouseTraceRecords.removeAll(keepingCapacity: true)
+        backgroundTraceBuffer.clear()
+        backgroundTraceDrafts.removeAll(keepingCapacity: true)
+        backgroundTraceDraftOrder.removeAll(keepingCapacity: true)
         syncNiriResizeTraceSink()
         workspaceBarManager.update()
+        debugBarManager.update()
         return .executed
     }
 
@@ -3310,6 +3518,16 @@ final class WMController {
         pasteboard.setString(text, forType: .string)
     }
 
+    private func copyTraceExportToPasteboard(_ fileURL: URL) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        if settings.debugTraceExportCopiesFile {
+            pasteboard.writeObjects([fileURL as NSURL])
+        } else {
+            pasteboard.setString(fileURL.path, forType: .string)
+        }
+    }
+
     /// Directory where exported runtime trace captures are written. Exposed so
     /// the Diagnostics settings tab can list recent captures from the same path
     /// the capture writer uses.
@@ -3318,6 +3536,11 @@ final class WMController {
 
     private func runtimeTraceCaptureFileURL(startedAt: Date, endedAt: Date) -> URL {
         let filename = "runtime-trace-\(Int(startedAt.timeIntervalSince1970 * 1000))-\(Int(endedAt.timeIntervalSince1970 * 1000)).log"
+        return Self.traceCaptureDirectory.appendingPathComponent(filename, isDirectory: false)
+    }
+
+    private func backgroundTraceClipFileURL(startedAt: Date, endedAt: Date, exportedAt: Date) -> URL {
+        let filename = "runtime-trace-background-clip-\(Int(startedAt.timeIntervalSince1970 * 1000))-\(Int(endedAt.timeIntervalSince1970 * 1000))-\(Int(exportedAt.timeIntervalSince1970 * 1000)).log"
         return Self.traceCaptureDirectory.appendingPathComponent(filename, isDirectory: false)
     }
 

@@ -767,6 +767,11 @@ public enum IPCAutomationManifest {
             arguments: [traceDesiredStateArgument]
         ),
         command(
+            ["debug", "capture-recent-trace"],
+            name: .debugCaptureRecentTrace,
+            summary: "Export a recent clip from the background trace buffer."
+        ),
+        command(
             ["toggle-workspace-bar"],
             name: .toggleWorkspaceBar,
             summary: "Toggle runtime workspace bar visibility."

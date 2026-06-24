@@ -207,6 +207,7 @@ struct HotkeySettingsView: View {
     @State private var conflictAlert: ConflictAlert?
     @State private var noticeAlert: HotkeyNoticeAlert?
     @State private var searchText: String = ""
+    @State private var showDiagnosticsReturnLink = false
     @State private var confirmsResetToDefaults = false
 
     var body: some View {
@@ -233,6 +234,14 @@ struct HotkeySettingsView: View {
                 SettingsCaption(
                     "Shortcuts are stored as physical key combinations. Hyper+… means Ctrl+Option+Shift+Command."
                 )
+
+                if showDiagnosticsReturnLink {
+                    Button {
+                        navigation.selectedSection = .diagnostics
+                    } label: {
+                        Label("Back to Diagnostics", systemImage: "chevron.left")
+                    }
+                }
 
                 if !hasSearchMatches {
                     Text("No matching hotkeys.")
@@ -508,6 +517,7 @@ struct HotkeySettingsView: View {
         guard let seed = navigation.hotkeySearchSeed else { return }
         navigation.hotkeySearchSeed = nil
         searchText = seed
+        showDiagnosticsReturnLink = ActionCatalog.normalizedSearchTerm(seed) == "debug"
     }
 
     private func bindingsForNumberedGroup(_ group: HotkeyConfigMapping.NumberedGroup) -> [HotkeyBinding] {

@@ -24,6 +24,16 @@ struct DisplayDiagnosticsSettingsTab: View {
         isActive: false,
         startedAt: nil
     )
+    @State private var backgroundTraceStatus: BackgroundTraceBufferStatus = .init(
+        isEnabled: false,
+        retainedStart: nil,
+        retainedEnd: nil,
+        eventCount: 0,
+        estimatedBytes: 0,
+        maxBytes: 64 * 1024 * 1024,
+        retentionSeconds: 0
+    )
+    private let traceStatusRefreshTimer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
     @State private var recentTraces: [TraceFile] = []
     @State private var traceCopyStatus: String?
     @State private var runtimeActionStatus: String?
@@ -200,6 +210,8 @@ struct DisplayDiagnosticsSettingsTab: View {
                 }
                 .onChange(of: settings.developerModeEnabled) { _, _ in
                     controller.updateWorkspaceBarSettings()
+                    controller.updateBackgroundTraceBufferConfiguration()
+                    refresh()
                 }
                 SettingsCaption(
                     "Shows debug commands in the palette, hotkey settings, and enables IPC debug endpoints."
@@ -208,7 +220,7 @@ struct DisplayDiagnosticsSettingsTab: View {
 
             if settings.developerModeEnabled {
                 runtimeStateSection
-                workspaceBarTraceSection
+                backgroundTraceSection
                 recentTracesSection
             }
         }
@@ -224,6 +236,11 @@ struct DisplayDiagnosticsSettingsTab: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             refreshSettingsIssues()
+            refreshTraceState()
+        }
+        .onReceive(traceStatusRefreshTimer) { _ in
+            guard settings.developerModeEnabled else { return }
+            refreshTraceStatusOnly()
         }
         .onChange(of: settings.hotkeyBindings) { _, _ in
             refreshSettingsIssues()
@@ -231,43 +248,43 @@ struct DisplayDiagnosticsSettingsTab: View {
     }
 
     @ViewBuilder
-    private var workspaceBarTraceSection: some View {
-        Section("Workspace Bar") {
-            Toggle("Show Trace Capture Button", isOn: $settings.workspaceBarShowTraceButton)
-                .onChange(of: settings.workspaceBarShowTraceButton) { _, _ in
-                    controller.updateWorkspaceBarSettings()
-                }
-                .disabled(!settings.workspaceBarEnabled)
-
-            if settings.workspaceBarEnabled {
-                SettingsCaption("Adds a workspace bar button that starts or stops runtime trace capture.")
-            } else {
-                SettingsCaption("Enable the workspace bar before showing its trace capture button.")
+    private var backgroundTraceSection: some View {
+        Section("Trace Buffer") {
+            Picker("Retain recent events for", selection: $settings.backgroundTraceRetentionSeconds) {
+                Text("Unlimited").tag(TimeInterval(0))
+                Text("30 sec").tag(TimeInterval(30))
+                Text("1 min").tag(TimeInterval(60))
+                Text("2 min").tag(TimeInterval(120))
             }
+            .onChange(of: settings.backgroundTraceRetentionSeconds) { _, _ in
+                controller.updateBackgroundTraceBufferConfiguration()
+                refresh()
+            }
+
+            Picker("Maximum buffer size", selection: $settings.backgroundTraceMaxBytes) {
+                Text("16 MB").tag(16 * 1024 * 1024)
+                Text("64 MB").tag(64 * 1024 * 1024)
+                Text("128 MB").tag(128 * 1024 * 1024)
+            }
+            .onChange(of: settings.backgroundTraceMaxBytes) { _, _ in
+                controller.updateBackgroundTraceBufferConfiguration()
+                refresh()
+            }
+
+            LabeledContent("Status") {
+                Text(backgroundTraceStatusText)
+                    .foregroundStyle(.secondary)
+            }
+
+            SettingsCaption(
+                "The existing Trace Capture toggle starts recording. While it is running, Nehir keeps a bounded local buffer for recent-clip exports. Old events are discarded automatically based on the retention window and size limit. Reset Buffer clears retained events without stopping the running trace capture."
+            )
         }
     }
 
     @ViewBuilder
     private var runtimeStateSection: some View {
         Section {
-            if traceCaptureStatus.isActive, let startedAt = traceCaptureStatus.startedAt {
-                HStack(alignment: .top, spacing: 10) {
-                    Image(systemName: "record.circle.fill")
-                        .foregroundStyle(.red)
-                        .font(.title3)
-                        .accessibilityHidden(true)
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("Trace capture in progress")
-                            .font(.headline)
-                        TimelineView(.periodic(from: startedAt, by: 1)) { context in
-                            Text("Recording for \(formatDuration(context.date.timeIntervalSince(startedAt)))")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
-            }
-
             DebugCommandRow(
                 title: "Dump Runtime State",
                 hotkey: hotkey(for: "debug.dumpRuntimeState"),
@@ -282,7 +299,7 @@ struct DisplayDiagnosticsSettingsTab: View {
             DebugCommandRow(
                 title: "Trace Capture",
                 hotkey: hotkey(for: "debug.toggleTraceCapture"),
-                buttonTitle: traceCaptureStatus.isActive ? "Stop and Export" : "Start",
+                buttonTitle: traceCaptureStatus.isActive ? "Stop" : "Start",
                 run: {
                     _ = controller.toggleRuntimeTraceCapture()
                     runtimeActionStatus = nil
@@ -313,9 +330,7 @@ struct DisplayDiagnosticsSettingsTab: View {
             }
 
             if let runtimeActionStatus {
-                Label(runtimeActionStatus, systemImage: "checkmark.circle.fill")
-                    .font(.caption)
-                    .foregroundStyle(.green)
+                ActionStatusLabel(runtimeActionStatus)
             }
 
             SettingsCaption(
@@ -323,7 +338,7 @@ struct DisplayDiagnosticsSettingsTab: View {
             )
         } header: {
             HStack(spacing: 6) {
-                Text("Runtime State")
+                Text("Debug Actions")
                 DeveloperBadge()
             }
         }
@@ -404,6 +419,17 @@ struct DisplayDiagnosticsSettingsTab: View {
     /// status label's icon and color instead of always showing a green check.
     private var traceCopyFailed: Bool {
         traceCopyStatus?.hasPrefix("Couldn't") ?? false
+    }
+
+    private var backgroundTraceStatusText: String {
+        guard backgroundTraceStatus.isEnabled else { return "Disabled" }
+        let rangeText: String
+        if let start = backgroundTraceStatus.retainedStart, let end = backgroundTraceStatus.retainedEnd {
+            rangeText = " • \(formatDuration(end.timeIntervalSince(start))) retained"
+        } else {
+            rangeText = ""
+        }
+        return "Buffering \(backgroundTraceStatus.eventCount) events • \(formatFileSize(Int64(backgroundTraceStatus.estimatedBytes))) of \(formatFileSize(Int64(backgroundTraceStatus.maxBytes)))\(rangeText)"
     }
 
     private func resetRuntimeState() {
@@ -500,8 +526,20 @@ struct DisplayDiagnosticsSettingsTab: View {
         diagnostics = DisplayEnvironmentDiagnostics.evaluate(monitors: monitors, spacesMode: displaySpacesMode)
         axGranted = AccessibilityPermissionMonitor.shared.isGranted
         refreshSettingsIssues()
+        refreshTraceState()
+    }
+
+    private func refreshTraceState() {
         traceCaptureStatus = controller.runtimeTraceCaptureStatus
+        backgroundTraceStatus = controller.backgroundTraceBufferStatus
         recentTraces = loadRecentTraces()
+    }
+
+    /// Lightweight status-only refresh used by the 1s timer; avoids scanning
+    /// the traces directory on every tick.
+    private func refreshTraceStatusOnly() {
+        traceCaptureStatus = controller.runtimeTraceCaptureStatus
+        backgroundTraceStatus = controller.backgroundTraceBufferStatus
     }
 
     private func refreshSettingsIssues() {
@@ -642,6 +680,24 @@ private struct DebugCommandRow: View {
         } else {
             Button(buttonTitle, action: run)
         }
+    }
+}
+
+private struct ActionStatusLabel: View {
+    let message: String
+
+    init(_ message: String) {
+        self.message = message
+    }
+
+    private var isFailure: Bool {
+        message.hasPrefix("Couldn't") || message.hasPrefix("Failed")
+    }
+
+    var body: some View {
+        Label(message, systemImage: isFailure ? "xmark.circle.fill" : "checkmark.circle.fill")
+            .font(.caption)
+            .foregroundStyle(isFailure ? .red : .green)
     }
 }
 
