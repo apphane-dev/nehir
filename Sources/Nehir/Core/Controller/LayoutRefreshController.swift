@@ -701,6 +701,43 @@ import QuartzCore
         return SpaceTopology.current(monitors: monitors, windowIds: windowIds)
     }
 
+    /// Collects the tokens of windows the given topology reports as present on every
+    /// known Space (global / `canJoinAllSpaces` windows).
+    private func globalStickyWindowTokens(
+        from entries: [WindowModel.Entry],
+        spaceTopology: SpaceTopology
+    ) -> Set<WindowToken> {
+        var tokens = Set<WindowToken>()
+        for entry in entries {
+            guard let windowId = UInt32(exactly: entry.windowId),
+                  spaceTopology.isWindowOnAllKnownSpaces(windowId: windowId)
+            else { continue }
+            tokens.insert(entry.token)
+        }
+        return tokens
+    }
+
+    /// Collects the tokens of windows whose native macOS Space is known and inactive.
+    /// This mirrors upstream OmniWM's hide-path guard: if the system already places a
+    /// surface on an inactive native Space, Nehir should not also park it offscreen.
+    private func nativeInactiveWindowTokens(
+        from entries: [WindowModel.Entry],
+        spaceTopology: SpaceTopology
+    ) -> Set<WindowToken> {
+        guard let controller else { return [] }
+        var tokens = Set<WindowToken>()
+        for entry in entries {
+            guard let windowId = UInt32(exactly: entry.windowId),
+                  spaceTopology.isWindowOnKnownInactiveNativeSpace(
+                      windowId: windowId,
+                      preferredSpaceId: controller.workspaceManager.nativeSpaceId(for: entry.windowId)
+                  )
+            else { continue }
+            tokens.insert(entry.token)
+        }
+        return tokens
+    }
+
     func spaceTopologyDebugDump() -> String {
         lastSpaceTopologyDebugSummary
     }
@@ -1443,7 +1480,21 @@ import QuartzCore
             monitors: controller.workspaceManager.monitors,
             trackedEntries: trackedEntries
         )
+        let globalStickyTokens = globalStickyWindowTokens(
+            from: trackedEntries,
+            spaceTopology: spaceTopology
+        )
+        let nativeInactiveTokens = nativeInactiveWindowTokens(
+            from: trackedEntries,
+            spaceTopology: spaceTopology
+        )
         lastSpaceTopologyDebugSummary = spaceTopology.debugSummary
+            + " globalSticky=\(globalStickyTokens.count) nativeInactive=\(nativeInactiveTokens.count)"
+        // Refresh the WorkspaceManager's set of global (all-Spaces) windows so the
+        // floating-resolution path can treat them as sticky across workspaces (Lever 2).
+        // Computed on every full rescan so the set stays fresh between switches.
+        controller.workspaceManager.setGlobalStickyWindowTokens(globalStickyTokens)
+        controller.workspaceManager.setNativeInactiveWindowTokens(nativeInactiveTokens)
         if shouldPreserveMissingWindows {
             // Native macOS fullscreen moves the app onto its own Space, so visible-window
             // enumeration temporarily excludes the rest of the managed workspace.
@@ -1468,7 +1519,10 @@ import QuartzCore
             var inactiveSpaceExemptions = 0
             for entry in trackedEntries {
                 guard let windowId = UInt32(exactly: entry.windowId),
-                      spaceTopology.isWindowOnKnownInactiveSpace(windowId: windowId)
+                      spaceTopology.isWindowOnKnownInactiveNativeSpace(
+                          windowId: windowId,
+                          preferredSpaceId: controller.workspaceManager.nativeSpaceId(for: entry.windowId)
+                      )
                 else { continue }
                 seenKeys.insert(.init(pid: entry.handle.pid, windowId: entry.windowId))
                 inactiveSpaceExemptions += 1
@@ -2214,6 +2268,15 @@ import QuartzCore
 
     func hideInactiveWorkspaces(activeWorkspaceIds: Set<WorkspaceDescriptor.ID>) {
         guard let controller else { return }
+        // Before taking the visibility snapshot, re-anchor any window macOS reports as
+        // global (present on every known Space, e.g. a browser Picture-in-Picture) to
+        // the active workspace on the monitor it is actually displayed on. Such a window
+        // is shown by macOS on every Space, so parking it offscreen when its original
+        // Nehir workspace goes inactive is exactly the #108 "disappears" symptom, and
+        // leaving its workspaceId pointing at the now-inactive workspace would leave it
+        // logically inactive-while-visible (the bleed/drift family). Re-anchoring here
+        // keeps the snapshot, the frame-suppression set, and the hide loop all coherent.
+        reanchorGlobalWindowsToActiveWorkspaces(activeWorkspaceIds: activeWorkspaceIds)
         let workspaceEntries = workspaceEntriesSnapshot(on: controller)
 
         // Rebuild the workspace-level frame suppression set (live check in applyFramesParallel).
@@ -2270,6 +2333,93 @@ import QuartzCore
         }
     }
 
+    /// Re-anchors windows macOS reports as global (present on every known Space) to
+    /// the active workspace on the monitor they are actually displayed on.
+    ///
+    /// A global window (e.g. a browser Picture-in-Picture with
+    /// `collectionBehavior = .canJoinAllSpaces`) is kept on-screen by macOS across
+    /// every Space. Nehir must not fight that: it must never park such a window when
+    /// its original Nehir workspace goes inactive, and it must keep the model coherent
+    /// so the window is never logically inactive-while-visible.
+    ///
+    /// This recomputes `SpaceTopology`, and for every entry that is present on all
+    /// known Spaces it (1) re-binds its `workspaceId` to the active workspace on the
+    /// monitor its live frame is on (so it belongs to an active workspace), (2)
+    /// refreshes its floating geometry to that live frame (so the floating resolver
+    /// keeps it on that monitor instead of snapping it back), (3) clears any stale
+    /// hide state, and (4) marks it active so its frame writes are not suppressed.
+    /// It also publishes the resulting global-token set to `WorkspaceManager` so the
+    /// floating-resolution path can treat these windows specially (Lever 2).
+    ///
+    /// Only discriminates when `knownSpaceIds.count > 1` (multi-display "Displays have
+    /// separate Spaces"). On a single display every window reports the one active
+    /// Space, so this is a no-op there.
+    private func reanchorGlobalWindowsToActiveWorkspaces(
+        activeWorkspaceIds: Set<WorkspaceDescriptor.ID>
+    ) {
+        guard let controller else { return }
+        let monitors = controller.workspaceManager.monitors
+        let trackedEntries = controller.workspaceManager.allEntries()
+        let spaceTopology = currentSpaceTopology(
+            monitors: monitors,
+            trackedEntries: trackedEntries
+        )
+
+        let globalTokens = globalStickyWindowTokens(
+            from: trackedEntries,
+            spaceTopology: spaceTopology
+        )
+        let nativeInactiveTokens = nativeInactiveWindowTokens(
+            from: trackedEntries,
+            spaceTopology: spaceTopology
+        )
+        lastSpaceTopologyDebugSummary = spaceTopology.debugSummary
+            + " globalSticky=\(globalTokens.count) nativeInactive=\(nativeInactiveTokens.count)"
+        if !nativeInactiveTokens.isEmpty {
+            lastSpaceTopologyDebugSummary += " exempted=\(nativeInactiveTokens.count)"
+        }
+        controller.workspaceManager.setGlobalStickyWindowTokens(globalTokens)
+        controller.workspaceManager.setNativeInactiveWindowTokens(nativeInactiveTokens)
+
+        for entry in trackedEntries where globalTokens.contains(entry.token) {
+            let liveFrame = fastFrame(for: entry.token, axRef: entry.axRef)
+            let physicalMonitor = liveFrame?.center.monitorApproximation(in: monitors)
+                ?? controller.workspaceManager.monitor(for: entry.workspaceId)
+            let targetWorkspaceId = physicalMonitor
+                .flatMap { activeWorkspaceId(on: $0.id, among: activeWorkspaceIds) }
+
+            if let targetWorkspaceId, targetWorkspaceId != entry.workspaceId {
+                controller.workspaceManager.setWorkspace(for: entry.token, to: targetWorkspaceId)
+            }
+            if let liveFrame {
+                controller.workspaceManager.updateFloatingGeometry(
+                    frame: liveFrame,
+                    for: entry.token
+                )
+            }
+            // A global window is never parked offscreen; clear any stale hide state
+            // and make sure its frame writes are not suppressed as inactive-workspace.
+            controller.workspaceManager.setHiddenState(nil, for: entry.token)
+            controller.axManager.unsuppressFrameWrites([(entry.pid, entry.windowId)])
+            controller.axManager.markWindowActive(entry.windowId)
+        }
+    }
+
+    /// Resolves which of the given active workspace IDs lives on a monitor, without
+    /// depending on `WorkspaceManager`'s active-workspace state being committed yet.
+    private func activeWorkspaceId(
+        on monitorId: Monitor.ID,
+        among activeWorkspaceIds: Set<WorkspaceDescriptor.ID>
+    ) -> WorkspaceDescriptor.ID? {
+        guard let controller else { return nil }
+        for workspaceId in activeWorkspaceIds
+            where controller.workspaceManager.monitor(for: workspaceId)?.id == monitorId
+        {
+            return workspaceId
+        }
+        return nil
+    }
+
     private func hideWorkspace(
         _ entries: [WindowModel.Entry],
         monitor: Monitor,
@@ -2281,7 +2431,27 @@ import QuartzCore
             guard controller.workspaceManager.layoutReason(for: entry.token) != .nativeFullscreen else {
                 continue
             }
+            // Lever 1: a window macOS reports as present on every known Space (e.g. a
+            // browser Picture-in-Picture) must never be parked offscreen when a Nehir
+            // workspace goes inactive — macOS is deliberately showing it on every
+            // Space. `reanchorGlobalWindowsToActiveWorkspaces` normally moves such a
+            // window into the active workspace before this point, so this guard is the
+            // defensive backstop that keeps the window visible and active if it reaches
+            // the hide path bound to an inactive workspace.
+            if controller.workspaceManager.isGlobalStickyWindow(entry.token) {
+                controller.workspaceManager.setHiddenState(nil, for: entry.token)
+                controller.axManager.unsuppressFrameWrites([(entry.pid, entry.windowId)])
+                controller.axManager.markWindowActive(entry.windowId)
+                continue
+            }
             controller.axManager.markWindowInactive(entry.windowId)
+            // Upstream OmniWM guard: if the window belongs to a known inactive native
+            // macOS Space already, do not also park it offscreen for Nehir's virtual
+            // workspace switch. It remains inactive from Nehir's perspective, but the
+            // system is responsible for showing it only on its native Space.
+            if controller.workspaceManager.isNativeInactiveWindow(entry.token) {
+                continue
+            }
             // Skip moving windows already hidden offscreen by the layout engine.
             // They're already parked — no need to shuffle them to the other side.
             if let hiddenState = controller.workspaceManager.hiddenState(for: entry.token) {
@@ -2336,7 +2506,9 @@ import QuartzCore
         let entries = controller.workspaceManager.allEntries()
         let lines = entries.compactMap { entry -> String? in
             guard let hiddenState = controller.workspaceManager.hiddenState(for: entry.token),
-                  hiddenState.workspaceInactive
+                  hiddenState.workspaceInactive,
+                  // Global (all-Spaces) windows are intentionally visible across switches.
+                  !controller.workspaceManager.isGlobalStickyWindow(entry.token)
             else { return nil }
             let monitor = controller.workspaceManager.monitor(for: entry.workspaceId)
                 ?? hiddenState.referenceMonitorId.flatMap { controller.workspaceManager.monitor(byId: $0) }
@@ -2381,6 +2553,9 @@ import QuartzCore
         if requireTraceCapture {
             guard controller.isRuntimeTraceCaptureActive else { return nil }
         }
+        // A global (all-Spaces) window is deliberately left visible across workspace
+        // switches; it must never be accused as inactive-while-visible bleed.
+        guard !controller.workspaceManager.isGlobalStickyWindow(entry.token) else { return nil }
         guard hiddenState.workspaceInactive else { return nil }
         guard let liveFrame = AXWindowService.framePreferFast(entry.axRef)
             ?? (try? AXWindowService.frame(entry.axRef))

@@ -31,6 +31,12 @@ struct SpaceTopology: Equatable, Sendable {
         mode == .enabled && !activeSpaceIdsByDisplayId.isEmpty && !knownSpaceIds.isEmpty
     }
 
+    func isKnownInactiveSpace(_ spaceId: UInt64) -> Bool {
+        guard isEnabledAndPopulated, spaceId != 0 else { return false }
+        return knownSpaceIds.contains(spaceId)
+            && !Set(activeSpaceIdsByDisplayId.values).contains(spaceId)
+    }
+
     func isWindowOnKnownInactiveSpace(windowId: UInt32) -> Bool {
         guard isEnabledAndPopulated,
               let candidates = spaceIdsByWindowId[windowId],
@@ -44,6 +50,38 @@ struct SpaceTopology: Equatable, Sendable {
 
         let knownCandidates = candidates.filter(knownSpaceIds.contains)
         return !knownCandidates.isEmpty
+    }
+
+    func isWindowOnKnownInactiveNativeSpace(windowId: UInt32, preferredSpaceId: UInt64?) -> Bool {
+        if let preferredSpaceId, isKnownInactiveSpace(preferredSpaceId) {
+            return true
+        }
+        return isWindowOnKnownInactiveSpace(windowId: windowId)
+    }
+
+    /// True when a window appears on every known macOS Space.
+    ///
+    /// A window whose `collectionBehavior` includes `.canJoinAllSpaces` (for example a
+    /// browser Picture-in-Picture mini-window) is placed by macOS on every Space, so
+    /// the Space IDs it reports cover all of `knownSpaceIds`. A normal
+    /// workspace-bound window appears on exactly one Space.
+    ///
+    /// This is the correct discriminator for exempting a global window from
+    /// workspace-switch parking — unlike `isWindowOnKnownInactiveSpace`, which
+    /// Nehir's virtual workspaces (simulated within one macOS Space by parking
+    /// windows) make return `false` for both normal and global windows.
+    ///
+    /// It only discriminates when there is more than one known Space (multi-display
+    /// "Displays have separate Spaces", the reporter's setup). On a single display
+    /// `knownSpaceIds.count == 1`, so both a global and a normal window report that
+    /// one active Space and are indistinguishable by Space membership alone; that
+    /// case is left for a future user-declared `sticky` rule.
+    func isWindowOnAllKnownSpaces(windowId: UInt32) -> Bool {
+        guard isEnabledAndPopulated, knownSpaceIds.count > 1 else { return false }
+        guard let candidates = spaceIdsByWindowId[windowId] else { return false }
+        // A `canJoinAllSpaces` window may also report Space IDs Nehir does not track;
+        // what matters is that it covers every Space Nehir knows about.
+        return knownSpaceIds.isSubset(of: Set(candidates))
     }
 
     @MainActor
