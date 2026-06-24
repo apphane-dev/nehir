@@ -377,14 +377,15 @@ These commands are exposed consistently through IPC/CLI, the command palette, an
 | `command debug restart-clearing-runtime-state` | — | command | Clear runtime debugging state, relaunch the app, and exit the current process |
 | `command debug trace toggle` | — | command | Start runtime debugging trace capture, or stop and export the active capture |
 | `command debug trace toggle` | `<active\|inactive>` | command | Ensure trace capture is in the desired state (idempotent; returns `executed` even if already in that state) |
+| `command debug capture-recent-trace` | — | command | Export a recent clip from the running trace capture buffer |
 
 The default hotkey is:
 
 - `Ctrl+Option+Cmd+T` — Debug: Toggle Trace Capture
 
-The optional workspace-bar **Show Trace Capture Button** setting adds the same toggle button to the bar, which is useful when collecting a reproduction trace for feedback.
+Developer Mode also shows the DebugBar overlay with trace recording, recent-clip export, reset-buffer, retention-cycle, and buffer-status controls. The buffer is tied to the existing trace capture toggle; workspace-bar trace controls were removed so workspace navigation and debug actions stay separate.
 
-Runtime dumps include separate focus-target fields so gesture and hotkey bugs can be diagnosed without conflating concepts: `wmCommandTarget`, `wmCommandTargetSource`, `layoutSelection`, `observedManagedFocus`, `focusRequest`, `borderTarget`, `interactionWorkspace`, `interactionMonitor`, `nonManaged`, `runtimeTraceCaptureActive`, `runtimeTraceStartedAt`, and `viewportTraceRecords`.
+Runtime dumps include separate focus-target fields so gesture and hotkey bugs can be diagnosed without conflating concepts: `wmCommandTarget`, `wmCommandTargetSource`, `layoutSelection`, `observedManagedFocus`, `focusRequest`, `borderTarget`, `interactionWorkspace`, `interactionMonitor`, `nonManaged`, `runtimeTraceCaptureActive`, `runtimeTraceStartedAt`, `viewportTraceRecords`, and background trace buffer status fields.
 
 ---
 

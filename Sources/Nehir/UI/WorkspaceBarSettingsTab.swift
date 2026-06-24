@@ -72,17 +72,8 @@ private struct GlobalBarSettingsSection: View {
                     }
 
                 if settings.developerModeEnabled {
-                    Toggle(isOn: $settings.workspaceBarShowTraceButton) {
-                        HStack(spacing: 8) {
-                            Text("Show Trace Capture Button")
-                            DeveloperBadge()
-                        }
-                    }
-                    .onChange(of: settings.workspaceBarShowTraceButton) { _, _ in
-                        controller.updateWorkspaceBarSettings()
-                    }
-                    .help(
-                        "Adds a workspace bar button that starts or stops runtime trace capture for debugging reports."
+                    SettingsCaption(
+                        "Developer trace controls now live in the DebugBar, keeping workspace navigation separate from debugging actions."
                     )
                 }
 

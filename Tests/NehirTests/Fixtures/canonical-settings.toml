@@ -27,6 +27,10 @@ right = 0.0
 top = 0.0
 
 [general]
+backgroundTraceMaxBytes = 67108864
+backgroundTraceRetentionSeconds = 0.0
+debugBarEnabled = true
+debugTraceExportCopiesFile = false
 developerModeEnabled = false
 hotkeysEnabled = true
 ignoreMonitorIdentity = false

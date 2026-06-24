@@ -268,6 +268,22 @@ final class SettingsStore {
         didSet { scheduleSave() }
     }
 
+    var debugBarEnabled = SettingsStore.defaultExport.debugBarEnabled {
+        didSet { scheduleSave() }
+    }
+
+    var debugTraceExportCopiesFile = SettingsStore.defaultExport.debugTraceExportCopiesFile {
+        didSet { scheduleSave() }
+    }
+
+    var backgroundTraceRetentionSeconds = SettingsStore.defaultExport.backgroundTraceRetentionSeconds {
+        didSet { scheduleSave() }
+    }
+
+    var backgroundTraceMaxBytes = SettingsStore.defaultExport.backgroundTraceMaxBytes {
+        didSet { scheduleSave() }
+    }
+
     var ignoreMonitorIdentity = SettingsStore.defaultExport.ignoreMonitorIdentity {
         didSet { scheduleSave() }
     }
@@ -316,6 +332,11 @@ final class SettingsStore {
 
     var commandPaletteLastMode = RuntimeStateStore.defaultCommandPaletteLastMode {
         didSet { runtimeState.commandPaletteLastMode = commandPaletteLastMode }
+    }
+
+    var debugBarOrigin: CGPoint? {
+        get { runtimeState.debugBarOrigin }
+        set { runtimeState.debugBarOrigin = newValue }
     }
 
     var appearanceMode = AppearanceMode(
@@ -462,6 +483,10 @@ final class SettingsStore {
             statusBarUseWorkspaceId: statusBarUseWorkspaceId,
             appearanceMode: appearanceMode.rawValue,
             developerModeEnabled: developerModeEnabled,
+            debugBarEnabled: debugBarEnabled,
+            debugTraceExportCopiesFile: debugTraceExportCopiesFile,
+            backgroundTraceRetentionSeconds: backgroundTraceRetentionSeconds,
+            backgroundTraceMaxBytes: backgroundTraceMaxBytes,
             ignoreMonitorIdentity: ignoreMonitorIdentity,
             capabilityOverrides: [],
             settingsTOMLUnknownFields: settingsTOMLUnknownFields
@@ -564,6 +589,10 @@ final class SettingsStore {
 
         appearanceMode = AppearanceMode(rawValue: export.appearanceMode) ?? .dark
         developerModeEnabled = export.developerModeEnabled
+        debugBarEnabled = export.debugBarEnabled
+        debugTraceExportCopiesFile = export.debugTraceExportCopiesFile
+        backgroundTraceRetentionSeconds = max(0, export.backgroundTraceRetentionSeconds)
+        backgroundTraceMaxBytes = max(1, export.backgroundTraceMaxBytes)
         ignoreMonitorIdentity = export.ignoreMonitorIdentity
         settingsTOMLUnknownFields = export.settingsTOMLUnknownFields
     }

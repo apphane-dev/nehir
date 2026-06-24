@@ -39,11 +39,17 @@ struct CanonicalTOMLConfig: Codable, Equatable {
         var preventSleepEnabled: Bool
         var ipcEnabled: Bool
         var developerModeEnabled: Bool
+        var debugBarEnabled: Bool
+        var debugTraceExportCopiesFile: Bool
+        var backgroundTraceRetentionSeconds: TimeInterval
+        var backgroundTraceMaxBytes: Int
         var ignoreMonitorIdentity: Bool
         var unknownFields: [String: SettingsTOMLUnknownValue] = [:]
 
         enum CodingKeys: String, CodingKey, CaseIterable {
-            case hotkeysEnabled, preventSleepEnabled, ipcEnabled, developerModeEnabled, ignoreMonitorIdentity
+            case hotkeysEnabled, preventSleepEnabled, ipcEnabled, developerModeEnabled,
+                 debugBarEnabled, debugTraceExportCopiesFile, backgroundTraceRetentionSeconds,
+                 backgroundTraceMaxBytes, ignoreMonitorIdentity
         }
     }
 
@@ -253,6 +259,10 @@ extension CanonicalTOMLConfig {
             preventSleepEnabled: export.preventSleepEnabled,
             ipcEnabled: export.ipcEnabled,
             developerModeEnabled: export.developerModeEnabled,
+            debugBarEnabled: export.debugBarEnabled,
+            debugTraceExportCopiesFile: export.debugTraceExportCopiesFile,
+            backgroundTraceRetentionSeconds: export.backgroundTraceRetentionSeconds,
+            backgroundTraceMaxBytes: export.backgroundTraceMaxBytes,
             ignoreMonitorIdentity: export.ignoreMonitorIdentity,
             unknownFields: unknown["general"] ?? [:]
         )
@@ -430,6 +440,10 @@ extension CanonicalTOMLConfig {
             statusBarUseWorkspaceId: statusBar.useWorkspaceId,
             appearanceMode: appearance.mode,
             developerModeEnabled: general.developerModeEnabled,
+            debugBarEnabled: general.debugBarEnabled,
+            debugTraceExportCopiesFile: general.debugTraceExportCopiesFile,
+            backgroundTraceRetentionSeconds: general.backgroundTraceRetentionSeconds,
+            backgroundTraceMaxBytes: general.backgroundTraceMaxBytes,
             ignoreMonitorIdentity: general.ignoreMonitorIdentity,
             settingsTOMLUnknownFields: unknown
         )
@@ -489,6 +503,26 @@ extension CanonicalTOMLConfig.General {
             forKey: .developerModeEnabled,
             default: d.developerModeEnabled
         )
+        debugBarEnabled = try container.decodeWithDefault(
+            Bool.self,
+            forKey: .debugBarEnabled,
+            default: d.debugBarEnabled
+        )
+        debugTraceExportCopiesFile = try container.decodeWithDefault(
+            Bool.self,
+            forKey: .debugTraceExportCopiesFile,
+            default: d.debugTraceExportCopiesFile
+        )
+        backgroundTraceRetentionSeconds = try container.decodeWithDefault(
+            TimeInterval.self,
+            forKey: .backgroundTraceRetentionSeconds,
+            default: d.backgroundTraceRetentionSeconds
+        )
+        backgroundTraceMaxBytes = try container.decodeWithDefault(
+            Int.self,
+            forKey: .backgroundTraceMaxBytes,
+            default: d.backgroundTraceMaxBytes
+        )
         ignoreMonitorIdentity = try container.decodeWithDefault(
             Bool.self,
             forKey: .ignoreMonitorIdentity,
@@ -503,6 +537,10 @@ extension CanonicalTOMLConfig.General {
         try container.encode(preventSleepEnabled, forKey: "preventSleepEnabled")
         try container.encode(ipcEnabled, forKey: "ipcEnabled")
         try container.encode(developerModeEnabled, forKey: "developerModeEnabled")
+        try container.encode(debugBarEnabled, forKey: "debugBarEnabled")
+        try container.encode(debugTraceExportCopiesFile, forKey: "debugTraceExportCopiesFile")
+        try container.encode(backgroundTraceRetentionSeconds, forKey: "backgroundTraceRetentionSeconds")
+        try container.encode(backgroundTraceMaxBytes, forKey: "backgroundTraceMaxBytes")
         try container.encode(ignoreMonitorIdentity, forKey: "ignoreMonitorIdentity")
         try container.encodeUnknownFields(unknownFields)
     }

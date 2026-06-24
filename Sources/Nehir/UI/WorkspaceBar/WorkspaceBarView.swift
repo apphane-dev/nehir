@@ -73,8 +73,6 @@ struct WorkspaceBarSnapshot: Equatable {
     let showLabels: Bool
     let backgroundOpacity: Double
     let barHeight: CGFloat
-    let showTraceCaptureButton: Bool
-    let traceCaptureStatus: WMController.RuntimeTraceCaptureStatus
     let hasDisplayDiagnosticsWarning: Bool
     let accentColor: SettingsColor?
     let textColor: SettingsColor?
@@ -104,7 +102,6 @@ struct WorkspaceBarView: View {
     let onFocusWindow: (WindowToken) -> Void
     let onActivateScratchpad: () -> Void
     let onOpenCommandPalette: () -> Void
-    let onToggleTraceCapture: () -> Void
     let onOpenDiagnostics: () -> Void
 
     var body: some View {
@@ -115,7 +112,6 @@ struct WorkspaceBarView: View {
             onFocusWindow: onFocusWindow,
             onActivateScratchpad: onActivateScratchpad,
             onOpenCommandPalette: onOpenCommandPalette,
-            onToggleTraceCapture: onToggleTraceCapture,
             onOpenDiagnostics: onOpenDiagnostics
         )
     }
@@ -133,7 +129,6 @@ struct WorkspaceBarMeasurementView: View {
             onFocusWindow: { _ in },
             onActivateScratchpad: {},
             onOpenCommandPalette: {},
-            onToggleTraceCapture: {},
             onOpenDiagnostics: {}
         )
         .fixedSize(horizontal: true, vertical: false)
@@ -148,7 +143,6 @@ private struct WorkspaceBarContentView: View {
     let onFocusWindow: (WindowToken) -> Void
     let onActivateScratchpad: () -> Void
     let onOpenCommandPalette: () -> Void
-    let onToggleTraceCapture: () -> Void
     let onOpenDiagnostics: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
@@ -217,18 +211,6 @@ private struct WorkspaceBarContentView: View {
                     accentColor: accentColor,
                     textColor: textColor,
                     onActivateScratchpad: onActivateScratchpad
-                )
-            }
-
-            if snapshot.showTraceCaptureButton {
-                TraceCaptureBarButton(
-                    isActive: snapshot.traceCaptureStatus.isActive,
-                    startedAt: snapshot.traceCaptureStatus.startedAt,
-                    iconSize: iconSize,
-                    itemHeight: itemHeight,
-                    accentColor: accentColor,
-                    textColor: textColor,
-                    onToggleTraceCapture: onToggleTraceCapture
                 )
             }
 
@@ -705,67 +687,6 @@ private struct WindowCountBadge: View {
             )
             .frame(minWidth: max(12, iconSize * 0.55), minHeight: max(12, iconSize * 0.55))
             .accessibilityHidden(true)
-    }
-}
-
-@MainActor
-private struct TraceCaptureBarButton: View {
-    let isActive: Bool
-    let startedAt: Date?
-    let iconSize: CGFloat
-    let itemHeight: CGFloat
-    let accentColor: Color?
-    let textColor: Color?
-    let onToggleTraceCapture: () -> Void
-
-    @State private var isHovered = false
-
-    private var resolvedIconColor: Color {
-        isActive ? .red : (textColor ?? .secondary)
-    }
-
-    private var symbolName: String {
-        isActive ? "record.circle.fill" : "record.circle"
-    }
-
-    private var accessibilityText: String {
-        isActive ? "Debug: Stop Trace Capture" : "Debug: Start Trace Capture"
-    }
-
-    private var helpText: String {
-        guard isActive else { return "Debug: Start Trace Capture" }
-        guard let startedAt else { return "Debug: Stop Trace Capture" }
-        let time = DateFormatter.localizedString(from: startedAt, dateStyle: .none, timeStyle: .medium)
-        return "Debug: Stop Trace Capture (started at \(time))"
-    }
-
-    var body: some View {
-        Button(action: onToggleTraceCapture) {
-            Image(systemName: symbolName)
-                .font(.system(size: max(10, iconSize * 0.7), weight: isActive ? .semibold : .medium))
-                .foregroundStyle(resolvedIconColor)
-                .frame(width: itemHeight, height: itemHeight)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .scaleEffect(isHovered ? 1.03 : 1.0)
-        .background {
-            if isHovered || isActive {
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(isActive ? Color.red.opacity(0.16) : Color.clear)
-                    .background {
-                        if isHovered {
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .fill(.regularMaterial)
-                        }
-                    }
-            }
-        }
-        .onHover { hovering in
-            isHovered = hovering
-        }
-        .accessibilityLabel(accessibilityText)
-        .help(helpText)
     }
 }
 

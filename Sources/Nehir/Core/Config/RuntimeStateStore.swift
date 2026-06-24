@@ -11,6 +11,7 @@ import Foundation
 struct RuntimeState: Codable, Equatable {
     var windowRestoreCatalog: PersistedWindowRestoreCatalog?
     var commandPaletteLastMode: String?
+    var debugBarOrigin: CGPoint?
 }
 
 @MainActor
@@ -91,6 +92,15 @@ final class RuntimeStateStore {
         set {
             guard commandPaletteLastMode != newValue else { return }
             state.commandPaletteLastMode = newValue.rawValue
+            scheduleSave()
+        }
+    }
+
+    var debugBarOrigin: CGPoint? {
+        get { state.debugBarOrigin }
+        set {
+            guard state.debugBarOrigin != newValue else { return }
+            state.debugBarOrigin = newValue
             scheduleSave()
         }
     }
