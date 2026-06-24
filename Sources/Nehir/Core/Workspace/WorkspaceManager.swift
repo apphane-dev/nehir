@@ -214,6 +214,21 @@ final class WorkspaceManager {
     private var bootPersistedWindowRestoreCatalog: PersistedWindowRestoreCatalog
     private var nativeFullscreenRecordsByOriginalToken: [WindowToken: NativeFullscreenRecord] = [:]
     private var nativeFullscreenOriginalTokenByCurrentToken: [WindowToken: WindowToken] = [:]
+    /// Tokens of windows macOS reports as present on every known Space
+    /// (`collectionBehavior = .canJoinAllSpaces`, e.g. a browser Picture-in-Picture
+    /// mini-window). Refreshed by `LayoutRefreshController` whenever it recomputes
+    /// `SpaceTopology`. Such windows are never parked on workspace switch and must
+    /// not be clamped back to a stale reference monitor on a cross-monitor drag.
+    private var globalStickyWindowTokens: Set<WindowToken> = []
+    /// Last native macOS Space ID observed from CGS create notifications, keyed by
+    /// WindowServer window ID. This mirrors upstream OmniWM's native-space tracking
+    /// and complements `SLSCopySpacesForWindows`: a window may have multiple candidate
+    /// Spaces (or stale candidates), while the CGS create event gives the native Space
+    /// the system reported for that surface at creation time.
+    private var nativeSpaceIdByWindowId: [Int: UInt64] = [:]
+    /// Tokens whose native Space is known and inactive in the current SpaceTopology.
+    /// Refreshed by `LayoutRefreshController` before inactive workspace hiding.
+    private var nativeInactiveWindowTokens: Set<WindowToken> = []
     private var consumedBootPersistedWindowRestoreEntries: Set<PersistedWindowRestoreConsumptionKey> = []
     private var persistedWindowRestoreCatalogDirty = false
     private var persistedWindowRestoreCatalogSaveScheduled = false
@@ -458,6 +473,9 @@ final class WorkspaceManager {
         runtimeStore = RuntimeStore(traceRecorder: reconcileTrace)
         nativeFullscreenRecordsByOriginalToken.removeAll()
         nativeFullscreenOriginalTokenByCurrentToken.removeAll()
+        globalStickyWindowTokens.removeAll()
+        nativeSpaceIdByWindowId.removeAll()
+        nativeInactiveWindowTokens.removeAll()
         consumedBootPersistedWindowRestoreEntries.removeAll()
         disconnectedVisibleWorkspaceCache.removeAll()
         persistedWindowRestoreCatalogDirty = false
@@ -2532,6 +2550,18 @@ final class WorkspaceManager {
             return nil
         }
 
+        if let nativeSpaceId = nativeSpaceIdByWindowId.removeValue(forKey: oldToken.windowId),
+           nativeSpaceIdByWindowId[newToken.windowId] == nil
+        {
+            nativeSpaceIdByWindowId[newToken.windowId] = nativeSpaceId
+        }
+        if globalStickyWindowTokens.remove(oldToken) != nil {
+            globalStickyWindowTokens.insert(newToken)
+        }
+        if nativeInactiveWindowTokens.remove(oldToken) != nil {
+            nativeInactiveWindowTokens.insert(newToken)
+        }
+
         if let originalToken = nativeFullscreenOriginalToken(for: oldToken),
            var record = nativeFullscreenRecordsByOriginalToken[originalToken]
         {
@@ -2805,6 +2835,40 @@ final class WorkspaceManager {
         windows.setManualLayoutOverride(override, for: token)
     }
 
+    /// Replaces the set of windows treated as global (present on every known Space).
+    /// Called by `LayoutRefreshController` after recomputing `SpaceTopology`.
+    func setGlobalStickyWindowTokens(_ tokens: Set<WindowToken>) {
+        globalStickyWindowTokens = tokens
+    }
+
+    func isGlobalStickyWindow(_ token: WindowToken) -> Bool {
+        globalStickyWindowTokens.contains(token)
+    }
+
+    func noteNativeSpace(windowId: UInt32, spaceId: UInt64) {
+        guard spaceId != 0 else { return }
+        nativeSpaceIdByWindowId[Int(windowId)] = spaceId
+    }
+
+    func forgetNativeSpace(windowId: UInt32) {
+        nativeSpaceIdByWindowId.removeValue(forKey: Int(windowId))
+    }
+
+    func nativeSpaceId(for windowId: Int) -> UInt64? {
+        nativeSpaceIdByWindowId[windowId]
+    }
+
+    /// Replaces the set of windows whose native macOS Space is known and inactive.
+    /// These windows are already off the active native Space, so workspace hiding must
+    /// not also park them offscreen.
+    func setNativeInactiveWindowTokens(_ tokens: Set<WindowToken>) {
+        nativeInactiveWindowTokens = tokens
+    }
+
+    func isNativeInactiveWindow(_ token: WindowToken) -> Bool {
+        nativeInactiveWindowTokens.contains(token)
+    }
+
     func updateFloatingGeometry(
         frame: CGRect,
         for token: WindowToken,
@@ -2815,7 +2879,10 @@ final class WorkspaceManager {
 
         let resolvedReferenceMonitor = referenceMonitor
             ?? frame.center.monitorApproximation(in: monitors)
-            ?? monitor(for: entry.workspaceId)
+            // A global (all-Spaces) window must keep whatever monitor its frame is
+            // actually on; falling back to the workspace's monitor here would re-anchor
+            // it to a stale display and snap a cross-monitor drag back on the next resolve.
+            ?? (isGlobalStickyWindow(token) ? nil : monitor(for: entry.workspaceId))
         let referenceVisibleFrame = resolvedReferenceMonitor?.visibleFrame ?? frame
         let normalizedOrigin = normalizedFloatingOrigin(
             for: frame,
@@ -2853,9 +2920,18 @@ final class WorkspaceManager {
             return nil
         }
 
-        let targetMonitor = preferredMonitor
-            ?? monitor(for: entry.workspaceId)
-            ?? floatingState.referenceMonitorId.flatMap { monitor(byId: $0) }
+        // A global (all-Spaces) window follows the monitor it is actually displayed
+        // on (its last frame), not the monitor of its workspace binding, so a
+        // cross-monitor drag is not reverted on the next refresh.
+        let targetMonitor: Monitor?
+        if isGlobalStickyWindow(token) {
+            targetMonitor = preferredMonitor
+                ?? floatingState.lastFrame.center.monitorApproximation(in: monitors)
+        } else {
+            targetMonitor = preferredMonitor
+                ?? monitor(for: entry.workspaceId)
+                ?? floatingState.referenceMonitorId.flatMap { monitor(byId: $0) }
+        }
         let visibleFrame = targetMonitor?.visibleFrame ?? floatingState.lastFrame
 
         if let targetMonitor,
@@ -2926,6 +3002,9 @@ final class WorkspaceManager {
             )
         )
         _ = removeNativeFullscreenRecord(containing: entry.token)
+        nativeSpaceIdByWindowId.removeValue(forKey: entry.windowId)
+        globalStickyWindowTokens.remove(entry.token)
+        nativeInactiveWindowTokens.remove(entry.token)
         handleWindowRemoved(entry.token, in: entry.workspaceId)
         _ = windows.removeWindow(key: entry.token)
         invalidateWorkspaceProjection(reason: "windowRemoved")

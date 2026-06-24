@@ -518,12 +518,15 @@ final class AXEventHandler: CGSEventDelegate {
         switch event {
         case let .created(windowId, spaceId):
             handleCGSWindowCreated(windowId: windowId, spaceId: spaceId)
+            controller.workspaceManager.noteNativeSpace(windowId: windowId, spaceId: spaceId)
 
         case let .destroyed(windowId, _):
             handleCGSWindowDestroyed(windowId: windowId)
+            controller.workspaceManager.forgetNativeSpace(windowId: windowId)
 
         case let .closed(windowId):
             handleCGSWindowDestroyed(windowId: windowId)
+            controller.workspaceManager.forgetNativeSpace(windowId: windowId)
 
         case let .frameChanged(windowId):
             handleFrameChanged(windowId: windowId)
