@@ -3144,6 +3144,8 @@ final class WMController {
             String(describing: mouseWarpSnapshot),
             "-- CGSEventObserver --",
             String(describing: cgsSnapshot),
+            "-- Workspace Bar Floating Projection Trace --",
+            workspaceManager.floatingBarProjectionTraceDump(),
             "-- Workspace Bar Frame Trace --",
             workspaceBarManager.runtimeFrameTraceDebugDump(),
             "-- Workspace Bar --",
@@ -3397,6 +3399,7 @@ final class WMController {
         syncNiriResizeTraceSink()
         workspaceManager.resetReconcileTraceForDebug()
         workspaceManager.resetInteractionMonitorWriteTraceForDebug()
+        workspaceManager.resetFloatingBarProjectionTraceForDebug()
         AppAXContext.resetRawAXNotificationTraceForDebug()
         workspaceBarManager.update()
         debugBarManager.update()
@@ -3436,6 +3439,7 @@ final class WMController {
             : createFocusTraceEvents.map(\.description).joined(separator: "\n")
         let rawAXNotificationDump = AppAXContext.rawAXNotificationTraceDump()
         let interactionMonitorWriteDump = workspaceManager.interactionMonitorWriteTraceDump()
+        let floatingBarProjectionDump = workspaceManager.floatingBarProjectionTraceDump()
         let body = [
             "Nehir runtime trace capture",
             "startedAt=\(session.startedAt.ISO8601Format())",
@@ -3465,6 +3469,9 @@ final class WMController {
             "",
             "## Interaction monitor writes",
             interactionMonitorWriteDump,
+            "",
+            "## Floating bar projection trace",
+            floatingBarProjectionDump,
             "",
             "## Mouse focus trace",
             mouseTraceDump,

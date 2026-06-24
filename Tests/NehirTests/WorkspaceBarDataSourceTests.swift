@@ -234,6 +234,216 @@ import Testing
         #expect(workspaceItem.windows.map(\.windowId) == [1001, 1002])
     }
 
+    @Test @MainActor func tinyTransientFloatingHelperIsExcludedFromFloatingWindows() throws {
+        let controller = makeLayoutPlanTestController()
+        guard let monitor = controller.workspaceManager.monitors.first,
+              let workspace2 = controller.workspaceManager.workspaceId(for: "2", createIfMissing: false)
+        else {
+            Issue.record("Missing workspace bar fixture")
+            return
+        }
+
+        controller.appInfoCache.storeInfoForTests(pid: 6402, name: "Zoom", bundleId: "us.zoom.xos")
+        let helperFrame = CGRect(x: 77, y: 68, width: 56, height: 56)
+        let token = controller.workspaceManager.addWindow(
+            makeLayoutPlanTestWindow(windowId: 942),
+            pid: 6402,
+            windowId: 942,
+            to: workspace2,
+            mode: .floating,
+            managedReplacementMetadata: ManagedReplacementMetadata(
+                bundleId: "us.zoom.xos",
+                workspaceId: workspace2,
+                mode: .floating,
+                role: "AXWindow",
+                subrole: nil,
+                title: nil,
+                windowLevel: nil,
+                parentWindowId: nil,
+                frame: helperFrame,
+                transientWindowServerEvidence: true,
+                degradedWindowServerChildEvidence: false
+            )
+        )
+        controller.workspaceManager.updateFloatingGeometry(frame: helperFrame, for: token)
+
+        let projection = WorkspaceBarDataSource.workspaceBarProjection(
+            for: monitor,
+            options: WorkspaceBarProjectionOptions(
+                deduplicateAppIcons: false,
+                hideEmptyWorkspaces: true,
+                showFloatingWindows: true
+            ),
+            workspaceManager: controller.workspaceManager,
+            appInfoCache: controller.appInfoCache,
+            niriEngine: nil,
+            focusedToken: controller.workspaceManager.confirmedManagedFocusToken,
+            settings: controller.settings
+        )
+
+        #expect(projection.items.map(\.id).contains(workspace2) == false)
+    }
+
+    @Test @MainActor func tinyWindowServerChildHelperIsExcludedFromFloatingWindows() throws {
+        let controller = makeLayoutPlanTestController()
+        guard let monitor = controller.workspaceManager.monitors.first,
+              let workspace1 = controller.workspaceManager.workspaceId(for: "1", createIfMissing: false)
+        else {
+            Issue.record("Missing workspace bar fixture")
+            return
+        }
+
+        controller.appInfoCache.storeInfoForTests(pid: 6501, name: "Helium", bundleId: "net.imput.helium")
+        let helperFrame = CGRect(x: 1034, y: 2, width: 38, height: 43)
+        let token = controller.workspaceManager.addWindow(
+            makeLayoutPlanTestWindow(windowId: 952),
+            pid: 6501,
+            windowId: 952,
+            to: workspace1,
+            mode: .floating,
+            managedReplacementMetadata: ManagedReplacementMetadata(
+                bundleId: "net.imput.helium",
+                workspaceId: workspace1,
+                mode: .floating,
+                role: "AXWindow",
+                subrole: nil,
+                title: nil,
+                windowLevel: nil,
+                parentWindowId: 537,
+                frame: helperFrame,
+                transientWindowServerEvidence: false,
+                degradedWindowServerChildEvidence: false
+            )
+        )
+        controller.workspaceManager.updateFloatingGeometry(frame: helperFrame, for: token)
+
+        let items = WorkspaceBarDataSource.workspaceBarItems(
+            for: monitor,
+            options: WorkspaceBarProjectionOptions(
+                deduplicateAppIcons: false,
+                hideEmptyWorkspaces: false,
+                showFloatingWindows: true
+            ),
+            workspaceManager: controller.workspaceManager,
+            appInfoCache: controller.appInfoCache,
+            niriEngine: nil,
+            focusedToken: controller.workspaceManager.confirmedManagedFocusToken,
+            settings: controller.settings
+        )
+
+        let workspaceItem = try #require(items.first(where: { $0.id == workspace1 }))
+        #expect(workspaceItem.floatingWindows.isEmpty)
+        #expect(workspaceItem.windows.isEmpty)
+    }
+
+    @Test @MainActor func tinyDegradedWindowServerChildHelperIsExcludedFromFloatingWindows() throws {
+        let controller = makeLayoutPlanTestController()
+        guard let monitor = controller.workspaceManager.monitors.first,
+              let workspace1 = controller.workspaceManager.workspaceId(for: "1", createIfMissing: false)
+        else {
+            Issue.record("Missing workspace bar fixture")
+            return
+        }
+
+        controller.appInfoCache.storeInfoForTests(pid: 6701, name: "Helper", bundleId: "com.example.helper")
+        let helperFrame = CGRect(x: 10, y: 10, width: 32, height: 28)
+        let token = controller.workspaceManager.addWindow(
+            makeLayoutPlanTestWindow(windowId: 972),
+            pid: 6701,
+            windowId: 972,
+            to: workspace1,
+            mode: .floating,
+            managedReplacementMetadata: ManagedReplacementMetadata(
+                bundleId: "com.example.helper",
+                workspaceId: workspace1,
+                mode: .floating,
+                role: "AXWindow",
+                subrole: nil,
+                title: nil,
+                windowLevel: nil,
+                parentWindowId: nil,
+                frame: helperFrame,
+                transientWindowServerEvidence: false,
+                degradedWindowServerChildEvidence: true
+            )
+        )
+        controller.workspaceManager.updateFloatingGeometry(frame: helperFrame, for: token)
+
+        let items = WorkspaceBarDataSource.workspaceBarItems(
+            for: monitor,
+            options: WorkspaceBarProjectionOptions(
+                deduplicateAppIcons: false,
+                hideEmptyWorkspaces: false,
+                showFloatingWindows: true
+            ),
+            workspaceManager: controller.workspaceManager,
+            appInfoCache: controller.appInfoCache,
+            niriEngine: nil,
+            focusedToken: controller.workspaceManager.confirmedManagedFocusToken,
+            settings: controller.settings
+        )
+
+        let workspaceItem = try #require(items.first(where: { $0.id == workspace1 }))
+        #expect(workspaceItem.floatingWindows.isEmpty)
+    }
+
+    @Test @MainActor func normalSizedTransientGlobalStickyFloatingWindowRemainsVisible() throws {
+        let controller = makeLayoutPlanTestController()
+        guard let monitor = controller.workspaceManager.monitors.first,
+              let workspace1 = controller.workspaceManager.workspaceId(for: "1", createIfMissing: false)
+        else {
+            Issue.record("Missing workspace bar fixture")
+            return
+        }
+
+        controller.appInfoCache.storeInfoForTests(
+            pid: 6601,
+            name: "Picture in Picture",
+            bundleId: "com.example.browser"
+        )
+        let pipFrame = CGRect(x: 1200, y: 720, width: 360, height: 200)
+        let token = controller.workspaceManager.addWindow(
+            makeLayoutPlanTestWindow(windowId: 962),
+            pid: 6601,
+            windowId: 962,
+            to: workspace1,
+            mode: .floating,
+            managedReplacementMetadata: ManagedReplacementMetadata(
+                bundleId: "com.example.browser",
+                workspaceId: workspace1,
+                mode: .floating,
+                role: "AXWindow",
+                subrole: nil,
+                title: nil,
+                windowLevel: 1,
+                parentWindowId: nil,
+                frame: pipFrame,
+                transientWindowServerEvidence: true,
+                degradedWindowServerChildEvidence: false
+            )
+        )
+        controller.workspaceManager.updateFloatingGeometry(frame: pipFrame, for: token)
+        controller.workspaceManager.setGlobalStickyWindowTokens([token])
+
+        let items = WorkspaceBarDataSource.workspaceBarItems(
+            for: monitor,
+            options: WorkspaceBarProjectionOptions(
+                deduplicateAppIcons: false,
+                hideEmptyWorkspaces: true,
+                showFloatingWindows: true
+            ),
+            workspaceManager: controller.workspaceManager,
+            appInfoCache: controller.appInfoCache,
+            niriEngine: nil,
+            focusedToken: controller.workspaceManager.confirmedManagedFocusToken,
+            settings: controller.settings
+        )
+
+        let workspaceItem = try #require(items.first(where: { $0.id == workspace1 }))
+        #expect(workspaceItem.floatingWindows.map(\.appName) == ["Picture in Picture"])
+        #expect(workspaceItem.windows.map(\.windowId) == [962])
+    }
+
     @Test @MainActor func deduplicatedProjectionKeepsSameAppSeparatedByMode() throws {
         let controller = makeLayoutPlanTestController()
         guard let monitor = controller.workspaceManager.monitors.first,
