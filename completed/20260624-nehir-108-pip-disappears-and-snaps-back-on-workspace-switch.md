@@ -1,5 +1,7 @@
 # Nehir issue #108 — Picture-in-Picture window disappears on workspace switch and snaps back to its origin workspace — Discovery
 
+**Status:** completed — merged to `main` as `ade7cd07` ("Keep PiP visible across workspace switches (#108)") on 2026-06-24. The merge carries both the initial fix and the follow-up state-coherence hardening. Moved from `discovery/` to `completed/` on 2026-06-24.
+
 Source issue: https://github.com/apphane-dev/nehir/issues/108
 Reporter browser: Vivaldi (also reproduced with Firefox).
 Scope of this doc: determine why a tracked Picture-in-Picture (PiP) mini-window
@@ -57,12 +59,35 @@ capture is provided at the end for completeness only — the document stands wit
 
 ### Implementation status
 
-The current Nehir source tree now includes that fix direction: CGS create events
-record native Space membership per window, windows present on all known Spaces are
-marked sticky/global, and native-inactive windows are exempted from workspace-parking
-and related restore logic.
+Merged. The fix direction proposed above landed on `main` as `ade7cd07`
+("Keep PiP visible across workspace switches (#108)", 2026-06-24):
 
-Runtime confirmation from the user is still pending.
+- **Native Space membership per window.** CGS create events record the Space the
+  system reported for a surface at creation time, mirroring upstream OmniWM's
+  native-space tracking (`Sources/Nehir/Core/Controller/AXEventHandler.swift`).
+- **All-known-Spaces sticky/global detection.** A window present on every known
+  Space (`canJoinAllSpaces`, e.g. a browser PiP) is marked global-sticky and is
+  never parked offscreen on workspace switch — it is re-anchored to the active
+  workspace instead. New helper in
+  `Sources/Nehir/Core/SkyLight/SpaceTopology.swift`, gated on
+  `knownSpaceIds.count > 1`.
+- **Native-inactive exemption.** Windows whose native Space is known and inactive
+  are left to macOS to show/hide rather than being parked by Nehir's virtual
+  workspace switch (ported from upstream OmniWM).
+- **Cross-monitor snap-back fixed.** `resolvedFloatingFrame`
+  (`Sources/Nehir/Core/Workspace/WorkspaceManager.swift`) follows the monitor a
+  global window is actually displayed on instead of clamping it back to the
+  workspace's reference monitor.
+- **State-coherence hardening.** The rekey path carries sticky/native-inactive
+  bookkeeping across window-id changes, the debug runtime reset clears those
+  caches, and the revive paths clear residual frame-write suppression so a revived
+  global window can receive frame writes again.
+
+Known limitation carried over from the discovery: the all-known-Spaces
+discriminator only distinguishes a global PiP from a normal window when
+`knownSpaces > 1` (multi-display "Displays have separate Spaces"). A single
+display (`knownSpaces = 1`) needs a different signal — most likely a user-declared
+`sticky` effect — and remains open.
 
 ---
 
