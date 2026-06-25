@@ -3537,7 +3537,8 @@ final class AXEventHandler: CGSEventDelegate {
             parentWindowId: normalizedParentWindowId(facts.windowServer?.parentId),
             frame: facts.windowServer?.frame,
             transientWindowServerEvidence: facts.windowServer?.hasTransientSurfaceEvidence ?? false,
-            degradedWindowServerChildEvidence: facts.degradedWindowServerChildEvidence
+            degradedWindowServerChildEvidence: facts.degradedWindowServerChildEvidence,
+            userAddressableTransientWindowServerSurface: facts.userAddressableTransientWindowServerSurface
         )
     }
 

@@ -209,6 +209,7 @@ final class WorkspaceManager {
     private let windows = WindowModel()
     private let reconcileTrace = ReconcileTraceRecorder()
     private let interactionMonitorWriteTrace = InteractionMonitorWriteRecorder()
+    private var recentFloatingBarProjectionTraceRecords: [String] = []
     private lazy var runtimeStore = RuntimeStore(traceRecorder: reconcileTrace)
     private let restorePlanner = RestorePlanner()
     private var bootPersistedWindowRestoreCatalog: PersistedWindowRestoreCatalog
@@ -340,6 +341,16 @@ final class WorkspaceManager {
         interactionMonitorWriteTrace.dump()
     }
 
+    func floatingBarProjectionTraceDump() -> String {
+        recentFloatingBarProjectionTraceRecords
+            .isEmpty ? "floating bar projection trace empty" : recentFloatingBarProjectionTraceRecords
+            .joined(separator: "\n")
+    }
+
+    func resetFloatingBarProjectionTraceForDebug() {
+        recentFloatingBarProjectionTraceRecords.removeAll()
+    }
+
     func resetInteractionMonitorWriteTraceForDebug() {
         interactionMonitorWriteTrace.reset()
     }
@@ -414,11 +425,39 @@ final class WorkspaceManager {
                 "desiredFloating=\(runtimeDebugFrame(entry.desiredState.floatingFrame))",
                 "replacementFrame=\(runtimeDebugFrame(entry.managedReplacementMetadata?.frame))"
             ]
-            if let bundleId = entry.managedReplacementMetadata?.bundleId, !bundleId.isEmpty {
-                parts.append("bundleId=\(bundleId)")
+            if entry.mode == .floating {
+                let decision = barProjectionDecision(for: entry)
+                let barProjection: String
+                switch decision {
+                case let .accepted(reason):
+                    barProjection = "accepted(\(reason))"
+                case let .rejected(reason):
+                    barProjection = "rejected(\(reason))"
+                }
+                parts.append("barFloating=\(barProjection)")
+                parts.append("barFrame=\(runtimeDebugFrame(floatingBarProjectionFrame(for: entry)))")
             }
-            if let title = entry.managedReplacementMetadata?.title, !title.isEmpty {
-                parts.append("title=\(title.debugDescription)")
+            if let metadata = entry.managedReplacementMetadata {
+                if let bundleId = metadata.bundleId, !bundleId.isEmpty {
+                    parts.append("bundleId=\(bundleId)")
+                }
+                if let role = metadata.role, !role.isEmpty {
+                    parts.append("role=\(role)")
+                }
+                if let subrole = metadata.subrole, !subrole.isEmpty {
+                    parts.append("subrole=\(subrole)")
+                }
+                if let windowLevel = metadata.windowLevel {
+                    parts.append("windowLevel=\(windowLevel)")
+                }
+                if let parentWindowId = metadata.parentWindowId {
+                    parts.append("parentWindowId=\(parentWindowId)")
+                }
+                parts.append("transientWindowServerEvidence=\(metadata.transientWindowServerEvidence)")
+                parts.append("degradedWindowServerChildEvidence=\(metadata.degradedWindowServerChildEvidence)")
+                if let title = metadata.title, !title.isEmpty {
+                    parts.append("title=\(title.debugDescription)")
+                }
             }
             return parts.joined(separator: " ")
         }
@@ -470,6 +509,7 @@ final class WorkspaceManager {
 
     func resetRuntimeStateForDebug() {
         reconcileTrace.reset()
+        recentFloatingBarProjectionTraceRecords.removeAll()
         runtimeStore = RuntimeStore(traceRecorder: reconcileTrace)
         nativeFullscreenRecordsByOriginalToken.removeAll()
         nativeFullscreenOriginalTokenByCurrentToken.removeAll()
@@ -2636,8 +2676,99 @@ final class WorkspaceManager {
     }
 
     private func barVisibleFloatingEntries(in workspace: WorkspaceDescriptor.ID) -> [WindowModel.Entry] {
-        floatingEntries(in: workspace).filter {
-            !isScratchpadToken($0.token) && hiddenState(for: $0.token)?.isScratchpad != true
+        floatingEntries(in: workspace).compactMap { entry in
+            let decision = barProjectionDecision(for: entry)
+            recordFloatingBarProjectionTrace(entry: entry, workspace: workspace, decision: decision)
+            switch decision {
+            case .accepted:
+                return entry
+            case .rejected:
+                return nil
+            }
+        }
+    }
+
+    private func barProjectionDecision(for entry: WindowModel.Entry) -> FloatingBarProjectionDecision {
+        if isScratchpadToken(entry.token) || hiddenState(for: entry.token)?.isScratchpad == true {
+            return .rejected(reason: "scratchpad")
+        }
+
+        let isGlobalSticky = isGlobalStickyWindow(entry.token)
+        if entry.layoutReason != .standard, !isGlobalSticky {
+            return .rejected(reason: "layoutReason=\(String(describing: entry.layoutReason))")
+        }
+
+        let metadata = entry.managedReplacementMetadata
+        let frame = floatingBarProjectionFrame(for: entry)
+        let hasTransientEvidence = metadata?.transientWindowServerEvidence == true
+        let hasChildEvidence = metadata?.parentWindowId != nil
+            || metadata?.degradedWindowServerChildEvidence == true
+
+        if isGlobalSticky {
+            return .accepted(reason: "globalSticky")
+        }
+
+        if !isStandardAXWindowSurface(metadata) {
+            return .rejected(reason: "nonStandardAXSurface")
+        }
+
+        // Non-global transient surfaces are only user-addressable when their AX facts
+        // look like a normal standard window. Helper/PIP surfaces without normal
+        // window affordances are app-managed ephemeral UI that the owning app destroys
+        // and recreates at will, orphaning any user assignment.
+        if hasTransientEvidence {
+            if frame == nil {
+                return .rejected(reason: "transientWindowServerSurface(noFrame)")
+            }
+            if metadata?.userAddressableTransientWindowServerSurface != true {
+                return .rejected(reason: "transientSurfaceNotUserAddressable")
+            }
+        }
+
+        if hasChildEvidence {
+            return .rejected(reason: "windowServerChildSurface")
+        }
+
+        return .accepted(reason: "userAddressable")
+    }
+
+    private enum FloatingBarProjectionDecision: Equatable {
+        case accepted(reason: String)
+        case rejected(reason: String)
+    }
+
+    private func floatingBarProjectionFrame(for entry: WindowModel.Entry) -> CGRect? {
+        resolvedFloatingFrame(for: entry.token)
+            ?? entry.desiredState.floatingFrame
+            ?? entry.observedState.frame
+            ?? entry.managedReplacementMetadata?.frame
+    }
+
+    private func isStandardAXWindowSurface(_ metadata: ManagedReplacementMetadata?) -> Bool {
+        guard metadata?.role == kAXWindowRole as String else { return false }
+        return metadata?.subrole == nil || metadata?.subrole == kAXStandardWindowSubrole as String
+    }
+
+    private func recordFloatingBarProjectionTrace(
+        entry: WindowModel.Entry,
+        workspace: WorkspaceDescriptor.ID,
+        decision: FloatingBarProjectionDecision
+    ) {
+        let outcome: String
+        switch decision {
+        case let .accepted(reason):
+            outcome = "accepted reason=\(reason)"
+        case let .rejected(reason):
+            outcome = "rejected reason=\(reason)"
+        }
+        let metadata = entry.managedReplacementMetadata
+        let bundleId = metadata?.bundleId ?? "nil"
+        let parentWindowId = metadata?.parentWindowId.map(String.init) ?? "nil"
+        let isScratchpad = isScratchpadToken(entry.token) || hiddenState(for: entry.token)?.isScratchpad == true
+        let record = "\(Date().ISO8601Format()) workspace=\(workspace.uuidString) token=\(entry.token) bundleId=\(bundleId) \(outcome) frame=\(runtimeDebugFrame(floatingBarProjectionFrame(for: entry))) layoutReason=\(String(describing: entry.layoutReason)) transientWindowServerEvidence=\(metadata?.transientWindowServerEvidence == true) degradedWindowServerChildEvidence=\(metadata?.degradedWindowServerChildEvidence == true) parentWindowId=\(parentWindowId) globalSticky=\(isGlobalStickyWindow(entry.token)) scratchpad=\(isScratchpad)"
+        recentFloatingBarProjectionTraceRecords.append(record)
+        if recentFloatingBarProjectionTraceRecords.count > 120 {
+            recentFloatingBarProjectionTraceRecords.removeFirst(recentFloatingBarProjectionTraceRecords.count - 120)
         }
     }
 
@@ -2838,7 +2969,12 @@ final class WorkspaceManager {
     /// Replaces the set of windows treated as global (present on every known Space).
     /// Called by `LayoutRefreshController` after recomputing `SpaceTopology`.
     func setGlobalStickyWindowTokens(_ tokens: Set<WindowToken>) {
+        guard globalStickyWindowTokens != tokens else { return }
         globalStickyWindowTokens = tokens
+        // The bar projection decision uses `isGlobalStickyWindow(_:)` to accept
+        // PiP-like surfaces, so a change in sticky membership must force the
+        // workspace bar to re-evaluate rather than waiting for an unrelated update.
+        invalidateWorkspaceProjection(reason: "globalStickyWindowTokensChanged")
     }
 
     func isGlobalStickyWindow(_ token: WindowToken) -> Bool {

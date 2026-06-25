@@ -9,6 +9,25 @@ import Foundation
 @testable import Nehir
 import Testing
 
+private func makeWorkspaceBarTestMetadata(
+    bundleId: String,
+    workspaceId: WorkspaceDescriptor.ID,
+    mode: TrackedWindowMode = .floating,
+    frame: CGRect? = CGRect(x: 100, y: 100, width: 640, height: 480)
+) -> ManagedReplacementMetadata {
+    ManagedReplacementMetadata(
+        bundleId: bundleId,
+        workspaceId: workspaceId,
+        mode: mode,
+        role: kAXWindowRole as String,
+        subrole: kAXStandardWindowSubrole as String,
+        title: nil,
+        windowLevel: 0,
+        parentWindowId: nil,
+        frame: frame
+    )
+}
+
 @Suite struct WorkspaceBarDataSourceTests {
     @Test @MainActor func floatingOnlyWorkspaceIsHiddenWhenFloatingWindowsAreDisabled() throws {
         let controller = makeLayoutPlanTestController()
@@ -34,7 +53,11 @@ import Testing
             pid: 6002,
             windowId: 902,
             to: workspace2,
-            mode: .floating
+            mode: .floating,
+            managedReplacementMetadata: makeWorkspaceBarTestMetadata(
+                bundleId: "com.example.console",
+                workspaceId: workspace2
+            )
         )
 
         let items = WorkspaceBarDataSource.workspaceBarItems(
@@ -70,7 +93,11 @@ import Testing
             pid: 6102,
             windowId: 912,
             to: workspace2,
-            mode: .floating
+            mode: .floating,
+            managedReplacementMetadata: makeWorkspaceBarTestMetadata(
+                bundleId: "com.example.console",
+                workspaceId: workspace2
+            )
         )
 
         let items = WorkspaceBarDataSource.workspaceBarItems(
@@ -156,7 +183,11 @@ import Testing
             pid: 6301,
             windowId: 931,
             to: workspace1,
-            mode: .floating
+            mode: .floating,
+            managedReplacementMetadata: makeWorkspaceBarTestMetadata(
+                bundleId: "com.example.floating",
+                workspaceId: workspace1
+            )
         )
         let scratchpadToken = controller.workspaceManager.addWindow(
             makeLayoutPlanTestWindow(windowId: 932),
@@ -211,7 +242,11 @@ import Testing
             pid: 7002,
             windowId: 1002,
             to: workspace1,
-            mode: .floating
+            mode: .floating,
+            managedReplacementMetadata: makeWorkspaceBarTestMetadata(
+                bundleId: "com.example.floating",
+                workspaceId: workspace1
+            )
         )
 
         let items = WorkspaceBarDataSource.workspaceBarItems(
@@ -263,7 +298,11 @@ import Testing
             pid: 8001,
             windowId: 1103,
             to: workspace1,
-            mode: .floating
+            mode: .floating,
+            managedReplacementMetadata: makeWorkspaceBarTestMetadata(
+                bundleId: "com.example.terminal",
+                workspaceId: workspace1
+            )
         )
 
         let items = WorkspaceBarDataSource.workspaceBarItems(

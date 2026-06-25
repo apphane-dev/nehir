@@ -208,7 +208,7 @@ private func makeWindowRuleFacts(
         #expect(decision.heuristicReasons == [.attributeFetchFailed])
     }
 
-    @Test func degradedAxParentedWindowServerTransientRemainsUndecided() {
+    @Test func degradedAxParentedWindowServerTransientFloats() {
         let engine = WindowRuleEngine()
         let rule = AppRule(
             id: UUID(uuidString: "00000000-0000-0000-0000-000000000164")!,
@@ -231,13 +231,13 @@ private func makeWindowRuleFacts(
             appFullscreen: false
         )
 
-        #expect(decision.disposition == .undecided)
+        #expect(decision.disposition == .floating)
         #expect(decision.layoutDecisionKind == .fallbackLayout)
         #expect(decision.workspaceName == "2")
-        #expect(decision.source == .userRule(rule.id))
-        #expect(decision.deferredReason == .attributeFetchFailed)
-        #expect(decision.trackedMode == nil)
-        #expect(decision.heuristicReasons == [.attributeFetchFailed])
+        #expect(decision.source == .builtInRule("parentedWindowServerSurface"))
+        #expect(decision.deferredReason == nil)
+        #expect(decision.trackedMode == .floating)
+        #expect(decision.heuristicReasons == [])
     }
 
     @Test func degradedAxFloatingTaggedWindowServerTransientRemainsUndecided() {
@@ -282,7 +282,7 @@ private func makeWindowRuleFacts(
         #expect(decision.deferredReason == .attributeFetchFailed)
     }
 
-    @Test func degradedAxDocumentAndHelpTagSurfacesRemainUndecided() {
+    @Test func degradedAxDocumentRemainsUndecidedAndParentedHelpTagFloats() {
         let engine = WindowRuleEngine()
         var documentWindowServer = WindowServerInfo(id: 3203, pid: 3203, level: 0, frame: .zero)
         documentWindowServer.tags = 0x1
@@ -312,8 +312,9 @@ private func makeWindowRuleFacts(
 
         #expect(documentDecision.disposition == .undecided)
         #expect(documentDecision.deferredReason == .attributeFetchFailed)
-        #expect(helpDecision.disposition == .undecided)
-        #expect(helpDecision.deferredReason == .attributeFetchFailed)
+        #expect(helpDecision.disposition == .floating)
+        #expect(helpDecision.source == .builtInRule("parentedWindowServerSurface"))
+        #expect(helpDecision.deferredReason == nil)
     }
 
     @Test func tileRuleDefersWhenAttributeFetchFails() {

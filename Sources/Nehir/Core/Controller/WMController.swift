@@ -1123,6 +1123,7 @@ final class WMController {
         parentWindowId: UInt32? = nil,
         inheritTrackedParentWorkspace: Bool = false,
         preferSameAppSiblingWorkspace: Bool = false,
+        bindTransientFloatingToAppWorkspace: Bool = false,
         structuralReplacementWorkspaceId: WorkspaceDescriptor.ID? = nil,
         restrictWorkspaceRuleToPlacementMonitor: Bool = true,
         createPlacementContext: WindowCreatePlacementContext? = nil,
@@ -1136,6 +1137,7 @@ final class WMController {
             parentWindowId: parentWindowId,
             inheritTrackedParentWorkspace: inheritTrackedParentWorkspace,
             preferSameAppSiblingWorkspace: preferSameAppSiblingWorkspace,
+            bindTransientFloatingToAppWorkspace: bindTransientFloatingToAppWorkspace,
             structuralReplacementWorkspaceId: structuralReplacementWorkspaceId,
             restrictWorkspaceRuleToPlacementMonitor: restrictWorkspaceRuleToPlacementMonitor,
             createPlacementContext: createPlacementContext,
@@ -1159,6 +1161,7 @@ final class WMController {
         parentWindowId: UInt32?,
         inheritTrackedParentWorkspace: Bool,
         preferSameAppSiblingWorkspace: Bool,
+        bindTransientFloatingToAppWorkspace: Bool,
         structuralReplacementWorkspaceId: WorkspaceDescriptor.ID?,
         restrictWorkspaceRuleToPlacementMonitor: Bool,
         createPlacementContext: WindowCreatePlacementContext?,
@@ -1223,6 +1226,23 @@ final class WMController {
             return workspaceId
         }
 
+        // A newly-created non-user-addressable transient floating surface with no
+        // document/parent binding (e.g. a Teams/Zoom call mini-window) is app-managed
+        // ephemeral UI. It must follow its owning app's primary window rather than the
+        // currently-viewed workspace, otherwise it "leaks" onto whatever workspace the
+        // user happens to be viewing and can then anchor managed focus there, dragging
+        // later siblings across. User-addressable transient standard windows (e.g.
+        // Zoom's full call window) keep normal placement; global canJoinAllSpaces
+        // surfaces are reanchored separately by reanchorGlobalWindowsToActiveWorkspaces.
+        if context == .automatic,
+           existingEntry == nil,
+           bindTransientFloatingToAppWorkspace,
+           let pid,
+           let siblingWorkspaceId = workspaceForPrimarySiblingWindow(pid: pid)
+        {
+            return siblingWorkspaceId
+        }
+
         if let existingEntry {
             return existingEntry.workspaceId
         }
@@ -1269,6 +1289,36 @@ final class WMController {
         return workspaceId
     }
 
+    /// The workspace of an app's primary (non-transient) window. Used to bind a
+    /// newly-created small transient floating surface (e.g. a Teams/Zoom call
+    /// mini-window) to its owning app instead of the currently-viewed workspace.
+    /// Prefers a non-transient sibling so a transient helper never anchors placement
+    /// for the app's real windows; falls back to a shared workspace if all siblings
+    /// agree.
+    private func workspaceForPrimarySiblingWindow(pid: pid_t) -> WorkspaceDescriptor.ID? {
+        let entries = workspaceManager.entries(forPid: pid)
+        if let primary = entries.first(where: {
+            $0.managedReplacementMetadata?.transientWindowServerEvidence != true
+        }) {
+            return primary.workspaceId
+        }
+        guard let firstEntry = entries.first else { return nil }
+        let workspaceId = firstEntry.workspaceId
+        if entries.dropFirst().allSatisfy({ $0.workspaceId == workspaceId }) {
+            return workspaceId
+        }
+        return nil
+    }
+
+    private func isNonUserAddressableNonGlobalTransientFloatingSurface(_ entry: WindowModel.Entry) -> Bool {
+        guard entry.managedReplacementMetadata?.transientWindowServerEvidence == true,
+              !workspaceManager.isGlobalStickyWindow(entry.token)
+        else {
+            return false
+        }
+        return entry.managedReplacementMetadata?.userAddressableTransientWindowServerSurface != true
+    }
+
     private func workspace(
         _ workspaceId: WorkspaceDescriptor.ID,
         isOn targetMonitorId: Monitor.ID?
@@ -1298,15 +1348,13 @@ final class WMController {
             return false
         }
 
-        let axFacts = facts.ax
-        if axFacts.attributeFetchSucceeded {
-            if axFacts.role == kAXSheetRole as String
-                || axFacts.subrole == kAXDialogSubrole as String
-                || axFacts.subrole == kAXSystemDialogSubrole as String
-            {
-                return true
-            }
-            return false
+        // Match niri's parented-window model: a window with a concrete parent is
+        // child UI of that parent (dialogs/popovers/sheets), so keep it on the
+        // parent's workspace instead of resolving it against interaction focus.
+        if let parentWindowId = UInt32(exactly: windowServer.parentId),
+           workspaceManager.entry(forWindowId: Int(parentWindowId)) != nil
+        {
+            return true
         }
 
         if windowServer.hasDocumentTag {
@@ -2203,6 +2251,10 @@ final class WMController {
         context: WindowRuleReevaluationContext = .automatic
     ) -> WorkspaceDescriptor.ID {
         let inheritTrackedParentWorkspace = shouldInheritTrackedParentWorkspace(for: evaluation)
+        let bindTransientFloatingToAppWorkspace =
+            evaluation.decision.disposition == .floating
+                && evaluation.facts.windowServer?.hasTransientSurfaceEvidence == true
+                && !evaluation.facts.userAddressableTransientWindowServerSurface
         return resolveWorkspacePlacement(
             workspaceName: evaluation.decision.workspaceName,
             axRef: axRef,
@@ -2213,6 +2265,7 @@ final class WMController {
                 for: evaluation,
                 inheritTrackedParentWorkspace: inheritTrackedParentWorkspace
             ),
+            bindTransientFloatingToAppWorkspace: bindTransientFloatingToAppWorkspace,
             structuralReplacementWorkspaceId: structuralReplacementWorkspaceId,
             restrictWorkspaceRuleToPlacementMonitor: restrictWorkspaceRuleToPlacementMonitor,
             createPlacementContext: createPlacementContext,
@@ -3144,6 +3197,8 @@ final class WMController {
             String(describing: mouseWarpSnapshot),
             "-- CGSEventObserver --",
             String(describing: cgsSnapshot),
+            "-- Workspace Bar Floating Projection Trace --",
+            workspaceManager.floatingBarProjectionTraceDump(),
             "-- Workspace Bar Frame Trace --",
             workspaceBarManager.runtimeFrameTraceDebugDump(),
             "-- Workspace Bar --",
@@ -3397,6 +3452,7 @@ final class WMController {
         syncNiriResizeTraceSink()
         workspaceManager.resetReconcileTraceForDebug()
         workspaceManager.resetInteractionMonitorWriteTraceForDebug()
+        workspaceManager.resetFloatingBarProjectionTraceForDebug()
         AppAXContext.resetRawAXNotificationTraceForDebug()
         workspaceBarManager.update()
         debugBarManager.update()
@@ -3436,6 +3492,7 @@ final class WMController {
             : createFocusTraceEvents.map(\.description).joined(separator: "\n")
         let rawAXNotificationDump = AppAXContext.rawAXNotificationTraceDump()
         let interactionMonitorWriteDump = workspaceManager.interactionMonitorWriteTraceDump()
+        let floatingBarProjectionDump = workspaceManager.floatingBarProjectionTraceDump()
         let body = [
             "Nehir runtime trace capture",
             "startedAt=\(session.startedAt.ISO8601Format())",
@@ -3465,6 +3522,9 @@ final class WMController {
             "",
             "## Interaction monitor writes",
             interactionMonitorWriteDump,
+            "",
+            "## Floating bar projection trace",
+            floatingBarProjectionDump,
             "",
             "## Mouse focus trace",
             mouseTraceDump,
@@ -3777,7 +3837,10 @@ final class WMController {
                             || evaluation.facts.windowServer?.hasTransientSurfaceEvidence == true,
                         degradedWindowServerChildEvidence: updatedEntry.managedReplacementMetadata?
                             .degradedWindowServerChildEvidence == true
-                            || evaluation.facts.degradedWindowServerChildEvidence
+                            || evaluation.facts.degradedWindowServerChildEvidence,
+                        userAddressableTransientWindowServerSurface: updatedEntry.managedReplacementMetadata?
+                            .userAddressableTransientWindowServerSurface == true
+                            || evaluation.facts.userAddressableTransientWindowServerSurface
                     ),
                     for: token
                 )
@@ -3815,6 +3878,16 @@ final class WMController {
         guard let token,
               let entry = workspaceManager.entry(for: token)
         else {
+            return .notFound
+        }
+
+        // A non-user-addressable transient, non-global-sticky floating surface (e.g.
+        // a Teams/Zoom call mini-window) is app-managed ephemeral UI the owning app
+        // destroys and recreates at will. It is hidden from the workspace bar for the
+        // same reason, so it must not be force-tiled via the toggle command either —
+        // treat it as not a valid command target. User-addressable transient call
+        // windows and genuinely global PiP windows remain toggleable.
+        if isNonUserAddressableNonGlobalTransientFloatingSurface(entry) {
             return .notFound
         }
 

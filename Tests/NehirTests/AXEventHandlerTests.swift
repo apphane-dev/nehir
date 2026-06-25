@@ -5127,7 +5127,9 @@ private func waitUntilAXEventTest(
 
         #expect(controller.interactionWorkspace()?.id == laterWorkspaceId)
         #expect(controller.workspaceManager.entry(forPid: getpid(), windowId: Int(windowId))?
-            .workspaceId == laterWorkspaceId)
+            .workspaceId == createWorkspaceId)
+        #expect(controller.workspaceManager.entry(forPid: getpid(), windowId: Int(windowId))?
+            .mode == .floating)
         #expect(controller.axEventHandler.pendingCreatePlacementContext(for: Int(windowId)) == nil)
     }
 
@@ -6008,8 +6010,9 @@ private func waitUntilAXEventTest(
         #expect(controller.workspaceManager.entry(for: oldToken) == nil)
         #expect(firstNewEntry.handle !== oldEntry.handle)
         #expect(secondNewEntry.handle !== oldEntry.handle)
-        #expect(controller.workspaceManager.tiledEntries(in: workspaceId).count == 2)
-        #expect(engine.columns(in: workspaceId).count == 2)
+        #expect(controller.workspaceManager.tiledEntries(in: workspaceId).isEmpty)
+        #expect(controller.workspaceManager.floatingEntries(in: workspaceId).count == 2)
+        #expect(engine.columns(in: workspaceId).isEmpty)
     }
 
     @Test @MainActor func structuralReplacementRekeysUnlistedAppWithoutAllowlist() async {
@@ -6772,7 +6775,7 @@ private func waitUntilAXEventTest(
         }
     }
 
-    @Test @MainActor func createdStandardWindowOnSecondaryMonitorIgnoresCrossMonitorSiblingAndRule() async {
+    @Test @MainActor func createdParentedStandardWindowInheritsTrackedSiblingWorkspace() async {
         let bundleId = "com.example.cross-monitor-sibling-rule"
         let controller = makeAXEventTestController(
             trackedBundleId: bundleId,
@@ -6847,7 +6850,9 @@ private func waitUntilAXEventTest(
         }
 
         #expect(controller.workspaceManager.entry(forPid: pid, windowId: Int(createdWindowId))?
-            .workspaceId == secondaryWorkspaceId)
+            .workspaceId == primaryWorkspaceId)
+        #expect(controller.workspaceManager.entry(forPid: pid, windowId: Int(createdWindowId))?
+            .mode == .floating)
     }
 
     @Test @MainActor func createdWindowUsesFreshMonitorWorkspaceWhenNativeDisplayResolutionSawStaleWorkspace() async {
@@ -7671,7 +7676,7 @@ private func waitUntilAXEventTest(
             .workspaceId == activeWorkspaceId)
     }
 
-    @Test @MainActor func niriParentedStandardCreateUsesActiveWorkspaceNotTrackedParentWorkspace() async {
+    @Test @MainActor func niriParentedStandardCreateUsesTrackedParentWorkspaceAsFloating() async {
         let bundleId = "com.example.parented-standard-niri"
         let controller = makeAXEventTestController(
             trackedBundleId: bundleId,
@@ -7742,13 +7747,13 @@ private func waitUntilAXEventTest(
         )
         await waitUntilAXEventTest {
             controller.workspaceManager.entry(for: createdToken) != nil
-                && engine.findNode(for: createdToken) != nil
         }
 
         let createWorkspaceTokens = engine.columns(in: createWorkspaceId).flatMap(\.windowNodes).map(\.token)
         let parentWorkspaceTokens = engine.columns(in: parentWorkspaceId).flatMap(\.windowNodes).map(\.token)
-        #expect(controller.workspaceManager.entry(for: createdToken)?.workspaceId == createWorkspaceId)
-        #expect(createWorkspaceTokens.contains(createdToken))
+        #expect(controller.workspaceManager.entry(for: createdToken)?.workspaceId == parentWorkspaceId)
+        #expect(controller.workspaceManager.entry(for: createdToken)?.mode == .floating)
+        #expect(!createWorkspaceTokens.contains(createdToken))
         #expect(!parentWorkspaceTokens.contains(createdToken))
     }
 
@@ -8590,7 +8595,7 @@ private func waitUntilAXEventTest(
         #expect(controller.workspaceManager.entry(for: entry.token) != nil)
     }
 
-    @Test @MainActor func parentedCreateWithDegradedAxFactsRemainsDeferred() async {
+    @Test @MainActor func parentedCreateWithDegradedAxFactsTracksAsFloating() async {
         let controller = makeAXEventTestController()
         var info = makeAXEventWindowInfo(
             id: 830,
@@ -8619,11 +8624,11 @@ private func waitUntilAXEventTest(
         )
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
 
-        #expect(controller.workspaceManager.entry(forPid: getpid(), windowId: 830) == nil)
+        #expect(controller.workspaceManager.entry(forPid: getpid(), windowId: 830)?.mode == .floating)
         #expect(controller.axManager.lastAppliedFrame(for: 830) == nil)
     }
 
-    @Test @MainActor func parentedFloatingTaggedCreateWithDegradedAxFactsRemainsDeferred() async {
+    @Test @MainActor func parentedFloatingTaggedCreateWithDegradedAxFactsTracksAsFloating() async {
         let controller = makeAXEventTestController()
         var info = makeAXEventWindowInfo(
             id: 833,
@@ -8651,7 +8656,7 @@ private func waitUntilAXEventTest(
         )
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
 
-        #expect(controller.workspaceManager.entry(forPid: getpid(), windowId: 833) == nil)
+        #expect(controller.workspaceManager.entry(forPid: getpid(), windowId: 833)?.mode == .floating)
         #expect(controller.axManager.lastAppliedFrame(for: 833) == nil)
     }
 
@@ -8680,7 +8685,7 @@ private func waitUntilAXEventTest(
         #expect(controller.workspaceManager.entry(forPid: getpid(), windowId: 831) == nil)
     }
 
-    @Test @MainActor func helpTagShapedDegradedCreateRemainsDeferred() async {
+    @Test @MainActor func parentedHelpTagShapedDegradedCreateTracksAsFloating() async {
         let controller = makeAXEventTestController()
         var info = makeAXEventWindowInfo(id: 832, parentId: 410)
         info = WindowServerInfo(
@@ -8711,7 +8716,7 @@ private func waitUntilAXEventTest(
         )
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
 
-        #expect(controller.workspaceManager.entry(forPid: getpid(), windowId: 832) == nil)
+        #expect(controller.workspaceManager.entry(forPid: getpid(), windowId: 832)?.mode == .floating)
     }
 
     @Test @MainActor func browserHelperSurfaceWithAutoAssignRuleStaysTrackedAtCreateTime() async {

@@ -9,6 +9,24 @@ import Foundation
 @testable import Nehir
 import Testing
 
+private func makeWorkspaceBarManagerTestMetadata(
+    bundleId: String,
+    workspaceId: WorkspaceDescriptor.ID,
+    frame: CGRect? = CGRect(x: 100, y: 100, width: 640, height: 480)
+) -> ManagedReplacementMetadata {
+    ManagedReplacementMetadata(
+        bundleId: bundleId,
+        workspaceId: workspaceId,
+        mode: .floating,
+        role: kAXWindowRole as String,
+        subrole: kAXStandardWindowSubrole as String,
+        title: nil,
+        windowLevel: 0,
+        parentWindowId: nil,
+        frame: frame
+    )
+}
+
 private final class RecordingPanelStore: @unchecked Sendable {
     var panels: [WorkspaceBarPanel] = []
 }
@@ -188,7 +206,11 @@ private func makeRecordingPanelFactory(
                 pid: pid,
                 windowId: windowId,
                 to: workspaceId,
-                mode: .floating
+                mode: .floating,
+                managedReplacementMetadata: makeWorkspaceBarManagerTestMetadata(
+                    bundleId: "com.example.floating.\(index)",
+                    workspaceId: workspaceId
+                )
             )
         }
 

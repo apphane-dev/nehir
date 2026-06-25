@@ -13,6 +13,24 @@ import Testing
 private let ipcQueryRouterSessionToken = "ipc-query-router-tests"
 private let ipcQueryRouterAuthorization = "ipc-query-router-secret"
 
+private func makeIPCWorkspaceBarTestMetadata(
+    bundleId: String,
+    workspaceId: WorkspaceDescriptor.ID,
+    frame: CGRect? = CGRect(x: 100, y: 100, width: 640, height: 480)
+) -> ManagedReplacementMetadata {
+    ManagedReplacementMetadata(
+        bundleId: bundleId,
+        workspaceId: workspaceId,
+        mode: .floating,
+        role: "AXWindow",
+        subrole: "AXStandardWindow",
+        title: nil,
+        windowLevel: 0,
+        parentWindowId: nil,
+        frame: frame
+    )
+}
+
 @MainActor
 private func prepareIPCQueryRouterNiriState(
     on controller: WMController,
@@ -172,14 +190,22 @@ private func prepareIPCQueryRouterNiriState(
             pid: 7102,
             windowId: 1102,
             to: workspace1,
-            mode: .floating
+            mode: .floating,
+            managedReplacementMetadata: makeIPCWorkspaceBarTestMetadata(
+                bundleId: "com.example.floating",
+                workspaceId: workspace1
+            )
         )
         _ = controller.workspaceManager.addWindow(
             makeLayoutPlanTestWindow(windowId: 1103),
             pid: 7103,
             windowId: 1103,
             to: workspace2,
-            mode: .floating
+            mode: .floating,
+            managedReplacementMetadata: makeIPCWorkspaceBarTestMetadata(
+                bundleId: "com.example.floating-only",
+                workspaceId: workspace2
+            )
         )
 
         let router = IPCQueryRouter(controller: controller, sessionToken: ipcQueryRouterSessionToken)
