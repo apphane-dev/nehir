@@ -73,7 +73,7 @@ final class WindowActionHandler {
             self?.activateWindowFromOverview(handle: handle, workspaceId: workspaceId)
         }
         oc.onCloseWindow = { [weak self] handle in
-            self?.closeWindowFromOverview(handle: handle)
+            self?.closeWindow(handle: handle)
         }
         return oc
     }()
@@ -138,7 +138,11 @@ final class WindowActionHandler {
         navigateToWindowInternal(token: handle.id, workspaceId: workspaceId)
     }
 
-    private func closeWindowFromOverview(handle: WindowHandle) {
+    /// Closes a managed window by pressing its AX close button. Shared by the
+    /// Overview and the workspace bar's right-click *Close* item so both paths
+    /// use identical AX-close semantics. Lifted from the Overview's private
+    /// `closeWindowFromOverview(handle:)` (plan #18 / discovery correction #4).
+    func closeWindow(handle: WindowHandle) {
         guard let controller else { return }
         guard let entry = controller.workspaceManager.entry(for: handle) else { return }
 
@@ -152,6 +156,19 @@ final class WindowActionHandler {
         {
             AXUIElementPerformAction(closeButton as! AXUIElement, kAXPressAction as CFString)
         }
+    }
+
+    /// Token-based convenience resolving the handle the same way
+    /// `focusWindowFromBar(token:)` does, then delegating to `closeWindow(handle:)`.
+    @discardableResult
+    func closeWindow(token: WindowToken) -> Bool {
+        guard let controller,
+              let entry = controller.workspaceManager.entry(for: token)
+        else {
+            return false
+        }
+        closeWindow(handle: entry.handle)
+        return true
     }
 
     func raiseAllFloatingWindows() {

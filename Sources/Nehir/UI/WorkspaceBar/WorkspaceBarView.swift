@@ -103,6 +103,11 @@ struct WorkspaceBarView: View {
     let onActivateScratchpad: () -> Void
     let onOpenCommandPalette: () -> Void
     let onOpenDiagnostics: () -> Void
+    let onToggleWindowFloating: (WindowToken) -> Void
+    let onToggleScratchpadAssignment: (WindowToken) -> Void
+    let onCloseWindow: (WindowToken) -> Void
+    let onMoveWindowToWorkspace: (WindowToken, WorkspaceDescriptor.ID) -> Void
+    let onToggleScratchpadVisible: () -> Void
 
     var body: some View {
         WorkspaceBarContentView(
@@ -112,7 +117,12 @@ struct WorkspaceBarView: View {
             onFocusWindow: onFocusWindow,
             onActivateScratchpad: onActivateScratchpad,
             onOpenCommandPalette: onOpenCommandPalette,
-            onOpenDiagnostics: onOpenDiagnostics
+            onOpenDiagnostics: onOpenDiagnostics,
+            onToggleWindowFloating: onToggleWindowFloating,
+            onToggleScratchpadAssignment: onToggleScratchpadAssignment,
+            onCloseWindow: onCloseWindow,
+            onMoveWindowToWorkspace: onMoveWindowToWorkspace,
+            onToggleScratchpadVisible: onToggleScratchpadVisible
         )
     }
 }
@@ -129,10 +139,34 @@ struct WorkspaceBarMeasurementView: View {
             onFocusWindow: { _ in },
             onActivateScratchpad: {},
             onOpenCommandPalette: {},
-            onOpenDiagnostics: {}
+            onOpenDiagnostics: {},
+            onToggleWindowFloating: { _ in },
+            onToggleScratchpadAssignment: { _ in },
+            onCloseWindow: { _ in },
+            onMoveWindowToWorkspace: { _, _ in },
+            onToggleScratchpadVisible: {}
         )
         .fixedSize(horizontal: true, vertical: false)
     }
+}
+
+/// A target workspace offered by a window icon's *Move to Workspace ▸*
+/// submenu (the other workspaces visible on this monitor).
+struct WorkspaceBarWindowMoveTarget: Identifiable, Hashable {
+    let id: WorkspaceDescriptor.ID
+    let name: String
+}
+
+/// Bundle of right-click actions threaded from the controller through the bar
+/// to each window icon. Bundling keeps `WindowIconView` a value type without a
+/// long parameter list (plan #18).
+struct WorkspaceBarWindowActions {
+    let onToggleFloating: (WindowToken) -> Void
+    let onToggleScratchpadAssignment: (WindowToken) -> Void
+    let onClose: (WindowToken) -> Void
+    let onMoveToWorkspace: (WindowToken, WorkspaceDescriptor.ID) -> Void
+    let moveTargets: [WorkspaceBarWindowMoveTarget]
+    let scratchpadSlotOccupied: Bool
 }
 
 @MainActor
@@ -144,6 +178,11 @@ private struct WorkspaceBarContentView: View {
     let onActivateScratchpad: () -> Void
     let onOpenCommandPalette: () -> Void
     let onOpenDiagnostics: () -> Void
+    let onToggleWindowFloating: (WindowToken) -> Void
+    let onToggleScratchpadAssignment: (WindowToken) -> Void
+    let onCloseWindow: (WindowToken) -> Void
+    let onMoveWindowToWorkspace: (WindowToken, WorkspaceDescriptor.ID) -> Void
+    let onToggleScratchpadVisible: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @Environment(\.accessibilityReduceTransparency) private var accessibilityReduceTransparency
@@ -184,6 +223,28 @@ private struct WorkspaceBarContentView: View {
         RoundedRectangle(cornerRadius: 8, style: .continuous)
     }
 
+    /// Workspaces on this monitor offered by the *Move to Workspace ▸* submenu.
+    private var windowMoveTargets: [WorkspaceBarWindowMoveTarget] {
+        snapshot.items.map { WorkspaceBarWindowMoveTarget(id: $0.id, name: $0.name) }
+    }
+
+    /// True when the single scratchpad slot is held, so the window-icon
+    /// *Assign to Scratchpad* item is disabled (single-slot constraint, #7).
+    private var scratchpadSlotOccupied: Bool {
+        snapshot.scratchpad != nil
+    }
+
+    private var windowActions: WorkspaceBarWindowActions {
+        WorkspaceBarWindowActions(
+            onToggleFloating: onToggleWindowFloating,
+            onToggleScratchpadAssignment: onToggleScratchpadAssignment,
+            onClose: onCloseWindow,
+            onMoveToWorkspace: onMoveWindowToWorkspace,
+            moveTargets: windowMoveTargets,
+            scratchpadSlotOccupied: scratchpadSlotOccupied
+        )
+    }
+
     var body: some View {
         HStack(spacing: workspaceSpacing) {
             ForEach(snapshot.items, id: \.id) { item in
@@ -198,7 +259,8 @@ private struct WorkspaceBarContentView: View {
                     accentColor: accentColor,
                     textColor: textColor,
                     onFocusWorkspace: { onFocusWorkspace(item) },
-                    onFocusWindow: onFocusWindow
+                    onFocusWindow: onFocusWindow,
+                    windowActions: windowActions
                 )
             }
 
@@ -210,7 +272,9 @@ private struct WorkspaceBarContentView: View {
                     animationsEnabled: effectiveAnimationsEnabled,
                     accentColor: accentColor,
                     textColor: textColor,
-                    onActivateScratchpad: onActivateScratchpad
+                    onActivateScratchpad: onActivateScratchpad,
+                    onToggleScratchpadVisible: onToggleScratchpadVisible,
+                    onUnassignScratchpad: { onToggleScratchpadAssignment(scratchpad.window.id) }
                 )
             }
 
@@ -264,8 +328,23 @@ private struct WorkspaceItemView: View {
     let textColor: Color?
     let onFocusWorkspace: () -> Void
     let onFocusWindow: (WindowToken) -> Void
+    let windowActions: WorkspaceBarWindowActions
 
     @State private var isHovered = false
+
+    /// Move targets scoped to this workspace item: the other workspaces visible
+    /// on this monitor (the current one is excluded so the submenu never offers
+    /// a no-op move into the window's own workspace).
+    private var scopedWindowActions: WorkspaceBarWindowActions {
+        WorkspaceBarWindowActions(
+            onToggleFloating: windowActions.onToggleFloating,
+            onToggleScratchpadAssignment: windowActions.onToggleScratchpadAssignment,
+            onClose: windowActions.onClose,
+            onMoveToWorkspace: windowActions.onMoveToWorkspace,
+            moveTargets: windowActions.moveTargets.filter { $0.id != item.id },
+            scratchpadSlotOccupied: windowActions.scratchpadSlotOccupied
+        )
+    }
 
     var body: some View {
         HStack(spacing: windowSpacing) {
@@ -303,7 +382,8 @@ private struct WorkspaceItemView: View {
                     animationsEnabled: animationsEnabled,
                     accentColor: accentColor,
                     textColor: textColor,
-                    onFocusWindow: onFocusWindow
+                    onFocusWindow: onFocusWindow,
+                    actions: scopedWindowActions
                 )
             }
 
@@ -323,7 +403,8 @@ private struct WorkspaceItemView: View {
                     animationsEnabled: animationsEnabled,
                     accentColor: accentColor,
                     textColor: textColor,
-                    onFocusWindow: onFocusWindow
+                    onFocusWindow: onFocusWindow,
+                    actions: scopedWindowActions
                 )
             }
         }
@@ -377,9 +458,19 @@ private struct WorkspaceLabelButton: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        // Right-click workspace label: *Focus* equals left-click. The
+        // *Move Workspace to Monitor ▸* item is omitted until Nehir #62 lands
+        // (plan #18 prerequisite — not an ancestor of this branch).
+        .contextMenu {
+            Button {
+                onFocusWorkspace()
+            } label: {
+                Label("Focus", systemImage: "rectangle.center.inset.filled")
+            }
+        }
         .accessibilityLabel("Workspace \(item.name)")
         .accessibilityValue(item.isFocused ? "Focused" : "")
-        .help("Focus workspace \(item.name)")
+        .help("Focus workspace \(item.name). Right-click for more actions.")
     }
 }
 
@@ -393,6 +484,7 @@ private struct FloatingWindowsGroupView: View {
     let accentColor: Color?
     let textColor: Color?
     let onFocusWindow: (WindowToken) -> Void
+    let actions: WorkspaceBarWindowActions
 
     private var resolvedSecondaryTextColor: Color {
         textColor ?? .secondary
@@ -416,7 +508,8 @@ private struct FloatingWindowsGroupView: View {
                     animationsEnabled: animationsEnabled,
                     accentColor: accentColor,
                     textColor: textColor,
-                    onFocusWindow: onFocusWindow
+                    onFocusWindow: onFocusWindow,
+                    actions: actions
                 )
             }
         }
@@ -444,6 +537,8 @@ private struct ScratchpadPillView: View {
     let accentColor: Color?
     let textColor: Color?
     let onActivateScratchpad: () -> Void
+    let onToggleScratchpadVisible: () -> Void
+    let onUnassignScratchpad: () -> Void
 
     @State private var isHovered = false
 
@@ -492,9 +587,30 @@ private struct ScratchpadPillView: View {
         .onHover { hovering in
             isHovered = hovering
         }
+        // Right-click scratchpad pill: *Toggle Visible / Unassign / Focus*
+        // (plan #18). *Focus* mirrors the pill's left-click activation.
+        .contextMenu {
+            Button {
+                onToggleScratchpadVisible()
+            } label: {
+                Label(item.isVisible ? "Hide" : "Show", systemImage: "eye")
+            }
+            Button(role: .destructive) {
+                onUnassignScratchpad()
+            } label: {
+                Label("Unassign from Scratchpad", systemImage: "tray")
+            }
+            Button {
+                onActivateScratchpad()
+            } label: {
+                Label("Focus", systemImage: "rectangle.center.inset.filled")
+            }
+        }
         .accessibilityLabel("Scratchpad")
         .accessibilityValue(accessibilityValue)
-        .help("Scratchpad: \(item.window.appName), \(item.isVisible ? "visible" : "hidden")")
+        .help(
+            "Scratchpad: \(item.window.appName), \(item.isVisible ? "visible" : "hidden"). Right-click for more actions."
+        )
     }
 
     private var scale: CGFloat {
@@ -543,6 +659,7 @@ private struct WindowIconView: View {
     let accentColor: Color?
     let textColor: Color?
     let onFocusWindow: (WindowToken) -> Void
+    let actions: WorkspaceBarWindowActions
 
     @State private var isHovered = false
     @State private var showingWindowList = false
@@ -582,6 +699,47 @@ private struct WindowIconView: View {
         .onHover { hovering in
             isHovered = hovering
         }
+        // Right-click window icon: *Toggle Floating; Assign to Scratchpad;
+        // Move to Workspace ▸; Close; Windows…* (plan #18 v1 item set; no
+        // fullscreen — see Non-goals). Acts on this window's token, not focus.
+        .contextMenu {
+            Button {
+                actions.onToggleFloating(window.id)
+            } label: {
+                Label("Toggle Floating", systemImage: "rectangle")
+            }
+            Button {
+                actions.onToggleScratchpadAssignment(window.id)
+            } label: {
+                Label("Assign to Scratchpad", systemImage: "tray")
+            }
+            .disabled(actions.scratchpadSlotOccupied)
+            if !actions.moveTargets.isEmpty {
+                Menu {
+                    ForEach(actions.moveTargets) { target in
+                        Button(target.name) {
+                            actions.onMoveToWorkspace(window.id, target.id)
+                        }
+                    }
+                } label: {
+                    Label("Move to Workspace", systemImage: "arrow.right.square")
+                }
+            }
+            Divider()
+            Button(role: .destructive) {
+                actions.onClose(window.id)
+            } label: {
+                Label("Close", systemImage: "xmark.rectangle")
+            }
+            if window.windowCount > 1 {
+                Divider()
+                Button {
+                    showingWindowList = true
+                } label: {
+                    Label("Windows…", systemImage: "list.bullet")
+                }
+            }
+        }
         .sheet(isPresented: $showingWindowList) {
             WindowListSheet(
                 windows: window.allWindows,
@@ -596,7 +754,7 @@ private struct WindowIconView: View {
         }
         .accessibilityLabel(accessibilityLabel)
         .accessibilityValue(accessibilityValue)
-        .help(window.appName)
+        .help("\(window.appName). Right-click for more actions.")
     }
 
     private var opacity: Double {

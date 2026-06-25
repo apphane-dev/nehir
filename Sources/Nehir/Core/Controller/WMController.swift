@@ -789,6 +789,34 @@ final class WMController {
         windowActionHandler.focusWindowFromBar(token: token, suppressMouseWarp: true)
     }
 
+    /// Token-based close backing the workspace bar's right-click *Close* item
+    /// (plan #18). Resolves the token to its handle (same lookup as
+    /// `focusWindowFromBar(token:)`) and delegates to the shared
+    /// `WindowActionHandler.closeWindow(handle:)`.
+    @discardableResult
+    func closeWindowFromBar(token: WindowToken) -> ExternalCommandResult {
+        guard windowActionHandler.closeWindow(token: token) else {
+            return .notFound
+        }
+        return .executed
+    }
+
+    /// Token-based move backing the workspace bar's right-click *Move to
+    /// Workspace* submenu (plan #18 / #2). Thin wrapper over
+    /// `WorkspaceNavigationHandler.moveWindow(handle:toWorkspaceId:)`, which is
+    /// already token-targeted via its `WindowHandle` argument.
+    @discardableResult
+    func moveWindowFromBar(token: WindowToken, toWorkspaceId: WorkspaceDescriptor.ID) -> ExternalCommandResult {
+        guard let entry = workspaceManager.entry(for: token) else {
+            return .notFound
+        }
+        let moved = workspaceNavigationHandler.moveWindow(
+            handle: entry.handle,
+            toWorkspaceId: toWorkspaceId
+        )
+        return moved ? .executed : .notFound
+    }
+
     @discardableResult
     func activateScratchpadFromBar(on monitorId: Monitor.ID?) -> ExternalCommandResult {
         guard let scratchpadToken = workspaceManager.scratchpadToken() else {
@@ -3873,11 +3901,11 @@ final class WMController {
         )
     }
 
-    func toggleFocusedWindowFloating() -> ExternalCommandResult {
-        let token = focusedManagedTokenForCommand()
-        guard let token,
-              let entry = workspaceManager.entry(for: token)
-        else {
+    /// Token-parameterized toggle of floating/tiling for an explicit window,
+    /// independent of focus. Backs the workspace bar's right-click *Toggle
+    /// Floating* item (plan #18). The focused wrapper below delegates here.
+    func toggleWindowFloating(token: WindowToken) -> ExternalCommandResult {
+        guard let entry = workspaceManager.entry(for: token) else {
             return .notFound
         }
 
@@ -3902,25 +3930,29 @@ final class WMController {
         return .executed
     }
 
+    func toggleFocusedWindowFloating() -> ExternalCommandResult {
+        guard let token = focusedManagedTokenForCommand() else {
+            return .notFound
+        }
+        return toggleWindowFloating(token: token)
+    }
+
+    /// Assigns an explicit token to the single scratchpad slot, honoring the
+    /// single-slot constraint (#7): returns `.notFound` when the slot is held by
+    /// a different managed window so the right-click menu can disable/relabel
+    /// the item rather than silently no-op'ing. Token-parameterized twin of the
+    /// assign branch of `assignFocusedWindowToScratchpad()` (plan #18 / #8).
     @discardableResult
-    func assignFocusedWindowToScratchpad() -> ExternalCommandResult {
-        guard let token = focusedManagedTokenForCommand(),
-              let entry = workspaceManager.entry(for: token),
+    func assignWindowToScratchpad(token: WindowToken) -> ExternalCommandResult {
+        guard let entry = workspaceManager.entry(for: token),
               !isManagedWindowSuspendedForNativeFullscreen(token)
         else {
             return .notFound
         }
 
-        if workspaceManager.isScratchpadToken(token) {
-            guard !workspaceManager.isHiddenInCorner(token) else {
-                return .notFound
-            }
-            cleanupScratchpadWindowResources(for: token)
-            applyManagedWindowOverride(.forceTile, for: token, entry: entry)
-            return .executed
-        }
-
-        if let existingScratchpadToken = workspaceManager.scratchpadToken() {
+        if let existingScratchpadToken = workspaceManager.scratchpadToken(),
+           existingScratchpadToken != token
+        {
             if workspaceManager.entry(for: existingScratchpadToken) == nil {
                 cleanupScratchpadWindowResources(for: existingScratchpadToken)
             } else {
@@ -3950,6 +3982,47 @@ final class WMController {
         }
 
         return .executed
+    }
+
+    /// Unassigns an explicit token from the scratchpad slot, restoring it to
+    /// tiling. Returns `.notFound` when the token is not the current scratchpad,
+    /// is suspended for native fullscreen, or is hidden in a corner. Backs the
+    /// workspace bar's scratchpad-pill *Unassign* item (plan #18).
+    @discardableResult
+    func unassignWindowFromScratchpad(token: WindowToken) -> ExternalCommandResult {
+        guard workspaceManager.isScratchpadToken(token),
+              let entry = workspaceManager.entry(for: token),
+              !isManagedWindowSuspendedForNativeFullscreen(token)
+        else {
+            return .notFound
+        }
+
+        guard !workspaceManager.isHiddenInCorner(token) else {
+            return .notFound
+        }
+
+        cleanupScratchpadWindowResources(for: token)
+        applyManagedWindowOverride(.forceTile, for: token, entry: entry)
+        return .executed
+    }
+
+    /// Token-aware assign-or-unassign routed by current scratchpad state. Used
+    /// by both the window-icon *Assign to Scratchpad* and the scratchpad-pill
+    /// *Unassign from Scratchpad* menu items (plan #18).
+    @discardableResult
+    func toggleWindowScratchpadAssignment(token: WindowToken) -> ExternalCommandResult {
+        if workspaceManager.isScratchpadToken(token) {
+            return unassignWindowFromScratchpad(token: token)
+        }
+        return assignWindowToScratchpad(token: token)
+    }
+
+    @discardableResult
+    func assignFocusedWindowToScratchpad() -> ExternalCommandResult {
+        guard let token = focusedManagedTokenForCommand() else {
+            return .notFound
+        }
+        return toggleWindowScratchpadAssignment(token: token)
     }
 
     private func applyManagedWindowOverride(
