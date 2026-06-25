@@ -2,6 +2,15 @@
 
 Source upstream range: `BarutSRB/OmniWM` after `ee9b4f0707668d43f73e4af8c9a4f3581b8c11ce` through current upstream `main` observed on 2026-06-18.
 
+> **Post-roadmap update (2026-06-25).** The Status column below was corrected for
+> **M4-S2, M6, and A1** — all three are now `landed` (they were marked `not started`).
+> The Sequencing prose beneath still reflects the pre-landing intent for those rows
+> and is superseded for them by their `landed` status. New upstream commits after the
+> 2026-06-18 cutoff are triaged in
+> [`20260625-upstream-post-roadmap-candidates.md`](20260625-upstream-post-roadmap-candidates.md)
+> (M4-S2/M6/A1 landed detail with residuals + a 12-commit post-cutoff triage whose
+> headline recommendation is porting `b8a545f` directional cross-monitor focus).
+
 **This doc is the single source of truth** for tier, verdict, deliverability, sequencing, and status of every port candidate. Per-cluster discovery docs carry the detail; this carries the priority/categorization.
 
 Counting note: this roadmap has 13 rows because M4 is split into Stage 1/Stage 2 and A2–A5 are grouped into one architecture row. M2 is retained as a decided-no row so the upstream candidate is accounted for.
@@ -46,10 +55,10 @@ Status: `not started` · `planned` · `in progress` · `landed` · `decided-no` 
 | Minor | M2 | Learned per-window size quantum | 🟢 rejected | noop/rejection memo only | — | decided-no | [noop](../noop/20260618-upstream-size-quantum-rejected.md) |
 | Minor | M3 | Focus-request origin for FFM cursor-warp | 🟡 | narrow FFM warp gate using existing `isFFM`; origin model deferred | — (soft sequencing before M6) | landed | [discovery](20260618-focus-request-origin-ffm-cursor-warp.md) · [completed](../completed/20260619-m3-ffm-cursor-warp-suppression.md) |
 | Minor | M4-S1 | Displays-have-separate-Spaces mode detection + diagnostics | 🟡 | diagnostics-only; no layout/startup change | — | landed | [discovery](20260618-displays-separate-spaces-mode-detection.md) · [completed](../completed/20260619-m4s1-displays-separate-spaces-detection.md) |
-| Minor | M4-S2 | Minimal Space topology eviction exemption | 🟡 | small value-type topology; OFF = true no-op; product-gated | **M4-S1** | not started | [M4-S2](20260618-space-topology-eviction-exemption.md) |
+| Minor | M4-S2 | Minimal Space topology eviction exemption | 🟡 | small value-type topology; OFF = true no-op; product-gated | **M4-S1** | landed (`4ae5fc96`, 2026-06-22) | [M4-S2](20260618-space-topology-eviction-exemption.md) |
 | Minor | M5 | Raw MultitouchSupport gesture source | 🟡 | investigation concluded → shipped as the production source (not diagnostic-only) | abort-trace (M5 step 1) — landed | landed | [discovery](20260618-raw-multitouch-gesture-source.md) · [completed](../completed/20260620-m5-raw-multitouch-gesture-source.md) |
-| Minor | M6 | Cross-workspace stale focus/session revision guard | 🔴 | revision counter + apply guard + cross-ws clear; **high callsite risk** | **M3** (recommended sequence) | not started | [M6](20260618-stale-session-selection-revision-guard.md) |
-| Major | A1 | Pure Niri model shared by runtime + onboarding (first spike) | 🟡 spike | pure addition + agreement tests first; no runtime/demo refactor yet | — (prereq for A2) | not started | [A1](20260618-pure-niri-engine-extraction.md) |
+| Minor | M6 | Cross-workspace stale focus/session revision guard | 🔴 | revision counter + apply guard + cross-ws clear; **high callsite risk** | **M3** (recommended sequence) | landed (`42ac731f`, 2026-06-22) | [M6](20260618-stale-session-selection-revision-guard.md) |
+| Major | A1 | Pure Niri model shared by runtime + onboarding (first spike) | 🟡 spike | pure addition + agreement tests first; no runtime/demo refactor yet | — (prereq for A2) | landed (`b1844dd8`, 2026-06-20; + runtime-bridge follow-ups `98d00e4c`/`c2915f44`/`0547046a`) | [A1](20260618-pure-niri-engine-extraction.md) |
 | Major | A2–A5 | Effect-plan boundary; revision stamps; focus ledger; Space runtime mode | 🟡 | framed in analysis doc, **no standalone discovery doc yet** | A1 | deferred | [analysis](20260618-worldstore-pure-engine-reuse.md) |
 
 ## Sequencing (DAG)
