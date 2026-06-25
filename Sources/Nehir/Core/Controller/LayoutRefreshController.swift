@@ -2609,10 +2609,20 @@ import QuartzCore
         guard let liveFrame = AXWindowService.framePreferFast(entry.axRef)
             ?? (try? AXWindowService.frame(entry.axRef))
         else { return nil }
-        guard let activeWorkspaceId = controller.interactionWorkspace()?.id,
-              let activeMonitor = controller.workspaceManager.monitor(for: activeWorkspaceId)
-        else { return nil }
-        guard liveFrame.intersects(activeMonitor.frame) else { return nil }
+        // A workspace-inactive window must be parked offscreen on every monitor, so a
+        // leak is detected when the live frame intersects ANY active monitor — not only
+        // the single interaction monitor. Otherwise a window bleeding onto a different
+        // monitor's active workspace (a multi-monitor leak) is missed and never repaired.
+        let activeMonitors = controller.workspaceManager.monitors.filter {
+            controller.workspaceManager.activeWorkspace(on: $0.id) != nil
+        }
+        guard let activeMonitor = activeMonitors.first(where: { liveFrame.intersects($0.frame) }) else {
+            return nil
+        }
+        let interactionWorkspaceId = controller.interactionWorkspace()?.id
+        let activeWorkspaceId = interactionWorkspaceId
+            ?? controller.workspaceManager.activeWorkspace(on: activeMonitor.id)?.id
+        guard let activeWorkspaceId else { return nil }
 
         let hiddenPlacementMonitor = HiddenPlacementMonitorContext(monitor)
         let resolvedHiddenPlacementMonitors = hiddenPlacementMonitors
@@ -4068,6 +4078,18 @@ final class LayoutDiffExecutor {
 
         for (entry, hiddenState) in shownEntries {
             guard let hiddenState else { continue }
+            // An inactive workspace's `.show` means "visible inside this workspace's
+            // layout," not "reveal on the active monitor." Route such entries away
+            // from the entire reveal/visible-frame application flow — the pending
+            // reveal transaction, the visibleJobs activation (markWindowActive), and
+            // the frame write — by marking the token blocked. Otherwise the frame is
+            // pulled onscreen while the model still reports workspaceInactive. Tokens
+            // that also carry an explicit restoreChange are owned by the restore path
+            // above and are left untouched here.
+            if !isPlanWorkspaceActive, !restoreTokens.contains(entry.token) {
+                blockedRevealTokens.insert(entry.token)
+                continue
+            }
             guard let targetFrame = frameChangeByToken[entry.token] else {
                 if refreshController.hasPendingRevealTransaction(for: entry.windowId) {
                     blockedRevealTokens.insert(entry.token)
