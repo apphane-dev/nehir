@@ -238,6 +238,21 @@ final class WorkspaceBarManager {
                         controller: controller,
                         section: .diagnostics
                     )
+                },
+                onToggleWindowFloating: { [weak controller] token in
+                    _ = controller?.toggleWindowFloating(token: token)
+                },
+                onToggleScratchpadAssignment: { [weak controller] token in
+                    _ = controller?.toggleWindowScratchpadAssignment(token: token)
+                },
+                onCloseWindow: { [weak controller] token in
+                    _ = controller?.closeWindowFromBar(token: token)
+                },
+                onMoveWindowToWorkspace: { [weak controller] token, workspaceId in
+                    _ = controller?.moveWindowFromBar(token: token, toWorkspaceId: workspaceId)
+                },
+                onToggleScratchpadVisible: { [weak controller] in
+                    _ = controller?.toggleScratchpadWindow()
                 }
             )
         )

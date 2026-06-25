@@ -70,7 +70,6 @@ private struct GlobalBarSettingsSection: View {
                     .onChange(of: settings.workspaceBarShowFloatingWindows) { _, _ in
                         controller.updateWorkspaceBarSettings()
                     }
-
                 if settings.developerModeEnabled {
                     SettingsCaption(
                         "Developer trace controls now live in the DebugBar, keeping workspace navigation separate from debugging actions."
@@ -86,6 +85,10 @@ private struct GlobalBarSettingsSection: View {
                     .onChange(of: settings.workspaceBarHideEmptyWorkspaces) { _, _ in
                         controller.updateWorkspaceBarSettings()
                     }
+
+                SettingsCaption(
+                    "Tip: right-click a window icon, the scratchpad, or a workspace for more actions."
+                )
             }
         }
 
