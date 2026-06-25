@@ -534,6 +534,156 @@ private func makeRecordingPanelFactory(
     }
 }
 
+@MainActor
+private func addWorkspaceBarClickTestWindow(
+    on controller: WMController,
+    workspaceId: WorkspaceDescriptor.ID,
+    windowId: Int
+) -> WindowHandle {
+    let token = addLayoutPlanTestWindow(on: controller, workspaceId: workspaceId, windowId: windowId)
+    guard let handle = controller.workspaceManager.handle(for: token) else {
+        fatalError("Expected bridge handle for workspace bar click test window")
+    }
+    return handle
+}
+
+@MainActor
+private func syncNiriWorkspaceStateForBarClickTests(
+    on controller: WMController,
+    workspaceIds: Set<WorkspaceDescriptor.ID>
+) {
+    guard let engine = controller.niriEngine else { return }
+    for workspaceId in workspaceIds {
+        let handles = controller.workspaceManager.entries(in: workspaceId).map(\.handle)
+        let selectedNodeId = controller.workspaceManager.niriViewportState(for: workspaceId).selectedNodeId
+        let focusedHandle = controller.workspaceManager.lastFocusedHandle(in: workspaceId)
+        _ = engine.syncWindows(handles, in: workspaceId, selectedNodeId: selectedNodeId, focusedHandle: focusedHandle)
+        let resolvedSelection = focusedHandle.flatMap { engine.findNode(for: $0)?.id }
+            ?? engine.validateSelection(selectedNodeId, in: workspaceId)
+        controller.workspaceManager.withNiriViewportState(for: workspaceId) { state in
+            state.selectedNodeId = resolvedSelection
+            state.activeColumnIndex = min(state.activeColumnIndex, max(0, engine.columns(in: workspaceId).count - 1))
+        }
+    }
+}
+
+@Suite(.serialized) @MainActor struct WorkspaceBarClickIntentTests {
+    @Test func clickIntentResolveMapsShiftToMoveWindow() {
+        #expect(WorkspaceBarClickIntent.resolve(modifiers: .shift) == .moveWindow)
+        #expect(WorkspaceBarClickIntent.resolve(modifiers: NSEvent.ModifierFlags(rawValue: 0)) == .focus)
+        #expect(WorkspaceBarClickIntent.resolve(modifiers: .option) == .focus)
+        // Shift combined with other modifiers still maps to move (Shift is the move differentiator).
+        #expect(WorkspaceBarClickIntent.resolve(modifiers: [.shift, .option]) == .moveWindow)
+    }
+
+    @Test func onFocusWorkspaceDispatchesMoveOnShift() async throws {
+        let monitor = makeLayoutPlanTestMonitor(displayId: 90)
+        let controller = makeLayoutPlanTestController(monitors: [monitor])
+        controller.settings.focusFollowsWindowToMonitor = false
+
+        guard let targetWorkspaceId = controller.workspaceManager.workspaceId(for: "1", createIfMissing: false),
+              let sourceWorkspaceId = controller.workspaceManager.workspaceId(for: "2", createIfMissing: false)
+        else {
+            Issue.record("Missing single-monitor workspace fixture")
+            return
+        }
+
+        controller.enableNiriLayout()
+        await waitForLayoutPlanRefreshWork(on: controller)
+        controller.syncMonitorsToNiriEngine()
+
+        let targetFirst = addWorkspaceBarClickTestWindow(
+            on: controller,
+            workspaceId: targetWorkspaceId,
+            windowId: 20_101
+        )
+        _ = addWorkspaceBarClickTestWindow(on: controller, workspaceId: targetWorkspaceId, windowId: 20_102)
+        let movedHandle = addWorkspaceBarClickTestWindow(
+            on: controller,
+            workspaceId: sourceWorkspaceId,
+            windowId: 20_103
+        )
+
+        _ = controller.workspaceManager.rememberFocus(targetFirst, in: targetWorkspaceId)
+        _ = controller.workspaceManager.setManagedFocus(movedHandle, in: sourceWorkspaceId, onMonitor: monitor.id)
+        syncNiriWorkspaceStateForBarClickTests(on: controller, workspaceIds: [targetWorkspaceId, sourceWorkspaceId])
+        controller.workspaceManager.withNiriViewportState(for: targetWorkspaceId) { state in
+            state.activeColumnIndex = 0
+            state.viewOffsetPixels = .static(0)
+        }
+        _ = controller.workspaceManager.setActiveWorkspace(sourceWorkspaceId, on: monitor.id)
+        _ = controller.workspaceManager.setInteractionMonitor(monitor.id)
+
+        let manager = WorkspaceBarManager()
+        manager.monitorProvider = { [monitor] }
+        manager.screenProvider = { _ in nil }
+        manager.panelFactory = makeRecordingPanelFactory(store: RecordingPanelStore())
+        manager.setup(controller: controller, settings: controller.settings)
+        defer {
+            manager.clickIntentFlagProvider = { NSEvent.modifierFlags }
+            manager.cleanup()
+        }
+
+        manager.clickIntentFlagProvider = { .shift }
+        let item = WorkspaceBarItem(
+            id: targetWorkspaceId,
+            name: "1",
+            rawName: "1",
+            isFocused: false,
+            tiledWindows: [],
+            floatingWindows: []
+        )
+        manager.handleWorkspacePillClick(item)
+        await waitForLayoutPlanRefreshWork(on: controller)
+
+        #expect(controller.workspaceManager.workspace(for: movedHandle.id) == targetWorkspaceId)
+    }
+
+    @Test func onFocusWorkspaceDispatchesFocusByDefault() throws {
+        let monitor = makeLayoutPlanTestMonitor(displayId: 91)
+        let controller = makeLayoutPlanTestController(monitors: [monitor])
+
+        guard let targetWorkspaceId = controller.workspaceManager.workspaceId(for: "1", createIfMissing: false),
+              let sourceWorkspaceId = controller.workspaceManager.workspaceId(for: "2", createIfMissing: false)
+        else {
+            Issue.record("Missing single-monitor workspace fixture")
+            return
+        }
+
+        let unmovedHandle = addWorkspaceBarClickTestWindow(
+            on: controller,
+            workspaceId: sourceWorkspaceId,
+            windowId: 21_101
+        )
+        _ = controller.workspaceManager.setActiveWorkspace(sourceWorkspaceId, on: monitor.id)
+
+        let manager = WorkspaceBarManager()
+        manager.monitorProvider = { [monitor] }
+        manager.screenProvider = { _ in nil }
+        manager.panelFactory = makeRecordingPanelFactory(store: RecordingPanelStore())
+        manager.setup(controller: controller, settings: controller.settings)
+        defer {
+            manager.clickIntentFlagProvider = { NSEvent.modifierFlags }
+            manager.cleanup()
+        }
+
+        manager.clickIntentFlagProvider = { NSEvent.ModifierFlags(rawValue: 0) }
+        let item = WorkspaceBarItem(
+            id: targetWorkspaceId,
+            name: "1",
+            rawName: "1",
+            isFocused: false,
+            tiledWindows: [],
+            floatingWindows: []
+        )
+        manager.handleWorkspacePillClick(item)
+
+        // Plain-click path: focus switches to the clicked workspace, no window moves.
+        #expect(controller.workspaceManager.currentActiveWorkspace(on: monitor.id)?.id == targetWorkspaceId)
+        #expect(controller.workspaceManager.workspace(for: unmovedHandle.id) == sourceWorkspaceId)
+    }
+}
+
 @Suite struct WorkspaceBarPanelTests {
     @Test @MainActor func constrainFrameRectClampsToTargetFrameWhenScreenIsNil() {
         let panel = WorkspaceBarPanel(

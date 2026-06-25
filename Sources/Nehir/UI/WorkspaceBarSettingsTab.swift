@@ -26,6 +26,8 @@ struct WorkspaceBarSettingsTab: View {
                 }
             )
 
+            WorkspaceBarPreviewSection(configuration: previewConfiguration)
+
             if let monitorId = selectedMonitor,
                let monitor = connectedMonitors.first(where: { $0.id == monitorId })
             {
@@ -44,6 +46,152 @@ struct WorkspaceBarSettingsTab: View {
         .formStyle(.grouped)
         .onAppear {
             connectedMonitors = Monitor.current()
+        }
+    }
+
+    private var previewConfiguration: WorkspaceBarPreviewConfiguration {
+        if let monitorId = selectedMonitor,
+           let monitor = connectedMonitors.first(where: { $0.id == monitorId })
+        {
+            return WorkspaceBarPreviewConfiguration(
+                resolved: settings.resolvedBarSettings(for: monitor),
+                scopeDescription: "Preview reflects \(monitor.name)'s effective bar settings, including monitor overrides."
+            )
+        }
+
+        return WorkspaceBarPreviewConfiguration(
+            isEnabled: settings.workspaceBarEnabled,
+            showLabels: settings.workspaceBarShowLabels,
+            showFloatingWindows: settings.workspaceBarShowFloatingWindows,
+            deduplicateAppIcons: settings.workspaceBarDeduplicateAppIcons,
+            hideEmptyWorkspaces: settings.workspaceBarHideEmptyWorkspaces,
+            scopeDescription: "Preview reflects the global workspace bar defaults."
+        )
+    }
+}
+
+private struct WorkspaceBarPreviewConfiguration {
+    let isEnabled: Bool
+    let showLabels: Bool
+    let showFloatingWindows: Bool
+    let deduplicateAppIcons: Bool
+    let hideEmptyWorkspaces: Bool
+    let scopeDescription: String
+
+    init(
+        isEnabled: Bool,
+        showLabels: Bool,
+        showFloatingWindows: Bool,
+        deduplicateAppIcons: Bool,
+        hideEmptyWorkspaces: Bool,
+        scopeDescription: String
+    ) {
+        self.isEnabled = isEnabled
+        self.showLabels = showLabels
+        self.showFloatingWindows = showFloatingWindows
+        self.deduplicateAppIcons = deduplicateAppIcons
+        self.hideEmptyWorkspaces = hideEmptyWorkspaces
+        self.scopeDescription = scopeDescription
+    }
+
+    init(resolved: ResolvedBarSettings, scopeDescription: String) {
+        self.init(
+            isEnabled: resolved.enabled,
+            showLabels: resolved.showLabels,
+            showFloatingWindows: resolved.showFloatingWindows,
+            deduplicateAppIcons: resolved.deduplicateAppIcons,
+            hideEmptyWorkspaces: resolved.hideEmptyWorkspaces,
+            scopeDescription: scopeDescription
+        )
+    }
+}
+
+private struct WorkspaceBarPreviewSection: View {
+    let configuration: WorkspaceBarPreviewConfiguration
+
+    var body: some View {
+        Section("Preview & Behavior") {
+            VStack(alignment: .leading, spacing: 14) {
+                preview
+                SettingsCaption(configuration.scopeDescription)
+                behaviorList
+            }
+            .padding(.vertical, 4)
+        }
+    }
+
+    private var preview: some View {
+        ZStack {
+            HStack {
+                Spacer(minLength: 0)
+                WorkspaceBarAnimation(
+                    showLabels: configuration.showLabels,
+                    showFloatingWindows: configuration.showFloatingWindows,
+                    deduplicateAppIcons: configuration.deduplicateAppIcons,
+                    hideEmptyWorkspaces: configuration.hideEmptyWorkspaces
+                )
+                .frame(maxWidth: 360)
+                .opacity(configuration.isEnabled ? 1 : 0.35)
+                Spacer(minLength: 0)
+            }
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity)
+
+            if !configuration.isEnabled {
+                Text("Disabled for this scope")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(.regularMaterial, in: Capsule())
+            }
+        }
+    }
+
+    private var behaviorList: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            behaviorRow(
+                icon: "cursorarrow.click.2",
+                title: "Click a workspace",
+                text: "Focuses that workspace without warping the pointer."
+            )
+            behaviorRow(
+                icon: "list.bullet.rectangle",
+                title: "Right-click a workspace",
+                text: "Shows explicit actions to focus it or move the focused window there."
+            )
+            behaviorRow(
+                icon: "arrowshape.turn.up.right",
+                title: "Shift-click a workspace",
+                text: "Moves the focused window to that workspace as a quick shortcut."
+            )
+            behaviorRow(
+                icon: "square.stack.3d.down.right",
+                title: "Window, not column",
+                text: "Only the focused window moves; moving an entire column is a separate action."
+            )
+            behaviorRow(
+                icon: "macwindow.on.rectangle",
+                title: "Window icons and scratchpad",
+                text: "Window icons still focus windows, and the scratchpad pill opens the scratchpad."
+            )
+        }
+    }
+
+    private func behaviorRow(icon: String, title: String, text: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: icon)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(width: 16, alignment: .center)
+                .padding(.top, 1)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(.caption.weight(.semibold))
+                Text(text)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 }

@@ -785,6 +785,16 @@ final class WMController {
         windowActionHandler.focusWorkspaceFromBar(id: workspaceId, suppressMouseWarp: true)
     }
 
+    /// Shift+click on a workspace pill moves the focused managed window to that
+    /// workspace. Mirrors `focusWorkspaceFromBar(id:)` and reuses the existing
+    /// `moveFocusedWindow(toRawWorkspaceID:)` pipeline (target-viewport reveal +
+    /// `focusFollowsWindowToMonitor`). Silent no-op if the workspace is unknown or
+    /// no managed window is focused (same early-return behavior as the hotkey path).
+    func moveFocusedWindowFromBar(toWorkspaceId id: WorkspaceDescriptor.ID) {
+        guard let rawID = workspaceManager.descriptor(for: id)?.name else { return }
+        workspaceNavigationHandler.moveFocusedWindow(toRawWorkspaceID: rawID)
+    }
+
     func focusWindowFromBar(token: WindowToken) {
         windowActionHandler.focusWindowFromBar(token: token, suppressMouseWarp: true)
     }
@@ -3985,9 +3995,9 @@ final class WMController {
     }
 
     /// Unassigns an explicit token from the scratchpad slot, restoring it to
-    /// tiling. Returns `.notFound` when the token is not the current scratchpad,
-    /// is suspended for native fullscreen, or is hidden in a corner. Backs the
-    /// workspace bar's scratchpad-pill *Unassign* item (plan #18).
+    /// tiling. Returns `.notFound` when the token is not the current scratchpad
+    /// or is suspended for native fullscreen. Backs the workspace bar's
+    /// scratchpad-pill *Unassign* item (plan #18).
     @discardableResult
     func unassignWindowFromScratchpad(token: WindowToken) -> ExternalCommandResult {
         guard workspaceManager.isScratchpadToken(token),
@@ -3997,8 +4007,13 @@ final class WMController {
             return .notFound
         }
 
-        guard !workspaceManager.isHiddenInCorner(token) else {
-            return .notFound
+        if let hiddenState = workspaceManager.hiddenState(for: token) {
+            guard hiddenState.isScratchpad,
+                  let monitor = workspaceManager.monitor(for: entry.workspaceId) ?? monitorForInteraction(),
+                  layoutRefreshController.restoreScratchpadWindow(entry, monitor: monitor)
+            else {
+                return .notFound
+            }
         }
 
         cleanupScratchpadWindowResources(for: token)

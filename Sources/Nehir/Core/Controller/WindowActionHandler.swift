@@ -138,6 +138,8 @@ final class WindowActionHandler {
         navigateToWindowInternal(token: handle.id, workspaceId: workspaceId)
     }
 
+    var closeWindowForTests: ((WindowHandle) -> Void)?
+
     /// Closes a managed window by pressing its AX close button. Shared by the
     /// Overview and the workspace bar's right-click *Close* item so both paths
     /// use identical AX-close semantics. Lifted from the Overview's private
@@ -145,6 +147,11 @@ final class WindowActionHandler {
     func closeWindow(handle: WindowHandle) {
         guard let controller else { return }
         guard let entry = controller.workspaceManager.entry(for: handle) else { return }
+
+        if let closeWindowForTests {
+            closeWindowForTests(entry.handle)
+            return
+        }
 
         let element = entry.axRef.element
         AXUIElementPerformAction(element, kAXRaiseAction as CFString)

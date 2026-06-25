@@ -141,8 +141,8 @@ import Testing
 
     @Test @MainActor func moveTargetsExcludeCurrentWorkspace() throws {
         // The *Move to Workspace ▸* submenu must not offer the window's own
-        // workspace. The view scopes targets to `snapshot.items` excluding the
-        // window's item; verify the snapshot surfaces the other workspace.
+        // workspace. Verify the same helper used by the view's scoped actions
+        // removes the current workspace while preserving the other workspace.
         let monitor = makeLayoutPlanTestMonitor(displayId: 904)
         let controller = makeLayoutPlanTestController(monitors: [monitor])
         guard let workspace1 = controller.workspaceManager.workspaceId(for: "1", createIfMissing: false),
@@ -164,10 +164,17 @@ import Testing
         defer { manager.cleanup() }
 
         let snapshot = try #require(manager.snapshotForTests(on: monitor.id))
-        let workspaceIds = Set(snapshot.items.map(\.id))
-        #expect(workspaceIds.contains(workspace1))
-        #expect(workspaceIds.contains(workspace2))
-        #expect(snapshot.items.count >= 2)
+        let moveTargets = snapshot.items.map { item in
+            WorkspaceBarWindowMoveTarget(id: item.id, name: item.name)
+        }
+        let filteredTargets = workspaceBarMoveTargetsExcludingCurrentWorkspace(
+            moveTargets,
+            currentWorkspaceId: workspace1
+        )
+        let filteredIds = Set(filteredTargets.map(\.id))
+
+        #expect(!filteredIds.contains(workspace1))
+        #expect(filteredIds.contains(workspace2))
     }
 }
 
