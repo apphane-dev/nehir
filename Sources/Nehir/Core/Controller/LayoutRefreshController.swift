@@ -2458,6 +2458,29 @@ import QuartzCore
             // Skip moving windows already hidden offscreen by the layout engine.
             // They're already parked — no need to shuffle them to the other side.
             if let hiddenState = controller.workspaceManager.hiddenState(for: entry.token) {
+                // Second-line repair: the model says this inactive-workspace window is
+                // parked, but its live frame is visibly onscreen (for example, a layout
+                // frame write leaked it onto the active monitor). Re-apply
+                // workspace-inactive parking instead of only logging the drift.
+                // `hideWindow` preserves the existing proportionalPosition so a later
+                // reveal still restores the user's original on-screen position.
+                if hiddenState.workspaceInactive,
+                   isWorkspaceInactiveWindowVisiblyDrifting(
+                       entry,
+                       monitor: monitor,
+                       preferredSide: preferredSide,
+                       hiddenState: hiddenState,
+                       hiddenPlacementMonitors: hiddenPlacementMonitors
+                   )
+                {
+                    hideWindow(
+                        entry,
+                        monitor: monitor,
+                        side: preferredSide,
+                        reason: .workspaceInactive,
+                        hiddenPlacementMonitors: hiddenPlacementMonitors
+                    )
+                }
                 traceWorkspaceInactiveVisibleDriftIfNeeded(
                     entry,
                     monitor: monitor,
@@ -2541,6 +2564,29 @@ import QuartzCore
             return rightLine
         }
         return lines.isEmpty ? "none" : lines.joined(separator: "\n")
+    }
+
+    /// Returns whether a window that the model reports as workspace-inactive-hidden
+    /// is in fact visibly onscreen on the active monitor and not parked at a screen
+    /// edge. Unlike `workspaceInactiveVisibleDriftLine`, this is evaluated regardless
+    /// of whether runtime trace capture is active, so it can drive a corrective
+    /// repair rather than only a diagnostic trace.
+    private func isWorkspaceInactiveWindowVisiblyDrifting(
+        _ entry: WindowModel.Entry,
+        monitor: Monitor,
+        preferredSide: HideSide,
+        hiddenState: WindowModel.HiddenState,
+        hiddenPlacementMonitors: [HiddenPlacementMonitorContext]? = nil
+    ) -> Bool {
+        workspaceInactiveVisibleDriftLine(
+            entry,
+            monitor: monitor,
+            preferredSide: preferredSide,
+            hiddenState: hiddenState,
+            hiddenPlacementMonitors: hiddenPlacementMonitors,
+            trigger: "hideWorkspace.driftRepair",
+            requireTraceCapture: false
+        ) != nil
     }
 
     private func workspaceInactiveVisibleDriftLine(
@@ -3912,6 +3958,14 @@ final class LayoutDiffExecutor {
 
         let diff = plan.diff
 
+        // Whether this plan targets the workspace that is currently active on its own
+        // monitor. Frame writes for an inactive workspace are the layout engine
+        // computing where a window *would* sit if the workspace were visible; they
+        // must not be treated as active/onscreen jobs (see inactive-workspace frame
+        // leak fix).
+        let isPlanWorkspaceActive = controller.workspaceManager
+            .activeWorkspace(on: monitor.id)?.id == plan.workspaceId
+
         var resolvedEntries: [WindowToken: WindowModel.Entry] = [:]
         var hiddenEntries: [(entry: WindowModel.Entry, side: HideSide)] = []
         var hiddenTokens: Set<WindowToken> = []
@@ -4145,6 +4199,12 @@ final class LayoutDiffExecutor {
                 && !pendingRevealTokens.contains(entry.token)
                 && !blockedRevealTokens.contains(entry.token)
             {
+                // A `.show` diff means "visible inside this workspace's layout," not
+                // "visible on the active monitor." For an inactive workspace, clearing
+                // the workspace-inactive hidden state here would mark the window as
+                // un-hidden in the model while it is still parked offscreen, so leave
+                // the state intact and let `hideInactiveWorkspaces` own the reveal.
+                guard isPlanWorkspaceActive else { continue }
                 controller.workspaceManager.setHiddenState(nil, for: entry.token)
             }
         }
@@ -4219,12 +4279,27 @@ final class LayoutDiffExecutor {
             }
         }
 
-        let visibleFrameJobs = (frameUpdates + resizeMinimumProbeFrameUpdates + revealFrameUpdates)
+        // Only mark windows active / unsuppress frame writes for jobs that are truly
+        // meant to appear on the active monitor: explicit reveal/restore visible jobs,
+        // pending reveal transactions, and ordinary frame changes only when this plan's
+        // workspace is the active one on its monitor.
+        //
+        // A frame change for an INACTIVE workspace is just the layout engine computing
+        // where the window would sit if the workspace were visible. Activating or
+        // unsuppressing it here removes the window from the inactive set right before
+        // the guarded `applyFramesParallel` write, leaking the visible frame onscreen
+        // while its model still reports `workspaceInactive`. Leaving inactive ordinary
+        // jobs classified as inactive lets `applyFramesParallel` record `skip-inactive`,
+        // and `hideInactiveWorkspaces` owns offscreen parking for them.
+        let activatableOrdinaryFrameUpdates: [(pid: pid_t, windowId: Int, frame: CGRect)] = isPlanWorkspaceActive
+            ? (frameUpdates + resizeMinimumProbeFrameUpdates)
+            : []
+        let activatableFrameJobs = (activatableOrdinaryFrameUpdates + revealFrameUpdates)
             .map { (pid: $0.pid, windowId: $0.windowId) }
         var activeFrameJobs: [(pid: pid_t, windowId: Int)] = []
-        activeFrameJobs.reserveCapacity(visibleJobs.count + visibleFrameJobs.count)
+        activeFrameJobs.reserveCapacity(visibleJobs.count + activatableFrameJobs.count)
         var seenActiveWindowIds: Set<Int> = []
-        for job in visibleJobs + visibleFrameJobs where seenActiveWindowIds.insert(job.windowId).inserted {
+        for job in visibleJobs + activatableFrameJobs where seenActiveWindowIds.insert(job.windowId).inserted {
             activeFrameJobs.append(job)
         }
         if !activeFrameJobs.isEmpty {

@@ -980,6 +980,160 @@ private func makeUnavailableLayoutPlanTestWindow(windowId: Int) -> AXWindowRef {
         #expect(controller.workspaceManager.hiddenState(for: token)?.workspaceInactive == true)
     }
 
+    @Test @MainActor func executeInactiveWorkspaceLayoutPlanDoesNotLeakVisibleFrameWrite() {
+        let controller = makeLayoutPlanTestController()
+        guard let monitor = controller.workspaceManager.monitors.first,
+              let inactiveWorkspaceId = controller.workspaceManager.workspaceId(for: "1", createIfMissing: false),
+              let activeWorkspaceId = controller.workspaceManager.workspaceId(for: "2", createIfMissing: false)
+        else {
+            Issue.record("Missing monitor or workspaces for inactive frame-leak regression test")
+            return
+        }
+        _ = controller.workspaceManager.setActiveWorkspace(activeWorkspaceId, on: monitor.id)
+        // Workspace 1 is now inactive while workspace 2 is active on the same monitor.
+        #expect(controller.workspaceManager.activeWorkspace(on: monitor.id)?.id == activeWorkspaceId)
+
+        let token = addLayoutPlanTestWindow(on: controller, workspaceId: inactiveWorkspaceId, windowId: 21476)
+        setWorkspaceInactiveHiddenStateForLayoutPlanTests(on: controller, token: token, monitor: monitor)
+
+        // Mirror executeRefreshExecutionPlan: classify the workspace-1 window as inactive
+        // before layout application so applyFramesParallel's skip-inactive guard can fire.
+        controller.axManager.updateInactiveWorkspaceWindows(
+            allEntries: [(workspaceId: inactiveWorkspaceId, windowId: token.windowId)],
+            activeWorkspaceIds: [activeWorkspaceId]
+        )
+        #expect(controller.axManager.inactiveWorkspaceWindowIds.contains(token.windowId))
+
+        let leakedFrame = CGRect(x: 160, y: 110, width: 820, height: 540)
+        var diff = WorkspaceLayoutDiff()
+        diff.frameChanges = [LayoutFrameChange(token: token, frame: leakedFrame, forceApply: false)]
+
+        controller.layoutRefreshController.executeLayoutPlan(
+            WorkspaceLayoutPlan(
+                workspaceId: inactiveWorkspaceId,
+                monitor: controller.layoutRefreshController.buildMonitorSnapshot(for: monitor),
+                sessionPatch: WorkspaceSessionPatch(workspaceId: inactiveWorkspaceId),
+                diff: diff
+            )
+        )
+
+        // The inactive workspace's ordinary frame change must not be activated/unsuppressed,
+        // so applyFramesParallel skips it (skip-inactive) instead of writing the visible
+        // frame onscreen while the model still reports workspaceInactive.
+        #expect(controller.axManager.inactiveWorkspaceWindowIds.contains(token.windowId))
+        #expect(controller.axManager.lastAppliedFrame(for: token.windowId) == nil)
+        #expect(controller.workspaceManager.hiddenState(for: token)?.workspaceInactive == true)
+    }
+
+    @Test @MainActor func executeActiveWorkspaceLayoutPlanRevealStillRestoresHiddenWindow() {
+        let controller = makeLayoutPlanTestController()
+        guard let monitor = controller.workspaceManager.monitors.first,
+              let activeWorkspaceId = controller.workspaceManager.activeWorkspaceOrFirst(on: monitor.id)?.id
+        else {
+            Issue.record("Missing monitor or active workspace for active reveal regression test")
+            return
+        }
+
+        let token = addLayoutPlanTestWindow(on: controller, workspaceId: activeWorkspaceId, windowId: 21477)
+        setWorkspaceInactiveHiddenStateForLayoutPlanTests(on: controller, token: token, monitor: monitor)
+
+        let frame = CGRect(x: 160, y: 110, width: 820, height: 540)
+        var diff = WorkspaceLayoutDiff()
+        diff.frameChanges = [LayoutFrameChange(token: token, frame: frame, forceApply: false)]
+        diff.restoreChanges = [
+            LayoutRestoreChange(
+                token: token,
+                hiddenState: WindowModel.HiddenState(
+                    proportionalPosition: CGPoint(x: 0.5, y: 0.5),
+                    referenceMonitorId: monitor.id,
+                    workspaceInactive: true
+                )
+            )
+        ]
+
+        controller.layoutRefreshController.executeLayoutPlan(
+            WorkspaceLayoutPlan(
+                workspaceId: activeWorkspaceId,
+                monitor: controller.layoutRefreshController.buildMonitorSnapshot(for: monitor),
+                sessionPatch: WorkspaceSessionPatch(workspaceId: activeWorkspaceId),
+                diff: diff
+            )
+        )
+
+        // Active-workspace reveal must still clear the workspace-inactive hidden state,
+        // apply the restore frame, and leave the window classified active.
+        #expect(controller.workspaceManager.hiddenState(for: token) == nil)
+        #expect(controller.axManager.lastAppliedFrame(for: token.windowId) == frame)
+        #expect(!controller.axManager.inactiveWorkspaceWindowIds.contains(token.windowId))
+    }
+
+    @Test @MainActor func hideInactiveWorkspacesRepairsWorkspaceInactiveVisibleDrift() async {
+        await withAXFrameProviderIsolationForTests {
+            let controller = makeLayoutPlanTestController()
+            guard let monitor = controller.workspaceManager.monitors.first,
+                  let activeWorkspaceId = controller.workspaceManager.workspaceId(for: "1", createIfMissing: false),
+                  let inactiveWorkspaceId = controller.workspaceManager.workspaceId(for: "2", createIfMissing: false),
+                  controller.interactionWorkspace()?.id == activeWorkspaceId
+            else {
+                Issue.record("Missing monitor or workspaces for drift repair regression test")
+                return
+            }
+
+            let token = addLayoutPlanTestWindow(on: controller, workspaceId: inactiveWorkspaceId, windowId: 21478)
+            setWorkspaceInactiveHiddenStateForLayoutPlanTests(on: controller, token: token, monitor: monitor)
+
+            // The window is modelled inactive-hidden, but its live frame is visibly on the
+            // active monitor (simulating a leaked frame write), well away from any screen
+            // edge park position.
+            let leakedFrame = CGRect(x: 300, y: 200, width: 800, height: 600)
+            let previousFastFrameProvider = AXWindowService.fastFrameProviderForTests
+            let previousSetFrameProvider = AXWindowService.setFrameResultProviderForTests
+            var repairedFrameWrites: [CGRect] = []
+            AXWindowService.fastFrameProviderForTests = { window in
+                if window.windowId == token.windowId {
+                    return leakedFrame
+                }
+                return previousFastFrameProvider?(window)
+            }
+            AXWindowService.setFrameResultProviderForTests = { window, frame, currentFrameHint in
+                if window.windowId == token.windowId {
+                    repairedFrameWrites.append(frame)
+                }
+                return previousSetFrameProvider?(window, frame, currentFrameHint)
+                    ?? AXFrameWriteResult(
+                        targetFrame: frame,
+                        observedFrame: frame,
+                        writeOrder: AXWindowService.frameWriteOrder(
+                            currentFrame: currentFrameHint,
+                            targetFrame: frame
+                        ),
+                        sizeError: .success,
+                        positionError: .success,
+                        failureReason: nil
+                    )
+            }
+            defer {
+                AXWindowService.fastFrameProviderForTests = previousFastFrameProvider
+                AXWindowService.setFrameResultProviderForTests = previousSetFrameProvider
+            }
+
+            controller.layoutRefreshController.hideInactiveWorkspaces(activeWorkspaceIds: [activeWorkspaceId])
+
+            // The drift repair re-parks the leaked window offscreen instead of only
+            // logging workspaceInactiveVisibleDrift and skipping (hideWorkspace.skipAlreadyHidden).
+            // Without the repair this collection is empty; the window would stay visibly leaked.
+            guard let parkedFrame = repairedFrameWrites.first else {
+                Issue.record("Expected a drift-repair frame write to re-park the leaked window")
+                return
+            }
+            let parkedRect = CGRect(origin: parkedFrame.origin, size: leakedFrame.size)
+            let parkedOffscreen = parkedRect.origin.x <= monitor.frame.minX
+                || parkedRect.maxX >= monitor.frame.maxX
+            #expect(parkedOffscreen)
+            #expect(controller.workspaceManager.hiddenState(for: token)?.workspaceInactive == true)
+        }
+    }
+
     @Test @MainActor func executeLayoutPlanRestoresSecondaryWorkspaceWindowOnVisibleMonitor() {
         let fixture = makeTwoMonitorLayoutPlanTestController()
         let controller = fixture.controller
