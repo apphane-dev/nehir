@@ -1,5 +1,7 @@
 # User-addressable floating surfaces: stop transient helpers from blinking in the workspace bar — Plan
 
+**Status:** completed — merged to `main` as `54d5dd7e` ("Hide app-managed transient and parented floating surfaces from the workspace bar") on 2026-06-25. The first implementation slice shipped: parented WindowServer child surfaces auto-float and inherit their parent's workspace (niri model); app-managed transient helper/PIP surfaces that lack standard-window AX affordances are no longer user-addressable — they are hidden from the workspace bar, excluded from the toggle-floating command, and bound to their owning app's primary workspace so they can no longer leak focus onto the viewed workspace. The size-threshold predicate proposed in this plan was replaced by an AX-affordance classifier (`isStandardAXWindowSurface`: standard window role/subrole + close button + enabled fullscreen button) plus `globalSticky`, so no `minimumUserAddressableFloatingDimension` heuristic shipped. Explicit `FloatingIntent` persistence (Phase 3), rescue/restore cleanup (Phase 4), and the optional stability gate (Phase 5) remain deferred follow-ups, as the plan's own "Recommended first implementation slice" recommended. Moved from `planned/` to `completed/` on 2026-06-25.
+
 Plan date: 2026-06-24. Source paths and implementation notes were verified
 against the main Nehir source tree at `ade7cd07` (`Keep PiP visible across
 workspace switches (#108)`). Line numbers may drift.
