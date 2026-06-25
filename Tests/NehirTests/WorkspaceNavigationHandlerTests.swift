@@ -165,4 +165,144 @@ private func assertMovedWindowRevealedInTargetViewport(
         )
         #expect(controller.interactionWorkspace()?.id == sourceWorkspaceId)
     }
+
+    @Test @MainActor func moveFocusedWindowFromBarMovesFocusedWindowToClickedWorkspace() async throws {
+        let controller = makeWorkspaceNavigationTestController()
+        controller.settings.focusFollowsWindowToMonitor = false
+
+        guard let monitor = controller.workspaceManager.monitors.first,
+              let targetWorkspaceId = controller.workspaceManager.workspaceId(for: "1", createIfMissing: false),
+              let sourceWorkspaceId = controller.workspaceManager.workspaceId(for: "2", createIfMissing: false)
+        else {
+            Issue.record("Missing single-monitor workspace fixture")
+            return
+        }
+
+        controller.enableNiriLayout()
+        await waitForLayoutPlanRefreshWork(on: controller)
+        controller.syncMonitorsToNiriEngine()
+
+        let targetFirst = addWorkspaceNavigationTestWindow(
+            on: controller,
+            workspaceId: targetWorkspaceId,
+            windowId: 11_101
+        )
+        _ = addWorkspaceNavigationTestWindow(on: controller, workspaceId: targetWorkspaceId, windowId: 11_102)
+        _ = addWorkspaceNavigationTestWindow(on: controller, workspaceId: targetWorkspaceId, windowId: 11_103)
+        let movedHandle = addWorkspaceNavigationTestWindow(
+            on: controller,
+            workspaceId: sourceWorkspaceId,
+            windowId: 11_104
+        )
+
+        _ = controller.workspaceManager.rememberFocus(targetFirst, in: targetWorkspaceId)
+        _ = controller.workspaceManager.setManagedFocus(movedHandle, in: sourceWorkspaceId, onMonitor: monitor.id)
+        syncNiriWorkspaceStateForWorkspaceNavigationTests(
+            on: controller,
+            workspaceIds: [targetWorkspaceId, sourceWorkspaceId]
+        )
+        controller.workspaceManager.withNiriViewportState(for: targetWorkspaceId) { state in
+            state.activeColumnIndex = 0
+            state.viewOffsetPixels = .static(0)
+        }
+        _ = controller.workspaceManager.setActiveWorkspace(sourceWorkspaceId, on: monitor.id)
+        _ = controller.workspaceManager.setInteractionMonitor(monitor.id)
+
+        controller.moveFocusedWindowFromBar(toWorkspaceId: targetWorkspaceId)
+        await waitForLayoutPlanRefreshWork(on: controller)
+
+        assertMovedWindowRevealedInTargetViewport(
+            controller: controller,
+            workspaceId: targetWorkspaceId,
+            token: movedHandle.id
+        )
+        #expect(controller.workspaceManager.workspace(for: movedHandle.id) == targetWorkspaceId)
+        #expect(controller.interactionWorkspace()?.id == sourceWorkspaceId)
+    }
+
+    @Test @MainActor func moveFocusedWindowFromBarNoopsWhenNoManagedFocus() async throws {
+        let controller = makeWorkspaceNavigationTestController()
+
+        guard let sourceWorkspaceId = controller.workspaceManager.workspaceId(for: "2", createIfMissing: false),
+              let targetWorkspaceId = controller.workspaceManager.workspaceId(for: "1", createIfMissing: false)
+        else {
+            Issue.record("Missing single-monitor workspace fixture")
+            return
+        }
+
+        // A window exists on the source workspace, but no managed focus is confirmed
+        // and the Niri engine is not enabled, so `managedCommandTargetToken()` is nil.
+        let unmovedHandle = addWorkspaceNavigationTestWindow(
+            on: controller,
+            workspaceId: sourceWorkspaceId,
+            windowId: 12_101
+        )
+        #expect(controller.managedCommandTargetToken() == nil)
+
+        controller.moveFocusedWindowFromBar(toWorkspaceId: targetWorkspaceId)
+        await waitForLayoutPlanRefreshWork(on: controller)
+
+        #expect(controller.workspaceManager.workspace(for: unmovedHandle.id) == sourceWorkspaceId)
+    }
+
+    @Test @MainActor func moveFocusedWindowFromBarResolvesCustomNamedWorkspace() async throws {
+        // Nehir workspace names are always numeric; a custom *display* name is separate
+        // from the raw numeric `name`. This verifies the bar entry point resolves via
+        // `descriptor(for:)?.name` (the raw numeric id) for a non-default-numbered
+        // workspace, and that a custom display name does not leak into the resolution.
+        let controller = makeWorkspaceNavigationTestController(
+            workspaceConfigurations: [
+                WorkspaceConfiguration(name: "1", monitorAssignment: .main),
+                WorkspaceConfiguration(name: "3", displayName: "Development", monitorAssignment: .main)
+            ]
+        )
+        controller.settings.focusFollowsWindowToMonitor = false
+
+        guard let monitor = controller.workspaceManager.monitors.first,
+              let sourceWorkspaceId = controller.workspaceManager.workspaceId(for: "1", createIfMissing: false),
+              let targetWorkspaceId = controller.workspaceManager.workspaceId(for: "3", createIfMissing: false)
+        else {
+            Issue.record("Missing custom-named workspace fixture")
+            return
+        }
+        #expect(controller.workspaceManager.descriptor(for: targetWorkspaceId)?.name == "3")
+
+        controller.enableNiriLayout()
+        await waitForLayoutPlanRefreshWork(on: controller)
+        controller.syncMonitorsToNiriEngine()
+
+        _ = addWorkspaceNavigationTestWindow(
+            on: controller,
+            workspaceId: targetWorkspaceId,
+            windowId: 13_101
+        )
+        _ = addWorkspaceNavigationTestWindow(on: controller, workspaceId: targetWorkspaceId, windowId: 13_102)
+        let movedHandle = addWorkspaceNavigationTestWindow(
+            on: controller,
+            workspaceId: sourceWorkspaceId,
+            windowId: 13_103
+        )
+
+        _ = controller.workspaceManager.setManagedFocus(movedHandle, in: sourceWorkspaceId, onMonitor: monitor.id)
+        syncNiriWorkspaceStateForWorkspaceNavigationTests(
+            on: controller,
+            workspaceIds: [sourceWorkspaceId, targetWorkspaceId]
+        )
+        controller.workspaceManager.withNiriViewportState(for: targetWorkspaceId) { state in
+            state.activeColumnIndex = 0
+            state.viewOffsetPixels = .static(0)
+        }
+        _ = controller.workspaceManager.setActiveWorkspace(sourceWorkspaceId, on: monitor.id)
+        _ = controller.workspaceManager.setInteractionMonitor(monitor.id)
+
+        controller.moveFocusedWindowFromBar(toWorkspaceId: targetWorkspaceId)
+        await waitForLayoutPlanRefreshWork(on: controller)
+
+        assertMovedWindowRevealedInTargetViewport(
+            controller: controller,
+            workspaceId: targetWorkspaceId,
+            token: movedHandle.id
+        )
+        #expect(controller.workspaceManager.workspace(for: movedHandle.id) == targetWorkspaceId)
+    }
 }

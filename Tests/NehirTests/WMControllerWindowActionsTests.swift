@@ -234,14 +234,18 @@ private func syncNiriWorkspaceState(
         // Focus A; close B's token. B resolves (not A's focus), and the entry
         // for B exists so the close path is reachable.
         _ = controller.workspaceManager.setManagedFocus(tokenA, in: workspaceId, onMonitor: monitor.id)
+        var closedTokens: [WindowToken] = []
+        controller.windowActionHandler.closeWindowForTests = { handle in
+            closedTokens.append(handle.id)
+        }
 
         #expect(controller.closeWindowFromBar(token: tokenB) == .executed)
-        // A remains tracked (its close path was not taken).
-        #expect(controller.workspaceManager.entry(for: tokenA) != nil)
+        #expect(closedTokens == [tokenB])
 
-        // Unknown token → notFound.
+        // Unknown token → notFound and no extra close action.
         let unknownToken = WindowToken(pid: 99_998, windowId: 99_998)
         #expect(controller.closeWindowFromBar(token: unknownToken) == .notFound)
+        #expect(closedTokens == [tokenB])
     }
 
     // MARK: - Move to Workspace

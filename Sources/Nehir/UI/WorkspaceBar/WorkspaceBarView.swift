@@ -99,6 +99,7 @@ final class WorkspaceBarModel {
 struct WorkspaceBarView: View {
     let model: WorkspaceBarModel
     let onFocusWorkspace: (WorkspaceBarItem) -> Void
+    let onMoveFocusedWindowToWorkspace: (WorkspaceBarItem) -> Void
     let onFocusWindow: (WindowToken) -> Void
     let onActivateScratchpad: () -> Void
     let onOpenCommandPalette: () -> Void
@@ -114,6 +115,7 @@ struct WorkspaceBarView: View {
             snapshot: model.snapshot,
             animationsEnabled: true,
             onFocusWorkspace: onFocusWorkspace,
+            onMoveFocusedWindowToWorkspace: onMoveFocusedWindowToWorkspace,
             onFocusWindow: onFocusWindow,
             onActivateScratchpad: onActivateScratchpad,
             onOpenCommandPalette: onOpenCommandPalette,
@@ -136,6 +138,7 @@ struct WorkspaceBarMeasurementView: View {
             snapshot: snapshot,
             animationsEnabled: false,
             onFocusWorkspace: { _ in },
+            onMoveFocusedWindowToWorkspace: { _ in },
             onFocusWindow: { _ in },
             onActivateScratchpad: {},
             onOpenCommandPalette: {},
@@ -169,11 +172,19 @@ struct WorkspaceBarWindowActions {
     let scratchpadSlotOccupied: Bool
 }
 
+func workspaceBarMoveTargetsExcludingCurrentWorkspace(
+    _ targets: [WorkspaceBarWindowMoveTarget],
+    currentWorkspaceId: WorkspaceDescriptor.ID
+) -> [WorkspaceBarWindowMoveTarget] {
+    targets.filter { $0.id != currentWorkspaceId }
+}
+
 @MainActor
 private struct WorkspaceBarContentView: View {
     let snapshot: WorkspaceBarSnapshot
     let animationsEnabled: Bool
     let onFocusWorkspace: (WorkspaceBarItem) -> Void
+    let onMoveFocusedWindowToWorkspace: (WorkspaceBarItem) -> Void
     let onFocusWindow: (WindowToken) -> Void
     let onActivateScratchpad: () -> Void
     let onOpenCommandPalette: () -> Void
@@ -259,6 +270,7 @@ private struct WorkspaceBarContentView: View {
                     accentColor: accentColor,
                     textColor: textColor,
                     onFocusWorkspace: { onFocusWorkspace(item) },
+                    onMoveFocusedWindowToWorkspace: { onMoveFocusedWindowToWorkspace(item) },
                     onFocusWindow: onFocusWindow,
                     windowActions: windowActions
                 )
@@ -327,6 +339,7 @@ private struct WorkspaceItemView: View {
     let accentColor: Color?
     let textColor: Color?
     let onFocusWorkspace: () -> Void
+    let onMoveFocusedWindowToWorkspace: () -> Void
     let onFocusWindow: (WindowToken) -> Void
     let windowActions: WorkspaceBarWindowActions
 
@@ -341,7 +354,10 @@ private struct WorkspaceItemView: View {
             onToggleScratchpadAssignment: windowActions.onToggleScratchpadAssignment,
             onClose: windowActions.onClose,
             onMoveToWorkspace: windowActions.onMoveToWorkspace,
-            moveTargets: windowActions.moveTargets.filter { $0.id != item.id },
+            moveTargets: workspaceBarMoveTargetsExcludingCurrentWorkspace(
+                windowActions.moveTargets,
+                currentWorkspaceId: item.id
+            ),
             scratchpadSlotOccupied: windowActions.scratchpadSlotOccupied
         )
     }
@@ -353,7 +369,8 @@ private struct WorkspaceItemView: View {
                     item: item,
                     accentColor: accentColor,
                     textColor: textColor,
-                    onFocusWorkspace: onFocusWorkspace
+                    onFocusWorkspace: onFocusWorkspace,
+                    onMoveFocusedWindowToWorkspace: onMoveFocusedWindowToWorkspace
                 )
 
                 if !item.windows.isEmpty {
@@ -367,7 +384,8 @@ private struct WorkspaceItemView: View {
                     item: item,
                     accentColor: accentColor,
                     textColor: textColor,
-                    onFocusWorkspace: onFocusWorkspace
+                    onFocusWorkspace: onFocusWorkspace,
+                    onMoveFocusedWindowToWorkspace: onMoveFocusedWindowToWorkspace
                 )
             }
 
@@ -430,6 +448,20 @@ private struct WorkspaceItemView: View {
         .onHover { hovering in
             isHovered = hovering
         }
+        .contextMenu {
+            Button {
+                onFocusWorkspace()
+            } label: {
+                Label("Focus Workspace \(item.name)", systemImage: "arrow.right.square")
+            }
+            Button {
+                onMoveFocusedWindowToWorkspace()
+            } label: {
+                Label("Move Focused Window Here", systemImage: "arrowshape.turn.up.right")
+            }
+            Divider()
+            Text("Shift-click also moves one window here.")
+        }
         .accessibilityElement(children: .contain)
     }
 }
@@ -440,6 +472,7 @@ private struct WorkspaceLabelButton: View {
     let accentColor: Color?
     let textColor: Color?
     let onFocusWorkspace: () -> Void
+    let onMoveFocusedWindowToWorkspace: () -> Void
 
     private var resolvedAccentColor: Color {
         accentColor ?? .accentColor
@@ -467,10 +500,19 @@ private struct WorkspaceLabelButton: View {
             } label: {
                 Label("Focus", systemImage: "rectangle.center.inset.filled")
             }
+            Button {
+                onMoveFocusedWindowToWorkspace()
+            } label: {
+                Label("Move Focused Window Here", systemImage: "arrowshape.turn.up.right")
+            }
+            Divider()
+            Text("Shift-click also moves one window here.")
         }
         .accessibilityLabel("Workspace \(item.name)")
         .accessibilityValue(item.isFocused ? "Focused" : "")
-        .help("Focus workspace \(item.name). Right-click for more actions.")
+        .help(
+            "Focus workspace \(item.name). Shift-click or right-click to move the focused window here."
+        )
     }
 }
 

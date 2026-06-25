@@ -103,6 +103,11 @@ final class WorkspaceBarManager {
 
     var appearanceProvider: @MainActor () -> NSAppearance? = { NSApplication.shared.appearance }
 
+    /// Defaults to the global modifier-flag poll (proven at
+    /// `MultitouchGestureSource.swift:86`). Injectable so the click-wiring dispatch
+    /// is hermetically testable without synthesizing an `NSEvent`.
+    var clickIntentFlagProvider: @MainActor () -> NSEvent.ModifierFlags = { NSEvent.modifierFlags }
+
     private var barsByMonitor: [Monitor.ID: MonitorBarInstance] = [:]
     private var screenObserver: Any?
     private var sleepWakeObserver: Any?
@@ -219,8 +224,11 @@ final class WorkspaceBarManager {
         let hostingView = NSHostingView(
             rootView: WorkspaceBarView(
                 model: model,
-                onFocusWorkspace: { [weak controller] item in
-                    controller?.focusWorkspaceFromBar(id: item.id)
+                onFocusWorkspace: { [weak self] item in
+                    self?.handleWorkspacePillClick(item)
+                },
+                onMoveFocusedWindowToWorkspace: { [weak controller] item in
+                    controller?.moveFocusedWindowFromBar(toWorkspaceId: item.id)
                 },
                 onFocusWindow: { [weak controller] token in
                     controller?.focusWindowFromBar(token: token)
@@ -601,6 +609,21 @@ final class WorkspaceBarManager {
         removeAllBars()
     }
 
+    /// Routes a workspace-pill click to focus or move-focused-window based on the
+    /// held modifiers reported by `clickIntentFlagProvider`. The plain-click path
+    /// is unchanged (`focusWorkspaceFromBar`); Shift routes to
+    /// `moveFocusedWindowFromBar` (the mouse analogue of `Opt+Shift+N`).
+    func handleWorkspacePillClick(_ item: WorkspaceBarItem) {
+        guard let controller else { return }
+        let flags = clickIntentFlagProvider()
+        switch WorkspaceBarClickIntent.resolve(modifiers: flags) {
+        case .focus:
+            controller.focusWorkspaceFromBar(id: item.id)
+        case .moveWindow:
+            controller.moveFocusedWindowFromBar(toWorkspaceId: item.id)
+        }
+    }
+
     private func applySettingsToPanel(_ panel: NSPanel, resolved: ResolvedBarSettings) {
         panel.level = resolved.windowLevel.nsWindowLevel
     }
@@ -686,5 +709,21 @@ extension WorkspaceBarManager {
 
     func hostingViewEffectiveAppearanceForTests(on monitorId: Monitor.ID) -> NSAppearance.Name? {
         barsByMonitor[monitorId]?.hostingView.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua])
+    }
+}
+
+/// Which bar action a workspace-pill click should perform, given held modifiers.
+///
+/// v1 is Shift-only: Shift maps to `.moveWindow` (the mouse analogue of
+/// `Opt+Shift+N`); everything else maps to `.focus`. A `.moveColumn` case is
+/// intentionally absent — the column-move path does not inherit the
+/// target-viewport reveal or the focus-follows policy, so it is a separate
+/// follow-up.
+enum WorkspaceBarClickIntent {
+    case focus
+    case moveWindow
+
+    static func resolve(modifiers: NSEvent.ModifierFlags) -> WorkspaceBarClickIntent {
+        modifiers.contains(.shift) ? .moveWindow : .focus
     }
 }
