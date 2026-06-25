@@ -1426,7 +1426,10 @@ import QuartzCore
                     || evaluation.facts.windowServer?.hasTransientSurfaceEvidence == true,
                 degradedWindowServerChildEvidence: existingEntry?.managedReplacementMetadata?
                     .degradedWindowServerChildEvidence == true
-                    || evaluation.facts.degradedWindowServerChildEvidence
+                    || evaluation.facts.degradedWindowServerChildEvidence,
+                userAddressableTransientWindowServerSurface: existingEntry?.managedReplacementMetadata?
+                    .userAddressableTransientWindowServerSurface == true
+                    || evaluation.facts.userAddressableTransientWindowServerSurface
             )
 
             _ = controller.workspaceManager.addWindow(

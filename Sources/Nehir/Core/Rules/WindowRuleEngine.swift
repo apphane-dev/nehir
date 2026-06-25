@@ -112,6 +112,20 @@ struct WindowRuleFacts: Equatable, Sendable {
         }
         return windowServer.hasModalTag || (windowServer.hasFloatingTag && !windowServer.hasDocumentTag)
     }
+
+    var userAddressableTransientWindowServerSurface: Bool {
+        guard windowServer?.hasTransientSurfaceEvidence == true,
+              ax.attributeFetchSucceeded,
+              ax.role == kAXWindowRole as String,
+              ax.subrole == kAXStandardWindowSubrole as String,
+              ax.hasCloseButton,
+              ax.hasFullscreenButton,
+              ax.fullscreenButtonEnabled == true
+        else {
+            return false
+        }
+        return true
+    }
 }
 
 enum WindowRuleReevaluationTarget: Hashable, Sendable {
@@ -205,6 +219,8 @@ final class WindowRuleEngine {
     static let cleanShotBundleId = "pl.maketheweb.cleanshotx"
     static let systemTextInputPanelRuleName = "systemTextInputPanel"
     private static let transientWindowServerSurfaceRuleName = "transientWindowServerSurface"
+    private static let parentedWindowServerSurfaceRuleName = "parentedWindowServerSurface"
+    private static let transientSystemDialogSurfaceRuleName = "transientSystemDialogSurface"
     private static let cleanShotRecordingOverlayRuleName = "cleanShotRecordingOverlay"
     private static let ghosttyQuickTerminalRuleName = "ghosttyQuickTerminalOverlay"
     private static let ghosttyBundleId = "com.mitchellh.ghostty"
@@ -347,6 +363,10 @@ final class WindowRuleEngine {
             return ghosttyQuickTerminalDecision
         }
 
+        if let transientSystemDialogDecision = transientSystemDialogSurfaceDecision(for: facts) {
+            return transientSystemDialogDecision
+        }
+
         let userRule = bestMatch(in: compiledUserRules, facts: facts)
         let builtInRule = bestMatch(in: builtInRules, facts: facts)
 
@@ -356,6 +376,14 @@ final class WindowRuleEngine {
             minHeight: userRule?.rule.minHeight,
             matchedRuleId: userRule?.rule.id
         )
+
+        if let parentedSurfaceDecision = parentedWindowServerSurfaceDecision(
+            for: facts,
+            workspaceName: workspaceName,
+            effects: effects
+        ) {
+            return parentedSurfaceDecision
+        }
 
         // Floating-tagged non-document WindowServer surfaces are native popups/menus.
         // Keep them out of the tiled tree even when a broad user rule matches the app (#98).
@@ -492,6 +520,48 @@ final class WindowRuleEngine {
             workspaceName: workspaceName,
             ruleEffects: effects,
             heuristicReasons: heuristicReasons,
+            deferredReason: nil
+        )
+    }
+
+    private func parentedWindowServerSurfaceDecision(
+        for facts: WindowRuleFacts,
+        workspaceName: String?,
+        effects: ManagedWindowRuleEffects
+    ) -> WindowDecision? {
+        guard let parentId = facts.windowServer?.parentId,
+              parentId != 0
+        else {
+            return nil
+        }
+
+        return WindowDecision(
+            disposition: .floating,
+            source: .builtInRule(Self.parentedWindowServerSurfaceRuleName),
+            layoutDecisionKind: .fallbackLayout,
+            workspaceName: workspaceName,
+            ruleEffects: effects,
+            heuristicReasons: [],
+            deferredReason: nil
+        )
+    }
+
+    private func transientSystemDialogSurfaceDecision(for facts: WindowRuleFacts) -> WindowDecision? {
+        guard facts.ax.attributeFetchSucceeded,
+              facts.ax.role == kAXWindowRole as String,
+              facts.ax.subrole == kAXSystemDialogSubrole as String,
+              facts.windowServer?.parentId == nil || facts.windowServer?.parentId == 0
+        else {
+            return nil
+        }
+
+        return WindowDecision(
+            disposition: .unmanaged,
+            source: .builtInRule(Self.transientSystemDialogSurfaceRuleName),
+            layoutDecisionKind: .explicitLayout,
+            workspaceName: nil,
+            ruleEffects: .none,
+            heuristicReasons: [],
             deferredReason: nil
         )
     }
