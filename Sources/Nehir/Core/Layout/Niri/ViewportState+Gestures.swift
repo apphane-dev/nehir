@@ -14,7 +14,10 @@ extension ViewportState {
     mutating func beginGesture(isTrackpad: Bool, columns: [NiriContainer]) -> Bool {
         guard !columns.isEmpty else { return false }
         let currentOffset = viewOffsetPixels.current()
-        viewOffsetPixels = .gesture(ViewGesture(currentViewOffset: Double(currentOffset), isTrackpad: isTrackpad))
+        setGestureViewOffsetPixels(
+            ViewGesture(currentViewOffset: Double(currentOffset), isTrackpad: isTrackpad),
+            reason: "beginGesture"
+        )
         preservesUnsnappedGestureOffset = false
         selectionProgress = 0.0
         return true
@@ -136,7 +139,7 @@ extension ViewportState {
         let targetOffset = result.viewPos - Double(newColX)
 
         guard motion.animationsEnabled else {
-            viewOffsetPixels = .static(CGFloat(targetOffset))
+            setStaticViewOffsetPixels(CGFloat(targetOffset), reason: "endGesture.staticTarget")
             preservesUnsnappedGestureOffset = false
             activatePrevColumnOnRemoval = nil
             selectionProgress = 0.0
@@ -151,7 +154,7 @@ extension ViewportState {
             config: springConfig,
             displayRefreshRate: displayRefreshRate
         )
-        viewOffsetPixels = .spring(animation)
+        setSpringViewOffsetPixels(animation, reason: "endGesture.spring")
         preservesUnsnappedGestureOffset = false
 
         activatePrevColumnOnRemoval = nil
@@ -202,16 +205,19 @@ extension ViewportState {
         }
 
         if shouldAnimateBoundsCorrection, motion.animationsEnabled {
-            viewOffsetPixels = .spring(SpringAnimation(
-                from: initialOffset,
-                to: finalOffset,
-                initialVelocity: velocity,
-                startTime: timestamp,
-                config: springConfig,
-                displayRefreshRate: displayRefreshRate
-            ))
+            setSpringViewOffsetPixels(
+                SpringAnimation(
+                    from: initialOffset,
+                    to: finalOffset,
+                    initialVelocity: velocity,
+                    startTime: timestamp,
+                    config: springConfig,
+                    displayRefreshRate: displayRefreshRate
+                ),
+                reason: "endGesturePreservingCurrentOffset.spring"
+            )
         } else {
-            viewOffsetPixels = .static(CGFloat(finalOffset))
+            setStaticViewOffsetPixels(CGFloat(finalOffset), reason: "endGesturePreservingCurrentOffset.static")
         }
         preservesUnsnappedGestureOffset = true
         activatePrevColumnOnRemoval = nil
@@ -314,7 +320,7 @@ extension ViewportState {
     }
 
     private mutating func endGestureWithoutSnap(currentOffset: Double) {
-        viewOffsetPixels = .static(CGFloat(currentOffset))
+        setStaticViewOffsetPixels(CGFloat(currentOffset), reason: "endGestureWithoutSnap")
         preservesUnsnappedGestureOffset = false
         activatePrevColumnOnRemoval = nil
         viewOffsetToRestore = nil

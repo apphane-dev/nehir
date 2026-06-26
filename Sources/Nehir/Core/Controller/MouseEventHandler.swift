@@ -1635,16 +1635,25 @@ final class MouseEventHandler {
             state.gestureLastAverageX = avgX
             state.gestureLastAverageY = avgY
             state.gesturePhase = .armed
+            let viewportState = controller.workspaceManager.niriViewportState(for: currentContext.wsId)
+            let armedTraceDetails = [
+                "input=trackpadTouches",
+                "requiredFingers=\(requiredFingers)",
+                "activeTouches=\(activeTouchCount)",
+                "phase=\(phase.rawValue)",
+                String(format: "startTouch=%.3f,%.3f", avgX, avgY)
+            ]
+            if !viewportState.viewOffsetPixels.isGesture, viewportState.viewOffsetPixels.isAnimating {
+                controller.recordRuntimeViewportTrace(
+                    workspaceId: currentContext.wsId,
+                    reason: "touch_scroll_gesture_armed_with_preexisting_animation",
+                    details: armedTraceDetails
+                )
+            }
             controller.recordRuntimeViewportTrace(
                 workspaceId: currentContext.wsId,
                 reason: "touch_scroll_gesture_armed",
-                details: [
-                    "input=trackpadTouches",
-                    "requiredFingers=\(requiredFingers)",
-                    "activeTouches=\(activeTouchCount)",
-                    "phase=\(phase.rawValue)",
-                    String(format: "startTouch=%.3f,%.3f", avgX, avgY)
-                ]
+                details: armedTraceDetails
             )
 
         case .armed,

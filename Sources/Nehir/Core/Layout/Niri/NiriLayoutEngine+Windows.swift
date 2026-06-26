@@ -472,8 +472,10 @@ extension NiriLayoutEngine {
             state.activatePrevColumnOnRemoval = nil
             state.selectedNodeId = nil
         } else if removedIdx < activeIdx {
-            state.activeColumnIndex = activeIdx - 1
-            state.viewOffsetPixels.offset(delta: Double(offset))
+            state.withRecordedViewportMutation(reason: "removeWindow.shiftActiveColumn") { state in
+                state.activeColumnIndex = activeIdx - 1
+                state.viewOffsetPixels.offset(delta: Double(offset))
+            }
             state.activatePrevColumnOnRemoval = nil
             viewportNeedsRecalc = true
             fallbackSelectionId = fallbackSelectionFromActiveColumn(
@@ -487,7 +489,7 @@ extension NiriLayoutEngine {
         {
             state.activeColumnIndex = activeIdx - 1
             state.activatePrevColumnOnRemoval = nil
-            state.viewOffsetPixels = .static(previousOffset)
+            state.setStaticViewOffsetPixels(previousOffset, reason: "removeWindow.restorePreviousOffset")
             state.preservesUnsnappedGestureOffset = false
             viewportNeedsRecalc = true
             fallbackSelectionId = fallbackSelectionFromActiveColumn(

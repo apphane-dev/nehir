@@ -26,7 +26,10 @@ extension ViewportState {
         let newActiveColX = columnX(at: clampedIndex, columns: columns, gap: gap)
         let offsetDelta = oldActiveColX - newActiveColX
 
-        viewOffsetPixels.offset(delta: Double(offsetDelta))
+        withRecordedViewportMutation(reason: "setActiveColumn.rebase") { state in
+            state.viewOffsetPixels.offset(delta: Double(offsetDelta))
+            state.activeColumnIndex = clampedIndex
+        }
 
         let targetOffset = computeCenteredOffset(
             columnIndex: clampedIndex,
@@ -41,11 +44,9 @@ extension ViewportState {
         if animate {
             animateToOffset(targetOffset, motion: motion)
         } else {
-            viewOffsetPixels = .static(targetOffset)
+            setStaticViewOffsetPixels(targetOffset, reason: "setActiveColumn.staticTarget")
             preservesUnsnappedGestureOffset = false
         }
-
-        activeColumnIndex = clampedIndex
         activatePrevColumnOnRemoval = nil
         viewOffsetToRestore = nil
     }
@@ -65,9 +66,11 @@ extension ViewportState {
         let clampedIndex = newIndex.clamped(to: 0 ... (columns.count - 1))
 
         let oldActiveColX = columnX(at: activeColumnIndex, columns: columns, gap: gap)
-        activeColumnIndex = clampedIndex
         let newActiveColX = columnX(at: clampedIndex, columns: columns, gap: gap)
-        viewOffsetPixels.offset(delta: Double(oldActiveColX - newActiveColX))
+        withRecordedViewportMutation(reason: "transitionToColumn.rebase") { state in
+            state.activeColumnIndex = clampedIndex
+            state.viewOffsetPixels.offset(delta: Double(oldActiveColX - newActiveColX))
+        }
 
         let context = snapContext(columns: columns, gap: gap, viewportWidth: viewportWidth)
         let currentViewStart = newActiveColX + viewOffsetPixels.target()
@@ -78,7 +81,7 @@ extension ViewportState {
         let pixel: CGFloat = 1.0 / max(scale, 1.0)
         let toDiff = targetOffset - viewOffsetPixels.target()
         if abs(toDiff) < pixel {
-            viewOffsetPixels.offset(delta: Double(toDiff))
+            offsetViewOffsetPixels(delta: Double(toDiff), reason: "transitionToColumn.pixelSnap")
             preservesUnsnappedGestureOffset = false
             activatePrevColumnOnRemoval = nil
             viewOffsetToRestore = nil
@@ -88,7 +91,7 @@ extension ViewportState {
         if animate {
             animateToOffset(targetOffset, motion: motion, scale: scale)
         } else {
-            viewOffsetPixels = .static(targetOffset)
+            setStaticViewOffsetPixels(targetOffset, reason: "transitionToColumn.staticTarget")
             preservesUnsnappedGestureOffset = false
         }
 
@@ -112,7 +115,7 @@ extension ViewportState {
             gap: gap,
             viewportWidth: viewportWidth
         )
-        viewOffsetPixels = .static(targetOffset)
+        setStaticViewOffsetPixels(targetOffset, reason: "snapToColumn")
         preservesUnsnappedGestureOffset = false
         selectionProgress = 0
     }
@@ -140,7 +143,7 @@ extension ViewportState {
             in: self
         )
 
-        viewOffsetPixels = .static(newOffset)
+        setStaticViewOffsetPixels(newOffset, reason: "scrollByPixels")
         preservesUnsnappedGestureOffset = false
 
         if changeSelection {

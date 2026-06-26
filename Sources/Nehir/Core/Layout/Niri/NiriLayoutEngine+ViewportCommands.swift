@@ -55,8 +55,10 @@ extension NiriLayoutEngine {
         if newActiveIndex != oldActiveIndex {
             let oldX = state.columnX(at: oldActiveIndex, columns: columns, gap: gaps)
             let newX = state.columnX(at: newActiveIndex, columns: columns, gap: gaps)
-            state.viewOffsetPixels.offset(delta: Double(oldX - newX))
-            state.activeColumnIndex = newActiveIndex
+            state.withRecordedViewportMutation(reason: "scrollViewport.rebaseActiveColumn") { state in
+                state.viewOffsetPixels.offset(delta: Double(oldX - newX))
+                state.activeColumnIndex = newActiveIndex
+            }
             state.viewOffsetToRestore = nil
         }
 

@@ -45,8 +45,10 @@ extension NiriLayoutEngine {
         let fallback = removingNode.flatMap { fallbackSelectionOnRemoval(removing: $0.id, in: workspaceId) }
 
         if removedIdx < activeIdx {
-            state.activeColumnIndex = activeIdx - 1
-            state.viewOffsetPixels.offset(delta: Double(offset))
+            state.withRecordedViewportMutation(reason: "animateColumnsForRemoval.shiftActiveColumn") { state in
+                state.activeColumnIndex = activeIdx - 1
+                state.viewOffsetPixels.offset(delta: Double(offset))
+            }
             state.activatePrevColumnOnRemoval = nil
             return ColumnRemovalResult(
                 fallbackSelectionId: fallback,

@@ -217,9 +217,10 @@ extension NiriLayoutEngine {
             sizeKeyPath: sizeKeyPath
         )
         let offsetDelta = oldActivePos - newActivePos
-        state.viewOffsetPixels.offset(delta: Double(offsetDelta))
-
-        state.activeColumnIndex = targetIdx
+        state.withRecordedViewportMutation(reason: "moveSelectionToContainer.rebaseActiveColumn") { state in
+            state.viewOffsetPixels.offset(delta: Double(offsetDelta))
+            state.activeColumnIndex = targetIdx
+        }
         state.activatePrevColumnOnRemoval = nil
         state.viewOffsetToRestore = nil
 
