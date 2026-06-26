@@ -528,11 +528,7 @@ struct HotkeySettingsView: View {
     }
 
     private func isNumberedGroupMember(_ bindingId: String) -> Bool {
-        HotkeyConfigMapping.numberedGroups.contains { group in
-            (0 ..< 9).contains { digitIndex in
-                internalID(for: group, digitIndex: digitIndex) == bindingId
-            }
-        }
+        HotkeyConfigMapping.isNumberedGroupMember(bindingId)
     }
 
     private func groupForNumberedGroupID(_ groupId: String) -> HotkeyConfigMapping.NumberedGroup? {

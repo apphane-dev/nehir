@@ -194,6 +194,20 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
 
     @Published private(set) var isMenuLoading = false
 
+    /// Non-nil while a command-row hotkey capture is in progress. The id is the
+    /// selected `CommandPaletteCommandItem.id`. The palette's key monitor passes
+    /// every key through to the embedded `KeyRecorderView` while this is set.
+    @Published private(set) var recordingCommandId: String?
+
+    /// Drives the conflict confirmation sheet over the panel when a recorded
+    /// chord collides with another action. Writable so the SwiftUI `.alert`
+    /// binding can clear it.
+    @Published var pendingConflictAlert: ConflictAlert?
+
+    /// Drives a transient notice (e.g. reserved-palette-chord rejection) over
+    /// the panel. Writable so the SwiftUI `.alert` binding can clear it.
+    @Published var pendingNoticeAlert: HotkeyNoticeAlert?
+
     private let environment: CommandPaletteEnvironment
     private let ownedWindowRegistry: OwnedWindowRegistry
     private var panel: NSPanel?
@@ -399,6 +413,15 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
     static func selectedWindowHint(isSummonRightAvailable: Bool) -> InlineHint? {
         guard isSummonRightAvailable else { return nil }
         return InlineHint(title: "Summon Right", shortcut: "⇧↩")
+    }
+
+    /// Hint rendered on the selected Commands row. The caller gates numbered-group
+    /// rows (read-only) so this only needs to know whether the row is assigned.
+    static func selectedCommandHint(isAssigned: Bool) -> InlineHint {
+        InlineHint(
+            title: isAssigned ? "Clear Shortcut" : "Assign Shortcut",
+            shortcut: "⇥"
+        )
     }
 
     static func windowsStatusText(isSummonRightAvailable: Bool) -> String {
@@ -781,6 +804,11 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
     }
 
     private func handleKeyDown(_ event: NSEvent) -> Bool {
+        // While recording a command hotkey, pass every key through to the
+        // embedded `KeyRecorderView` (first responder) so the palette's own
+        // navigation chords do not swallow the capture.
+        if recordingCommandId != nil { return false }
+
         let relevantModifiers = event.modifierFlags.intersection([.shift, .command, .control, .option])
         let commandOnly = relevantModifiers == .command
 
@@ -802,6 +830,15 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
             moveSelection(by: 1)
             return true
         default:
+            // Bare Tab on a selected Commands row assigns or clears its hotkey
+            // without leaving the palette. Numbered-group rows are read-only.
+            if selectedMode == .commands,
+               event.keyCode == 48,
+               relevantModifiers.isEmpty,
+               handleCommandAssignChord()
+            {
+                return true
+            }
             guard let trigger = Self.selectionTrigger(
                 forKeyCode: event.keyCode,
                 modifierFlags: relevantModifiers
@@ -848,6 +885,115 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
         performSelectionAction(action)
     }
 
+    // MARK: - In-palette hotkey assignment
+
+    /// Handles a bare `Tab` on the selected Commands row. Returns true when the
+    /// chord is claimed (so the event monitor consumes it). Numbered-group rows
+    /// are read-only: Tab is claimed but does nothing. Singleton rows either
+    /// enter recording (unassigned) or clear their binding (assigned).
+    private func handleCommandAssignChord() -> Bool {
+        guard case let .command(id)? = selectedItemID else { return false }
+        if HotkeyConfigMapping.isNumberedGroupMember(id) {
+            return true
+        }
+        let isAssigned = commandItems.first { $0.id == id }?.bindingDisplay != nil
+        if isAssigned {
+            clearSelectedCommandBinding()
+        } else {
+            recordingCommandId = id
+        }
+        return true
+    }
+
+    /// Applies a captured chord to the action being recorded. Reuses the same
+    /// chokepoint as the Hotkeys tab (`HotkeyBindingEditor.capture`). On a free
+    /// chord the binding is committed, the row badges refresh, and the palette
+    /// stays open so several actions can be bound in one visit. On a conflict,
+    /// the alert is surfaced and the binding is left untouched.
+    func commitRecording(_ binding: KeyBinding) {
+        guard let id = recordingCommandId, let wmController else { return }
+
+        guard !Self.isReservedPaletteChord(binding) else {
+            pendingNoticeAlert = HotkeyNoticeAlert(
+                title: "Shortcut Reserved",
+                message: "That key combination is used by the command palette itself. Pick a different one."
+            )
+            // The recorder is one-shot (it stops after any capture), so end the
+            // recording session and let the user press Tab again to retry.
+            cancelRecording()
+            return
+        }
+
+        switch HotkeyBindingEditor.capture(binding, for: id, settings: wmController.settings) {
+        case .applied:
+            wmController.updateHotkeyBindings(wmController.settings.hotkeyBindings)
+            commandItems = buildCommandItems(from: wmController)
+            finishRecording()
+        case let .conflict(alert):
+            pendingConflictAlert = alert
+        }
+    }
+
+    /// Clears the selected command's binding. No conflict is possible on clear,
+    /// so no alert is surfaced.
+    private func clearSelectedCommandBinding() {
+        guard case let .command(id)? = selectedItemID,
+              let wmController
+        else { return }
+        wmController.settings.clearBinding(for: id)
+        wmController.updateHotkeyBindings(wmController.settings.hotkeyBindings)
+        commandItems = buildCommandItems(from: wmController)
+        focusSearchField()
+    }
+
+    /// Resolves a surfaced conflict alert. `replace` claims the chord for the
+    /// recorded action (displacing the previous owner); a cancel returns focus
+    /// to the search field with the same command still selected.
+    func resolvePendingConflict(replace: Bool) {
+        let alert = pendingConflictAlert
+        pendingConflictAlert = nil
+        guard replace, let alert, let wmController else {
+            focusSearchField()
+            return
+        }
+        HotkeyBindingEditor.applyConflictResolution(alert, settings: wmController.settings)
+        wmController.updateHotkeyBindings(wmController.settings.hotkeyBindings)
+        commandItems = buildCommandItems(from: wmController)
+        finishRecording()
+    }
+
+    private func finishRecording() {
+        recordingCommandId = nil
+        focusSearchField()
+    }
+
+    /// Cancelled by the recorder (Esc) or by clearing the conflict notice.
+    func cancelRecording() {
+        recordingCommandId = nil
+        focusSearchField()
+    }
+
+    /// Rejects chords the palette itself uses for navigation, so a recorded
+    /// binding cannot shadow in-palette control (Risk 4). `KeyRecorderView`
+    /// already drops bare non-special keys, but `⌘1`/`⌘2`/`⌘3` would otherwise
+    /// pass and double as mode switches.
+    private static func isReservedPaletteChord(_ binding: KeyBinding) -> Bool {
+        if binding.modifiers == UInt32(cmdKey),
+           HotkeyConfigMapping.digitKeyCodes.prefix(3).contains(binding.keyCode)
+        {
+            return true
+        }
+        switch binding.keyCode {
+        case UInt32(kVK_Escape),
+             UInt32(kVK_UpArrow), UInt32(kVK_DownArrow),
+             UInt32(kVK_Return), UInt32(kVK_ANSI_KeypadEnter),
+             UInt32(kVK_Tab):
+            return true
+        default:
+            return false
+        }
+    }
+
     private func dismiss(reason: DismissReason) {
         removeEventMonitor()
         isVisible = false
@@ -872,6 +1018,9 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
         windows = []
         menuItems = []
         commandItems = []
+        recordingCommandId = nil
+        pendingConflictAlert = nil
+        pendingNoticeAlert = nil
 
         if let restoreTarget {
             _ = focus(target: restoreTarget)
@@ -1153,6 +1302,53 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
         Self.selectionTrigger(forKeyCode: keyCode, modifierFlags: modifierFlags)
     }
 
+    /// Drives the palette key-down path with a synthetic event, mirroring what
+    /// the local `.keyDown` monitor would deliver.
+    @discardableResult
+    func handleKeyDownForTests(
+        keyCode: UInt16,
+        modifierFlags: NSEvent.ModifierFlags = []
+    ) -> Bool {
+        guard let event = NSEvent.keyEvent(
+            with: .keyDown,
+            location: .zero,
+            modifierFlags: modifierFlags,
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            characters: "",
+            charactersIgnoringModifiers: "",
+            isARepeat: false,
+            keyCode: keyCode
+        ) else {
+            return false
+        }
+        return handleKeyDown(event)
+    }
+
+    /// Sets up a Commands-mode selection without driving the full panel show
+    /// path, so Tab/assign behavior can be exercised deterministically.
+    func setCommandSelectionStateForTests(
+        wmController: WMController,
+        selectedItemID: CommandPaletteSelectionID?,
+        isVisible: Bool = true
+    ) {
+        self.wmController = wmController
+        commandItems = buildCommandItems(from: wmController)
+        selectedMode = .commands
+        self.selectedItemID = selectedItemID
+        self.isVisible = isVisible
+    }
+
+    /// Enters recording for the currently selected command, then captures
+    /// `binding`. Thin wrapper over `commitRecording` so tests do not need to
+    /// drive the Tab key-down path to exercise the capture pipeline.
+    func commitRecordingForTests(_ binding: KeyBinding) {
+        guard case let .command(id)? = selectedItemID else { return }
+        recordingCommandId = id
+        commitRecording(binding)
+    }
+
     var panelForTests: NSPanel? {
         panel
     }
@@ -1237,10 +1433,19 @@ private struct CommandPaletteView: View {
                 }
 
                 HStack(spacing: 8) {
-                    Text(statusText)
-                        .font(.system(size: 12))
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
+                    if controller.recordingCommandId != nil {
+                        KeyRecorderView(
+                            accessibilityLabel: "Recording hotkey for selected command",
+                            onCapture: { controller.commitRecording($0) },
+                            onCancel: { controller.cancelRecording() }
+                        )
+                        .frame(minWidth: 180, idealWidth: 210, minHeight: 34)
+                    } else {
+                        Text(statusText)
+                            .font(.system(size: 12))
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                    }
                     Spacer()
                 }
             }
@@ -1331,6 +1536,27 @@ private struct CommandPaletteView: View {
         .frame(width: 620, height: 430)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .alert(item: $controller.pendingConflictAlert) { alert in
+            Alert(
+                title: Text("Hotkey Conflict"),
+                message: Text(alert.message),
+                primaryButton: .destructive(Text("Replace")) {
+                    controller.resolvePendingConflict(replace: true)
+                },
+                secondaryButton: .cancel {
+                    controller.resolvePendingConflict(replace: false)
+                }
+            )
+        }
+        .alert(item: $controller.pendingNoticeAlert) { alert in
+            Alert(
+                title: Text(alert.title),
+                message: Text(alert.message),
+                dismissButton: .default(Text("OK")) {
+                    controller.cancelRecording()
+                }
+            )
+        }
     }
 
     private var searchPlaceholder: String {
@@ -1345,6 +1571,9 @@ private struct CommandPaletteView: View {
     }
 
     private var statusText: String {
+        if controller.recordingCommandId != nil {
+            return "Press a key combination… Esc to cancel."
+        }
         if controller.fallbackActive {
             return "No \(controller.selectedMode.displayName.lowercased()) matches — showing other sources."
         }
@@ -1685,6 +1914,16 @@ private struct CommandPaletteCommandRow: View {
     let item: CommandPaletteCommandItem
     let isSelected: Bool
 
+    /// Inline assign/clear hint, shown only on the selected singleton row.
+    /// Numbered-group rows (switchWorkspace.N, focusColumn.N, ...) are edited as
+    /// a 1–9 pattern in the Hotkeys tab and are read-only here.
+    private var assignHint: CommandPaletteController.InlineHint? {
+        guard isSelected,
+              !HotkeyConfigMapping.isNumberedGroupMember(item.id)
+        else { return nil }
+        return CommandPaletteController.selectedCommandHint(isAssigned: item.bindingDisplay != nil)
+    }
+
     var body: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
@@ -1699,8 +1938,17 @@ private struct CommandPaletteCommandRow: View {
 
             Spacer()
 
-            if let binding = item.bindingDisplay {
-                CommandPaletteShortcutBadge(text: binding)
+            HStack(spacing: 8) {
+                if let assignHint {
+                    Text(assignHint.title)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.secondary)
+                    CommandPaletteShortcutBadge(text: assignHint.shortcut)
+                }
+
+                if let binding = item.bindingDisplay {
+                    CommandPaletteShortcutBadge(text: binding)
+                }
             }
         }
         .padding(.horizontal, 16)

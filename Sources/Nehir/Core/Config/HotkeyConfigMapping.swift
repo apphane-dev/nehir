@@ -190,6 +190,27 @@ enum HotkeyConfigMapping {
         return String(configKey.prefix(while: { $0 != "." }))
     }
 
+    /// Returns true when `bindingId` is one slot of a numbered group (e.g.
+    /// `switchWorkspace.3`, `focusColumn.5`, `moveColumnToIndex.9`). Numbered
+    /// groups are edited as a 1–9 pattern in the Hotkeys tab, so second entry
+    /// points that bind one action at a time (such as the command palette)
+    /// treat these rows as read-only. Shared so the Hotkeys tab and the palette
+    /// agree on exactly which ids qualify.
+    static func isNumberedGroupMember(_ bindingId: String) -> Bool {
+        numberedGroups.contains { group in
+            (0 ..< 9).contains { digitIndex in
+                numberedGroupInternalId(for: group, digitIndex: digitIndex) == bindingId
+            }
+        }
+    }
+
+    private static func numberedGroupInternalId(
+        for group: NumberedGroup,
+        digitIndex: Int
+    ) -> String {
+        String(format: group.internalIdPattern, digitIndex + 1 + group.indexOffset)
+    }
+
     /// Digit key codes for keys 1-9 on the keyboard.
     static let digitKeyCodes: [UInt32] = {
         [

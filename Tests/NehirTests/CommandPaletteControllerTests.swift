@@ -872,4 +872,176 @@ private func makeCommandPaletteMenuItem(title: String, parent: String = "View") 
         let kind = controller.resolvedSelectionActionKindForTests(trigger: .primary)
         #expect(kind == .executeCommand)
     }
+
+    // MARK: - In-palette hotkey assignment (⌘3 Commands mode + Tab)
+
+    @Test func assignBindingFromPaletteAppliesFreeChord() {
+        let controller = CommandPaletteController()
+        let wmController = makeCommandPaletteTestWMController()
+        let freeChord = KeyBinding(keyCode: UInt32(kVK_F7), modifiers: UInt32(optionKey | cmdKey))
+
+        controller.setCommandSelectionStateForTests(
+            wmController: wmController,
+            selectedItemID: .command("rescueOffscreenWindows")
+        )
+
+        controller.commitRecordingForTests(freeChord)
+
+        #expect(controller.recordingCommandId == nil)
+        #expect(controller.pendingConflictAlert == nil)
+        #expect(
+            wmController.settings.hotkeyBindings.first { $0.id == "rescueOffscreenWindows" }?.binding
+                == .chord(freeChord)
+        )
+        let item = controller.commandItems.first { $0.id == "rescueOffscreenWindows" }
+        #expect(item?.bindingDisplay == freeChord.displayString)
+    }
+
+    @Test func assignBindingFromPaletteSurfacesConflictAndDoesNotMutate() {
+        let controller = CommandPaletteController()
+        let wmController = makeCommandPaletteTestWMController()
+        let shared = KeyBinding(keyCode: UInt32(kVK_ANSI_J), modifiers: UInt32(optionKey))
+
+        wmController.settings.updateBinding(for: "move.left", newBinding: shared)
+        controller.setCommandSelectionStateForTests(
+            wmController: wmController,
+            selectedItemID: .command("rescueOffscreenWindows")
+        )
+
+        controller.commitRecordingForTests(shared)
+
+        let alert = controller.pendingConflictAlert
+        #expect(alert != nil)
+        #expect(alert?.conflictingCommands == ["Move Left"])
+        #expect(
+            wmController.settings.hotkeyBindings.first { $0.id == "rescueOffscreenWindows" }?.binding
+                == .unassigned
+        )
+        #expect(
+            wmController.settings.hotkeyBindings.first { $0.id == "move.left" }?.binding
+                == .chord(shared)
+        )
+
+        // "Replace" claims the chord for the recorded action and displaces the loser.
+        controller.resolvePendingConflict(replace: true)
+
+        #expect(controller.pendingConflictAlert == nil)
+        #expect(
+            wmController.settings.hotkeyBindings.first { $0.id == "move.left" }?.binding == .unassigned
+        )
+        #expect(
+            wmController.settings.hotkeyBindings.first { $0.id == "rescueOffscreenWindows" }?.binding
+                == .chord(shared)
+        )
+    }
+
+    @Test func clearBindingFromPaletteRevertsToUnassigned() {
+        let controller = CommandPaletteController()
+        let wmController = makeCommandPaletteTestWMController()
+        let chord = KeyBinding(keyCode: UInt32(kVK_F7), modifiers: UInt32(optionKey | cmdKey))
+
+        wmController.settings.updateBinding(for: "rescueOffscreenWindows", newBinding: chord)
+        controller.setCommandSelectionStateForTests(
+            wmController: wmController,
+            selectedItemID: .command("rescueOffscreenWindows")
+        )
+
+        // Assigned row: Tab clears instead of entering recording.
+        let claimed = controller.handleKeyDownForTests(keyCode: 48)
+
+        #expect(claimed)
+        #expect(controller.recordingCommandId == nil)
+        #expect(
+            wmController.settings.hotkeyBindings.first { $0.id == "rescueOffscreenWindows" }?.binding
+                == .unassigned
+        )
+        #expect(controller.commandItems.first { $0.id == "rescueOffscreenWindows" }?.bindingDisplay == nil)
+    }
+
+    @Test func numberedGroupRowsAreNotAssignableFromPalette() {
+        let controller = CommandPaletteController()
+        let wmController = makeCommandPaletteTestWMController()
+
+        controller.setCommandSelectionStateForTests(
+            wmController: wmController,
+            selectedItemID: .command("switchWorkspace.1")
+        )
+
+        let claimed = controller.handleKeyDownForTests(keyCode: 48)
+
+        // Tab is consumed (no row navigation) but does not start recording.
+        #expect(claimed)
+        #expect(controller.recordingCommandId == nil)
+        #expect(controller.pendingConflictAlert == nil)
+    }
+
+    @Test func reservedPaletteChordIsRejectedDuringRecording() {
+        let controller = CommandPaletteController()
+        let wmController = makeCommandPaletteTestWMController()
+        // ⌘3 is a palette mode shortcut; recording it must be rejected.
+        let reserved = KeyBinding(keyCode: UInt32(kVK_ANSI_3), modifiers: UInt32(cmdKey))
+
+        controller.setCommandSelectionStateForTests(
+            wmController: wmController,
+            selectedItemID: .command("rescueOffscreenWindows")
+        )
+
+        controller.commitRecordingForTests(reserved)
+
+        #expect(controller.pendingNoticeAlert != nil)
+        #expect(controller.recordingCommandId == nil)
+        #expect(
+            wmController.settings.hotkeyBindings.first { $0.id == "rescueOffscreenWindows" }?.binding
+                == .unassigned
+        )
+    }
+
+    @Test func dismissClearsRecordingState() {
+        var environment = CommandPaletteEnvironment()
+        environment.activateNehir = {}
+        environment.frontmostApplication = { nil }
+        let controller = CommandPaletteController(environment: environment)
+        let wmController = makeCommandPaletteTestWMController()
+
+        defer {
+            if controller.isVisible {
+                controller.toggle(wmController: wmController)
+            }
+        }
+
+        controller.setCommandSelectionStateForTests(
+            wmController: wmController,
+            selectedItemID: .command("rescueOffscreenWindows")
+        )
+        // Enter recording via the Tab entry chord (no capture yet).
+        _ = controller.handleKeyDownForTests(keyCode: 48)
+        #expect(controller.recordingCommandId == "rescueOffscreenWindows")
+
+        controller.toggle(wmController: wmController)
+
+        #expect(controller.recordingCommandId == nil)
+        #expect(controller.pendingConflictAlert == nil)
+        #expect(!controller.isVisible)
+
+        // Re-show does not resume recording.
+        controller.show(wmController: wmController)
+        #expect(controller.recordingCommandId == nil)
+    }
+
+    @Test func paletteStaysOpenAfterAssign() {
+        let controller = CommandPaletteController()
+        let wmController = makeCommandPaletteTestWMController()
+        let freeChord = KeyBinding(keyCode: UInt32(kVK_F7), modifiers: UInt32(optionKey | cmdKey))
+
+        controller.setCommandSelectionStateForTests(
+            wmController: wmController,
+            selectedItemID: .command("rescueOffscreenWindows")
+        )
+
+        controller.commitRecordingForTests(freeChord)
+
+        #expect(controller.isVisible)
+        #expect(controller.selectedItemID == .command("rescueOffscreenWindows"))
+        #expect(controller.recordingCommandId == nil)
+    }
 }
