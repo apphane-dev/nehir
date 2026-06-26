@@ -78,6 +78,7 @@ enum HotkeyCommand: Codable, Equatable, Hashable {
     case raiseAllFloatingWindows
     case rescueOffscreenWindows
     case toggleFocusedWindowFloating
+    case toggleFocusedWindowSticky
     case assignFocusedWindowToScratchpad
     case toggleScratchpadWindow
 

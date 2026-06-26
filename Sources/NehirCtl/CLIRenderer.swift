@@ -353,7 +353,9 @@ enum CLIRenderer {
                 String(rule.position),
                 rule.id,
                 rule.bundleId,
+                rule.manage?.rawValue ?? "auto",
                 rule.layout.rawValue,
+                rule.sticky.map(boolDescription) ?? "-",
                 rule.assignToWorkspace ?? "-",
                 rule.titleRegex ?? "-",
                 String(rule.specificity),
@@ -362,7 +364,18 @@ enum CLIRenderer {
         }
 
         return formatRows(
-            headers: ["POS", "ID", "BUNDLE ID", "LAYOUT", "WORKSPACE", "TITLE REGEX", "SPECIFICITY", "VALID"],
+            headers: [
+                "POS",
+                "ID",
+                "BUNDLE ID",
+                "MANAGE",
+                "LAYOUT",
+                "STICKY",
+                "WORKSPACE",
+                "TITLE REGEX",
+                "SPECIFICITY",
+                "VALID"
+            ],
             rows: rows,
             format: format
         )

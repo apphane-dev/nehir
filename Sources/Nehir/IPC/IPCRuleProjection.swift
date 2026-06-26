@@ -42,10 +42,12 @@ enum IPCRuleProjection {
             titleRegex: definition.titleRegex,
             axRole: definition.axRole,
             axSubrole: definition.axSubrole,
+            manage: definition.manage,
             layout: definition.layout,
             assignToWorkspace: definition.assignToWorkspace,
             minWidth: definition.minWidth,
             minHeight: definition.minHeight,
+            sticky: definition.sticky,
             specificity: rule.specificity,
             isValid: isValid,
             invalidRegexMessage: invalidRegexMessage
@@ -61,10 +63,12 @@ enum IPCRuleProjection {
                 titleRegex: rule.titleRegex,
                 axRole: rule.axRole,
                 axSubrole: rule.axSubrole,
+                manage: ipcRuleManage(from: rule.effectiveManageAction),
                 layout: ipcRuleLayout(from: rule.effectiveLayoutAction),
                 assignToWorkspace: rule.assignToWorkspace,
                 minWidth: rule.minWidth,
-                minHeight: rule.minHeight
+                minHeight: rule.minHeight,
+                sticky: rule.sticky
             )
         )
     }
@@ -79,10 +83,12 @@ enum IPCRuleProjection {
             titleRegex: normalized.titleRegex,
             axRole: normalized.axRole,
             axSubrole: normalized.axSubrole,
+            manage: windowRuleManage(from: normalized.manage),
             layout: windowRuleLayout(from: normalized.layout),
             assignToWorkspace: normalized.assignToWorkspace,
             minWidth: normalized.minWidth,
-            minHeight: normalized.minHeight
+            minHeight: normalized.minHeight,
+            sticky: normalized.sticky
         )
     }
 
@@ -94,11 +100,31 @@ enum IPCRuleProjection {
             titleRegex: definition.titleRegex?.trimmedNonEmpty,
             axRole: definition.axRole?.trimmedNonEmpty,
             axSubrole: definition.axSubrole?.trimmedNonEmpty,
+            manage: definition.manage,
             layout: definition.layout,
             assignToWorkspace: definition.assignToWorkspace?.trimmedNonEmpty,
             minWidth: definition.minWidth,
-            minHeight: definition.minHeight
+            minHeight: definition.minHeight,
+            sticky: definition.sticky
         )
+    }
+
+    private static func ipcRuleManage(from action: WindowRuleManageAction) -> IPCRuleManage {
+        switch action {
+        case .auto:
+            .auto
+        case .ignore:
+            .ignore
+        }
+    }
+
+    private static func windowRuleManage(from manage: IPCRuleManage?) -> WindowRuleManageAction? {
+        switch manage ?? .auto {
+        case .auto:
+            nil
+        case .ignore:
+            .ignore
+        }
     }
 
     private static func ipcRuleLayout(from action: WindowRuleLayoutAction) -> IPCRuleLayout {

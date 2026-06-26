@@ -293,6 +293,7 @@ public enum IPCAutomationManifest {
         "is-focused",
         "is-visible",
         "is-scratchpad",
+        "is-sticky",
         "hidden-reason"
     ]
 
@@ -733,6 +734,11 @@ public enum IPCAutomationManifest {
             summary: "Toggle the focused managed window between tiled and floating."
         ),
         command(
+            ["toggle-focused-window-sticky"],
+            name: .toggleFocusedWindowSticky,
+            summary: "Toggle the sticky visibility effect for the focused managed window."
+        ),
+        command(
             ["scratchpad", "assign"],
             name: .scratchpadAssign,
             summary: "Assign the focused managed window to the scratchpad."
@@ -869,6 +875,11 @@ public enum IPCAutomationManifest {
             valuePlaceholder: "<subrole>"
         ),
         .init(
+            flag: "--manage",
+            summary: "Set whether Nehir manages matching windows.",
+            valuePlaceholder: "<auto|ignore>"
+        ),
+        .init(
             flag: "--layout",
             summary: "Set the rule layout action.",
             valuePlaceholder: "<auto|tile|float>"
@@ -887,6 +898,11 @@ public enum IPCAutomationManifest {
             flag: "--min-height",
             summary: "Set the minimum floating height in points.",
             valuePlaceholder: "<points>"
+        ),
+        .init(
+            flag: "--sticky",
+            summary: "Set the sticky visibility effect for matching windows.",
+            valuePlaceholder: "<true|false>"
         )
     ]
 

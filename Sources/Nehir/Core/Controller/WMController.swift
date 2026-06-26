@@ -1270,8 +1270,8 @@ final class WMController {
         // currently-viewed workspace, otherwise it "leaks" onto whatever workspace the
         // user happens to be viewing and can then anchor managed focus there, dragging
         // later siblings across. User-addressable transient standard windows (e.g.
-        // Zoom's full call window) keep normal placement; global canJoinAllSpaces
-        // surfaces are reanchored separately by reanchorGlobalWindowsToActiveWorkspaces.
+        // Zoom's full call window) keep normal placement; sticky/global surfaces are
+        // reanchored separately by LayoutRefreshController.
         if context == .automatic,
            existingEntry == nil,
            bindTransientFloatingToAppWorkspace,
@@ -1350,7 +1350,7 @@ final class WMController {
 
     private func isNonUserAddressableNonGlobalTransientFloatingSurface(_ entry: WindowModel.Entry) -> Bool {
         guard entry.managedReplacementMetadata?.transientWindowServerEvidence == true,
-              !workspaceManager.isGlobalStickyWindow(entry.token)
+              !workspaceManager.hasStickyWindowSource(entry.token)
         else {
             return false
         }
@@ -1730,7 +1730,12 @@ final class WMController {
         _ decision: WindowDecision,
         manualOverride: ManualWindowOverride?
     ) -> WindowDecision {
-        guard let manualOverride, decision.disposition != .unmanaged else {
+        guard let manualOverride else {
+            return decision
+        }
+        if decision.disposition == .unmanaged,
+           case .userRule = decision.source
+        {
             return decision
         }
 
@@ -1884,6 +1889,74 @@ final class WMController {
     }
 
     func managedCommandTarget() -> WMCommandTarget? {
+        let frontmostPid = commandHandler.frontmostAppPidProvider?()
+            ?? NSWorkspace.shared.frontmostApplication?.processIdentifier
+        let frontmostToken = commandHandler.frontmostFocusedWindowTokenProvider?()
+            ?? frontmostPid.flatMap { axEventHandler.focusedWindowToken(for: $0) }
+
+        let frontmostTokenIsUntracked = frontmostToken.map { workspaceManager.entry(for: $0) == nil } == true
+        let frontmostTokenIsSelfProcess = frontmostPid == getpid() && frontmostTokenIsUntracked
+
+        if workspaceManager.recentlyLeftNonManagedFocus(within: 1.0) {
+            if let target = managedCommandTarget(forFrontmostToken: frontmostToken),
+               workspaceManager.hasStickyWindowSource(target.token)
+            {
+                return target
+            }
+            if frontmostToken != nil, !frontmostTokenIsSelfProcess {
+                return nil
+            }
+        }
+
+        if workspaceManager.isNonManagedFocusActive {
+            let preservedManagedFocus = workspaceManager.confirmedManagedFocusToken
+            if let frontmostToken,
+               workspaceManager.entry(for: frontmostToken) != nil
+            {
+                return nil
+            }
+            if let frontmostPid {
+                axEventHandler.handleAppActivation(
+                    pid: frontmostPid,
+                    source: .focusedWindowChanged,
+                    origin: .probe
+                )
+                let resolvedFrontmostToken = commandHandler.frontmostFocusedWindowTokenProvider?()
+                    ?? axEventHandler.focusedWindowToken(for: frontmostPid)
+                if let target = managedCommandTarget(forFrontmostToken: resolvedFrontmostToken),
+                   target.token != preservedManagedFocus || workspaceManager.hasStickyWindowSource(target.token)
+                {
+                    return target
+                }
+            }
+            return nil
+        }
+
+        if let frontmostPid,
+           frontmostTokenIsUntracked,
+           !frontmostTokenIsSelfProcess
+        {
+            axEventHandler.handleAppActivation(
+                pid: frontmostPid,
+                source: .focusedWindowChanged,
+                origin: .probe
+            )
+            let resolvedFrontmostToken = commandHandler.frontmostFocusedWindowTokenProvider?()
+                ?? axEventHandler.focusedWindowToken(for: frontmostPid)
+            if let target = managedCommandTarget(forFrontmostToken: resolvedFrontmostToken) {
+                return target
+            }
+            if resolvedFrontmostToken != nil {
+                // The frontmost app has an untracked window, but the focus layer
+                // has not entered non-managed focus. Keep evaluating confirmed
+                // managed focus/layout targets instead of dropping focused
+                // commands on unrelated frontmost app noise (notably tests and
+                // Nehir-owned UI). Stale non-managed focus is handled by the
+                // `isNonManagedFocusActive` and `recentlyLeftNonManagedFocus`
+                // guards above.
+            }
+        }
+
         if let token = workspaceManager.confirmedManagedFocusToken,
            let workspaceId = workspaceManager.workspace(for: token),
            let entry = workspaceManager.entry(for: token),
@@ -1896,20 +1969,14 @@ final class WMController {
             )
         }
 
-        let frontmostPid = commandHandler.frontmostAppPidProvider?()
-            ?? NSWorkspace.shared.frontmostApplication?.processIdentifier
-        let frontmostToken = commandHandler.frontmostFocusedWindowTokenProvider?()
-            ?? frontmostPid.flatMap { axEventHandler.focusedWindowToken(for: $0) }
-        if let frontmostToken,
-           let workspaceId = workspaceManager.workspace(for: frontmostToken),
-           let entry = workspaceManager.entry(for: frontmostToken),
-           entry.mode == .floating
+        if let target = managedCommandTarget(forFrontmostToken: frontmostToken, requireFloating: true) {
+            return target
+        }
+
+        if let frontmostPid,
+           let target = samePidFloatingCommandTarget(pid: frontmostPid, excluding: frontmostToken)
         {
-            return WMCommandTarget(
-                token: frontmostToken,
-                workspaceId: workspaceId,
-                source: .frontmostManagedFallback
-            )
+            return target
         }
 
         if let target = layoutSelectionCommandTarget() {
@@ -1927,9 +1994,17 @@ final class WMController {
             )
         }
 
+        return managedCommandTarget(forFrontmostToken: frontmostToken)
+    }
+
+    private func managedCommandTarget(
+        forFrontmostToken frontmostToken: WindowToken?,
+        requireFloating: Bool = false
+    ) -> WMCommandTarget? {
         guard let frontmostToken,
               let workspaceId = workspaceManager.workspace(for: frontmostToken),
-              workspaceManager.entry(for: frontmostToken) != nil
+              let entry = workspaceManager.entry(for: frontmostToken),
+              !requireFloating || entry.mode == .floating
         else {
             return nil
         }
@@ -1937,6 +2012,28 @@ final class WMController {
             token: frontmostToken,
             workspaceId: workspaceId,
             source: .frontmostManagedFallback
+        )
+    }
+
+    private func samePidFloatingCommandTarget(pid: pid_t, excluding excludedToken: WindowToken?) -> WMCommandTarget? {
+        let candidates = workspaceManager.entries(forPid: pid)
+            .filter { entry in
+                entry.token != excludedToken
+                    && entry.mode == .floating
+                    && entry.visibility == .visible
+                    && !isNonUserAddressableNonGlobalTransientFloatingSurface(entry)
+            }
+            .sorted { lhs, rhs in
+                if lhs.observedState.isFocused != rhs.observedState.isFocused {
+                    return lhs.observedState.isFocused && !rhs.observedState.isFocused
+                }
+                return lhs.windowId > rhs.windowId
+            }
+        guard let entry = candidates.first else { return nil }
+        return WMCommandTarget(
+            token: entry.token,
+            workspaceId: entry.workspaceId,
+            source: .samePidFloatingFallback
         )
     }
 
@@ -2248,6 +2345,16 @@ final class WMController {
         existingEntry: WindowModel.Entry?,
         context: WindowRuleReevaluationContext
     ) -> TrackedWindowMode? {
+        if context == .automatic,
+           let existingEntry,
+           decision.disposition == .unmanaged,
+           case .builtInRule("transientSystemDialogSurface") = decision.source,
+           existingEntry.mode == .floating,
+           existingEntry.managedReplacementMetadata?.transientWindowServerEvidence == true
+        {
+            return .floating
+        }
+
         guard let trackedMode = trackedModeForLifecycle(
             decision: decision,
             existingEntry: existingEntry
@@ -2260,6 +2367,10 @@ final class WMController {
               decision.layoutDecisionKind == .fallbackLayout
         else {
             return trackedMode
+        }
+
+        if workspaceManager.isStickyWindow(existingEntry.token) {
+            return .floating
         }
 
         if existingEntry.mode == .floating,
@@ -3777,6 +3888,11 @@ final class WMController {
             }
 
             let oldEffects = existingEntry?.ruleEffects ?? .none
+            let effectiveRuleEffects = ruleEffectsPreservingExistingAutomaticStickySource(
+                evaluation.decision.ruleEffects,
+                existingEntry: existingEntry,
+                facts: evaluation.facts
+            )
             let oldMode = existingEntry?.mode
             let oldWorkspaceId = existingEntry?.workspaceId
             let hasExplicitWorkspaceAssignment = workspaceAssignment(pid: token.pid, windowId: token.windowId) != nil
@@ -3833,7 +3949,7 @@ final class WMController {
                 windowId: token.windowId,
                 to: workspaceId,
                 mode: oldMode ?? effectiveTrackedMode,
-                ruleEffects: evaluation.decision.ruleEffects
+                ruleEffects: effectiveRuleEffects
             )
             if existingEntry == nil {
                 axEventHandler.discardCreatePlacementContext(for: token.windowId)
@@ -3858,6 +3974,10 @@ final class WMController {
                 } else {
                     updatedEntry.managedReplacementMetadata?.parentWindowId
                 }
+                let transientFlags = mergedManagedReplacementTransientFlags(
+                    existingMetadata: updatedEntry.managedReplacementMetadata,
+                    facts: evaluation.facts
+                )
                 _ = workspaceManager.setManagedReplacementMetadata(
                     ManagedReplacementMetadata(
                         bundleId: evaluation.facts.ax.bundleId ?? updatedEntry.managedReplacementMetadata?.bundleId,
@@ -3870,22 +3990,17 @@ final class WMController {
                             .windowLevel,
                         parentWindowId: parentWindowId,
                         frame: evaluation.facts.windowServer?.frame ?? updatedEntry.managedReplacementMetadata?.frame,
-                        transientWindowServerEvidence: updatedEntry.managedReplacementMetadata?
-                            .transientWindowServerEvidence == true
-                            || evaluation.facts.windowServer?.hasTransientSurfaceEvidence == true,
-                        degradedWindowServerChildEvidence: updatedEntry.managedReplacementMetadata?
-                            .degradedWindowServerChildEvidence == true
-                            || evaluation.facts.degradedWindowServerChildEvidence,
-                        userAddressableTransientWindowServerSurface: updatedEntry.managedReplacementMetadata?
-                            .userAddressableTransientWindowServerSurface == true
-                            || evaluation.facts.userAddressableTransientWindowServerSurface
+                        transientWindowServerEvidence: transientFlags.transientWindowServerEvidence,
+                        degradedWindowServerChildEvidence: transientFlags.degradedWindowServerChildEvidence,
+                        userAddressableTransientWindowServerSurface: transientFlags
+                            .userAddressableTransientWindowServerSurface
                     ),
                     for: token
                 )
             }
 
             if existingEntry == nil
-                || oldEffects != evaluation.decision.ruleEffects
+                || oldEffects != effectiveRuleEffects
                 || oldWorkspaceId != workspaceId
                 || oldMode != effectiveTrackedMode
             {
@@ -3929,11 +4044,26 @@ final class WMController {
             return .notFound
         }
 
+        let currentOverride = workspaceManager.manualLayoutOverride(for: token)
+        let metadata = entry.managedReplacementMetadata
+        let isStandardSurface = metadata == nil
+            || (metadata?.role == kAXWindowRole as String
+                && (metadata?.subrole == nil || metadata?.subrole == kAXStandardWindowSubrole as String))
+        let togglesExplicitTransientState = workspaceManager.isManualUnstickyWindow(token) || !isStandardSurface
         let nextOverride: ManualWindowOverride?
-        if workspaceManager.manualLayoutOverride(for: token) != nil {
+        if currentOverride == .forceTile, entry.mode == .tiling, togglesExplicitTransientState {
+            nextOverride = .forceFloat
+        } else if currentOverride == .forceFloat, entry.mode == .floating, togglesExplicitTransientState {
+            nextOverride = .forceTile
+        } else if currentOverride != nil {
             nextOverride = nil
         } else {
             nextOverride = entry.mode == .tiling ? .forceFloat : .forceTile
+        }
+
+        if nextOverride == .forceTile, workspaceManager.isStickyWindow(token) {
+            _ = workspaceManager.setManualStickyWindow(false, for: token)
+            _ = workspaceManager.setStickyFloatingPromotion(false, for: token)
         }
 
         applyManagedWindowOverride(nextOverride, for: token, entry: entry)
@@ -3945,6 +4075,70 @@ final class WMController {
             return .notFound
         }
         return toggleWindowFloating(token: token)
+    }
+
+    @discardableResult
+    func toggleWindowSticky(token: WindowToken) -> ExternalCommandResult {
+        guard let entry = workspaceManager.entry(for: token),
+              !isManagedWindowSuspendedForNativeFullscreen(token),
+              !isNonUserAddressableNonGlobalTransientFloatingSurface(entry)
+        else {
+            return .notFound
+        }
+
+        let shouldStick = !workspaceManager.isStickyWindow(token)
+        let manualOverride = workspaceManager.manualLayoutOverride(for: token)
+        let wasManualSticky = workspaceManager.isManualStickyWindow(token)
+        let wasStickyPromotion = workspaceManager.isStickyFloatingPromotion(token)
+        _ = workspaceManager.setManualStickyWindow(shouldStick, for: token)
+
+        if shouldStick {
+            if manualOverride == .forceTile {
+                workspaceManager.setManualLayoutOverride(nil, for: token)
+            }
+            if entry.mode == .tiling {
+                _ = workspaceManager.setStickyFloatingPromotion(true, for: token)
+                _ = transitionWindowMode(
+                    for: token,
+                    to: .floating,
+                    preferredMonitor: monitorForInteraction(),
+                    applyFloatingFrame: true
+                )
+            }
+            layoutRefreshController.requestRefresh(reason: .layoutCommand)
+        } else {
+            _ = workspaceManager.setStickyFloatingPromotion(false, for: token)
+            let shouldRestoreTiling = wasStickyPromotion || (wasManualSticky && manualOverride == .forceFloat)
+            if shouldRestoreTiling {
+                let updatedEntry = workspaceManager.entry(for: token) ?? entry
+                if manualOverride == .forceFloat {
+                    workspaceManager.setManualLayoutOverride(nil, for: token)
+                }
+                _ = transitionWindowMode(
+                    for: token,
+                    to: .tiling,
+                    preferredMonitor: monitorForInteraction(),
+                    applyFloatingFrame: true
+                )
+                layoutRefreshController.requestRefresh(
+                    reason: .layoutCommand,
+                    affectedWorkspaceIds: [updatedEntry.workspaceId]
+                )
+            } else {
+                if manualOverride == .forceFloat, entry.ruleEffects.sticky == true {
+                    workspaceManager.setManualLayoutOverride(nil, for: token)
+                }
+                layoutRefreshController.requestRefresh(reason: .layoutCommand)
+            }
+        }
+        return .executed
+    }
+
+    func toggleFocusedWindowSticky() -> ExternalCommandResult {
+        guard let token = focusedManagedTokenForCommand() else {
+            return .notFound
+        }
+        return toggleWindowSticky(token: token)
     }
 
     /// Assigns an explicit token to the single scratchpad slot, honoring the

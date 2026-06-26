@@ -250,6 +250,9 @@ final class WorkspaceBarManager {
                 onToggleWindowFloating: { [weak controller] token in
                     _ = controller?.toggleWindowFloating(token: token)
                 },
+                onToggleWindowSticky: { [weak controller] token in
+                    _ = controller?.toggleWindowSticky(token: token)
+                },
                 onToggleScratchpadAssignment: { [weak controller] token in
                     _ = controller?.toggleWindowScratchpadAssignment(token: token)
                 },
@@ -450,7 +453,7 @@ final class WorkspaceBarManager {
         let projection = controller?.workspaceBarProjection(
             for: monitor,
             projection: resolved.projectionOptions
-        ) ?? WorkspaceBarProjection(items: [], scratchpad: nil)
+        ) ?? WorkspaceBarProjection(items: [], sticky: nil, scratchpad: nil)
 
         return WorkspaceBarSnapshot(
             projection: projection,

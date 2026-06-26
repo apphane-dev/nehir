@@ -47,6 +47,7 @@ struct ManagedWindowRuleEffects: Equatable, Sendable {
     var minWidth: Double?
     var minHeight: Double?
     var matchedRuleId: UUID?
+    var sticky: Bool?
 
     static let none = ManagedWindowRuleEffects()
 }
@@ -98,6 +99,19 @@ struct WindowDecision: Equatable, Sendable {
     }
 }
 
+func isTopLevelResizableMediaLikeSurfaceFrame(_ frame: CGRect) -> Bool {
+    let frame = frame.standardized
+    guard frame.width >= 240,
+          frame.height >= 135,
+          frame.width * frame.height <= 1_600_000
+    else {
+        return false
+    }
+
+    let aspectRatio = frame.width / frame.height
+    return aspectRatio >= 1.2 && aspectRatio <= 2.4
+}
+
 struct WindowRuleFacts: Equatable, Sendable {
     let appName: String?
     let ax: AXWindowFacts
@@ -108,6 +122,9 @@ struct WindowRuleFacts: Equatable, Sendable {
         guard !ax.attributeFetchSucceeded,
               let windowServer
         else {
+            return false
+        }
+        if windowServer.parentId == 0, isTopLevelResizableMediaLikeSurface(windowServer) {
             return false
         }
         return windowServer.hasModalTag || (windowServer.hasFloatingTag && !windowServer.hasDocumentTag)
@@ -126,6 +143,89 @@ struct WindowRuleFacts: Equatable, Sendable {
         }
         return true
     }
+
+    var pipDefaultStickyCandidate: Bool {
+        guard ax.attributeFetchSucceeded,
+              ax.role == kAXWindowRole as String,
+              ax.hasCloseButton,
+              let windowServer,
+              windowServer.parentId == 0,
+              windowServer.level > 0,
+              windowServer.level < 20
+        else {
+            return false
+        }
+
+        if ax.subrole == kAXStandardWindowSubrole as String {
+            return userAddressableTransientWindowServerSurface ||
+                (!windowServer.hasModalTag && !windowServer.hasFloatingTag)
+        }
+
+        if ax.subrole == kAXSystemDialogSubrole as String {
+            return isTopLevelResizableMediaLikeSurface(windowServer)
+                && !windowServer.hasModalTag
+                && !windowServer.hasFloatingTag
+                && !ax.hasFullscreenButton
+                && ax.hasZoomButton
+                && ax.hasMinimizeButton
+        }
+
+        return false
+    }
+
+    private func isTopLevelResizableMediaLikeSurface(_ windowServer: WindowServerInfo) -> Bool {
+        isTopLevelResizableMediaLikeSurfaceFrame(windowServer.frame)
+    }
+}
+
+func ruleEffectsPreservingExistingAutomaticStickySource(
+    _ effects: ManagedWindowRuleEffects,
+    existingEntry: WindowModel.Entry?,
+    facts: WindowRuleFacts
+) -> ManagedWindowRuleEffects {
+    guard effects.sticky == nil,
+          existingEntry?.ruleEffects.sticky == true
+    else {
+        return effects
+    }
+
+    let metadata = existingEntry?.managedReplacementMetadata
+    let hasSameTransientSurfaceEvidence = metadata?.transientWindowServerEvidence == true
+        || metadata?.userAddressableTransientWindowServerSurface == true
+        || facts.windowServer?.hasTransientSurfaceEvidence == true
+        || facts.userAddressableTransientWindowServerSurface
+        || facts.pipDefaultStickyCandidate
+        || facts.degradedWindowServerChildEvidence
+    guard hasSameTransientSurfaceEvidence else { return effects }
+
+    var preserved = effects
+    preserved.sticky = true
+    return preserved
+}
+
+func mergedManagedReplacementTransientFlags(
+    existingMetadata: ManagedReplacementMetadata?,
+    facts: WindowRuleFacts
+) -> (
+    transientWindowServerEvidence: Bool,
+    degradedWindowServerChildEvidence: Bool,
+    userAddressableTransientWindowServerSurface: Bool
+) {
+    let userAddressableTransientWindowServerSurface = existingMetadata?
+        .userAddressableTransientWindowServerSurface == true
+        || facts.userAddressableTransientWindowServerSurface
+        || facts.pipDefaultStickyCandidate
+    let degradedWindowServerChildEvidence = !userAddressableTransientWindowServerSurface
+        && (existingMetadata?.degradedWindowServerChildEvidence == true || facts.degradedWindowServerChildEvidence)
+    let transientWindowServerEvidence = existingMetadata?.transientWindowServerEvidence == true
+        || facts.windowServer?.hasTransientSurfaceEvidence == true
+        || userAddressableTransientWindowServerSurface
+
+    return (
+        transientWindowServerEvidence,
+        degradedWindowServerChildEvidence,
+        userAddressableTransientWindowServerSurface
+    )
 }
 
 enum WindowRuleReevaluationTarget: Hashable, Sendable {
@@ -374,8 +474,20 @@ final class WindowRuleEngine {
         let effects = ManagedWindowRuleEffects(
             minWidth: userRule?.rule.minWidth,
             minHeight: userRule?.rule.minHeight,
-            matchedRuleId: userRule?.rule.id
+            matchedRuleId: userRule?.rule.id,
+            sticky: userRule?.rule.sticky ?? (facts.pipDefaultStickyCandidate ? true : nil)
         )
+
+        if let userRule,
+           userRule.rule.effectiveManageAction == .ignore,
+           let userDecision = explicitDecision(
+               userRule,
+               workspaceName: workspaceName,
+               effects: effects
+           )
+        {
+            return userDecision
+        }
 
         if let parentedSurfaceDecision = parentedWindowServerSurfaceDecision(
             for: facts,
@@ -451,7 +563,7 @@ final class WindowRuleEngine {
 
         if appFullscreen {
             return WindowDecision(
-                disposition: .managed,
+                disposition: stickyAdjustedDisposition(.managed, effects: effects),
                 source: userRule.map { .userRule($0.rule.id) }
                     ?? builtInRule.map { builtInRuleSource(for: $0) }
                     ?? .heuristic,
@@ -489,7 +601,7 @@ final class WindowRuleEngine {
         )
 
         return WindowDecision(
-            disposition: heuristic.disposition,
+            disposition: stickyAdjustedDisposition(heuristic.disposition, effects: effects),
             source: userRule.map { .userRule($0.rule.id) } ?? .heuristic,
             layoutDecisionKind: .fallbackLayout,
             workspaceName: workspaceName,
@@ -514,7 +626,7 @@ final class WindowRuleEngine {
         }
 
         return WindowDecision(
-            disposition: disposition,
+            disposition: stickyAdjustedDisposition(disposition, effects: effects),
             source: .userRule(compiled.rule.id),
             layoutDecisionKind: .fallbackLayout,
             workspaceName: workspaceName,
@@ -550,6 +662,7 @@ final class WindowRuleEngine {
         guard facts.ax.attributeFetchSucceeded,
               facts.ax.role == kAXWindowRole as String,
               facts.ax.subrole == kAXSystemDialogSubrole as String,
+              !facts.pipDefaultStickyCandidate,
               facts.windowServer?.parentId == nil || facts.windowServer?.parentId == 0
         else {
             return nil
@@ -621,24 +734,37 @@ final class WindowRuleEngine {
         }
 
         let disposition: WindowDecisionDisposition
-        switch compiled.rule.effectiveLayoutAction {
-        case .float:
-            disposition = .floating
-        case .tile:
-            disposition = .managed
-        case .auto:
-            return nil
+        if compiled.rule.effectiveManageAction == .ignore {
+            disposition = .unmanaged
+        } else {
+            switch compiled.rule.effectiveLayoutAction {
+            case .float:
+                disposition = .floating
+            case .tile:
+                disposition = .managed
+            case .auto:
+                return nil
+            }
         }
 
+        let effectiveDisposition = stickyAdjustedDisposition(disposition, effects: effects)
         return WindowDecision(
-            disposition: disposition,
+            disposition: effectiveDisposition,
             source: source,
             layoutDecisionKind: .explicitLayout,
-            workspaceName: workspaceName,
-            ruleEffects: effects,
+            workspaceName: effectiveDisposition == .unmanaged ? nil : workspaceName,
+            ruleEffects: effectiveDisposition == .unmanaged ? .none : effects,
             heuristicReasons: [],
             deferredReason: nil
         )
+    }
+
+    private func stickyAdjustedDisposition(
+        _ disposition: WindowDecisionDisposition,
+        effects: ManagedWindowRuleEffects
+    ) -> WindowDecisionDisposition {
+        guard effects.sticky == true, disposition == .managed else { return disposition }
+        return .floating
     }
 
     private func builtInRuleSource(for compiled: CompiledRule) -> WindowDecisionSource {

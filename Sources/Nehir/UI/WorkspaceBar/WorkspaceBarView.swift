@@ -23,6 +23,7 @@ struct WorkspaceBarItem: Identifiable, Equatable {
 
 struct WorkspaceBarProjection: Equatable {
     let items: [WorkspaceBarItem]
+    let sticky: WorkspaceBarStickyItem?
     let scratchpad: WorkspaceBarScratchpadItem?
 }
 
@@ -56,6 +57,14 @@ struct WorkspaceBarWindowInfo: Identifiable, Equatable {
     let isSelected: Bool
 }
 
+struct WorkspaceBarStickyItem: Identifiable, Equatable {
+    let windows: [WorkspaceBarWindowItem]
+
+    var id: String {
+        "sticky"
+    }
+}
+
 struct WorkspaceBarScratchpadItem: Identifiable, Equatable {
     let window: WorkspaceBarWindowItem
     let isVisible: Bool
@@ -79,6 +88,10 @@ struct WorkspaceBarSnapshot: Equatable {
 
     var items: [WorkspaceBarItem] {
         projection.items
+    }
+
+    var sticky: WorkspaceBarStickyItem? {
+        projection.sticky
     }
 
     var scratchpad: WorkspaceBarScratchpadItem? {
@@ -105,6 +118,7 @@ struct WorkspaceBarView: View {
     let onOpenCommandPalette: () -> Void
     let onOpenDiagnostics: () -> Void
     let onToggleWindowFloating: (WindowToken) -> Void
+    let onToggleWindowSticky: (WindowToken) -> Void
     let onToggleScratchpadAssignment: (WindowToken) -> Void
     let onCloseWindow: (WindowToken) -> Void
     let onMoveWindowToWorkspace: (WindowToken, WorkspaceDescriptor.ID) -> Void
@@ -121,6 +135,7 @@ struct WorkspaceBarView: View {
             onOpenCommandPalette: onOpenCommandPalette,
             onOpenDiagnostics: onOpenDiagnostics,
             onToggleWindowFloating: onToggleWindowFloating,
+            onToggleWindowSticky: onToggleWindowSticky,
             onToggleScratchpadAssignment: onToggleScratchpadAssignment,
             onCloseWindow: onCloseWindow,
             onMoveWindowToWorkspace: onMoveWindowToWorkspace,
@@ -144,6 +159,7 @@ struct WorkspaceBarMeasurementView: View {
             onOpenCommandPalette: {},
             onOpenDiagnostics: {},
             onToggleWindowFloating: { _ in },
+            onToggleWindowSticky: { _ in },
             onToggleScratchpadAssignment: { _ in },
             onCloseWindow: { _ in },
             onMoveWindowToWorkspace: { _, _ in },
@@ -165,6 +181,7 @@ struct WorkspaceBarWindowMoveTarget: Identifiable, Hashable {
 /// long parameter list (plan #18).
 struct WorkspaceBarWindowActions {
     let onToggleFloating: (WindowToken) -> Void
+    let onToggleSticky: (WindowToken) -> Void
     let onToggleScratchpadAssignment: (WindowToken) -> Void
     let onClose: (WindowToken) -> Void
     let onMoveToWorkspace: (WindowToken, WorkspaceDescriptor.ID) -> Void
@@ -190,6 +207,7 @@ private struct WorkspaceBarContentView: View {
     let onOpenCommandPalette: () -> Void
     let onOpenDiagnostics: () -> Void
     let onToggleWindowFloating: (WindowToken) -> Void
+    let onToggleWindowSticky: (WindowToken) -> Void
     let onToggleScratchpadAssignment: (WindowToken) -> Void
     let onCloseWindow: (WindowToken) -> Void
     let onMoveWindowToWorkspace: (WindowToken, WorkspaceDescriptor.ID) -> Void
@@ -248,6 +266,7 @@ private struct WorkspaceBarContentView: View {
     private var windowActions: WorkspaceBarWindowActions {
         WorkspaceBarWindowActions(
             onToggleFloating: onToggleWindowFloating,
+            onToggleSticky: onToggleWindowSticky,
             onToggleScratchpadAssignment: onToggleScratchpadAssignment,
             onClose: onCloseWindow,
             onMoveToWorkspace: onMoveWindowToWorkspace,
@@ -273,6 +292,19 @@ private struct WorkspaceBarContentView: View {
                     onMoveFocusedWindowToWorkspace: { onMoveFocusedWindowToWorkspace(item) },
                     onFocusWindow: onFocusWindow,
                     windowActions: windowActions
+                )
+            }
+
+            if let sticky = snapshot.sticky {
+                StickyPillView(
+                    item: sticky,
+                    iconSize: iconSize,
+                    itemHeight: itemHeight,
+                    animationsEnabled: effectiveAnimationsEnabled,
+                    accentColor: accentColor,
+                    textColor: textColor,
+                    onFocusWindow: onFocusWindow,
+                    actions: windowActions
                 )
             }
 
@@ -351,6 +383,7 @@ private struct WorkspaceItemView: View {
     private var scopedWindowActions: WorkspaceBarWindowActions {
         WorkspaceBarWindowActions(
             onToggleFloating: windowActions.onToggleFloating,
+            onToggleSticky: windowActions.onToggleSticky,
             onToggleScratchpadAssignment: windowActions.onToggleScratchpadAssignment,
             onClose: windowActions.onClose,
             onMoveToWorkspace: windowActions.onMoveToWorkspace,
@@ -571,6 +604,80 @@ private struct FloatingWindowsGroupView: View {
 }
 
 @MainActor
+private struct StickyPillView: View {
+    let item: WorkspaceBarStickyItem
+    let iconSize: CGFloat
+    let itemHeight: CGFloat
+    let animationsEnabled: Bool
+    let accentColor: Color?
+    let textColor: Color?
+    let onFocusWindow: (WindowToken) -> Void
+    let actions: WorkspaceBarWindowActions
+
+    @State private var isHovered = false
+
+    private var resolvedAccentColor: Color {
+        accentColor ?? .accentColor
+    }
+
+    private var resolvedSecondaryTextColor: Color {
+        textColor ?? .secondary
+    }
+
+    private var isFocused: Bool {
+        item.windows.contains(where: \.isFocused)
+    }
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Image(systemName: "pin.fill")
+                .font(.system(size: max(10, iconSize * 0.64), weight: .semibold))
+                .foregroundColor(isFocused ? resolvedAccentColor : resolvedSecondaryTextColor)
+                .accessibilityHidden(true)
+
+            ForEach(item.windows, id: \.id) { window in
+                WindowIconView(
+                    window: window,
+                    iconSize: iconSize,
+                    isFocused: window.isFocused,
+                    isSelected: window.isSelected,
+                    isInFocusedWorkspace: true,
+                    context: .floating,
+                    animationsEnabled: animationsEnabled,
+                    accentColor: accentColor,
+                    textColor: textColor,
+                    onFocusWindow: onFocusWindow,
+                    actions: actions
+                )
+            }
+        }
+        .padding(.horizontal, 8)
+        .frame(height: itemHeight)
+        .contentShape(Capsule(style: .continuous))
+        .background {
+            Capsule(style: .continuous)
+                .fill(isFocused ? resolvedAccentColor.opacity(0.18) : Color.secondary.opacity(0.08))
+                .background(.regularMaterial, in: Capsule(style: .continuous))
+                .overlay {
+                    Capsule(style: .continuous)
+                        .strokeBorder(
+                            isFocused ? resolvedAccentColor : Color.secondary.opacity(0.36),
+                            lineWidth: isFocused ? 1.2 : 0.8
+                        )
+                }
+        }
+        .scaleEffect(isHovered ? 1.03 : 1)
+        .animation(animationsEnabled ? .easeInOut(duration: 0.12) : nil, value: isHovered)
+        .onHover { hovering in
+            isHovered = hovering
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Sticky windows")
+        .help("Sticky windows stay visible across workspace changes. Right-click a window for actions.")
+    }
+}
+
+@MainActor
 private struct ScratchpadPillView: View {
     let item: WorkspaceBarScratchpadItem
     let iconSize: CGFloat
@@ -749,6 +856,11 @@ private struct WindowIconView: View {
                 actions.onToggleFloating(window.id)
             } label: {
                 Label("Toggle Floating", systemImage: "rectangle")
+            }
+            Button {
+                actions.onToggleSticky(window.id)
+            } label: {
+                Label("Toggle Sticky", systemImage: "pin")
             }
             Button {
                 actions.onToggleScratchpadAssignment(window.id)

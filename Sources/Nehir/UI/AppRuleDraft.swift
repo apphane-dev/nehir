@@ -28,7 +28,10 @@ enum TitleMatcherMode: String, CaseIterable, Identifiable {
 struct AppRuleDraft: Identifiable, Equatable {
     let id: UUID
     var bundleId: String
+    var manageAction: WindowRuleManageAction
     var layoutAction: WindowRuleLayoutAction
+    var stickyEnabled: Bool
+    var sticky: Bool
     var assignToWorkspaceEnabled: Bool
     var assignToWorkspace: String
     var minWidthEnabled: Bool
@@ -48,7 +51,10 @@ struct AppRuleDraft: Identifiable, Equatable {
     init(id: UUID = UUID(), bundleId: String = "") {
         self.id = id
         self.bundleId = bundleId
+        manageAction = .auto
         layoutAction = .auto
+        stickyEnabled = false
+        sticky = true
         assignToWorkspaceEnabled = false
         assignToWorkspace = ""
         minWidthEnabled = false
@@ -69,7 +75,10 @@ struct AppRuleDraft: Identifiable, Equatable {
     init(rule: AppRule) {
         id = rule.id
         bundleId = rule.bundleId
+        manageAction = rule.effectiveManageAction
         layoutAction = rule.effectiveLayoutAction
+        stickyEnabled = rule.sticky != nil
+        sticky = rule.sticky ?? true
         assignToWorkspaceEnabled = rule.assignToWorkspace != nil
         assignToWorkspace = rule.assignToWorkspace ?? ""
         minWidthEnabled = rule.minWidth != nil
@@ -129,10 +138,12 @@ struct AppRuleDraft: Identifiable, Equatable {
             titleRegex: titleMatcherMode == .regex ? titleRegex.trimmedNonEmpty : nil,
             axRole: axRoleEnabled ? axRole.trimmedNonEmpty : nil,
             axSubrole: axSubroleEnabled ? axSubrole.trimmedNonEmpty : nil,
+            manage: manageAction == .auto ? nil : manageAction,
             layout: layoutAction == .auto ? nil : layoutAction,
             assignToWorkspace: assignToWorkspaceEnabled ? assignToWorkspace.trimmedNonEmpty : nil,
             minWidth: minWidthEnabled ? minWidth : nil,
-            minHeight: minHeightEnabled ? minHeight : nil
+            minHeight: minHeightEnabled ? minHeight : nil,
+            sticky: stickyEnabled ? sticky : nil
         )
     }
 }

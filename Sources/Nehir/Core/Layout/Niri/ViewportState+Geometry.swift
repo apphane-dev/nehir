@@ -102,18 +102,6 @@ struct ViewportSnapContext {
         let width = max(0, column.effectiveViewportWidth)
         guard width > 0 else { return [] }
 
-        if columns.count == 1,
-           columnIndex == 0,
-           column.loneWindowLayoutWidthOverride != nil
-        {
-            let edgeOffset = width - viewportWidth
-            return [
-                SnapPoint(offset: 0, columnIndex: 0, kind: .leftEdge),
-                SnapPoint(offset: edgeOffset, columnIndex: 0, kind: .rightEdge),
-                SnapPoint(offset: edgeOffset / 2, columnIndex: 0, kind: .center)
-            ].sortedAndDeduped(pixelTolerance: pixelTolerance)
-        }
-
         var candidates: [SnapPoint] = [
             SnapPoint(
                 offset: state.boundedViewportStart(
@@ -617,13 +605,6 @@ extension ViewportState {
     ) -> ClosedRange<CGFloat> {
         guard !columns.isEmpty, viewportWidth > 0 else { return 0 ... 0 }
 
-        if columns.count == 1,
-           let overrideWidth = columns.first?.loneWindowLayoutWidthOverride
-        {
-            let edgeOffset = overrideWidth - viewportWidth
-            return min(0, edgeOffset) ... max(0, edgeOffset)
-        }
-
         let fraction = edgeVisibleFraction.clamped(to: 0 ... 1)
         let firstWidth = max(0, columns.first?.effectiveViewportWidth ?? 0)
         let lastWidth = max(0, columns.last?.effectiveViewportWidth ?? 0)
@@ -694,17 +675,6 @@ extension ViewportState {
 
         func bounded(_ offset: CGFloat) -> CGFloat {
             boundedViewportStart(offset, columns: columns, gap: gap, viewportWidth: viewportWidth)
-        }
-
-        if columns.count == 1,
-           let overrideWidth = columns.first?.loneWindowLayoutWidthOverride
-        {
-            let edgeOffset = overrideWidth - viewportWidth
-            return [
-                SnapPoint(offset: 0, columnIndex: 0, kind: .leftEdge),
-                SnapPoint(offset: edgeOffset, columnIndex: 0, kind: .rightEdge),
-                SnapPoint(offset: edgeOffset / 2, columnIndex: 0, kind: .center)
-            ].sortedAndDeduped(pixelTolerance: pixelTolerance)
         }
 
         var points: [SnapPoint] = []

@@ -180,6 +180,8 @@ final class IPCCommandRouter {
             return controller.commandHandler.performCommand(.toggleWorkspaceBarVisibility)
         case .toggleFocusedWindowFloating:
             return toggleFocusedWindowFloating()
+        case .toggleFocusedWindowSticky:
+            return toggleFocusedWindowSticky()
         case .scratchpadAssign:
             return assignFocusedWindowToScratchpad()
         case .scratchpadToggle:
@@ -370,6 +372,10 @@ final class IPCCommandRouter {
 
     private func toggleFocusedWindowFloating() -> ExternalCommandResult {
         controller.commandHandler.performCommand(.toggleFocusedWindowFloating)
+    }
+
+    private func toggleFocusedWindowSticky() -> ExternalCommandResult {
+        controller.commandHandler.performCommand(.toggleFocusedWindowSticky)
     }
 
     private func assignFocusedWindowToScratchpad() -> ExternalCommandResult {

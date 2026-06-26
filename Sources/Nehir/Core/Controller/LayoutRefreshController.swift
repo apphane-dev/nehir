@@ -1383,6 +1383,11 @@ import QuartzCore
             }
 
             let wsForWindow: WorkspaceDescriptor.ID
+            let evaluatedRuleEffects = ruleEffectsPreservingExistingAutomaticStickySource(
+                decision.ruleEffects,
+                existingEntry: existingEntry,
+                facts: evaluation.facts
+            )
             let ruleEffects: ManagedWindowRuleEffects
             if let existingEntry {
                 if shouldPreservePreFullscreenState {
@@ -1393,14 +1398,14 @@ import QuartzCore
                 } else if appFullscreen {
                     _ = controller.workspaceManager.markNativeFullscreenSuspended(existingEntry.token)
                     wsForWindow = existingAssignment ?? defaultWorkspace
-                    ruleEffects = decision.ruleEffects
+                    ruleEffects = evaluatedRuleEffects
                 } else {
                     wsForWindow = existingAssignment ?? defaultWorkspace
-                    ruleEffects = decision.ruleEffects
+                    ruleEffects = evaluatedRuleEffects
                 }
             } else {
                 wsForWindow = existingAssignment ?? defaultWorkspace
-                ruleEffects = decision.ruleEffects
+                ruleEffects = evaluatedRuleEffects
             }
             let oldMode = existingEntry?.mode
             let admittedMode = oldMode ?? trackedMode
@@ -1409,6 +1414,10 @@ import QuartzCore
             } else {
                 existingEntry?.managedReplacementMetadata?.parentWindowId
             }
+            let transientFlags = mergedManagedReplacementTransientFlags(
+                existingMetadata: existingEntry?.managedReplacementMetadata,
+                facts: evaluation.facts
+            )
             let managedReplacementMetadata = ManagedReplacementMetadata(
                 bundleId: evaluation.facts.ax.bundleId ?? bundleId ?? existingEntry?.managedReplacementMetadata?
                     .bundleId,
@@ -1421,15 +1430,9 @@ import QuartzCore
                     .windowLevel,
                 parentWindowId: parentWindowId,
                 frame: evaluation.facts.windowServer?.frame ?? existingEntry?.managedReplacementMetadata?.frame,
-                transientWindowServerEvidence: existingEntry?.managedReplacementMetadata?
-                    .transientWindowServerEvidence == true
-                    || evaluation.facts.windowServer?.hasTransientSurfaceEvidence == true,
-                degradedWindowServerChildEvidence: existingEntry?.managedReplacementMetadata?
-                    .degradedWindowServerChildEvidence == true
-                    || evaluation.facts.degradedWindowServerChildEvidence,
-                userAddressableTransientWindowServerSurface: existingEntry?.managedReplacementMetadata?
-                    .userAddressableTransientWindowServerSurface == true
-                    || evaluation.facts.userAddressableTransientWindowServerSurface
+                transientWindowServerEvidence: transientFlags.transientWindowServerEvidence,
+                degradedWindowServerChildEvidence: transientFlags.degradedWindowServerChildEvidence,
+                userAddressableTransientWindowServerSurface: transientFlags.userAddressableTransientWindowServerSurface
             )
 
             _ = controller.workspaceManager.addWindow(
@@ -2271,15 +2274,11 @@ import QuartzCore
 
     func hideInactiveWorkspaces(activeWorkspaceIds: Set<WorkspaceDescriptor.ID>) {
         guard let controller else { return }
-        // Before taking the visibility snapshot, re-anchor any window macOS reports as
-        // global (present on every known Space, e.g. a browser Picture-in-Picture) to
-        // the active workspace on the monitor it is actually displayed on. Such a window
-        // is shown by macOS on every Space, so parking it offscreen when its original
-        // Nehir workspace goes inactive is exactly the #108 "disappears" symptom, and
-        // leaving its workspaceId pointing at the now-inactive workspace would leave it
-        // logically inactive-while-visible (the bleed/drift family). Re-anchoring here
-        // keeps the snapshot, the frame-suppression set, and the hide loop all coherent.
-        reanchorGlobalWindowsToActiveWorkspaces(activeWorkspaceIds: activeWorkspaceIds)
+        // Before taking the visibility snapshot, re-anchor sticky windows to the active
+        // workspace on the monitor they are actually displayed on. This keeps the
+        // snapshot, frame-suppression set, and hide loop coherent for native global,
+        // manually sticky, and rule-sticky windows.
+        reanchorStickyWindowsToActiveWorkspaces(activeWorkspaceIds: activeWorkspaceIds)
         let workspaceEntries = workspaceEntriesSnapshot(on: controller)
 
         // Rebuild the workspace-level frame suppression set (live check in applyFramesParallel).
@@ -2336,28 +2335,19 @@ import QuartzCore
         }
     }
 
-    /// Re-anchors windows macOS reports as global (present on every known Space) to
-    /// the active workspace on the monitor they are actually displayed on.
+    /// Re-anchors effective sticky windows to the active workspace on the monitor
+    /// they are actually displayed on.
     ///
-    /// A global window (e.g. a browser Picture-in-Picture with
-    /// `collectionBehavior = .canJoinAllSpaces`) is kept on-screen by macOS across
-    /// every Space. Nehir must not fight that: it must never park such a window when
-    /// its original Nehir workspace goes inactive, and it must keep the model coherent
-    /// so the window is never logically inactive-while-visible.
+    /// Native global windows are discovered from `SpaceTopology`, then published to
+    /// `WorkspaceManager` before sticky membership is resolved through the canonical
+    /// sticky predicate. Manual- and rule-sticky windows are re-anchored regardless of
+    /// the number of known Spaces; manual unsticky vetoes the effective sticky state.
     ///
-    /// This recomputes `SpaceTopology`, and for every entry that is present on all
-    /// known Spaces it (1) re-binds its `workspaceId` to the active workspace on the
-    /// monitor its live frame is on (so it belongs to an active workspace), (2)
-    /// refreshes its floating geometry to that live frame (so the floating resolver
-    /// keeps it on that monitor instead of snapping it back), (3) clears any stale
-    /// hide state, and (4) marks it active so its frame writes are not suppressed.
-    /// It also publishes the resulting global-token set to `WorkspaceManager` so the
-    /// floating-resolution path can treat these windows specially (Lever 2).
-    ///
-    /// Only discriminates when `knownSpaceIds.count > 1` (multi-display "Displays have
-    /// separate Spaces"). On a single display every window reports the one active
-    /// Space, so this is a no-op there.
-    private func reanchorGlobalWindowsToActiveWorkspaces(
+    /// For each effective sticky entry this (1) re-binds its `workspaceId` to the
+    /// active workspace on the monitor its live frame is on, (2) refreshes floating
+    /// geometry to that live frame, (3) clears stale hide state, and (4) marks it active
+    /// so frame writes are not suppressed as inactive-workspace.
+    private func reanchorStickyWindowsToActiveWorkspaces(
         activeWorkspaceIds: Set<WorkspaceDescriptor.ID>
     ) {
         guard let controller else { return }
@@ -2372,19 +2362,22 @@ import QuartzCore
             from: trackedEntries,
             spaceTopology: spaceTopology
         )
+        controller.workspaceManager.setGlobalStickyWindowTokens(globalTokens)
+        let stickyTokens = Set<WindowToken>(trackedEntries.compactMap { entry in
+            controller.workspaceManager.isStickyWindow(entry.token) ? entry.token : nil
+        })
         let nativeInactiveTokens = nativeInactiveWindowTokens(
             from: trackedEntries,
             spaceTopology: spaceTopology
         )
         lastSpaceTopologyDebugSummary = spaceTopology.debugSummary
-            + " globalSticky=\(globalTokens.count) nativeInactive=\(nativeInactiveTokens.count)"
+            + " globalSticky=\(globalTokens.count) sticky=\(stickyTokens.count) nativeInactive=\(nativeInactiveTokens.count)"
         if !nativeInactiveTokens.isEmpty {
             lastSpaceTopologyDebugSummary += " exempted=\(nativeInactiveTokens.count)"
         }
-        controller.workspaceManager.setGlobalStickyWindowTokens(globalTokens)
         controller.workspaceManager.setNativeInactiveWindowTokens(nativeInactiveTokens)
 
-        for entry in trackedEntries where globalTokens.contains(entry.token) {
+        for entry in trackedEntries where stickyTokens.contains(entry.token) {
             let liveFrame = fastFrame(for: entry.token, axRef: entry.axRef)
             let physicalMonitor = liveFrame?.center.monitorApproximation(in: monitors)
                 ?? controller.workspaceManager.monitor(for: entry.workspaceId)
@@ -2400,7 +2393,7 @@ import QuartzCore
                     for: entry.token
                 )
             }
-            // A global window is never parked offscreen; clear any stale hide state
+            // A sticky window is never parked offscreen; clear any stale hide state
             // and make sure its frame writes are not suppressed as inactive-workspace.
             controller.workspaceManager.setHiddenState(nil, for: entry.token)
             controller.axManager.unsuppressFrameWrites([(entry.pid, entry.windowId)])
@@ -2434,14 +2427,12 @@ import QuartzCore
             guard controller.workspaceManager.layoutReason(for: entry.token) != .nativeFullscreen else {
                 continue
             }
-            // Lever 1: a window macOS reports as present on every known Space (e.g. a
-            // browser Picture-in-Picture) must never be parked offscreen when a Nehir
-            // workspace goes inactive — macOS is deliberately showing it on every
-            // Space. `reanchorGlobalWindowsToActiveWorkspaces` normally moves such a
-            // window into the active workspace before this point, so this guard is the
-            // defensive backstop that keeps the window visible and active if it reaches
-            // the hide path bound to an inactive workspace.
-            if controller.workspaceManager.isGlobalStickyWindow(entry.token) {
+            // Lever 1: an effective sticky window must never be parked offscreen when a
+            // Nehir workspace goes inactive. `reanchorStickyWindowsToActiveWorkspaces`
+            // normally moves it into the active workspace before this point, so this
+            // guard is the defensive backstop that keeps the window visible and active
+            // if it reaches the hide path bound to an inactive workspace.
+            if controller.workspaceManager.isStickyWindow(entry.token) {
                 controller.workspaceManager.setHiddenState(nil, for: entry.token)
                 controller.axManager.unsuppressFrameWrites([(entry.pid, entry.windowId)])
                 controller.axManager.markWindowActive(entry.windowId)
@@ -2757,39 +2748,50 @@ import QuartzCore
             var fallbackAttempted = false
             var fallbackResult: AXFrameWriteResult?
 
+            let shouldFallback: Bool
             if let observedOrigin = observedFrame?.origin {
                 let dx = abs(observedOrigin.x - plan.origin.x)
                 let dy = abs(observedOrigin.y - plan.origin.y)
+                shouldFallback = dx > verifyEpsilon || dy > verifyEpsilon
                 // Diagnostic: log SkyLight result vs requested
                 controller.axManager
                     .recordFrameApplyTrace(
-                        "hidePlan.verify id=\(plan.entry.windowId) requested=\(LayoutTrace.point(plan.origin)) observed=\(LayoutTrace.point(observedOrigin)) dx=\(String(format: "%.1f", dx)) dy=\(String(format: "%.1f", dy)) fallback=\(dx > verifyEpsilon || dy > verifyEpsilon ? "YES" : "no")"
+                        "hidePlan.verify id=\(plan.entry.windowId) requested=\(LayoutTrace.point(plan.origin)) observed=\(LayoutTrace.point(observedOrigin)) dx=\(String(format: "%.1f", dx)) dy=\(String(format: "%.1f", dy)) fallback=\(shouldFallback ? "YES" : "no")"
                     )
-                if dx > verifyEpsilon || dy > verifyEpsilon {
-                    fallbackAttempted = true
-                    let axResult = AXWindowService.setFrame(plan.entry.axRef, frame: requestedFrame)
-                    fallbackResult = axResult
-                    observedFrame = axResult.observedFrame
-                        ?? AXWindowService.framePreferFast(plan.entry.axRef)
-                        ?? controller.axManager.lastAppliedFrame(for: plan.entry.windowId)
-                    // Diagnostic: log AX fallback result
-                    if let afterFallback = observedFrame?.origin {
-                        controller.axManager
-                            .recordFrameApplyTrace(
-                                "hidePlan.axFallback id=\(plan.entry.windowId) axResult=\(axResult) requested=\(LayoutTrace.point(plan.origin)) afterFallback=\(LayoutTrace.point(afterFallback))"
-                            )
-                    } else {
-                        controller.axManager
-                            .recordFrameApplyTrace(
-                                "hidePlan.axFallback id=\(plan.entry.windowId) axResult=\(axResult) afterFallback=nil"
-                            )
-                    }
-                }
             } else {
+                shouldFallback = true
                 controller.axManager
                     .recordFrameApplyTrace(
-                        "hidePlan.verify id=\(plan.entry.windowId) requested=\(LayoutTrace.point(plan.origin)) observed=nil"
+                        "hidePlan.verify id=\(plan.entry.windowId) requested=\(LayoutTrace.point(plan.origin)) observed=nil fallback=YES"
                     )
+            }
+
+            if shouldFallback {
+                fallbackAttempted = true
+                let fallbackAXRef = AXWindowService.axWindowRef(
+                    for: UInt32(plan.entry.windowId),
+                    pid: plan.entry.pid
+                ) ?? plan.entry.axRef
+                let axResult = AXWindowService.setFrame(fallbackAXRef, frame: requestedFrame)
+                if axResult.failureReason == nil, fallbackAXRef != plan.entry.axRef {
+                    plan.entry.axRef = fallbackAXRef
+                }
+                fallbackResult = axResult
+                observedFrame = axResult.observedFrame
+                    ?? AXWindowService.framePreferFast(fallbackAXRef)
+                    ?? controller.axManager.lastAppliedFrame(for: plan.entry.windowId)
+                // Diagnostic: log AX fallback result
+                if let afterFallback = observedFrame?.origin {
+                    controller.axManager
+                        .recordFrameApplyTrace(
+                            "hidePlan.axFallback id=\(plan.entry.windowId) axResult=\(axResult) requested=\(LayoutTrace.point(plan.origin)) afterFallback=\(LayoutTrace.point(afterFallback))"
+                        )
+                } else {
+                    controller.axManager
+                        .recordFrameApplyTrace(
+                            "hidePlan.axFallback id=\(plan.entry.windowId) axResult=\(axResult) afterFallback=nil"
+                        )
+                }
             }
 
             let verified = positionPlanPlacementVerified(

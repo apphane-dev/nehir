@@ -361,6 +361,7 @@ final class IPCQueryRouter {
             isFocused: include("is-focused", in: fields) ? (entry.token == focusedToken) : nil,
             isVisible: include("is-visible", in: fields) ? isVisible : nil,
             isScratchpad: include("is-scratchpad", in: fields) ? isScratchpad : nil,
+            isSticky: include("is-sticky", in: fields) ? controller.workspaceManager.isStickyWindow(entry.token) : nil,
             hiddenReason: include("hidden-reason", in: fields) ? hiddenState.map(ipcHiddenReason(from:)) : nil
         )
     }

@@ -10,6 +10,7 @@ struct WMCommandTarget: Equatable {
         case layoutSelection
         case confirmedManagedFocus
         case frontmostManagedFallback
+        case samePidFloatingFallback
     }
 
     let token: WindowToken

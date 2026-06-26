@@ -900,15 +900,7 @@ enum AXWindowService {
             unpinAXElement(for: windowId)
         }
 
-        let appElement = AXUIElementCreateApplication(pid)
-        var windowsRef: CFTypeRef?
-        let result = AXUIElementCopyAttributeValue(
-            appElement,
-            kAXWindowsAttribute as CFString,
-            &windowsRef
-        )
-
-        guard result == .success, let windows = windowsRef as? [AXUIElement] else {
+        guard let windows = axWindows(for: pid) else {
             return nil
         }
 
@@ -920,6 +912,68 @@ enum AXWindowService {
         }
 
         return nil
+    }
+
+    static func axWindowRef(
+        for windowId: UInt32,
+        pid: pid_t,
+        matching windowInfo: WindowServerInfo?
+    ) -> AXWindowRef? {
+        if let exact = axWindowRef(for: windowId, pid: pid) {
+            return exact
+        }
+        guard let windowInfo,
+              pid_t(windowInfo.pid) == pid,
+              let windows = axWindows(for: pid)
+        else {
+            return nil
+        }
+
+        let targetFrame = ScreenCoordinateSpace.toAppKit(rect: windowInfo.frame).standardized
+        guard targetFrame.width >= 120, targetFrame.height >= 90 else {
+            return nil
+        }
+
+        for window in windows {
+            var resolvedWindowId: CGWindowID = 0
+            if _AXUIElementGetWindow(window, &resolvedWindowId) == .success,
+               resolvedWindowId != 0,
+               resolvedWindowId != windowId
+            {
+                continue
+            }
+
+            let ref = AXWindowRef(element: window, windowId: Int(windowId))
+            guard shouldTreatAsTopLevelWindow(
+                role: role(ref),
+                subrole: subrole(ref)
+            ) else {
+                continue
+            }
+            guard let frame = try? frame(ref),
+                  frame.approximatelyEqual(to: targetFrame, tolerance: 3.0)
+            else {
+                continue
+            }
+            return ref
+        }
+
+        return nil
+    }
+
+    private static func axWindows(for pid: pid_t) -> [AXUIElement]? {
+        let appElement = AXUIElementCreateApplication(pid)
+        var windowsRef: CFTypeRef?
+        let result = AXUIElementCopyAttributeValue(
+            appElement,
+            kAXWindowsAttribute as CFString,
+            &windowsRef
+        )
+
+        guard result == .success, let windows = windowsRef as? [AXUIElement] else {
+            return nil
+        }
+        return windows
     }
 
     private enum FrameWriteAttribute {

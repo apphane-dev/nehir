@@ -210,6 +210,7 @@ final class WorkspaceManager {
     private let reconcileTrace = ReconcileTraceRecorder()
     private let interactionMonitorWriteTrace = InteractionMonitorWriteRecorder()
     private var recentFloatingBarProjectionTraceRecords: [String] = []
+    private var lastNonManagedFocusExitAt: Date?
     private lazy var runtimeStore = RuntimeStore(traceRecorder: reconcileTrace)
     private let restorePlanner = RestorePlanner()
     private var bootPersistedWindowRestoreCatalog: PersistedWindowRestoreCatalog
@@ -221,6 +222,9 @@ final class WorkspaceManager {
     /// `SpaceTopology`. Such windows are never parked on workspace switch and must
     /// not be clamped back to a stale reference monitor on a cross-monitor drag.
     private var globalStickyWindowTokens: Set<WindowToken> = []
+    private var manualStickyWindowTokens: Set<WindowToken> = []
+    private var manualUnstickyWindowTokens: Set<WindowToken> = []
+    private var stickyFloatingPromotionTokens: Set<WindowToken> = []
     /// Last native macOS Space ID observed from CGS create notifications, keyed by
     /// WindowServer window ID. This mirrors upstream OmniWM's native-space tracking
     /// and complements `SLSCopySpacesForWindows`: a window may have multiple candidate
@@ -514,6 +518,9 @@ final class WorkspaceManager {
         nativeFullscreenRecordsByOriginalToken.removeAll()
         nativeFullscreenOriginalTokenByCurrentToken.removeAll()
         globalStickyWindowTokens.removeAll()
+        manualStickyWindowTokens.removeAll()
+        manualUnstickyWindowTokens.removeAll()
+        stickyFloatingPromotionTokens.removeAll()
         nativeSpaceIdByWindowId.removeAll()
         nativeInactiveWindowTokens.removeAll()
         consumedBootPersistedWindowRestoreEntries.removeAll()
@@ -710,6 +717,13 @@ final class WorkspaceManager {
     }
 
     private func applyReconciledFocusSession(_ focusSession: FocusSessionSnapshot) {
+        let wasNonManagedFocusActive = sessionState.focus.isNonManagedFocusActive
+        if wasNonManagedFocusActive, !focusSession.isNonManagedFocusActive {
+            lastNonManagedFocusExitAt = Date()
+        } else if !wasNonManagedFocusActive, focusSession.isNonManagedFocusActive {
+            lastNonManagedFocusExitAt = nil
+        }
+
         sessionState.focus.focusedToken = focusSession.focusedToken
         sessionState.focus.pendingManagedFocus = .init(
             token: focusSession.pendingManagedFocus.token,
@@ -1146,6 +1160,11 @@ final class WorkspaceManager {
 
     var isNonManagedFocusActive: Bool {
         sessionState.focus.isNonManagedFocusActive
+    }
+
+    func recentlyLeftNonManagedFocus(within interval: TimeInterval) -> Bool {
+        guard let lastNonManagedFocusExitAt else { return false }
+        return Date().timeIntervalSince(lastNonManagedFocusExitAt) <= interval
     }
 
     var isAppFullscreenActive: Bool {
@@ -2598,6 +2617,15 @@ final class WorkspaceManager {
         if globalStickyWindowTokens.remove(oldToken) != nil {
             globalStickyWindowTokens.insert(newToken)
         }
+        if manualStickyWindowTokens.remove(oldToken) != nil {
+            manualStickyWindowTokens.insert(newToken)
+        }
+        if manualUnstickyWindowTokens.remove(oldToken) != nil {
+            manualUnstickyWindowTokens.insert(newToken)
+        }
+        if stickyFloatingPromotionTokens.remove(oldToken) != nil {
+            stickyFloatingPromotionTokens.insert(newToken)
+        }
         if nativeInactiveWindowTokens.remove(oldToken) != nil {
             nativeInactiveWindowTokens.insert(newToken)
         }
@@ -2694,7 +2722,9 @@ final class WorkspaceManager {
         }
 
         let isGlobalSticky = isGlobalStickyWindow(entry.token)
-        if entry.layoutReason != .standard, !isGlobalSticky {
+        let isSticky = isStickyWindow(entry.token)
+        let hasStickySource = hasStickyWindowSource(entry.token)
+        if entry.layoutReason != .standard, !isSticky {
             return .rejected(reason: "layoutReason=\(String(describing: entry.layoutReason))")
         }
 
@@ -2704,8 +2734,16 @@ final class WorkspaceManager {
         let hasChildEvidence = metadata?.parentWindowId != nil
             || metadata?.degradedWindowServerChildEvidence == true
 
-        if isGlobalSticky {
-            return .accepted(reason: "globalSticky")
+        if isSticky {
+            return .accepted(reason: isGlobalSticky ? "globalSticky" : "sticky")
+        }
+
+        if manualLayoutOverride(for: entry.token) != nil {
+            return .accepted(reason: "manualOverride")
+        }
+
+        if hasStickySource, !isStandardAXWindowSurface(metadata) {
+            return .accepted(reason: "stickySource")
         }
 
         if !isStandardAXWindowSurface(metadata) {
@@ -2765,7 +2803,7 @@ final class WorkspaceManager {
         let bundleId = metadata?.bundleId ?? "nil"
         let parentWindowId = metadata?.parentWindowId.map(String.init) ?? "nil"
         let isScratchpad = isScratchpadToken(entry.token) || hiddenState(for: entry.token)?.isScratchpad == true
-        let record = "\(Date().ISO8601Format()) workspace=\(workspace.uuidString) token=\(entry.token) bundleId=\(bundleId) \(outcome) frame=\(runtimeDebugFrame(floatingBarProjectionFrame(for: entry))) layoutReason=\(String(describing: entry.layoutReason)) transientWindowServerEvidence=\(metadata?.transientWindowServerEvidence == true) degradedWindowServerChildEvidence=\(metadata?.degradedWindowServerChildEvidence == true) parentWindowId=\(parentWindowId) globalSticky=\(isGlobalStickyWindow(entry.token)) scratchpad=\(isScratchpad)"
+        let record = "\(Date().ISO8601Format()) workspace=\(workspace.uuidString) token=\(entry.token) bundleId=\(bundleId) \(outcome) frame=\(runtimeDebugFrame(floatingBarProjectionFrame(for: entry))) layoutReason=\(String(describing: entry.layoutReason)) transientWindowServerEvidence=\(metadata?.transientWindowServerEvidence == true) degradedWindowServerChildEvidence=\(metadata?.degradedWindowServerChildEvidence == true) parentWindowId=\(parentWindowId) globalSticky=\(isGlobalStickyWindow(entry.token)) sticky=\(isStickyWindow(entry.token)) scratchpad=\(isScratchpad)"
         recentFloatingBarProjectionTraceRecords.append(record)
         if recentFloatingBarProjectionTraceRecords.count > 120 {
             recentFloatingBarProjectionTraceRecords.removeFirst(recentFloatingBarProjectionTraceRecords.count - 120)
@@ -2981,6 +3019,60 @@ final class WorkspaceManager {
         globalStickyWindowTokens.contains(token)
     }
 
+    func isStickyWindow(_ token: WindowToken) -> Bool {
+        guard !isManualUnstickyWindow(token) else { return false }
+        return hasStickyWindowSource(token)
+    }
+
+    func hasStickyWindowSource(_ token: WindowToken) -> Bool {
+        isGlobalStickyWindow(token) || isManualStickyWindow(token) || windows.entry(for: token)?.ruleEffects
+            .sticky == true
+    }
+
+    func isManualStickyWindow(_ token: WindowToken) -> Bool {
+        manualStickyWindowTokens.contains(token)
+    }
+
+    func isManualUnstickyWindow(_ token: WindowToken) -> Bool {
+        manualUnstickyWindowTokens.contains(token)
+    }
+
+    func isStickyFloatingPromotion(_ token: WindowToken) -> Bool {
+        stickyFloatingPromotionTokens.contains(token)
+    }
+
+    @discardableResult
+    func setStickyFloatingPromotion(_ promoted: Bool, for token: WindowToken) -> Bool {
+        let changed: Bool
+        if promoted {
+            changed = stickyFloatingPromotionTokens.insert(token).inserted
+        } else {
+            changed = stickyFloatingPromotionTokens.remove(token) != nil
+        }
+        if changed {
+            invalidateWorkspaceProjection(reason: "stickyFloatingPromotionChanged")
+        }
+        return changed
+    }
+
+    @discardableResult
+    func setManualStickyWindow(_ sticky: Bool, for token: WindowToken) -> Bool {
+        let changed: Bool
+        if sticky {
+            let inserted = manualStickyWindowTokens.insert(token).inserted
+            let removed = manualUnstickyWindowTokens.remove(token) != nil
+            changed = inserted || removed
+        } else {
+            let removed = manualStickyWindowTokens.remove(token) != nil
+            let inserted = manualUnstickyWindowTokens.insert(token).inserted
+            changed = removed || inserted
+        }
+        if changed {
+            invalidateWorkspaceProjection(reason: "manualStickyWindowChanged")
+        }
+        return changed
+    }
+
     func noteNativeSpace(windowId: UInt32, spaceId: UInt64) {
         guard spaceId != 0 else { return }
         nativeSpaceIdByWindowId[Int(windowId)] = spaceId
@@ -3140,6 +3232,9 @@ final class WorkspaceManager {
         _ = removeNativeFullscreenRecord(containing: entry.token)
         nativeSpaceIdByWindowId.removeValue(forKey: entry.windowId)
         globalStickyWindowTokens.remove(entry.token)
+        manualStickyWindowTokens.remove(entry.token)
+        manualUnstickyWindowTokens.remove(entry.token)
+        stickyFloatingPromotionTokens.remove(entry.token)
         nativeInactiveWindowTokens.remove(entry.token)
         handleWindowRemoved(entry.token, in: entry.workspaceId)
         _ = windows.removeWindow(key: entry.token)

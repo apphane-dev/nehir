@@ -338,12 +338,13 @@ Workspace IDs are positive numeric strings. Direct hotkeys stay limited to `1-9`
 | Command | Arguments | Surface | Description |
 |---------|-----------|---------|-------------|
 | `command toggle-focused-window-floating` | — | command | Toggle focused window between tiled and floating |
+| `command toggle-focused-window-sticky` | — | command | Toggle the focused managed window's sticky visibility effect |
 | `command raise-all-floating-windows` | — | command | Raise all visible floating windows |
 | `command rescue-offscreen-windows` | — | command | Clamp tracked floating windows back onto their visible monitors |
 | `command scratchpad assign` | — | command | Assign the focused window to the scratchpad |
 | `command scratchpad toggle` | — | command | Show or hide the scratchpad window |
 
-When a managed floating window has keyboard focus, focused-window commands target that floating window even if the Niri viewport selection still points at a tiled window underneath it.
+When a managed floating window has keyboard focus, focused-window commands target that floating window even if the Niri viewport selection still points at a tiled window underneath it. Sticky command targeting also accepts windows with a sticky source (for example a manually-unstuck PiP) so the user can toggle them back even when the effective sticky state is currently off.
 
 ### UI Toggles
 
@@ -428,7 +429,7 @@ Use `--fields` with a comma-separated list to limit returned fields.
 
 Field tokens are part of the CLI contract. Returned JSON still uses the payload schema's field names, so the selected token may not be byte-for-byte identical to the JSON key. For example, `window-counts` selects the workspace payload's `counts` field.
 
-**Window fields:** `id`, `pid`, `workspace`, `display`, `app`, `title`, `frame`, `mode`, `layout-reason`, `manual-override`, `is-focused`, `is-visible`, `is-scratchpad`, `hidden-reason`
+**Window fields:** `id`, `pid`, `workspace`, `display`, `app`, `title`, `frame`, `mode`, `layout-reason`, `manual-override`, `is-focused`, `is-visible`, `is-scratchpad`, `is-sticky`, `hidden-reason`
 
 **Workspace fields:** `id`, `raw-name`, `display-name`, `number`, `display`, `is-focused`, `is-visible`, `is-current`, `window-counts`, `focused-window-id`
 
@@ -518,7 +519,7 @@ Numeric inputs are resolved as raw workspace IDs first. Display-name lookup is a
 
 ## Rules
 
-Manage persisted window rules that control layout behavior and default workspace placement for matching windows.
+Manage persisted window rules that control whether matching windows are managed, their layout behavior, sticky visibility, and default workspace placement.
 Rule add, replace, and config reload update initial placement defaults; existing managed windows stay on their current workspace unless `rule apply` is used.
 
 ```
@@ -535,7 +536,9 @@ nehirctl rule <action> [arguments...] [options...]
 | `--title-regex` | `<pattern>` | Match window title against this regex |
 | `--ax-role` | `<role>` | Match accessibility role |
 | `--ax-subrole` | `<subrole>` | Match accessibility subrole |
+| `--manage` | `<auto\|ignore>` | Management action; `ignore` leaves matching windows unmanaged and wins over layout/sticky effects |
 | `--layout` | `<auto\|tile\|float>` | Layout action (`auto` = default behavior) |
+| `--sticky` | `<true\|false>` | Sticky visibility effect for managed matches; `false` opts out of sticky defaults |
 | `--assign-to-workspace` | `<raw-name>` | Open first matching app windows on this workspace raw name |
 | `--min-width` | `<points>` | Minimum window width in points |
 | `--min-height` | `<points>` | Minimum window height in points |
@@ -601,6 +604,13 @@ nehirctl rule add --bundle-id com.apple.Safari --layout tile --assign-to-workspa
 
 # Float windows with "Preferences" in the title
 nehirctl rule add --bundle-id com.apple.Safari --title-substring Preferences --layout float
+
+# Ignore a helper overlay entirely
+nehirctl rule add --bundle-id com.example.Helper --title-substring Overlay --manage ignore
+
+# Force matching media windows sticky, or opt them out of PiP default sticky
+nehirctl rule add --bundle-id org.mozilla.firefox --title-substring Picture-in-Picture --layout float --sticky true
+nehirctl rule add --bundle-id app.zen-browser.zen --title-substring Picture-in-Picture --sticky false
 
 # Remove a rule
 nehirctl rule remove 550e8400-e29b-41d4-a716-446655440000
