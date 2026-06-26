@@ -1,6 +1,6 @@
 # Sticky window effect, PiP defaulting, and advanced ignore action
 
-**Status:** planned
+**Status:** completed — implemented on branch `patch/pip-sticky-unmanaged` at `f141c120` (baseline `196dee9a`), 2026-06-26. Not yet merged to `main`. Full suite green (`mise run test` → 1346 tests in 111 suites). Changeset `.changeset/20260626014016-add-sticky-and-ignore-app-rule-plumbing.md`. Moved from `planned/` to `completed/` on 2026-06-26.
 **Plan date:** 2026-06-26
 **Related issue:** PiP behavior expectations / follow-up to #108
 **Related docs:** `completed/20260624-nehir-108-pip-disappears-and-snaps-back-on-workspace-switch.md`, `completed/20260624-user-addressable-floating-surfaces.md`
@@ -12,7 +12,129 @@ All source references below were re-verified against the main Nehir source tree 
 The runtime evidence below is inlined from the 2026-06-25 PiP capture. No trace-log
 filename is referenced; the document stands on the quoted evidence.
 
-## TL;DR
+## Implementation outcome
+
+Shipped on `patch/pip-sticky-unmanaged` at `f141c120` (baseline `196dee9a`). The
+implementation follows the proposed design with the runtime-driven deviations and
+limitations recorded below.
+
+### What shipped
+
+- **Sticky as an effect/source overlay, not a third mode.** `TrackedWindowMode`
+  stays `.tiling` / `.floating`; sticky rides on rule effects
+  (`ManagedWindowRuleEffects.sticky`) and source sets in `WorkspaceManager`
+  (`globalStickyWindowTokens`, `manualStickyWindowTokens`,
+  `manualUnstickyWindowTokens`, `stickyFloatingPromotionTokens`).
+  `Sources/Nehir/Core/Workspace/WorkspaceManager.swift`,
+  `Sources/Nehir/Core/Rules/WindowRuleEngine.swift`.
+- **`manage = ignore` management action.** `WindowRuleManageAction` gained
+  `.ignore`; `AppRuleFileStore`, `AppRuleDraft`, `AppRulesView`, IPC rule
+  definition/snapshot, `CLIParser` / `CLIRenderer`, and the automation manifest
+  all carry it. Ignore wins over `layout` and produces
+  `WindowDecisionDisposition.unmanaged` / `admissionOutcome = .ignored`.
+  `Sources/Nehir/Core/Config/AppRule.swift`, `Sources/NehirIPC/IPCModels.swift`,
+  `Sources/Nehir/IPC/IPCRuleProjection.swift`.
+  Ignore rules render an `Ignore` sidebar badge and suppress
+  layout/sticky/workspace/size badges in the App Rules UI.
+- **Sticky app-rule effect (`sticky = true|false`).** Same surfaces as above;
+  `sticky = false` opts a match out of PiP default sticky.
+- **PiP default sticky classifier.** `WindowRuleFacts.pipDefaultStickyCandidate`
+  marks top-level (`parentId == 0`), above-normal, standard-AX PiP-like surfaces
+  sticky by default, including `AXSystemDialogSubrole` media-like cases. A shared
+  `isTopLevelResizableMediaLikeSurfaceFrame(...)` frame heuristic gates the
+  resizable-media shape and is reused by the degraded WindowServer child path.
+  `Sources/Nehir/Core/Rules/WindowRuleEngine.swift`.
+- **Manual sticky / unsticky and command targeting.** New
+  `toggleFocusedWindowSticky` / `toggleWindowSticky(token:)`, IPC command
+  (`toggle-focused-window-sticky`), action-catalog entry, hotkey config mapping,
+  and a separate workspace-bar sticky section (`WorkspaceBarProjection.sticky`,
+  `WorkspaceBarStickyItem`, `StickyPillView`). Manual unsticky overrides
+  automatic sources; `hasStickyWindowSource(_:)` (command eligibility) is kept
+  separate from `isStickyWindow(_:)` (effective behavior).
+  `Sources/Nehir/Core/Controller/WMController.swift`,
+  `Sources/Nehir/Core/Input/HotkeyCommand.swift`,
+  `Sources/Nehir/Core/Input/ActionCatalog.swift`,
+  `Sources/Nehir/IPC/IPCCommandRouter.swift`,
+  `Sources/Nehir/UI/WorkspaceBar/WorkspaceBarView.swift`.
+- **Sticky lifecycle.** `LayoutRefreshController` re-anchors sticky windows to
+  active workspaces and skips parking them on workspace switch; sticky floating
+  frame does not snap back after cross-monitor drag.
+  `Sources/Nehir/Core/Controller/LayoutRefreshController.swift`.
+- **Window-query `is-sticky` field** for automation.
+  `Sources/Nehir/IPC/IPCQueryRouter.swift`, `Sources/NehirIPC/IPCAutomationManifest.swift`.
+- **Lone-window far-overscroll** for single-column Niri workspaces (matches
+  multi-column far-boundary behavior).
+  `Sources/Nehir/Core/Layout/Niri/ViewportState+Geometry.swift`.
+- **Docs** updated: `docs/CONFIGURATION.md`, `docs/glossary.md`,
+  `docs/ARCHITECTURE.md`, `docs/IPC-CLI.md`, `docs/index.md`,
+  `docs/offscreen-clamp-fix.md`, `docs/viewport-navigation-spec.md`.
+
+### Runtime-driven deviations
+
+These were driven by real captures (not trace files) during implementation:
+
+- **No parented high-level WindowServer-only PiP admission.** An initial attempt
+  added a parented popup-level candidate path to admit Safari/Dia/Atlas-style
+  PiP that exposes no AX reference by window id. It was reverted because the same
+  evidence shape is also used by browser **context menus**, which then got pinned
+  as sticky windows. PiP detection stays conservative.
+- **Degraded WindowServer child evidence scoping.** The media-like frame
+  exemption in `degradedWindowServerChildEvidence` now only applies to actual
+  top-level surfaces (`parentId == 0`); parented degraded children keep child
+  evidence. This fixed a structural-rekey regression caught by tests.
+- **Command target fallback.** A `samePidFloatingFallback` target was added so a
+  tracked floating `AXDialog` PiP (e.g. Atlas) can be targeted for sticky/float
+  commands ahead of the tiled main window. It was later tightened to exclude
+  non-user-addressable transient helpers, and the untracked-frontmost-app guard
+  was relaxed so unrelated frontmost app noise does not suppress confirmed
+  managed-focus commands (a test regression).
+- **Bar projection keeps sticky-source non-standard surfaces visible.**
+  `barProjectionDecision` accepts a non-standard floating surface as a normal
+  floating item when it still has a sticky source (e.g. a manually-unstuck PiP),
+  so it does not look "lost" after manual unsticky.
+- **Hide-plan AX fallback runs on nil readback too.** When a parked window's
+  SkyLight frame readback is nil, the hide-plan verification now also runs the
+  `AXWindowService.axWindowRef` + `setFrame` fallback (not only on origin
+  delta).
+
+### Limitations (documented, by design)
+
+- **Safari, Dia, Arc, Atlas/ChatGPT native/helper PiP** expose only parented
+  popup-level WindowServer children or generic `AXDialog` surfaces whose
+  AX/WindowServer facts are indistinguishable from context menus / ordinary
+  dialogs. Nehir does **not** auto-manage them as sticky PiP; they remain
+  unmanaged / native-sticky. Workaround: explicit app rule matching stable facts
+  (e.g. bundle id + `axSubrole = "AXDialog"` or a title pattern) with
+  `layout = "float"` and `sticky = true`.
+- **Chromium / Helium-style PiP** may only become trackable after the PiP
+  receives focus or a click, because reliable AX facts are not available at
+  creation time.
+
+See `docs/CONFIGURATION.md` and `docs/glossary.md` for the user-facing wording.
+
+### Test status
+
+Existing suites extended for the new rule surfaces:
+- `Tests/NehirTests/CLIParserTests.swift` — sample values for `--manage` / `--sticky`.
+- `Tests/NehirTests/IPCModelsTests.swift` — manifest option flags include
+  `--manage` / `--sticky`.
+- `Tests/NehirTests/WindowRuleEngineTests.swift` — existing PiP / floating / tile
+  coverage stays green, including the degraded child rekey guard.
+
+No new PiP-runtime regression tests were added for the Safari/Dia/Atlas caveats:
+the runtime-debugging workflow treats real captures as the acceptance signal, the
+user confirmed the current behavior is the "best shape", and the limitations are
+documented rather than enforced.
+
+### Deferred
+
+- A generic focused-window / workspace-bar **Ignore** command is intentionally
+  still deferred (ignore is terminal and better reversed via rule surfaces).
+- Scratchpad-vs-sticky unification (pin across workspaces and/or hide/summon) is
+  left for a future slice.
+
+---
+
 
 The main source already answers the shape of the feature.
 
