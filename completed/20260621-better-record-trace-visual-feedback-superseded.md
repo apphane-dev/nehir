@@ -81,7 +81,7 @@ while porting it into worker-ready steps:
    edited files, all presentation-only. (If minimal diff is preferred, inlining
    the ~6-line formatter in the button is the fallback; the extracted helper is
    recommended to match the reusable-helper house style of
-   `planned/20260619-m4s2-space-topology-eviction-exemption.md`.)
+   `completed/20260619-m4s2-space-topology-eviction-exemption.md`.)
 
 3. **No `@available` guards needed.** Deployment target is `.macOS(.v15)`
    (`Package.swift:16`), so `TimelineView(.periodic(by:))` (macOS 13+) and

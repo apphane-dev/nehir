@@ -1,6 +1,6 @@
 # M4 Stage 2 — Minimal Space topology eviction exemption
 
-**Status:** planned
+**Status:** completed — shipped on `main` in `4ae5fc96` ("Exempt managed windows on inactive native Spaces from full-rescan eviction"). Adds the per-rescan `SpaceTopology` value consulted only in the full-rescan eviction path so a managed window parked on an inactive native Space resets its miss counter instead of being evicted by `WorkspaceManager.removeMissing`; guarded by Separate-Spaces mode (no-op when disabled/unavailable); a compact last-topology summary is surfaced via the runtime debug dump. The deliberately-omitted max-exemption counter is an accepted residual risk and follow-up (see "Risks and mitigations" / "Follow-ups (out of scope)"). Moved from `planned/` to `completed/` on 2026-06-26.
 **Source discovery:** `discovery/20260618-space-topology-eviction-exemption.md`
 **Prerequisite:** `completed/20260619-m4s1-displays-separate-spaces-detection.md` (`main` includes `DisplaySpacesMode`)
 **Upstream reference:** `BarutSRB/OmniWM@2dcab36` plus the v0.4.9.9 `SpaceTopology`/`SkyLight.spacesForWindow` shape

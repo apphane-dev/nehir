@@ -426,7 +426,7 @@ identity-tagged, hard-excluded display across (concise list, mirroring
   not report it as a user monitor.
 - **Separate-Spaces interaction** — under "Displays have separate Spaces" ON, the
   virtual display gains its own Space; revisit the Space-topology prerequisite
-  (`planned/20260619-m4s2-space-topology-eviction-exemption.md`) at that point.
+  (`completed/20260619-m4s2-space-topology-eviction-exemption.md`) at that point.
 
 ---
 
@@ -562,6 +562,6 @@ known path to *zero* bleed.**
   cross-monitor geometry half (already mitigated for *visible* tiled frames;
   explains why it does not help hidden windows reach zero).
 - `discovery/20260618-separate-spaces-and-monitor-arrangement.md` and
-  `planned/20260619-m4s2-space-topology-eviction-exemption.md` — Separate-Spaces
+  `completed/20260619-m4s2-space-topology-eviction-exemption.md` — Separate-Spaces
   topology context (D.2; a risk for the virtual display under separate spaces,
   not a dependency).

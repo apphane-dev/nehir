@@ -1,6 +1,6 @@
 # Modifier + click on a workspace number to move the active window/column
 
-**Status:** planned
+**Status:** completed — shipped on `main` in `f4adb75f` ("Add shift+click, preview pills, and workspace bar settings improvements"), whose first bullet — "Shift+click a workspace pill to move the focused window there (mouse analogue of `Opt+Shift+N`)" — is this plan's v1 deliverable, alongside the Phase 4 discoverability work ("Explain workspace bar click behaviors in settings with detailed docs"). The column variant (`moveFocusedColumnFromBar`) remains an explicit non-goal / deferred follow-up. Moved from `planned/` to `completed/` on 2026-06-26.
 **Source discovery:** `discovery/20260621-workspace-number-modifier-click-move-window.md`
 **Origin:** backlog brainstorm idea **#2** (`planned/20260621-backlog-brainstorm.md`, *Workspaces / window management*)
 

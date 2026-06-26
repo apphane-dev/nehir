@@ -4,7 +4,7 @@
 shipped on `main` as commit `b7cfb91e` ("Preserve and surface unknown settings
 keys instead of stripping them") and is recorded in
 `completed/20260616-unified-config-diagnostics-and-migration-policy.md`. This
-plan exists only to point a worker at the completed work.
+plan exists only to point a worker at the completed work. Moved from `planned/` to `completed/` on 2026-06-26.
 **Source discovery:** `discovery/20260616-omniwm-410-settings-toml-unknown-keys-roundtrip-loss.md`
 **Superseded by (shipped):** `completed/20260616-unified-config-diagnostics-and-migration-policy.md`
 **Cluster:** `noop/20260616-omniwm-169-settings-json-full-export.md` (PR #169 —

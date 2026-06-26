@@ -46,7 +46,7 @@ porting it into source:
    Without both, the discovery's proposed round-trip test ("a rule with
    `hideFromWorkspaceBar: true` survives TOML write + reload via `AppRuleFileStore`")
    would fail. This is the same lossy-manual-codec class the sibling #410 work
-   (`planned/20260621-omniwm-410-settings-toml-unknown-keys-roundtrip-loss.md`) flagged
+   (`completed/20260621-omniwm-410-settings-toml-unknown-keys-roundtrip-loss.md`) flagged
    for `HotkeysTOMLCodec`/`WorkspacesTOMLCodec`; `AppRuleFileStore` is the app-rule
    member of that class. The `AppRule.Codable` path (`CodingKeys`/`init(from:)`) still
    needs the field too, because it is exercised by `SettingsMigrationStateStore` and
