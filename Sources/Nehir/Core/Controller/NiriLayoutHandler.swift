@@ -545,8 +545,10 @@ enum NiriWindowMoveResult {
                 let totalInsertedWidth = insertedBeforeActive.reduce(CGFloat(0)) { total, data in
                     total + data.col.cachedWidth + pass.gap
                 }
-                state.viewOffsetPixels.offset(delta: Double(-totalInsertedWidth))
-                state.activeColumnIndex = originalActiveIdx + insertedBeforeActive.count
+                state.withRecordedViewportMutation(reason: "relayout.insertedColumnsBeforeActive") { state in
+                    state.viewOffsetPixels.offset(delta: Double(-totalInsertedWidth))
+                    state.activeColumnIndex = originalActiveIdx + insertedBeforeActive.count
+                }
             }
 
             let sortedNewColumns = newColumnData.sorted { $0.colIdx < $1.colIdx }
@@ -674,11 +676,14 @@ enum NiriWindowMoveResult {
                     abs(centeredStart - viewStart) > pixel
                 {
                     let activeIndex = state.activeColumnIndex.clamped(to: 0 ... max(0, columns.count - 1))
-                    state.viewOffsetPixels = .static(context.targetOffset(
-                        forViewportStart: centeredStart,
-                        activeColumnIndex: activeIndex,
-                        in: state
-                    ))
+                    state.setStaticViewOffsetPixels(
+                        context.targetOffset(
+                            forViewportStart: centeredStart,
+                            activeColumnIndex: activeIndex,
+                            in: state
+                        ),
+                        reason: "resolveSelection.centeredViewportCorrection"
+                    )
                     state.preservesUnsnappedGestureOffset = false
                     if abs(state.viewOffsetPixels.current() - offsetBefore) > 1 {
                         viewportNeedsRecalc = true
@@ -821,7 +826,7 @@ enum NiriWindowMoveResult {
         state: inout ViewportState
     ) {
         state.activeColumnIndex = 0
-        state.viewOffsetPixels = .static(geometry?.centerOffset ?? 0)
+        state.setStaticViewOffsetPixels(geometry?.centerOffset ?? 0, reason: "resetViewportForCenteredLoneWindow")
         state.preservesUnsnappedGestureOffset = false
         state.activatePrevColumnOnRemoval = nil
         state.viewOffsetToRestore = nil
@@ -2064,8 +2069,10 @@ enum NiriWindowMoveResult {
             gap: gap,
             sizeKeyPath: sizeKeyPath
         )
-        state.viewOffsetPixels.offset(delta: Double(previousPosition - targetPosition))
-        state.activeColumnIndex = targetIndex
+        state.withRecordedViewportMutation(reason: "adjustViewportForContainerPositionChange") { state in
+            state.viewOffsetPixels.offset(delta: Double(previousPosition - targetPosition))
+            state.activeColumnIndex = targetIndex
+        }
     }
 
     func withNiriOperationContext(

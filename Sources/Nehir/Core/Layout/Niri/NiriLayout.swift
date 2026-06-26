@@ -848,7 +848,7 @@ extension NiriLayoutEngine {
               !state.viewOffsetPixels.isGesture,
               abs(state.viewOffsetPixels.current()) < SingleWindowViewportGeometry.centeredOffsetEpsilon
         else { return }
-        state.viewOffsetPixels = .static(geometry.centerOffset)
+        state.setStaticViewOffsetPixels(geometry.centerOffset, reason: "seedSingleWindowCenterOffsetIfNeeded")
         state.preservesUnsnappedGestureOffset = false
     }
 

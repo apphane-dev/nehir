@@ -64,6 +64,17 @@ enum ViewOffset {
     case gesture(ViewGesture)
     case spring(SpringAnimation)
 
+    var mutationKind: String {
+        switch self {
+        case .static:
+            "static"
+        case .gesture:
+            "gesture"
+        case .spring:
+            "spring"
+        }
+    }
+
     func current() -> CGFloat {
         switch self {
         case let .static(offset):
@@ -153,6 +164,13 @@ enum ViewOffset {
 }
 
 struct ViewportState {
+    struct ViewportMutationSnapshot: Equatable {
+        let activeColumnIndex: Int
+        let currentOffset: CGFloat
+        let targetOffset: CGFloat
+        let offsetKind: String
+    }
+
     var activeColumnIndex: Int = 0
 
     var viewOffsetPixels: ViewOffset = .static(0.0)
@@ -172,9 +190,105 @@ struct ViewportState {
     var recentFFMFocusToken: WindowToken?
     var recentFFMFocusTimestamp: Date?
 
+    var isViewportMutationAuditEnabled = false
+    var lastViewportMutationReason: String?
+    var lastViewportMutationCaller: String?
+    var lastViewportMutationTimestamp: TimeInterval?
+    var lastViewportMutationBefore: ViewportMutationSnapshot?
+    var lastViewportMutationAfter: ViewportMutationSnapshot?
+
     let springConfig: SpringConfig = .niriHorizontalViewMovement
 
     var animationClock: AnimationClock?
 
     var displayRefreshRate: Double = 60.0
+
+    func viewportMutationSnapshot() -> ViewportMutationSnapshot {
+        ViewportMutationSnapshot(
+            activeColumnIndex: activeColumnIndex,
+            currentOffset: viewOffsetPixels.current(),
+            targetOffset: viewOffsetPixels.target(),
+            offsetKind: viewOffsetPixels.mutationKind
+        )
+    }
+
+    mutating func clearViewportMutationAudit() {
+        lastViewportMutationReason = nil
+        lastViewportMutationCaller = nil
+        lastViewportMutationTimestamp = nil
+        lastViewportMutationBefore = nil
+        lastViewportMutationAfter = nil
+    }
+
+    mutating func withRecordedViewportMutation(
+        reason: String,
+        caller: String = #function,
+        fileID: StaticString = #fileID,
+        line: UInt = #line,
+        _ mutate: (inout ViewportState) -> Void
+    ) {
+        guard isViewportMutationAuditEnabled else {
+            mutate(&self)
+            return
+        }
+
+        let before = viewportMutationSnapshot()
+        mutate(&self)
+        let after = viewportMutationSnapshot()
+        guard before != after else { return }
+
+        lastViewportMutationReason = reason
+        lastViewportMutationCaller = "\(fileID):\(line) \(caller)"
+        lastViewportMutationTimestamp = Date().timeIntervalSince1970
+        lastViewportMutationBefore = before
+        lastViewportMutationAfter = after
+    }
+
+    mutating func offsetViewOffsetPixels(
+        delta: Double,
+        reason: String,
+        caller: String = #function,
+        fileID: StaticString = #fileID,
+        line: UInt = #line
+    ) {
+        withRecordedViewportMutation(reason: reason, caller: caller, fileID: fileID, line: line) { state in
+            state.viewOffsetPixels.offset(delta: delta)
+        }
+    }
+
+    mutating func setStaticViewOffsetPixels(
+        _ offset: CGFloat,
+        reason: String,
+        caller: String = #function,
+        fileID: StaticString = #fileID,
+        line: UInt = #line
+    ) {
+        withRecordedViewportMutation(reason: reason, caller: caller, fileID: fileID, line: line) { state in
+            state.viewOffsetPixels = .static(offset)
+        }
+    }
+
+    mutating func setGestureViewOffsetPixels(
+        _ gesture: ViewGesture,
+        reason: String,
+        caller: String = #function,
+        fileID: StaticString = #fileID,
+        line: UInt = #line
+    ) {
+        withRecordedViewportMutation(reason: reason, caller: caller, fileID: fileID, line: line) { state in
+            state.viewOffsetPixels = .gesture(gesture)
+        }
+    }
+
+    mutating func setSpringViewOffsetPixels(
+        _ animation: SpringAnimation,
+        reason: String,
+        caller: String = #function,
+        fileID: StaticString = #fileID,
+        line: UInt = #line
+    ) {
+        withRecordedViewportMutation(reason: reason, caller: caller, fileID: fileID, line: line) { state in
+            state.viewOffsetPixels = .spring(animation)
+        }
+    }
 }

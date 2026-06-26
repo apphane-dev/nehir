@@ -3515,19 +3515,36 @@ final class WorkspaceManager {
         }
     }
 
+    private var isViewportMutationAuditEnabled = false
+
+    func setViewportMutationAuditEnabled(_ enabled: Bool) {
+        isViewportMutationAuditEnabled = enabled
+        for workspaceId in sessionState.workspaceSessions.keys {
+            guard var viewportState = sessionState.workspaceSessions[workspaceId]?.niriViewportState else { continue }
+            viewportState.isViewportMutationAuditEnabled = enabled
+            viewportState.clearViewportMutationAudit()
+            sessionState.workspaceSessions[workspaceId]?.niriViewportState = viewportState
+        }
+    }
+
     func niriViewportState(for workspaceId: WorkspaceDescriptor.ID) -> ViewportState {
-        if let state = sessionState.workspaceSessions[workspaceId]?.niriViewportState {
+        if var state = sessionState.workspaceSessions[workspaceId]?.niriViewportState {
+            state.isViewportMutationAuditEnabled = isViewportMutationAuditEnabled
             return state
         }
         var newState = ViewportState()
         newState.animationClock = animationClock
+        newState.isViewportMutationAuditEnabled = isViewportMutationAuditEnabled
         return newState
     }
 
     func updateNiriViewportState(_ state: ViewportState, for workspaceId: WorkspaceDescriptor.ID) {
         var workspaceSession = sessionState.workspaceSessions[workspaceId] ?? SessionState.WorkspaceSession()
         let previousViewportState = workspaceSession.niriViewportState
-        workspaceSession.niriViewportState = state
+        var normalizedState = state
+        normalizedState.animationClock = animationClock
+        normalizedState.isViewportMutationAuditEnabled = isViewportMutationAuditEnabled
+        workspaceSession.niriViewportState = normalizedState
 
         // Bump the per-workspace revision whenever a LIVE selection field
         // changes. This is the single chokepoint for ALL live ViewportState
@@ -3548,9 +3565,9 @@ final class WorkspaceManager {
         // `niriViewportState(for:)` hands the plan-builder, so the comparison is
         // consistent, and a first write that is itself empty does not bump.
         let previousSelection = previousViewportState ?? ViewportState()
-        if previousSelection.selectedNodeId != state.selectedNodeId
-            || previousSelection.activeColumnIndex != state.activeColumnIndex
-            || previousSelection.selectionProgress != state.selectionProgress
+        if previousSelection.selectedNodeId != normalizedState.selectedNodeId
+            || previousSelection.activeColumnIndex != normalizedState.activeColumnIndex
+            || previousSelection.selectionProgress != normalizedState.selectionProgress
         {
             workspaceSession.selectionRevision &+= 1
             // Reactive lens: the workspace bar (and any other viewport-derived UI)

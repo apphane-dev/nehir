@@ -285,6 +285,10 @@ final class WMController {
         settings.developerModeEnabled && isRuntimeTraceCaptureActive
     }
 
+    private func syncViewportMutationAuditFlag() {
+        workspaceManager.setViewportMutationAuditEnabled(isRuntimeTraceCaptureActive)
+    }
+
     var backgroundTraceBufferStatus: BackgroundTraceBufferStatus {
         backgroundTraceBuffer.status(isEnabled: isBackgroundTraceBufferEffectivelyEnabled)
     }
@@ -2713,6 +2717,18 @@ final class WMController {
             columns: columns,
             gap: gap
         )
+        let mutationAgeMs = state.lastViewportMutationTimestamp.map {
+            max(0, (Date().timeIntervalSince1970 - $0) * 1000.0)
+        }
+        let mutationAgeText = mutationAgeMs.map { String(format: "%.1f", $0) } ?? "nil"
+        let mutationBefore = state.lastViewportMutationBefore
+        let mutationAfter = state.lastViewportMutationAfter
+        let mutationBeforeCurrentOffsetText = mutationBefore.map { String(format: "%.1f", $0.currentOffset) } ?? "nil"
+        let mutationBeforeTargetOffsetText = mutationBefore.map { String(format: "%.1f", $0.targetOffset) } ?? "nil"
+        let mutationBeforeActiveColumnIndexText = mutationBefore.map { String($0.activeColumnIndex) } ?? "nil"
+        let mutationAfterCurrentOffsetText = mutationAfter.map { String(format: "%.1f", $0.currentOffset) } ?? "nil"
+        let mutationAfterTargetOffsetText = mutationAfter.map { String(format: "%.1f", $0.targetOffset) } ?? "nil"
+        let mutationAfterActiveColumnIndexText = mutationAfter.map { String($0.activeColumnIndex) } ?? "nil"
 
         let timestamp = Date()
         let line = ([
@@ -2730,6 +2746,17 @@ final class WMController {
             "gesture=\(state.viewOffsetPixels.isGesture)",
             "animating=\(state.viewOffsetPixels.isAnimating)",
             "preserveUnsnapped=\(state.preservesUnsnappedGestureOffset)",
+            "lastViewportMutation=\(state.lastViewportMutationReason ?? "nil")",
+            "lastViewportMutationCaller=\(state.lastViewportMutationCaller ?? "nil")",
+            "lastViewportMutationAgeMs=\(mutationAgeText)",
+            "lastViewportMutationBeforeCurrentOffset=\(mutationBeforeCurrentOffsetText)",
+            "lastViewportMutationBeforeTargetOffset=\(mutationBeforeTargetOffsetText)",
+            "lastViewportMutationBeforeKind=\(mutationBefore?.offsetKind ?? "nil")",
+            "lastViewportMutationBeforeActiveColumnIndex=\(mutationBeforeActiveColumnIndexText)",
+            "lastViewportMutationAfterCurrentOffset=\(mutationAfterCurrentOffsetText)",
+            "lastViewportMutationAfterTargetOffset=\(mutationAfterTargetOffsetText)",
+            "lastViewportMutationAfterKind=\(mutationAfter?.offsetKind ?? "nil")",
+            "lastViewportMutationAfterActiveColumnIndex=\(mutationAfterActiveColumnIndexText)",
             "selectedNode=\(selectedNode)",
             "preferredFocus=\(preferredFocus)",
             "confirmedFocus=\(confirmedFocus)",
@@ -3390,6 +3417,7 @@ final class WMController {
             backgroundTraceDrafts.removeAll(keepingCapacity: true)
             backgroundTraceDraftOrder.removeAll(keepingCapacity: true)
             syncNiriResizeTraceSink()
+            syncViewportMutationAuditFlag()
             workspaceBarManager.update()
             debugBarManager.update()
         }
@@ -3599,6 +3627,7 @@ final class WMController {
             startRuntimeStateDump: startRuntimeStateDump
         )
         syncNiriResizeTraceSink()
+        syncViewportMutationAuditFlag()
         workspaceManager.resetReconcileTraceForDebug()
         workspaceManager.resetInteractionMonitorWriteTraceForDebug()
         workspaceManager.resetFloatingBarProjectionTraceForDebug()
@@ -3706,6 +3735,7 @@ final class WMController {
         backgroundTraceDrafts.removeAll(keepingCapacity: true)
         backgroundTraceDraftOrder.removeAll(keepingCapacity: true)
         syncNiriResizeTraceSink()
+        syncViewportMutationAuditFlag()
         workspaceBarManager.update()
         debugBarManager.update()
         return .executed

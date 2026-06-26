@@ -42,7 +42,7 @@ extension ViewportState {
         case let .spring(anim):
             if anim.isComplete(at: time) {
                 let finalOffset = CGFloat(anim.target)
-                viewOffsetPixels = .static(finalOffset)
+                setStaticViewOffsetPixels(finalOffset, reason: "tickAnimation.complete")
                 return false
             }
             return true
@@ -69,7 +69,7 @@ extension ViewportState {
         scale: CGFloat = 2.0
     ) {
         guard motion.animationsEnabled else {
-            viewOffsetPixels = .static(offset)
+            setStaticViewOffsetPixels(offset, reason: "animateToOffset.staticFallback")
             preservesUnsnappedGestureOffset = false
             return
         }
@@ -79,7 +79,7 @@ extension ViewportState {
 
         let toDiff = offset - viewOffsetPixels.target()
         if abs(toDiff) < pixel {
-            viewOffsetPixels.offset(delta: Double(toDiff))
+            offsetViewOffsetPixels(delta: Double(toDiff), reason: "animateToOffset.pixelSnap")
             preservesUnsnappedGestureOffset = false
             return
         }
@@ -95,23 +95,23 @@ extension ViewportState {
             config: config ?? springConfig,
             displayRefreshRate: displayRefreshRate
         )
-        viewOffsetPixels = .spring(animation)
+        setSpringViewOffsetPixels(animation, reason: "animateToOffset.spring")
         preservesUnsnappedGestureOffset = false
     }
 
     mutating func cancelAnimation() {
-        viewOffsetPixels = .static(viewOffsetPixels.target())
+        setStaticViewOffsetPixels(viewOffsetPixels.target(), reason: "cancelAnimation")
         preservesUnsnappedGestureOffset = false
     }
 
     mutating func settleAtCurrentOffset() {
-        viewOffsetPixels = .static(viewOffsetPixels.current())
+        setStaticViewOffsetPixels(viewOffsetPixels.current(), reason: "settleAtCurrentOffset")
         preservesUnsnappedGestureOffset = false
     }
 
     mutating func reset() {
         activeColumnIndex = 0
-        viewOffsetPixels = .static(0.0)
+        setStaticViewOffsetPixels(0.0, reason: "reset")
         preservesUnsnappedGestureOffset = false
         selectionProgress = 0.0
         selectedNodeId = nil
@@ -119,7 +119,7 @@ extension ViewportState {
 
     mutating func offsetViewport(by delta: CGFloat) {
         let current = viewOffsetPixels.current()
-        viewOffsetPixels = .static(current + delta)
+        setStaticViewOffsetPixels(current + delta, reason: "offsetViewport")
         preservesUnsnappedGestureOffset = false
     }
 
@@ -128,7 +128,7 @@ extension ViewportState {
     }
 
     mutating func restoreViewOffset(_ offset: CGFloat) {
-        viewOffsetPixels = .static(offset)
+        setStaticViewOffsetPixels(offset, reason: "restoreViewOffset")
         preservesUnsnappedGestureOffset = false
         viewOffsetToRestore = nil
     }
@@ -140,7 +140,7 @@ extension ViewportState {
         }
 
         guard motion.animationsEnabled else {
-            viewOffsetPixels = .static(offset)
+            setStaticViewOffsetPixels(offset, reason: "animateViewOffsetRestore.staticFallback")
             preservesUnsnappedGestureOffset = false
             viewOffsetToRestore = nil
             return
@@ -158,7 +158,7 @@ extension ViewportState {
             config: springConfig,
             displayRefreshRate: displayRefreshRate
         )
-        viewOffsetPixels = .spring(animation)
+        setSpringViewOffsetPixels(animation, reason: "animateViewOffsetRestore.spring")
         preservesUnsnappedGestureOffset = false
         viewOffsetToRestore = nil
     }
