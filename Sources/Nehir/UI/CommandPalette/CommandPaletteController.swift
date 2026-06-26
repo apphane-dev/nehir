@@ -985,8 +985,10 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
         }
         switch binding.keyCode {
         case UInt32(kVK_Escape),
-             UInt32(kVK_UpArrow), UInt32(kVK_DownArrow),
-             UInt32(kVK_Return), UInt32(kVK_ANSI_KeypadEnter),
+             UInt32(kVK_UpArrow),
+             UInt32(kVK_DownArrow),
+             UInt32(kVK_Return),
+             UInt32(kVK_ANSI_KeypadEnter),
              UInt32(kVK_Tab):
             return true
         default:

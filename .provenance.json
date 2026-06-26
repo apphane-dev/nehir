@@ -73,6 +73,7 @@
         "Tests/NehirTests/DisplayEnvironmentDiagnosticsTests.swift",
         "Tests/NehirTests/DisplaySpacesModeTests.swift",
         "Tests/NehirTests/FocusPreviousCrossWorkspaceTests.swift",
+        "Tests/NehirTests/HotkeyConfigMappingTests.swift",
         "Tests/NehirTests/InteractiveMoveDemoModelTests.swift",
         "Tests/NehirTests/MonitorIdentityMatchingTests.swift",
         "Tests/NehirTests/NiriMonitorTests.swift",
