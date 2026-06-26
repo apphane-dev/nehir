@@ -1,5 +1,18 @@
 # Inactive-workspace layout frame writes leak windows back onscreen — Plan
 
+**Status:** completed — merged to `main` in two commits on 2026-06-25:
+`70ed2619` ("Stop inactive-workspace layout frame writes from leaking windows
+onscreen") and `196dee9a` ("Close inactive-workspace `.show` reveal and
+multi-monitor drift gaps"). The first commit teaches the layout diff executor
+(`LayoutDiffExecutor.execute`) to treat an inactive workspace plan's ordinary
+frame writes and `.show` entries as skip-inactive rather than active/visible jobs,
+and adds a `hideWorkspace` drift repair; the second closes two residual gaps
+surfaced during review — an inactive-plan `.show` still leaking via the
+reveal/visible-frame application path, and the drift check only scanning the
+single interaction monitor instead of every active monitor. Five regression
+tests were added under `Tests/NehirTests/LayoutRefreshControllerTests.swift`.
+Moved from `planned/` to `completed/` on 2026-06-25.
+
 A workspace-1 Helium window was visible while workspace 5 was active and empty.
 Clicking that Helium window activated workspace 1, confirming the window had not
 been reassigned to workspace 5; it had been physically leaked onscreen while its
