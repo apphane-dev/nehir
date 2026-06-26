@@ -307,10 +307,11 @@ From creation to destruction, a window passes through these stages:
 3. `WindowRuleEngine.evaluate()` produces a `WindowDecision`:
    - `.managed` — tiled in the layout engine
    - `.floating` — tracked but positioned independently
-   - `.unmanaged` — ignored entirely (e.g., system UI, panels)
-4. `WMController.resolveWorkspaceForNewWindow(...)` chooses the workspace from placement inputs. Current frame/interaction monitor evidence beats stale confirmed focus; recent same-pid workspace is only a fallback for focus-cleared AX-first admission.
-5. If tracked: `WindowModel` creates an `Entry`, layout engine inserts a node.
-6. `LayoutRefreshController` schedules a refresh to compute and apply frames.
+   - `.unmanaged` — ignored entirely (e.g., system UI, panels, or user `manage = "ignore"` rules)
+4. Rule effects (`ManagedWindowRuleEffects`) are attached to tracked windows. Effects include sizing constraints and sticky visibility; sticky is an overlay/source, not a separate window mode.
+5. `WMController.resolveWorkspaceForNewWindow(...)` chooses the workspace from placement inputs. Current frame/interaction monitor evidence beats stale confirmed focus; recent same-pid workspace is only a fallback for focus-cleared AX-first admission.
+6. If tracked: `WindowModel` creates an `Entry`, layout engine inserts a node.
+7. `LayoutRefreshController` schedules a refresh to compute and apply frames.
 
 **Destruction:**
 1. `CGSEventObserver` receives `.destroyed(windowId, spaceId)`
@@ -319,7 +320,7 @@ From creation to destruction, a window passes through these stages:
 4. `LayoutRefreshController` schedules a `windowRemoval` refresh
 5. Focus recovery runs if the destroyed window was focused
 
-Nehir also guards the native activation race around close/collapse. macOS may focus another window before Nehir receives the destroy, hide, or AX focus-loss signal for the disappearing surface. `AXEventHandler` arms a short `windowCloseFocusRecovery` lease from tracked destroys, untracked auxiliary same-pid destroys, focused-window loss, and the confirmed managed window becoming hidden. While the lease is active, unrelated native activations away from the recovery workspace are suppressed; duplicate confirmations of the already-focused token preserve the active viewport instead of revealing parked columns. If an inactive-workspace `workspaceDidActivateApplication` arrives just before the close signal, Nehir briefly defers and retries it so recovery can arm first; if no recovery appears, the retry is allowed as a real native activation. Explicit Nehir focus requests still bypass this guard.
+Nehir also guards the native activation race around close/collapse and manually-unstuck sticky surfaces. macOS may focus another window before Nehir receives the destroy, hide, or AX focus-loss signal for the disappearing surface. `AXEventHandler` arms a short `windowCloseFocusRecovery` lease from tracked destroys, untracked auxiliary same-pid destroys, focused-window loss, and the confirmed managed window becoming hidden. While the lease is active, unrelated native activations away from the recovery workspace are suppressed; duplicate confirmations of the already-focused token preserve the active viewport instead of revealing parked columns. If an inactive-workspace `workspaceDidActivateApplication` arrives just before the close signal, Nehir briefly defers and retries it so recovery can arm first; if no recovery appears, the retry is allowed as a real native activation. Hidden, inactive manually-unstuck PiP/sticky-source windows also suppress unrelated activation churn so native PiP focus reports do not immediately reveal the window again. Explicit Nehir focus requests still bypass these guards.
 
 **Managed Replacement:**
 Some apps (browsers, terminals) destroy and recreate windows during internal operations. `AXEventHandler` detects these patterns via `ManagedReplacementMetadata` correlation — matching a destroy+create pair within a 150ms grace period to preserve the window's workspace assignment and position.
@@ -444,6 +445,10 @@ WorkspaceManager
 ├── reconcileTrace / runtimeStore           Replayed runtime snapshot and trace state
 ├── restorePlanner                          Restore and rescue planning
 ├── bootPersistedWindowRestoreCatalog       Relaunch restore intents loaded from settings
+├── globalStickyWindowTokens                Native cross-Space sticky tokens from topology
+├── manualStickyWindowTokens                User-pinned sticky tokens
+├── manualUnstickyWindowTokens              User opt-outs that beat automatic sticky sources
+├── stickyFloatingPromotionTokens           Tiled sticky windows promoted to floating while sticky
 ├── session: SessionState                   Ephemeral runtime state
 │   ├── monitorSessions: [MonitorID: MonitorSession]
 │   │   ├── visibleWorkspaceId
@@ -477,7 +482,7 @@ struct Entry {
     let axRef: AXWindowRef
     var workspaceId: WorkspaceDescriptor.ID
     var mode: TrackedWindowMode          // .tiling or .floating
-    var ruleEffects: ManagedWindowRuleEffects
+    var ruleEffects: ManagedWindowRuleEffects  // min sizes, sticky source
     var floatingState: FloatingState?    // Last frame, normalized position
     var hiddenReason: HiddenReason?      // .workspaceInactive, .layoutTransient, .scratchpad
     var manualLayoutOverride: ManualWindowOverride?
@@ -485,7 +490,7 @@ struct Entry {
 }
 ```
 
-Entries are indexed by both `WindowToken` and raw `windowId` for fast lookup from different event sources.
+Entries are indexed by both `WindowToken` and raw `windowId` for fast lookup from different event sources. Sticky is intentionally modeled outside `TrackedWindowMode`: `WorkspaceManager.hasStickyWindowSource(_:)` answers whether a token has any native/rule/manual automatic source, while `isStickyWindow(_:)` applies the manual unsticky override to produce the effective visibility behavior used by layout and workspace-bar projection.
 
 ### 4.3 Niri Layout Engine (Scrolling Columns)
 
@@ -532,7 +537,7 @@ All three types inherit from `NiriNode` (base class with `id: NodeId`, `parent`,
 | Proportional width gap accounting | `ProportionalSize.resolveProportionalSpan(...)` | Do not duplicate `(availableSpace - gap) * proportion - gap`; Reveal Partial `.default` depends on the same `2 * gap` fit tolerance so 50% + 50% columns remain viewport-fitting. |
 | Stacked/tiled secondary-axis sizing | `NiriAxisSolver` and the tabbed/shared-frame layout helpers | Inner gaps are between adjacent stacked tiles only (`count - 1` gaps). Top/bottom monitor-edge padding comes from outer gaps, not inner gap. |
 | Snap points, viewport bounds, and full-width-column snap exceptions | `ViewportState+Geometry.swift` (`computeSnapGrid`, `viewportStartBounds`, `boundedViewportStart(...)`) and `ViewportSnapContext` | Gesture release, scroll commands, reveal, resize adjustment, and column transitions must share this geometry. Do not add ad-hoc `±gap` snaps elsewhere; columns that approximately fill the viewport intentionally omit synthetic edge snaps that would only lose margins, while over-wide columns keep theirs so clipped content stays reachable. Lone-window snap/bounds math must use `NiriContainer.effectiveViewportWidth`, not raw `cachedWidth`, so transient fill/centered render width and canonical multi-column width stay separated. |
-| Lone-window viewport rect and render offset | `SingleWindowViewportGeometry` plus `singleWindowViewportGeometry(...)`, `resolvedSingleWindowViewportRect(...)`, `prepareSingleWindowViewport(...)`, and `prepareAndSeedSingleWindowViewport(...)` in `NiriLayout.swift` | Controllers may prepare/seed geometry, but must not re-derive centered width, center offset, rendered frame offset, or lone-window scrollable span. Lone-window rendering follows the raw viewport offset; the shared snap grid decides where it settles. Default fill/centered width goes into `loneWindowLayoutWidthOverride`; manual width remains canonical `cachedWidth`. |
+| Lone-window viewport rect and render offset | `SingleWindowViewportGeometry` plus `singleWindowViewportGeometry(...)`, `resolvedSingleWindowViewportRect(...)`, `prepareSingleWindowViewport(...)`, and `prepareAndSeedSingleWindowViewport(...)` in `NiriLayout.swift` | Controllers may prepare/seed geometry, but must not re-derive centered width, center offset, rendered frame offset, or lone-window scrollable span. Lone-window rendering follows the raw viewport offset; the shared snap grid decides where it settles. Single-column workspaces use the same far-overscroll boundary points as multi-column strips, so strong swipes can settle with only an edge sliver visible. Default fill/centered width goes into `loneWindowLayoutWidthOverride`; manual width remains canonical `cachedWidth`. |
 | Monitor-aware gap resolution | `SettingsStore.resolvedGapSettings(for:)`, exposed at runtime through `WMController.gapSize(for:)` and `WMController.outerGaps(for:)` | Use these helpers when a monitor is known. Direct `workspaceManager.gaps` / `workspaceManager.outerGaps` access should be limited to no-monitor fallback paths. |
 | Monitor-aware Niri settings and lone-window override resolution | `SettingsStore.resolvedNiriSettings(for:)` and `MonitorNiriSettings.loneWindowPolicy` | `nil` means inherit global policy; `.fill` and `.centered(maxWidthFraction:)` are explicit per-monitor overrides. Do not infer override mode from nullable centered width. |
 
@@ -655,10 +660,11 @@ Events are buffered in a lock-protected `PendingCGSEventState` and drained on th
 
 Evaluates windows against rules to produce a `WindowDecision`. Evaluation order (first match wins):
 
-1. **Manual overrides** — user has explicitly toggled float/tile on this window
-2. **User-defined rules** — configured in settings, matching on bundle ID, app name, title (literal or regex), AX role/subrole
-3. **Built-in rules** — hardcoded rules for known system UI
-4. **Heuristics** — size constraints, window role/subrole analysis
+1. **User manage-ignore rules** — `manage = "ignore"` is a management decision and wins over manual layout overrides and all other effects.
+2. **Manual overrides** — user has explicitly toggled float/tile on this window; manual overrides can beat built-in unmanaged decisions for user-addressable non-standard surfaces.
+3. **User-defined rules** — configured in settings, matching on bundle ID, app name, title (literal or regex), AX role/subrole
+4. **Built-in rules** — hardcoded rules for known system UI and PiP/default-sticky candidates
+5. **Heuristics** — size constraints, window role/subrole analysis
 
 **Key types:**
 
@@ -667,7 +673,7 @@ struct WindowDecision {
     let disposition: WindowDecisionDisposition  // .managed, .floating, .unmanaged, .undecided
     let source: WindowDecisionSource            // .manualOverride, .userRule(UUID), .builtInRule, .heuristic
     let workspaceName: String?                  // Target workspace (if rule specifies)
-    let ruleEffects: ManagedWindowRuleEffects   // minWidth, minHeight constraints
+    let ruleEffects: ManagedWindowRuleEffects   // minWidth, minHeight, sticky
 }
 
 struct WindowRuleFacts {
@@ -1008,7 +1014,8 @@ Nehir uses SkyLight (private macOS framework) for low-latency window operations.
 | `WindowToken` | Value type (`pid` + `windowId`) identifying a window. Used as dictionary keys throughout. |
 | `WindowHandle` | Reference-type wrapper around `WindowToken`. Identity-compared (`===`). Used in layout trees. |
 | `AXWindowRef` | Accessibility bridge (`AXUIElement` + `windowId`) for reading/writing window properties. |
-| `TrackedWindowMode` | `.tiling` or `.floating` — whether a window is managed by the layout engine. |
+| `TrackedWindowMode` | `.tiling` or `.floating` — whether a tracked window participates in tiling or independent floating placement. Sticky is not a third mode. |
+| `ManagedWindowRuleEffects` | Rule/effective overlays attached to a tracked window, including minimum size constraints and sticky visibility. |
 | `WorkspaceDescriptor` | A workspace definition: `id` (UUID), `name`, optional `assignedMonitorPoint`. |
 | `SessionState` | Ephemeral runtime state in `WorkspaceManager`: focused window, visible workspace per monitor, viewport states. |
 | `NiriRoot` / `NiriContainer` / `NiriWindow` | The three-level Niri layout tree: root → columns → windows. |
@@ -1027,5 +1034,6 @@ Nehir uses SkyLight (private macOS framework) for low-latency window operations.
 | `NodeId` | UUID-based identifier for Niri layout tree nodes. |
 | `SpringConfig` | Spring parameters: `dampingRatio` controls oscillation damping (`1.0` is critically damped), `stiffness` controls how aggressively the spring accelerates toward its target, `epsilon` is the completion displacement threshold, and `velocityEpsilon` is the completion velocity threshold. Niri presets: `niriHorizontalViewMovement` controls viewport/column scrolling, `niriWindowMovement` controls window/column movement springs, and `niriWindowResize` controls column width resize springs. |
 | `WindowDecision` | Result of rule evaluation: `disposition`, `source`, `workspaceName`, `ruleEffects`. |
-| `WindowRuleFacts` | Input for rule evaluation: app name, AX facts (role, subrole, title), size constraints. |
+| `WindowRuleFacts` | Input for rule evaluation: app name, AX facts (role, subrole, title), size constraints, and WindowServer evidence used for PiP/default-sticky classification. |
+| `Sticky window` | A managed window with an effective cross-workspace visibility effect from native sticky state, rules, PiP defaults, or manual toggles. Manual unsticky wins for effective behavior. |
 | `Scratchpad` | A special slot for a single transient window that can be toggled in/out of view. |

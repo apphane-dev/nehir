@@ -61,8 +61,12 @@ private func sampleRuleOptionValue(for flag: String) -> String {
         "AXWindow"
     case "--ax-subrole":
         "AXStandardWindow"
+    case "--manage":
+        "ignore"
     case "--layout":
         "float"
+    case "--sticky":
+        "true"
     case "--assign-to-workspace":
         "2"
     case "--min-width":

@@ -57,6 +57,16 @@ See also: [active column](#active-column).
 
 ---
 
+## managed window
+
+A window admitted into Nehir's tracked model. Managed windows have a `WindowModel.Entry`, appear in IPC window queries, and have a `TrackedWindowMode` of either `.tiling` or `.floating`.
+
+Sticky, scratchpad, rule effects, hidden state, and focus metadata are overlays on top of managed windows; they are not extra tracked modes.
+
+See also: [unmanaged window](#unmanaged-window), [sticky window](#sticky-window).
+
+---
+
 ## inner gap
 
 The spacing between adjacent tiled surfaces inside the layout. In stacked/tiled columns, inner gap applies only between neighboring tiles on the secondary axis (`count - 1` gaps). It is not monitor-edge padding.
@@ -110,11 +120,25 @@ Outer gap is distinct from [inner gap](#inner-gap): top/bottom edge padding must
 
 ## parked window
 
-A window the layout engine has moved to an offscreen resting position. Parked windows are not visible to the user. Due to a macOS limitation, exactly 1px of the window remains on-screen to prevent the system from reclaiming its display connection.
+A window Nehir has moved to an offscreen or edge resting position because it should not currently be visible. Due to macOS WindowServer limitations, this is not a true hide for external app windows: Nehir can usually reduce the visible remnant to a tiny edge/corner strip, but the system may clamp the requested position.
 
-Represented internally as `ContainerVisibilityState.hidden(AxisHideEdge)` with a `layoutTransient` hidden reason. The edge (`.left` / `.right`) records which side the window is parked on.
+For Niri viewport scrolling, represented internally as `ContainerVisibilityState.hidden(AxisHideEdge)` with a `layoutTransient` hidden reason. The edge (`.left` / `.right`) records which side the window is parked on. Workspace-inactive and scratchpad hiding use the same hidden-state model with different hidden reasons (`workspaceInactive`, `scratchpad`) and may use physical-edge parking rather than a viewport side.
 
 In the [layout notation](viewport-navigation-spec.md#layout-notation), columns that are fully outside the viewport and have been parked appear as plain numbers outside `[]`, e.g. `30 [...]` — the `30` is a parked column on the left. A [clipped column](#clipped-column) (partially visible) is distinct and uses the split notation.
+
+See also: [sticky window](#sticky-window), [single-window viewport geometry](#single-window-viewport-geometry).
+
+---
+
+## picture-in-picture default sticky
+
+A built-in window-rule effect for PiP-like media surfaces. Nehir classifies common Picture-in-Picture windows from AX and WindowServer facts and marks them sticky by default so they remain visible across workspace switches.
+
+This is an automatic sticky **source**, not a special PiP mode. The window is still tracked as either `.floating` or `.tiling`. Users can manually unstick it; the automatic source remains recorded so commands can target/toggle the same surface, but the effective sticky state becomes false until sticky is re-enabled.
+
+PiP classification is conservative. Some PiP windows expose reliable AX facts only after the PiP receives focus or a click, so Nehir may begin tracking them after that first interaction. Browser PiP implementations that expose only parented popup-level WindowServer children or generic dialog surfaces may remain unmanaged/native-sticky because the same facts are also used by context menus and ordinary dialogs. Use explicit app rules for stable app-specific surfaces.
+
+See also: [sticky window](#sticky-window), [managed window](#managed-window).
 
 ---
 
@@ -153,7 +177,7 @@ The centralized geometry model for a workspace containing exactly one normal non
 
 Callers should use `singleWindowViewportGeometry(...)`, `resolvedSingleWindowViewportRect(...)`, `prepareSingleWindowViewport(...)`, or `prepareAndSeedSingleWindowViewport(...)` instead of re-deriving centered width, center offset, or frame offset rules in controllers. Viewport positions, bounds, and snap widths should use `NiriContainer.effectiveViewportWidth`, which selects the transient lone-window render width when present and falls back to canonical `cachedWidth` otherwise.
 
-Lone-window rendering follows the raw viewport offset so gestures are visibly responsive. The shared [snap grid](#snap-grid), not a render-time clamp, decides where the window settles. `cachedWidth` remains canonical; the lone-window render width must not leak into multi-column layout state.
+Lone-window rendering follows the raw viewport offset so gestures are visibly responsive. The shared [snap grid](#snap-grid), not a render-time clamp, decides where the window settles. A single tiled window still participates in the same far-overscroll boundary math as multi-column layouts, so a sufficiently strong swipe can settle at a boundary with only a sliver of the lone column visible. `cachedWidth` remains canonical; the lone-window render width must not leak into multi-column layout state.
 
 ---
 
@@ -179,13 +203,27 @@ In the [layout notation](viewport-navigation-spec.md#effective-snap-point-annota
 
 ---
 
-## viewport
+## sticky window
 
-The visible portion of the column strip on a given monitor. Its horizontal position is described by `ViewportState.viewOffsetPixels`. The viewport does not resize; it scrolls over the column strip.
+A managed window whose effective visibility spans workspaces on the same monitor. Sticky windows are projected separately in the workspace bar and are not hidden merely because their assigned workspace is inactive.
+
+Sticky state is an effect/source overlay, not a third `TrackedWindowMode`. Sources include native global sticky detection, built-in Picture-in-Picture classification, app rules (`sticky = true`), and the manual sticky toggle. A manual unsticky override wins over automatic sources; such a window remains command-addressable as having a sticky source, but `isStickyWindow` is false until sticky is toggled back on.
+
+See also: [picture-in-picture default sticky](#picture-in-picture-default-sticky), [managed window](#managed-window), [parked window](#parked-window).
 
 ---
 
-## viewport offset
+## unmanaged window
+
+A window Nehir deliberately does not track or lay out. Built-in rules ignore system UI and panels, and user app rules can request this with `manage = "ignore"`.
+
+Unmanaged windows do not get a `WindowModel.Entry`, do not appear in managed-window IPC queries, and are not moved by layout refresh. Focus on unmanaged windows is represented as non-managed focus so Nehir does not accidentally mutate a stale managed command target.
+
+See also: [managed window](#managed-window).
+
+---
+
+## viewport
 
 The current scroll position of the viewport, stored as `ViewportState.viewOffsetPixels`. A `ViewOffset` enum with three states: `.static` (settled), `.gesture` (in motion), `.spring` (animating to target).
 

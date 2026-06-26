@@ -89,6 +89,11 @@ struct NiriCreateFocusTraceEvent: Equatable {
             reason: PrepareCreateCandidateRejectionReason,
             hasWindowInfo: Bool,
             windowInfoPid: pid_t?,
+            windowInfoLevel: Int32?,
+            windowInfoParentId: UInt32?,
+            windowInfoHasFloatingTag: Bool?,
+            windowInfoHasDocumentTag: Bool?,
+            windowInfoFrame: CGRect?,
             fallbackToken: WindowToken?,
             hasFallbackAXRef: Bool,
             createContextSource: String?
@@ -215,11 +220,16 @@ extension NiriCreateFocusTraceEvent: CustomStringConvertible {
             reason,
             hasWindowInfo,
             windowInfoPid,
+            windowInfoLevel,
+            windowInfoParentId,
+            windowInfoHasFloatingTag,
+            windowInfoHasDocumentTag,
+            windowInfoFrame,
             fallbackToken,
             hasFallbackAXRef,
             createContextSource
         ):
-            "prepare_create_rejected window=\(windowId) token=\(String(describing: token)) context=\(context) reason=\(reason.rawValue) has_window_info=\(hasWindowInfo) window_info_pid=\(windowInfoPid.map(String.init) ?? "nil") fallback_token=\(String(describing: fallbackToken)) has_fallback_ax_ref=\(hasFallbackAXRef) create_context_source=\(createContextSource ?? "nil")"
+            "prepare_create_rejected window=\(windowId) token=\(String(describing: token)) context=\(context) reason=\(reason.rawValue) has_window_info=\(hasWindowInfo) window_info_pid=\(windowInfoPid.map(String.init) ?? "nil") window_info_level=\(windowInfoLevel.map(String.init) ?? "nil") window_info_parent=\(windowInfoParentId.map(String.init) ?? "nil") ws_float=\(windowInfoHasFloatingTag.map(String.init) ?? "nil") ws_doc=\(windowInfoHasDocumentTag.map(String.init) ?? "nil") ws_frame=\(windowInfoFrame.map { LayoutTrace.rect($0) } ?? "nil") fallback_token=\(String(describing: fallbackToken)) has_fallback_ax_ref=\(hasFallbackAXRef) create_context_source=\(createContextSource ?? "nil")"
         case let .unrequestedAdmissionDuringNonManagedFocusDecision(
             token,
             suppressed,
@@ -1578,13 +1588,18 @@ final class AXEventHandler: CGSEventDelegate {
               let controller,
               controller.workspaceManager.confirmedManagedFocusToken == token,
               let workspaceId = controller.workspaceManager.workspace(for: token),
-              let monitorId = controller.workspaceManager.monitorId(for: workspaceId),
-              controller.workspaceManager.activeWorkspace(on: monitorId)?.id == workspaceId
+              let monitorId = controller.workspaceManager.monitorId(for: workspaceId)
         else {
             return
         }
 
-        beginWindowCloseFocusRecovery(in: workspaceId)
+        if controller.workspaceManager.activeWorkspace(on: monitorId)?.id == workspaceId {
+            beginWindowCloseFocusRecovery(in: workspaceId)
+        } else {
+            clearManagedFocusState(matching: token, workspaceId: workspaceId)
+            _ = controller.workspaceManager.enterNonManagedFocus(appFullscreen: false)
+            controller.focusBorderController.clear()
+        }
     }
 
     private func shouldSuppressObservedActivationDuringWindowCloseRecovery(
@@ -1745,6 +1760,33 @@ final class AXEventHandler: CGSEventDelegate {
         return true
     }
 
+    private func shouldSuppressHiddenInactiveStickyActivation(
+        entry observedEntry: WindowModel.Entry,
+        isWorkspaceActive: Bool,
+        requestDisposition: ActivationRequestDisposition,
+        source: ActivationEventSource
+    ) -> Bool {
+        guard !isWorkspaceActive,
+              case .unrelatedNoRequest = requestDisposition,
+              source == .workspaceDidActivateApplication || source == .focusedWindowChanged,
+              observedEntry.visibility == .hiddenWorkspaceInactive,
+              let controller,
+              controller.workspaceManager.hasStickyWindowSource(observedEntry.token),
+              !controller.workspaceManager.isStickyWindow(observedEntry.token)
+        else {
+            return false
+        }
+
+        // A manually unstuck PiP keeps its automatic sticky source so commands
+        // can still target/toggle it, but it should behave like a normal
+        // inactive-workspace window while unstuck. Some native PiP surfaces
+        // report app activation/focus again immediately after Nehir parks them;
+        // accepting that unrelated activation switches back to the PiP's
+        // workspace and reveals the window. Suppress that app-internal churn
+        // unless there is an explicit managed focus request.
+        return true
+    }
+
     private func shouldSuppressSameAppInactiveWorkspaceActivationBeforeCloseRecovery(
         entry observedEntry: WindowModel.Entry,
         isWorkspaceActive: Bool,
@@ -1888,6 +1930,15 @@ final class AXEventHandler: CGSEventDelegate {
             let isWorkspaceActive = targetMonitor.map { monitor in
                 controller.workspaceManager.activeWorkspace(on: monitor.id)?.id == wsId
             } ?? false
+
+            if shouldSuppressHiddenInactiveStickyActivation(
+                entry: entry,
+                isWorkspaceActive: isWorkspaceActive,
+                requestDisposition: requestDisposition,
+                source: source
+            ) {
+                return
+            }
 
             if shouldSuppressSameAppInactiveWorkspaceActivationBeforeCloseRecovery(
                 entry: entry,
@@ -3070,10 +3121,21 @@ final class AXEventHandler: CGSEventDelegate {
             return nil
         }
 
-        guard let axRef = fallbackAXRef?.windowId == Int(windowId)
-            ? fallbackAXRef
-            : resolveAXWindowRef(windowId: windowId, pid: token.pid)
-        else {
+        let resolvedAXRef = if fallbackAXRef?.windowId == Int(windowId) {
+            fallbackAXRef
+        } else {
+            resolveAXWindowRef(windowId: windowId, pid: token.pid, matching: windowInfo)
+                ?? resolveFocusedAXWindowRef(pid: token.pid).flatMap { $0.windowId == Int(windowId) ? $0 : nil }
+        }
+        guard let axRef = resolvedAXRef else {
+            if let windowServerOnlyCandidate = prepareWindowServerOnlyStickyCreate(
+                windowId: windowId,
+                token: token,
+                windowInfo: windowInfo,
+                createPlacementContext: createPlacementContext
+            ) {
+                return windowServerOnlyCandidate
+            }
             recordPrepareCreateRejection(
                 windowId: windowId,
                 token: token,
@@ -3180,6 +3242,93 @@ final class AXEventHandler: CGSEventDelegate {
         )
     }
 
+    private func prepareWindowServerOnlyStickyCreate(
+        windowId: UInt32,
+        token: WindowToken,
+        windowInfo: WindowServerInfo?,
+        createPlacementContext: WindowCreatePlacementContext?
+    ) -> PreparedCreate? {
+        guard let controller,
+              let windowInfo,
+              isWindowServerOnlyStickyCreateCandidate(windowInfo, token: token)
+        else {
+            return nil
+        }
+
+        let axRef = AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: Int(windowId))
+        let bundleId = resolveBundleId(token.pid)
+        let isParented = windowInfo.parentId != 0
+        let workspaceId = controller.resolveWorkspaceForNewWindow(
+            workspaceName: nil,
+            axRef: axRef,
+            pid: token.pid,
+            parentWindowId: isParented ? windowInfo.parentId : nil,
+            inheritTrackedParentWorkspace: isParented,
+            preferSameAppSiblingWorkspace: false,
+            structuralReplacementWorkspaceId: nil,
+            restrictWorkspaceRuleToPlacementMonitor: false,
+            createPlacementContext: createPlacementContext,
+            windowFrame: windowInfo.frame,
+            fallbackWorkspaceId: controller.interactionWorkspace()?.id
+        )
+        recordCreatePlacementTrace(
+            token: token,
+            workspaceId: workspaceId,
+            createPlacementContext: createPlacementContext,
+            windowFrame: windowInfo.frame,
+            controller: controller
+        )
+        subscribeToWindows([windowId])
+
+        return PreparedCreate(
+            windowId: windowId,
+            token: token,
+            axRef: axRef,
+            ruleEffects: ManagedWindowRuleEffects(sticky: true),
+            replacementMetadata: ManagedReplacementMetadata(
+                bundleId: bundleId,
+                workspaceId: workspaceId,
+                mode: .floating,
+                role: kAXWindowRole as String,
+                subrole: kAXStandardWindowSubrole as String,
+                title: windowInfo.title,
+                windowLevel: windowInfo.level,
+                parentWindowId: windowInfo.parentId == 0 ? nil : windowInfo.parentId,
+                frame: windowInfo.frame,
+                transientWindowServerEvidence: true,
+                degradedWindowServerChildEvidence: false,
+                userAddressableTransientWindowServerSurface: true
+            ),
+            hasStructuralReplacementWorkspaceMatch: false,
+            hasExplicitWorkspaceAssignment: false,
+            requiresPostCreateLifecycleVerification: false
+        )
+    }
+
+    private func isWindowServerOnlyStickyCreateCandidate(
+        _ windowInfo: WindowServerInfo,
+        token: WindowToken
+    ) -> Bool {
+        guard pid_t(windowInfo.pid) == token.pid,
+              windowInfo.id == UInt32(token.windowId),
+              !windowInfo.hasDocumentTag
+        else {
+            return false
+        }
+
+        // Top-level floating media surface (Helium/Chrome/Vivaldi/Zen style PiP):
+        // a level-3, parentless, floating-tagged window with a media-like frame.
+        if windowInfo.parentId == 0,
+           windowInfo.level == 3,
+           windowInfo.hasFloatingTag,
+           isTopLevelResizableMediaLikeSurfaceFrame(windowInfo.frame)
+        {
+            return true
+        }
+
+        return false
+    }
+
     private func recordPrepareCreateRejection(
         windowId: UInt32,
         token: WindowToken?,
@@ -3199,6 +3348,11 @@ final class AXEventHandler: CGSEventDelegate {
                     reason: reason,
                     hasWindowInfo: windowInfo != nil,
                     windowInfoPid: windowInfo.map { pid_t($0.pid) },
+                    windowInfoLevel: windowInfo.map { $0.level },
+                    windowInfoParentId: windowInfo.map { $0.parentId },
+                    windowInfoHasFloatingTag: windowInfo.map { $0.hasFloatingTag },
+                    windowInfoHasDocumentTag: windowInfo.map { $0.hasDocumentTag },
+                    windowInfoFrame: windowInfo.map { $0.frame },
                     fallbackToken: fallbackToken,
                     hasFallbackAXRef: fallbackAXRef != nil,
                     createContextSource: createPlacementContext?.source
@@ -4672,6 +4826,17 @@ final class AXEventHandler: CGSEventDelegate {
 
     private func resolveAXWindowRef(windowId: UInt32, pid: pid_t) -> AXWindowRef? {
         axWindowRefProvider?(windowId, pid) ?? AXWindowService.axWindowRef(for: windowId, pid: pid)
+    }
+
+    private func resolveAXWindowRef(
+        windowId: UInt32,
+        pid: pid_t,
+        matching windowInfo: WindowServerInfo?
+    ) -> AXWindowRef? {
+        if let provided = axWindowRefProvider?(windowId, pid) {
+            return provided
+        }
+        return AXWindowService.axWindowRef(for: windowId, pid: pid, matching: windowInfo)
     }
 
     private func subscribeToWindows(_ windowIds: [UInt32]) {

@@ -58,7 +58,9 @@ enum AppRuleFileStore {
         if let v = rule.axSubrole { lines.append("axSubrole = \(quoted(v))") }
 
         var effectLines: [String] = []
+        if let manage = rule.manage { effectLines.append("manage = \(quoted(manage.rawValue))") }
         if let layout = rule.layout { effectLines.append("layout = \(quoted(layout.rawValue))") }
+        if let sticky = rule.sticky { effectLines.append("sticky = \(sticky ? "true" : "false")") }
         if let w = rule.minWidth { effectLines.append("minWidth = \(formatNumber(w))") }
         if let h = rule.minHeight { effectLines.append("minHeight = \(formatNumber(h))") }
         if let ws = rule.assignToWorkspace { effectLines.append("assignToWorkspace = \(quoted(ws))") }
@@ -148,10 +150,12 @@ enum AppRuleFileStore {
             titleRegex: extractString(matchFields["titleRegex"]),
             axRole: extractString(matchFields["axRole"]),
             axSubrole: extractString(matchFields["axSubrole"]),
+            manage: extractString(effectFields["manage"]).flatMap(WindowRuleManageAction.init(rawValue:)),
             layout: extractString(effectFields["layout"]).flatMap(WindowRuleLayoutAction.init(rawValue:)),
             assignToWorkspace: extractString(effectFields["assignToWorkspace"]),
             minWidth: extractDouble(effectFields["minWidth"]),
-            minHeight: extractDouble(effectFields["minHeight"])
+            minHeight: extractDouble(effectFields["minHeight"]),
+            sticky: extractBool(effectFields["sticky"])
         )
         return (documentFields["order"].flatMap(extractInt), rule)
     }
@@ -171,6 +175,7 @@ enum AppRuleFileStore {
 
                 [effect]
                 layout = "float"
+                sticky = true
                 minWidth = 320
                 minHeight = 180
                 """
@@ -280,6 +285,15 @@ enum AppRuleFileStore {
     private static func extractDouble(_ raw: String?) -> Double? {
         guard let raw else { return nil }
         return Double(raw.trimmingCharacters(in: .whitespaces))
+    }
+
+    private static func extractBool(_ raw: String?) -> Bool? {
+        guard let raw else { return nil }
+        switch raw.trimmingCharacters(in: .whitespaces).lowercased() {
+        case "true": return true
+        case "false": return false
+        default: return nil
+        }
     }
 
     private static func extractInt(_ raw: String) -> Int? {

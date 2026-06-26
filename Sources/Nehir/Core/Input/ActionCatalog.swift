@@ -697,6 +697,13 @@ enum ActionCatalog {
                 keywords: ["float", "floating"]
             ),
             action(
+                id: "toggleFocusedWindowSticky",
+                command: .toggleFocusedWindowSticky,
+                category: .layout,
+                binding: .unassigned,
+                keywords: ["sticky", "pin", "all workspaces", "picture in picture", "pip"]
+            ),
+            action(
                 id: "assignFocusedWindowToScratchpad",
                 command: .assignFocusedWindowToScratchpad,
                 category: .layout,
@@ -928,6 +935,7 @@ enum ActionCatalog {
         case .raiseAllFloatingWindows: "Raise All Floating Windows"
         case .rescueOffscreenWindows: "Rescue Off-Screen Floating Windows"
         case .toggleFocusedWindowFloating: "Toggle Focused Window Floating"
+        case .toggleFocusedWindowSticky: "Toggle Focused Window Sticky"
         case .assignFocusedWindowToScratchpad: "Assign Focused Window to Scratchpad"
         case .toggleScratchpadWindow: "Toggle Scratchpad Window"
         case .openMenuAnywhere: "Open Menu Anywhere"
@@ -1083,6 +1091,8 @@ enum ActionCatalog {
             .toggleWorkspaceBar
         case .toggleFocusedWindowFloating:
             .toggleFocusedWindowFloating
+        case .toggleFocusedWindowSticky:
+            .toggleFocusedWindowSticky
         case .assignFocusedWindowToScratchpad:
             .scratchpadAssign
         case .toggleScratchpadWindow:

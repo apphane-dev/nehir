@@ -8,6 +8,7 @@ import Foundation
 
 enum WindowRuleManageAction: String, Codable, CaseIterable, Identifiable {
     case auto
+    case ignore
 
     var id: String {
         rawValue
@@ -16,6 +17,7 @@ enum WindowRuleManageAction: String, Codable, CaseIterable, Identifiable {
     var displayName: String {
         switch self {
         case .auto: "Automatic"
+        case .ignore: "Ignore"
         }
     }
 }
@@ -52,6 +54,7 @@ struct AppRule: Codable, Identifiable, Equatable {
         case assignToWorkspace
         case minWidth
         case minHeight
+        case sticky
     }
 
     let id: UUID
@@ -66,6 +69,7 @@ struct AppRule: Codable, Identifiable, Equatable {
     var assignToWorkspace: String?
     var minWidth: Double?
     var minHeight: Double?
+    var sticky: Bool?
 
     init(
         id: UUID = UUID(),
@@ -79,7 +83,8 @@ struct AppRule: Codable, Identifiable, Equatable {
         layout: WindowRuleLayoutAction? = nil,
         assignToWorkspace: String? = nil,
         minWidth: Double? = nil,
-        minHeight: Double? = nil
+        minHeight: Double? = nil,
+        sticky: Bool? = nil
     ) {
         self.id = id
         self.bundleId = bundleId
@@ -93,6 +98,7 @@ struct AppRule: Codable, Identifiable, Equatable {
         self.assignToWorkspace = assignToWorkspace
         self.minWidth = minWidth
         self.minHeight = minHeight
+        self.sticky = sticky
     }
 
     var effectiveManageAction: WindowRuleManageAction {
@@ -129,6 +135,7 @@ struct AppRule: Codable, Identifiable, Equatable {
         effectiveManageAction != .auto || effectiveLayoutAction != .auto ||
             assignToWorkspace != nil ||
             minWidth != nil || minHeight != nil ||
+            sticky != nil ||
             hasAdvancedMatchers
     }
 
@@ -146,5 +153,6 @@ struct AppRule: Codable, Identifiable, Equatable {
         assignToWorkspace = try container.decodeIfPresent(String.self, forKey: .assignToWorkspace)
         minWidth = try container.decodeIfPresent(Double.self, forKey: .minWidth)
         minHeight = try container.decodeIfPresent(Double.self, forKey: .minHeight)
+        sticky = try container.decodeIfPresent(Bool.self, forKey: .sticky)
     }
 }

@@ -59,6 +59,13 @@ enum WorkspaceBarDataSource {
                 viewportSelectedToken: viewportSelectedToken,
                 settings: settings
             ),
+            sticky: stickyItem(
+                for: monitor,
+                workspaceManager: workspaceManager,
+                appInfoCache: appInfoCache,
+                focusedToken: focusedToken,
+                viewportSelectedToken: viewportSelectedToken
+            ),
             scratchpad: scratchpadItem(
                 workspaceManager: workspaceManager,
                 appInfoCache: appInfoCache,
@@ -83,15 +90,12 @@ enum WorkspaceBarDataSource {
             let projectedEntries = workspaceManager.barVisibleEntries(
                 in: workspace.id,
                 showFloatingWindows: options.showFloatingWindows
-            )
+            ).filter { !workspaceManager.isStickyWindow($0.token) }
             return WorkspaceSnapshot(
                 workspace: workspace,
                 tiledEntries: projectedEntries.filter { $0.mode == .tiling },
                 floatingEntries: projectedEntries.filter { $0.mode == .floating },
-                hasBarOccupancy: workspaceManager.hasBarVisibleOccupancy(
-                    in: workspace.id,
-                    showFloatingWindows: options.showFloatingWindows
-                )
+                hasBarOccupancy: !projectedEntries.isEmpty
             )
         }
 
@@ -139,6 +143,35 @@ enum WorkspaceBarDataSource {
                 floatingWindows: floatingWindows
             )
         }
+    }
+
+    private static func stickyItem(
+        for monitor: Monitor,
+        workspaceManager: WorkspaceManager,
+        appInfoCache: AppInfoCache,
+        focusedToken: WindowToken?,
+        viewportSelectedToken: WindowToken?
+    ) -> WorkspaceBarStickyItem? {
+        var seen: Set<WindowToken> = []
+        let entries = workspaceManager.workspaces(on: monitor.id).flatMap { workspace in
+            workspaceManager.barVisibleEntries(
+                in: workspace.id,
+                showFloatingWindows: true
+            )
+        }.filter { entry in
+            workspaceManager.isStickyWindow(entry.token) && seen.insert(entry.token).inserted
+        }
+
+        let windows = createWindowItems(
+            entries: entries,
+            deduplicate: false,
+            useLayoutOrder: false,
+            appInfoCache: appInfoCache,
+            focusedToken: focusedToken,
+            viewportSelectedToken: viewportSelectedToken
+        )
+        guard !windows.isEmpty else { return nil }
+        return WorkspaceBarStickyItem(windows: windows)
     }
 
     private static func scratchpadItem(

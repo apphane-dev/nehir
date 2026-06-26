@@ -173,6 +173,7 @@ Move column left/right        Hyper+Left/Right
 
 Toggle fullscreen             Option+Command+Return
 Toggle native fullscreen      Option+Shift+Command+Return
+Toggle focused window sticky  Unassigned
 Toggle column tabbed          Option+Shift+Command+T
 Toggle column full width      Option+Shift+Command+F
 Balance sizes                 Option+Shift+Command+B
@@ -216,6 +217,40 @@ bundleId = "com.google.Chrome"
 minWidth = 500
 minHeight = 375
 ```
+
+Rule effects are explicit and composable:
+
+```toml
+# Leave a helper overlay alone entirely.
+[match]
+bundleId = "com.example.Helper"
+titleSubstring = "Overlay"
+
+[effect]
+manage = "ignore"
+
+# Keep a media-style window visible across workspace switches.
+[match]
+bundleId = "org.mozilla.firefox"
+titleSubstring = "Picture-in-Picture"
+
+[effect]
+layout = "float"
+sticky = true
+```
+
+Supported effect values:
+
+- `manage = "auto" | "ignore"` — `ignore` makes matching windows unmanaged. It wins over layout, sticky, sizing, and workspace effects.
+- `layout = "auto" | "tile" | "float"` — chooses the tracked layout mode for managed matches.
+- `sticky = true | false` — sets the sticky visibility effect for managed matches. `true` pins the window across workspaces; `false` opts matching windows out of sticky defaults such as Picture-in-Picture classification.
+- `assignToWorkspace = "<raw workspace name>"`, `minWidth`, `minHeight` — existing placement and size effects.
+
+Picture-in-Picture-like media windows are sticky by default when Nehir can classify them from AX/WindowServer facts. This is not a special window mode: PiP surfaces are still normal managed floating/tiling windows with an automatic sticky source, and the manual sticky toggle can unstick/restick them.
+
+Classification is intentionally conservative. Some Chromium/Helium-style PiP windows expose reliable AX facts only after the PiP receives focus or a click, so Nehir may start tracking them after that first interaction rather than at the instant the surface appears.
+
+Some browsers expose PiP as native macOS helper UI rather than a normal addressable media window. Safari, Dia, Arc, and Atlas/ChatGPT can create parented popup-level WindowServer children or generic `AXDialog` surfaces whose AX/WindowServer facts are indistinguishable from context menus or ordinary dialogs. Nehir intentionally does not auto-manage those surfaces as sticky PiP because doing so can pin context menus. When such an app provides stable AX facts, use an explicit app rule (for example matching bundle ID plus `axSubrole = "AXDialog"` or a title pattern) to opt that surface into `layout = "float"` and `sticky = true`.
 
 Monitor overrides use `[match]` / `[niri]` / `[bar]` / `[orientation]` sections:
 

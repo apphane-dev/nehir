@@ -127,6 +127,11 @@ public enum IPCDisplayOrientation: String, Codable, Equatable, Sendable {
     case vertical
 }
 
+public enum IPCRuleManage: String, Codable, Equatable, Sendable {
+    case auto
+    case ignore
+}
+
 public enum IPCRuleLayout: String, Codable, Equatable, Sendable {
     case auto
     case tile
@@ -280,6 +285,7 @@ public enum IPCCommandName: String, Codable, CaseIterable, Equatable, Sendable {
     case toggleOverview = "toggle-overview"
     case toggleWorkspaceBar = "toggle-workspace-bar"
     case toggleFocusedWindowFloating = "toggle-focused-window-floating"
+    case toggleFocusedWindowSticky = "toggle-focused-window-sticky"
     case scratchpadAssign = "scratchpad-assign"
     case scratchpadToggle = "scratchpad-toggle"
     case openMenuAnywhere = "open-menu-anywhere"
@@ -416,6 +422,7 @@ public enum IPCCommandRequest: Equatable, Sendable {
     case toggleOverview
     case toggleWorkspaceBar
     case toggleFocusedWindowFloating
+    case toggleFocusedWindowSticky
     case scratchpadAssign
     case scratchpadToggle
     case openMenuAnywhere
@@ -568,6 +575,8 @@ public enum IPCCommandRequest: Equatable, Sendable {
             .toggleWorkspaceBar
         case .toggleFocusedWindowFloating:
             .toggleFocusedWindowFloating
+        case .toggleFocusedWindowSticky:
+            .toggleFocusedWindowSticky
         case .scratchpadAssign:
             .scratchpadAssign
         case .scratchpadToggle:
@@ -840,6 +849,9 @@ public enum IPCCommandRequest: Equatable, Sendable {
         case .toggleFocusedWindowFloating:
             try requireNoArguments()
             self = .toggleFocusedWindowFloating
+        case .toggleFocusedWindowSticky:
+            try requireNoArguments()
+            self = .toggleFocusedWindowSticky
         case .scratchpadAssign:
             try requireNoArguments()
             self = .scratchpadAssign
@@ -1088,6 +1100,8 @@ extension IPCCommandRequest: Codable {
             self = .toggleWorkspaceBar
         case .toggleFocusedWindowFloating:
             self = .toggleFocusedWindowFloating
+        case .toggleFocusedWindowSticky:
+            self = .toggleFocusedWindowSticky
         case .scratchpadAssign:
             self = .scratchpadAssign
         case .scratchpadToggle:
@@ -1267,6 +1281,8 @@ extension IPCCommandRequest: Codable {
         case .toggleWorkspaceBar:
             break
         case .toggleFocusedWindowFloating:
+            break
+        case .toggleFocusedWindowSticky:
             break
         case .scratchpadAssign:
             break
@@ -1561,10 +1577,12 @@ public struct IPCRuleDefinition: Codable, Equatable, Sendable {
     public let titleRegex: String?
     public let axRole: String?
     public let axSubrole: String?
+    public let manage: IPCRuleManage?
     public let layout: IPCRuleLayout
     public let assignToWorkspace: String?
     public let minWidth: Double?
     public let minHeight: Double?
+    public let sticky: Bool?
 
     public init(
         bundleId: String,
@@ -1573,10 +1591,12 @@ public struct IPCRuleDefinition: Codable, Equatable, Sendable {
         titleRegex: String? = nil,
         axRole: String? = nil,
         axSubrole: String? = nil,
+        manage: IPCRuleManage? = nil,
         layout: IPCRuleLayout = .auto,
         assignToWorkspace: String? = nil,
         minWidth: Double? = nil,
-        minHeight: Double? = nil
+        minHeight: Double? = nil,
+        sticky: Bool? = nil
     ) {
         self.bundleId = bundleId
         self.appNameSubstring = appNameSubstring
@@ -1584,10 +1604,12 @@ public struct IPCRuleDefinition: Codable, Equatable, Sendable {
         self.titleRegex = titleRegex
         self.axRole = axRole
         self.axSubrole = axSubrole
+        self.manage = manage
         self.layout = layout
         self.assignToWorkspace = assignToWorkspace
         self.minWidth = minWidth
         self.minHeight = minHeight
+        self.sticky = sticky
     }
 }
 
@@ -2226,6 +2248,7 @@ public struct IPCWindowQuerySnapshot: Codable, Equatable, Sendable {
     public let isFocused: Bool?
     public let isVisible: Bool?
     public let isScratchpad: Bool?
+    public let isSticky: Bool?
     public let hiddenReason: IPCHiddenReason?
 
     public init(
@@ -2242,6 +2265,7 @@ public struct IPCWindowQuerySnapshot: Codable, Equatable, Sendable {
         isFocused: Bool? = nil,
         isVisible: Bool? = nil,
         isScratchpad: Bool? = nil,
+        isSticky: Bool? = nil,
         hiddenReason: IPCHiddenReason? = nil
     ) {
         self.id = id
@@ -2257,6 +2281,7 @@ public struct IPCWindowQuerySnapshot: Codable, Equatable, Sendable {
         self.isFocused = isFocused
         self.isVisible = isVisible
         self.isScratchpad = isScratchpad
+        self.isSticky = isSticky
         self.hiddenReason = hiddenReason
     }
 }
@@ -2381,10 +2406,12 @@ public struct IPCRuleSnapshot: Codable, Equatable, Sendable {
     public let titleRegex: String?
     public let axRole: String?
     public let axSubrole: String?
+    public let manage: IPCRuleManage?
     public let layout: IPCRuleLayout
     public let assignToWorkspace: String?
     public let minWidth: Double?
     public let minHeight: Double?
+    public let sticky: Bool?
     public let specificity: Int
     public let isValid: Bool
     public let invalidRegexMessage: String?
@@ -2398,10 +2425,12 @@ public struct IPCRuleSnapshot: Codable, Equatable, Sendable {
         titleRegex: String? = nil,
         axRole: String? = nil,
         axSubrole: String? = nil,
+        manage: IPCRuleManage? = nil,
         layout: IPCRuleLayout,
         assignToWorkspace: String? = nil,
         minWidth: Double? = nil,
         minHeight: Double? = nil,
+        sticky: Bool? = nil,
         specificity: Int,
         isValid: Bool,
         invalidRegexMessage: String? = nil
@@ -2414,10 +2443,12 @@ public struct IPCRuleSnapshot: Codable, Equatable, Sendable {
         self.titleRegex = titleRegex
         self.axRole = axRole
         self.axSubrole = axSubrole
+        self.manage = manage
         self.layout = layout
         self.assignToWorkspace = assignToWorkspace
         self.minWidth = minWidth
         self.minHeight = minHeight
+        self.sticky = sticky
         self.specificity = specificity
         self.isValid = isValid
         self.invalidRegexMessage = invalidRegexMessage

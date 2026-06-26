@@ -442,10 +442,12 @@ private func assertRoundTrip<T: Codable & Equatable>(_ value: T) throws {
             "--title-regex",
             "--ax-role",
             "--ax-subrole",
+            "--manage",
             "--layout",
             "--assign-to-workspace",
             "--min-width",
-            "--min-height"
+            "--min-height",
+            "--sticky"
         ]
         let addDescriptor = IPCAutomationManifest.ruleActionDescriptor(for: .add)
         let replaceDescriptor = IPCAutomationManifest.ruleActionDescriptor(for: .replace)

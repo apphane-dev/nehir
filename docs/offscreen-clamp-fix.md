@@ -123,6 +123,10 @@ Useful confirmed findings:
   Zoom call window) clamp to a larger visible strip if requested exactly at the edge,
   so workspace-inactive parking uses the same 1pt reveal limitation as transient
   parking rather than an app-specific special case.
+- Picture-in-Picture surfaces can report fresh app activation/focus after Nehir parks
+  them. For manually-unstuck PiP/default-sticky windows, the focus layer must suppress
+  unrelated hidden-inactive activation churn; otherwise native activation can reveal the
+  parked PiP again even though the hide plan itself requested the correct edge position.
 - Using that same right-edge parking for transient left-hidden windows removes the parked
   left corner but causes a visible left-to-right fly during the hide transition.
 - **Unconfirmed hypotheses are not fixes.** A proposed hide strategy may be implemented

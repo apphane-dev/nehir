@@ -218,19 +218,27 @@ struct AppRuleSidebarRow: View {
                 .lineLimit(1)
 
             HStack(spacing: 4) {
-                switch rule.effectiveLayoutAction {
-                case .float:
-                    RuleBadge(text: "Float", color: .blue)
-                case .tile:
-                    RuleBadge(text: "Tile", color: .teal)
-                case .auto:
-                    EmptyView()
+                if rule.effectiveManageAction == .ignore {
+                    RuleBadge(text: "Ignore", color: .red)
                 }
-                if rule.assignToWorkspace != nil {
-                    RuleBadge(text: "WS", color: .green)
-                }
-                if rule.minWidth != nil || rule.minHeight != nil {
-                    RuleBadge(text: "Size", color: .orange)
+                if rule.effectiveManageAction != .ignore {
+                    if rule.sticky == true {
+                        RuleBadge(text: "Sticky", color: .yellow)
+                    }
+                    switch rule.effectiveLayoutAction {
+                    case .float:
+                        RuleBadge(text: "Float", color: .blue)
+                    case .tile:
+                        RuleBadge(text: "Tile", color: .teal)
+                    case .auto:
+                        EmptyView()
+                    }
+                    if rule.assignToWorkspace != nil {
+                        RuleBadge(text: "WS", color: .green)
+                    }
+                    if rule.minWidth != nil || rule.minHeight != nil {
+                        RuleBadge(text: "Size", color: .orange)
+                    }
                 }
                 if rule.hasAdvancedMatchers {
                     RuleBadge(text: "Advanced", color: .purple)
@@ -312,13 +320,30 @@ struct AppRuleDetailView: View {
             }
 
             Section("Window Behavior") {
+                Picker("Manage", selection: $draft.manageAction) {
+                    ForEach(WindowRuleManageAction.allCases) { action in
+                        Text(action.displayName).tag(action)
+                    }
+                }
+
+                if ignoresWindows {
+                    SettingsCaption(
+                        "Ignored windows are left out of Nehir's managed model. Layout, Sticky, workspace, and size effects will not apply."
+                    )
+                }
+
                 Picker("Layout", selection: $draft.layoutAction) {
                     ForEach(WindowRuleLayoutAction.allCases) { action in
                         Text(action.displayName).tag(action)
                     }
                 }
+                .disabled(ignoresWindows)
+
+                Toggle("Sticky", isOn: $draft.stickyEnabled)
+                    .disabled(ignoresWindows)
 
                 Toggle("Assign to Workspace", isOn: $draft.assignToWorkspaceEnabled)
+                    .disabled(ignoresWindows)
                     .onChange(of: draft.assignToWorkspaceEnabled) { _, enabled in
                         guard enabled else { return }
                         seedWorkspaceIfNeeded()
@@ -330,7 +355,7 @@ struct AppRuleDetailView: View {
                             Text(name).tag(name)
                         }
                     }
-                    .disabled(workspaceNames.isEmpty)
+                    .disabled(workspaceNames.isEmpty || ignoresWindows)
 
                     if workspaceNames.isEmpty {
                         SettingsCaption("No workspaces configured. Add workspaces in Settings.")
@@ -388,6 +413,10 @@ struct AppRuleDetailView: View {
             rule = newValue.makeRule(id: rule.id)
             controller.updateAppRules()
         }
+    }
+
+    private var ignoresWindows: Bool {
+        draft.manageAction == .ignore
     }
 
     private var titleRegexError: String? {
@@ -488,13 +517,32 @@ struct AppRuleAddPane: View {
                 }
 
                 Section("Window Behavior") {
+                    Picker("Manage", selection: $draft.manageAction) {
+                        ForEach(WindowRuleManageAction.allCases) { action in
+                            Text(action.displayName).tag(action)
+                        }
+                    }
+
+                    if ignoresWindows {
+                        Text(
+                            "Ignored windows are left out of Nehir's managed model. Layout, Sticky, workspace, and size effects will not apply."
+                        )
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    }
+
                     Picker("Layout", selection: $draft.layoutAction) {
                         ForEach(WindowRuleLayoutAction.allCases) { action in
                             Text(action.displayName).tag(action)
                         }
                     }
+                    .disabled(ignoresWindows)
+
+                    Toggle("Sticky", isOn: $draft.stickyEnabled)
+                        .disabled(ignoresWindows)
 
                     Toggle("Assign to Workspace", isOn: $draft.assignToWorkspaceEnabled)
+                        .disabled(ignoresWindows)
                         .onChange(of: draft.assignToWorkspaceEnabled) { _, enabled in
                             guard enabled else { return }
                             seedWorkspaceIfNeeded()
@@ -506,7 +554,7 @@ struct AppRuleAddPane: View {
                                 Text(name).tag(name)
                             }
                         }
-                        .disabled(workspaceNames.isEmpty)
+                        .disabled(workspaceNames.isEmpty || ignoresWindows)
 
                         if workspaceNames.isEmpty {
                             Text("No workspaces configured. Add workspaces in Settings.")
@@ -582,6 +630,10 @@ struct AppRuleAddPane: View {
     private var titleRegexError: String? {
         guard draft.titleMatcherMode == .regex else { return nil }
         return AppRuleDraftValidation.titleRegexError(for: draft.titleRegex)
+    }
+
+    private var ignoresWindows: Bool {
+        draft.manageAction == .ignore
     }
 
     private var isValid: Bool {

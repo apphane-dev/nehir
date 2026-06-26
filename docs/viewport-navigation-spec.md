@@ -118,6 +118,8 @@ Columns whose effective width approximately fills the viewport (within pixel tol
 
 For a lone-window workspace, effective viewport width is the transient lone-window render width (`loneWindowLayoutWidthOverride`) when present, not the canonical column `cachedWidth`. This lets fill/centered lone windows scroll and snap against the real rendered span while preserving the canonical width used when a second column appears.
 
+A single tiled column uses the same far overscroll boundary points as a multi-column strip. A trackpad gesture can therefore settle at a far boundary when the projected release position is closer to that boundary than to the center/resting snap, leaving only the configured edge sliver of the lone column visible.
+
 ### Gesture release
 
 On gesture release, the viewport snaps to the nearest snap point. The focused column updates to the column at the target snap position.
@@ -143,7 +145,11 @@ Per-monitor overrides are tri-state through `MonitorNiriSettings.loneWindowPolic
 
 `SingleWindowViewportGeometry` is the source of truth for the resolved lone-window rect, center offset, and render offset. `NiriContainer.effectiveViewportWidth` is the source of truth for viewport positions, bounds, and snap width when that rect is wider or narrower than the canonical column width. Controllers and gesture handlers should call `singleWindowViewportGeometry(...)`, `resolvedSingleWindowViewportRect(...)`, `prepareSingleWindowViewport(...)`, or `prepareAndSeedSingleWindowViewport(...)` rather than re-deriving the math.
 
-Lone-window rendering follows the raw viewport offset so scroll gestures are visible. The snap grid decides where the viewport settles. This keeps fill windows responsive during a gesture while preventing them from parking at bogus `±gap` edge snaps after release. `cachedWidth` remains the canonical column width for later multi-column layout; the fill/centered render span is transient and must not leak back into canonical width state.
+Lone-window rendering follows the raw viewport offset so scroll gestures are visible. The snap grid decides where the viewport settles. This keeps fill windows responsive during a gesture while preserving the same far-overscroll affordance available in multi-column layouts. `cachedWidth` remains the canonical column width for later multi-column layout; the fill/centered render span is transient and must not leak back into canonical width state.
+
+### Single-window snap bounds
+
+A single tiled window is the selected column and participates in far overscroll. `viewportStartBounds(...)` applies the same edge-visible-fraction rule used for the first and last columns of a multi-column strip. Gesture release chooses the closest projected snap, with far-boundary snaps available even when there is only one column.
 
 ---
 

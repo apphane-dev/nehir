@@ -357,10 +357,12 @@ enum CLIParser {
         var titleRegex: String?
         var axRole: String?
         var axSubrole: String?
+        var manage: IPCRuleManage = .auto
         var layout: IPCRuleLayout = .auto
         var assignToWorkspace: String?
         var minWidth: Double?
         var minHeight: Double?
+        var sticky: Bool?
         var seenFlags: Set<String> = []
         var index = 0
 
@@ -388,6 +390,11 @@ enum CLIParser {
                 axRole = value
             case "--ax-subrole":
                 axSubrole = value
+            case "--manage":
+                guard let parsedManage = IPCRuleManage(rawValue: value) else {
+                    throw CLIParseError.usage(usageText)
+                }
+                manage = parsedManage
             case "--layout":
                 guard let parsedLayout = IPCRuleLayout(rawValue: value) else {
                     throw CLIParseError.usage(usageText)
@@ -399,6 +406,8 @@ enum CLIParser {
                 minWidth = try parsePositiveDouble(value)
             case "--min-height":
                 minHeight = try parsePositiveDouble(value)
+            case "--sticky":
+                sticky = try parseBool(value)
             default:
                 throw CLIParseError.usage(usageText)
             }
@@ -417,10 +426,12 @@ enum CLIParser {
             titleRegex: titleRegex,
             axRole: axRole,
             axSubrole: axSubrole,
+            manage: manage,
             layout: layout,
             assignToWorkspace: assignToWorkspace,
             minWidth: minWidth,
-            minHeight: minHeight
+            minHeight: minHeight,
+            sticky: sticky
         )
 
         guard IPCRuleValidator.validate(definition).isValid else {
@@ -642,6 +653,18 @@ enum CLIParser {
             throw CLIParseError.usage(usageText)
         }
         return value
+    }
+
+    private static func parseBool(_ rawValue: String) throws -> Bool {
+        switch rawValue.lowercased() {
+        case "true",
+             "yes",
+             "1": true
+        case "false",
+             "no",
+             "0": false
+        default: throw CLIParseError.usage(usageText)
+        }
     }
 
     private static func parsePID(_ rawValue: String) throws -> Int32 {
