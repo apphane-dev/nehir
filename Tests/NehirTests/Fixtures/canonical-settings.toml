@@ -36,6 +36,7 @@ hotkeysEnabled = true
 ignoreMonitorIdentity = false
 ipcEnabled = false
 preventSleepEnabled = false
+viewportTraceVerbosity = "standard"
 
 [gestures]
 fingerCount = 3

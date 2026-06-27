@@ -11,6 +11,7 @@ struct DebugBarSnapshot: Equatable {
     var backgroundTraceStatus: BackgroundTraceBufferStatus
     var retentionSeconds: TimeInterval
     var exportCopiesFile: Bool
+    var viewportTraceVerbosity: ViewportTraceVerbosity
 }
 
 @MainActor
@@ -39,7 +40,8 @@ final class DebugBarManager {
             traceCaptureStatus: controller.runtimeTraceCaptureStatus,
             backgroundTraceStatus: controller.backgroundTraceBufferStatus,
             retentionSeconds: settings.backgroundTraceRetentionSeconds,
-            exportCopiesFile: settings.debugTraceExportCopiesFile
+            exportCopiesFile: settings.debugTraceExportCopiesFile,
+            viewportTraceVerbosity: settings.viewportTraceVerbosity
         )
         let view = DebugBarView(
             snapshot: snapshot,
@@ -61,6 +63,13 @@ final class DebugBarManager {
             onToggleCopyMode: { [weak settings, weak self] in
                 guard let settings else { return }
                 settings.debugTraceExportCopiesFile.toggle()
+                self?.update()
+            },
+            onCycleViewportTraceVerbosity: { [weak controller, weak settings, weak self] in
+                guard let settings else { return }
+                settings.viewportTraceVerbosity = Self
+                    .nextViewportVerbosity(after: settings.viewportTraceVerbosity)
+                controller?.applyViewportTraceVerbosity()
                 self?.update()
             }
         )
@@ -174,6 +183,12 @@ final class DebugBarManager {
         guard let index = presets.firstIndex(of: value) else { return 0 }
         return presets[(index + 1) % presets.count]
     }
+
+    private static func nextViewportVerbosity(after value: ViewportTraceVerbosity) -> ViewportTraceVerbosity {
+        let order: [ViewportTraceVerbosity] = [.standard, .lean, .verbose]
+        guard let index = order.firstIndex(of: value) else { return .standard }
+        return order[(index + 1) % order.count]
+    }
 }
 
 struct DebugBarView: View {
@@ -182,6 +197,7 @@ struct DebugBarView: View {
     let onResetBuffer: () -> Void
     let onCycleRetention: () -> Void
     let onToggleCopyMode: () -> Void
+    let onCycleViewportTraceVerbosity: () -> Void
 
     var body: some View {
         HStack(spacing: 4) {
@@ -205,6 +221,16 @@ struct DebugBarView: View {
             .help("Reset trace buffer without stopping capture")
 
             DebugBarDivider()
+
+            Button(action: onCycleViewportTraceVerbosity) {
+                Label(snapshot.viewportTraceVerbosity.displayName, systemImage: "chart.bar.doc.horizontal")
+                    .labelStyle(.titleAndIcon)
+                    .foregroundStyle(snapshot.viewportTraceVerbosity == .verbose ? .yellow : .primary)
+            }
+            .buttonStyle(DebugBarInlineControlStyle())
+            .help(
+                "Viewport trace verbosity (Lean / Standard / Verbose). Verbose adds per-frame gesture updates and per-mutation provenance."
+            )
 
             Button(action: onCycleRetention) {
                 Label(retentionLabel, systemImage: "timer")

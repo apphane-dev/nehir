@@ -90,6 +90,7 @@ struct SettingsExport: Equatable, Sendable {
     var developerModeEnabled: Bool
     var debugBarEnabled: Bool
     var debugTraceExportCopiesFile: Bool
+    var viewportTraceVerbosity: String
     var backgroundTraceRetentionSeconds: TimeInterval
     var backgroundTraceMaxBytes: Int
 
@@ -176,6 +177,7 @@ extension SettingsExport {
             developerModeEnabled: false,
             debugBarEnabled: true,
             debugTraceExportCopiesFile: false,
+            viewportTraceVerbosity: ViewportTraceVerbosity.standard.rawValue,
             backgroundTraceRetentionSeconds: 0,
             backgroundTraceMaxBytes: 64 * 1024 * 1024,
             ignoreMonitorIdentity: false,

@@ -308,6 +308,20 @@ struct DisplayDiagnosticsSettingsTab: View {
                 }
             )
 
+            Picker("Viewport Trace Verbosity", selection: $settings.viewportTraceVerbosity) {
+                ForEach(ViewportTraceVerbosity.allCases) { verbosity in
+                    Text(verbosity.displayName).tag(verbosity)
+                }
+            }
+            .onChange(of: settings.viewportTraceVerbosity) { _, _ in
+                controller.applyViewportTraceVerbosity()
+            }
+            SettingsCaption(
+                "Controls how much viewport trace captures record. "
+                    + "Lean omits the per-line layout dump; Standard (default) adds it; "
+                    + "Verbose also records per-frame gesture updates and per-mutation provenance."
+            )
+
             DebugCommandRow(
                 title: "Reset Runtime State",
                 hotkey: hotkey(for: "debug.resetRuntimeState"),

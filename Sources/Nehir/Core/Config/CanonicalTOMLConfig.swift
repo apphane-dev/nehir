@@ -41,6 +41,7 @@ struct CanonicalTOMLConfig: Codable, Equatable {
         var developerModeEnabled: Bool
         var debugBarEnabled: Bool
         var debugTraceExportCopiesFile: Bool
+        var viewportTraceVerbosity: String
         var backgroundTraceRetentionSeconds: TimeInterval
         var backgroundTraceMaxBytes: Int
         var ignoreMonitorIdentity: Bool
@@ -48,7 +49,8 @@ struct CanonicalTOMLConfig: Codable, Equatable {
 
         enum CodingKeys: String, CodingKey, CaseIterable {
             case hotkeysEnabled, preventSleepEnabled, ipcEnabled, developerModeEnabled,
-                 debugBarEnabled, debugTraceExportCopiesFile, backgroundTraceRetentionSeconds,
+                 debugBarEnabled, debugTraceExportCopiesFile, viewportTraceVerbosity,
+                 backgroundTraceRetentionSeconds,
                  backgroundTraceMaxBytes, ignoreMonitorIdentity
         }
     }
@@ -261,6 +263,7 @@ extension CanonicalTOMLConfig {
             developerModeEnabled: export.developerModeEnabled,
             debugBarEnabled: export.debugBarEnabled,
             debugTraceExportCopiesFile: export.debugTraceExportCopiesFile,
+            viewportTraceVerbosity: export.viewportTraceVerbosity,
             backgroundTraceRetentionSeconds: export.backgroundTraceRetentionSeconds,
             backgroundTraceMaxBytes: export.backgroundTraceMaxBytes,
             ignoreMonitorIdentity: export.ignoreMonitorIdentity,
@@ -442,6 +445,7 @@ extension CanonicalTOMLConfig {
             developerModeEnabled: general.developerModeEnabled,
             debugBarEnabled: general.debugBarEnabled,
             debugTraceExportCopiesFile: general.debugTraceExportCopiesFile,
+            viewportTraceVerbosity: general.viewportTraceVerbosity,
             backgroundTraceRetentionSeconds: general.backgroundTraceRetentionSeconds,
             backgroundTraceMaxBytes: general.backgroundTraceMaxBytes,
             ignoreMonitorIdentity: general.ignoreMonitorIdentity,
@@ -513,6 +517,11 @@ extension CanonicalTOMLConfig.General {
             forKey: .debugTraceExportCopiesFile,
             default: d.debugTraceExportCopiesFile
         )
+        viewportTraceVerbosity = try container.decodeWithDefault(
+            String.self,
+            forKey: .viewportTraceVerbosity,
+            default: d.viewportTraceVerbosity
+        )
         backgroundTraceRetentionSeconds = try container.decodeWithDefault(
             TimeInterval.self,
             forKey: .backgroundTraceRetentionSeconds,
@@ -539,6 +548,7 @@ extension CanonicalTOMLConfig.General {
         try container.encode(developerModeEnabled, forKey: "developerModeEnabled")
         try container.encode(debugBarEnabled, forKey: "debugBarEnabled")
         try container.encode(debugTraceExportCopiesFile, forKey: "debugTraceExportCopiesFile")
+        try container.encode(viewportTraceVerbosity, forKey: "viewportTraceVerbosity")
         try container.encode(backgroundTraceRetentionSeconds, forKey: "backgroundTraceRetentionSeconds")
         try container.encode(backgroundTraceMaxBytes, forKey: "backgroundTraceMaxBytes")
         try container.encode(ignoreMonitorIdentity, forKey: "ignoreMonitorIdentity")

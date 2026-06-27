@@ -276,6 +276,16 @@ final class SettingsStore {
         didSet { scheduleSave() }
     }
 
+    /// Opt-in control for how much Niri viewport trace captures record.
+    /// `standard` keeps captures lean (no per-frame gesture updates, no audit
+    /// provenance); `verbose` adds both. Only the verbose path pays the cost,
+    /// so a normal capture is cheap to ship. See `ViewportTraceVerbosity`.
+    var viewportTraceVerbosity = ViewportTraceVerbosity(
+        rawValue: SettingsStore.defaultExport.viewportTraceVerbosity
+    ) ?? .standard {
+        didSet { scheduleSave() }
+    }
+
     var backgroundTraceRetentionSeconds = SettingsStore.defaultExport.backgroundTraceRetentionSeconds {
         didSet { scheduleSave() }
     }
@@ -485,6 +495,7 @@ final class SettingsStore {
             developerModeEnabled: developerModeEnabled,
             debugBarEnabled: debugBarEnabled,
             debugTraceExportCopiesFile: debugTraceExportCopiesFile,
+            viewportTraceVerbosity: viewportTraceVerbosity.rawValue,
             backgroundTraceRetentionSeconds: backgroundTraceRetentionSeconds,
             backgroundTraceMaxBytes: backgroundTraceMaxBytes,
             ignoreMonitorIdentity: ignoreMonitorIdentity,
@@ -591,6 +602,7 @@ final class SettingsStore {
         developerModeEnabled = export.developerModeEnabled
         debugBarEnabled = export.debugBarEnabled
         debugTraceExportCopiesFile = export.debugTraceExportCopiesFile
+        viewportTraceVerbosity = ViewportTraceVerbosity(rawValue: export.viewportTraceVerbosity) ?? .standard
         backgroundTraceRetentionSeconds = max(0, export.backgroundTraceRetentionSeconds)
         backgroundTraceMaxBytes = max(1, export.backgroundTraceMaxBytes)
         ignoreMonitorIdentity = export.ignoreMonitorIdentity
