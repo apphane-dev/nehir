@@ -360,6 +360,13 @@ final class WMController {
                 newState: newState
             )
         }
+        workspaceManager.setNiriViewportOffsetMutationObserver { [weak self] workspaceId in
+            self?.recordRuntimeViewportTrace(
+                workspaceId: workspaceId,
+                reason: "relayout.viewportOffsetChanged",
+                details: []
+            )
+        }
         focusPolicyEngine.onLeaseChanged = { [weak self] lease in
             self?.workspaceManager.recordReconcileEvent(
                 .focusLeaseChanged(

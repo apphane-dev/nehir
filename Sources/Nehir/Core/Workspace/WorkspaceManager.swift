@@ -3517,6 +3517,23 @@ final class WorkspaceManager {
 
     private var isViewportMutationAuditEnabled = false
 
+    /// Observer fired from `updateNiriViewportState` when a live viewport write
+    /// settles the offset to a different `.static` target. This is the single
+    /// commit chokepoint for all live viewport writes, so observing here is the
+    /// one place that catches offset mutations with no dedicated trace emitter
+    /// of their own — chiefly relayout-driven rebases (column insertion,
+    /// container-position rebase, recenter, restore) that arrive via
+    /// `applySessionPatch`. The interactive gesture / spring-tick paths are
+    /// explicitly excluded by the emit gate, so they keep their own per-frame /
+    /// scroll_animation records and never echo here. The observer forwards only
+    /// the workspace id; the recorder reads the just-committed state (carrying
+    /// the `lastViewportMutation*` provenance) and decides reason + details.
+    private var niriViewportOffsetMutationObserver: ((WorkspaceDescriptor.ID) -> Void)?
+
+    func setNiriViewportOffsetMutationObserver(_ observer: ((WorkspaceDescriptor.ID) -> Void)?) {
+        niriViewportOffsetMutationObserver = observer
+    }
+
     func setViewportMutationAuditEnabled(_ enabled: Bool) {
         isViewportMutationAuditEnabled = enabled
         for workspaceId in sessionState.workspaceSessions.keys {
@@ -3585,6 +3602,20 @@ final class WorkspaceManager {
         }
 
         sessionState.workspaceSessions[workspaceId] = workspaceSession
+
+        // Surface an otherwise-unrecorded offset mutation. The gate excludes
+        // the gesture and in-flight-spring paths (which emit their own records)
+        // and a nil prior state (workspace first write), leaving only discrete
+        // `.static` commits whose target actually moved — the relayout/rebase/
+        // restore class that had no dedicated emitter and would jump the trace
+        // with no attribution line in between.
+        if let previousViewportState,
+           !normalizedState.viewOffsetPixels.isGesture,
+           !normalizedState.viewOffsetPixels.isAnimating,
+           abs(previousViewportState.viewOffsetPixels.target() - normalizedState.viewOffsetPixels.target()) > 0.5
+        {
+            niriViewportOffsetMutationObserver?(workspaceId)
+        }
     }
 
     func withNiriViewportState(
