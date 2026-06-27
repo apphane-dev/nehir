@@ -3518,14 +3518,16 @@ final class WorkspaceManager {
     private var isViewportMutationAuditEnabled = false
 
     /// Observer fired from `updateNiriViewportState` when a live viewport write
-    /// settles the offset to a different `.static` target. This is the single
-    /// commit chokepoint for all live viewport writes, so observing here is the
-    /// one place that catches offset mutations with no dedicated trace emitter
-    /// of their own — chiefly relayout-driven rebases (column insertion,
-    /// container-position rebase, recenter, restore) that arrive via
-    /// `applySessionPatch`. The interactive gesture / spring-tick paths are
-    /// explicitly excluded by the emit gate, so they keep their own per-frame /
-    /// scroll_animation records and never echo here. The observer forwards only
+    /// retargets the offset to a new value. This is the single commit chokepoint
+    /// for all live viewport writes, so observing here is the one place that
+    /// catches offset mutations with no dedicated trace emitter of their own —
+    /// chiefly relayout-driven rebases (column insertion, container-position
+    /// rebase, removal shift), focus-activation reveals, and restores that arrive
+    /// via `applySessionPatch`. The gate keys on the stored target moving beyond
+    /// a half-pixel, which excludes the per-frame spring-tick flood (a tick
+    /// leaves the target unchanged) and a nil prior state (workspace first
+    /// write); the interactive-gesture path is excluded outright by `!isGesture`
+    /// since gesture frames have their own emitter. The observer forwards only
     /// the workspace id; the recorder reads the just-committed state (carrying
     /// the `lastViewportMutation*` provenance) and decides reason + details.
     private var niriViewportOffsetMutationObserver: ((WorkspaceDescriptor.ID) -> Void)?
@@ -3603,15 +3605,20 @@ final class WorkspaceManager {
 
         sessionState.workspaceSessions[workspaceId] = workspaceSession
 
-        // Surface an otherwise-unrecorded offset mutation. The gate excludes
-        // the gesture and in-flight-spring paths (which emit their own records)
-        // and a nil prior state (workspace first write), leaving only discrete
-        // `.static` commits whose target actually moved — the relayout/rebase/
-        // restore class that had no dedicated emitter and would jump the trace
-        // with no attribution line in between.
+        // Surface an otherwise-unrecorded offset mutation. A retarget (relayout
+        // rebase, focus-activation reveal, removal shift, restore) commits a new
+        // target with no dedicated emitter of its own and would otherwise jump
+        // the trace with no attribution line in between. The discriminator is the
+        // target itself moving beyond a half-pixel: a spring tick (the per-frame
+        // flood risk) interpolates `current` but leaves the stored `target`
+        // unchanged, so it never satisfies the delta. The interactive-gesture
+        // path is excluded outright by `!isGesture` since gesture frames have
+        // their own emitter. Spring retargets are intentionally included even
+        // though `isAnimating` is true — that is precisely the focus-activation
+        // reveal case that has no other record. A nil prior state (workspace
+        // first write) is skipped.
         if let previousViewportState,
            !normalizedState.viewOffsetPixels.isGesture,
-           !normalizedState.viewOffsetPixels.isAnimating,
            abs(previousViewportState.viewOffsetPixels.target() - normalizedState.viewOffsetPixels.target()) > 0.5
         {
             niriViewportOffsetMutationObserver?(workspaceId)
