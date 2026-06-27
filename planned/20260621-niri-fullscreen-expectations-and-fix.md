@@ -94,7 +94,7 @@ porting to current HEAD `42ac731f`:
    the controller layer (`WMController`/handlers), never from the pure niri
    engine — so the emit site is the handler, not `NiriLayoutEngine+Sizing.swift`
    (this also keeps the engine extraction-friendly; see
-   `planned/20260619-pure-niri-engine-extraction-a1.md`).
+   `completed/20260619-pure-niri-engine-extraction-a1.md`).
 
 Decisions encoded by this plan (resolving the discovery's open questions):
 
@@ -357,7 +357,7 @@ fullscreen as Maximize, delete the dead `.maximized` sizing mode, and make
 - **Engine-extraction friendliness.** Emitting `.sizingModeChanged` from the
   handler (not from inside `NiriLayoutEngine+Sizing.swift`) keeps the niri engine
   free of `WMEvent` dependencies, consistent with
-  `planned/20260619-pure-niri-engine-extraction-a1.md`. Do not push the emit into
+  `completed/20260619-pure-niri-engine-extraction-a1.md`. Do not push the emit into
   the engine.
 - **Sticky-model UX surprise.** Users coming from Aerospace/i3 auto-restore may
   expect focus to un-maximize. Mitigation: the B1 toggle now *works* when they

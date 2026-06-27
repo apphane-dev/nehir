@@ -1,6 +1,6 @@
 # A1 — Pure Niri engine extraction for onboarding movement/focus
 
-**Status:** planned  
+**Status:** completed — shipped on `main` in `b1844dd8` ("Extract pure layout reducer and drive move demo through it"). All five A1 acceptance criteria are met: `Sources/Nehir/Core/PureLayout/` holds the pure model/reducer/invariant code (`PureDirection`, `PureLayoutModels`, `PureLayoutReducer`, `PureLayoutInvariants`) with a clean boundary (no `AppKit`/`AX`/`SkyLight`/runtime-type references); `PureLayoutReducerTests`, `PureLayoutAgreementTests`, and `PureLayoutBoundaryTests` all exist; and `InteractiveMoveDemo.MoveDemoModel` now stores a `CoreWorld<Int, Int>` and delegates focus/move/workspace-switch to `PureLayoutReducer`. The follow-on commits `98d00e4c` ("Route Niri focus and move decisions through pure layout"), `c2915f44` ("Drive Niri window moves from pure layout plans"), and `49d6b3f3` ("Assert Niri layout mutations match pure reducer results") went beyond A1 into the live runtime path — the A2 territory this plan explicitly left as a non-goal — so A1's scope is a strict subset of what landed. (A discovery note already records this landing: `discovery/20260625-upstream-post-roadmap-candidates.md`.) Moved from `planned/` to `completed/` on 2026-06-27.
 **Source discovery:** `discovery/20260618-pure-niri-engine-extraction.md`  
 **Parent architecture note:** `discovery/20260618-worldstore-pure-engine-reuse.md`  
 **Verified against:** main Nehir source tree at `4e54d4a1` on 2026-06-19. Re-verify before editing; line numbers and helper names may drift.

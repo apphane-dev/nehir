@@ -201,7 +201,7 @@ case and CLI flag.
   `WorkspaceManager.swift:2610` / `:2997` beyond swapping the single-token test
   for a set-membership test.
 - Do **not** alter the pure niri engine extraction
-  (`planned/20260619-pure-niri-engine-extraction-a1.md`) — scratchpad is a
+  (`completed/20260619-pure-niri-engine-extraction-a1.md`) — scratchpad is a
   Nehir/OmniWM-derived feature intentionally kept out of the pure engine.
 
 ## Exact implementation plan

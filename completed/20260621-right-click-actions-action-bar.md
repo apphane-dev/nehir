@@ -1,6 +1,6 @@
 # Right-click actions in the action bar
 
-**Status:** planned
+**Status:** completed — shipped on `main` in `d0cf6368` ("Implement right-click context menus on the workspace bar"). Delivers the full v1 scope: the token-parameterized window-action family on `WMController` (`toggleWindowFloating(token:)`, `assignWindowToScratchpad(token:)`, `unassignWindowFromScratchpad(token:)`, `closeWindowFromBar(token:)`, `moveWindowFromBar(token:toWorkspaceId:)`), the lifted `WindowActionHandler` close, right-click `.contextMenu` closures on the workspace-bar pills (window icon → Toggle Floating / Assign-Unassign Scratchpad / Move to Workspace ▸ / Close; scratchpad pill → Toggle Scratchpad Visibility), wired through `WorkspaceBarManager`, with `WorkspaceBarRightClickWiringTests` and `WMControllerWindowActionsTests` covering them. The workspace-label "Move Workspace to Monitor ▸" submenu is omitted as planned, still gated on `20260619-nehir-62-move-workspace-to-monitor.md` (which remains in `planned/`); `toggleFullscreen(token:)` remains an explicit non-goal. Moved from `planned/` to `completed/` on 2026-06-27.
 **Source discovery:** `discovery/20260621-right-click-actions-action-bar.md`
 **Prerequisite:** the token-parameterized window-action family is delivered in
 Phase 1 of this plan (co-designed with
