@@ -207,7 +207,10 @@ extension NiriLayoutEngine {
             if resize.edges.contains(.left), let origOffset = resize.originalViewOffset {
                 let widthDelta = column.cachedWidth - originalWidth
                 viewportState { state in
-                    state.setStaticViewOffsetPixels(origOffset + widthDelta, reason: "interactiveResize.leftEdgeCompensation")
+                    state.setStaticViewOffsetPixels(
+                        origOffset + widthDelta,
+                        reason: "interactiveResize.leftEdgeCompensation"
+                    )
                     state.preservesUnsnappedGestureOffset = false
                 }
             }

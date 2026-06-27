@@ -1807,15 +1807,17 @@ final class MouseEventHandler {
             controller.layoutRefreshController.stopScrollAnimation(for: monitor.displayId)
         }
         if didApply {
-            controller.recordRuntimeViewportTrace(
-                workspaceId: wsId,
-                reason: "touch_scroll_gesture_update",
-                details: [
-                    "input=trackpadTouches",
-                    String(format: "delta=%.3f", delta),
-                    "phase=committed"
-                ]
-            )
+            if controller.settings.viewportTraceVerbosity.includesGestureFrameUpdates {
+                controller.recordRuntimeViewportTrace(
+                    workspaceId: wsId,
+                    reason: "touch_scroll_gesture_update",
+                    details: [
+                        "input=trackpadTouches",
+                        String(format: "delta=%.3f", delta),
+                        "phase=committed"
+                    ]
+                )
+            }
             controller.layoutRefreshController.requestRefresh(reason: .interactiveGesture)
         }
     }

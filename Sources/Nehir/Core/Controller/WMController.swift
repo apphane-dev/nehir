@@ -285,8 +285,24 @@ final class WMController {
         settings.developerModeEnabled && isRuntimeTraceCaptureActive
     }
 
+    private var viewportTraceVerbosity: ViewportTraceVerbosity {
+        settings.viewportTraceVerbosity
+    }
+
     private func syncViewportMutationAuditFlag() {
-        workspaceManager.setViewportMutationAuditEnabled(isRuntimeTraceCaptureActive)
+        // The per-mutation audit is the expensive part of the verbose path. It runs
+        // only while trace capture is active AND verbosity is `.verbose`, so a
+        // default (`.standard`) capture pays nothing for it.
+        workspaceManager.setViewportMutationAuditEnabled(
+            isRuntimeTraceCaptureActive && viewportTraceVerbosity.includesMutationAudit
+        )
+    }
+
+    /// Re-applies the viewport trace verbosity gates after the setting changes.
+    /// Called from the Diagnostics picker / debug-bar cycle.
+    func applyViewportTraceVerbosity() {
+        syncViewportMutationAuditFlag()
+        debugBarManager.update()
     }
 
     var backgroundTraceBufferStatus: BackgroundTraceBufferStatus {
@@ -2711,12 +2727,15 @@ final class WMController {
         let confirmedFocus = workspaceManager.confirmedManagedFocusToken.map(String.init(describing:)) ?? "nil"
         let currentViewStartText = currentViewStart.map { String(format: "%.1f", $0) } ?? "nil"
         let targetViewStartText = targetViewStart.map { String(format: "%.1f", $0) } ?? "nil"
-        let layoutDecisions = niriLayoutDecisionLine(
-            workspaceId: workspaceId,
-            state: state,
-            columns: columns,
-            gap: gap
-        )
+        let verbosity = viewportTraceVerbosity
+        let layoutDecisions = verbosity.includesLayoutDump
+            ? niriLayoutDecisionLine(
+                workspaceId: workspaceId,
+                state: state,
+                columns: columns,
+                gap: gap
+            )
+            : "elided"
         let mutationAgeMs = state.lastViewportMutationTimestamp.map {
             max(0, (Date().timeIntervalSince1970 - $0) * 1000.0)
         }
@@ -2729,6 +2748,22 @@ final class WMController {
         let mutationAfterCurrentOffsetText = mutationAfter.map { String(format: "%.1f", $0.currentOffset) } ?? "nil"
         let mutationAfterTargetOffsetText = mutationAfter.map { String(format: "%.1f", $0.targetOffset) } ?? "nil"
         let mutationAfterActiveColumnIndexText = mutationAfter.map { String($0.activeColumnIndex) } ?? "nil"
+
+        // The heavy `lastViewportMutation*` fields are only emitted on the
+        // `.verbose` path, so a default (`.standard`) trace capture stays lean.
+        let mutationTraceFields: [String] = verbosity.includesMutationAudit ? [
+            "lastViewportMutation=\(state.lastViewportMutationReason ?? "nil")",
+            "lastViewportMutationCaller=\(state.lastViewportMutationCaller ?? "nil")",
+            "lastViewportMutationAgeMs=\(mutationAgeText)",
+            "lastViewportMutationBeforeCurrentOffset=\(mutationBeforeCurrentOffsetText)",
+            "lastViewportMutationBeforeTargetOffset=\(mutationBeforeTargetOffsetText)",
+            "lastViewportMutationBeforeKind=\(mutationBefore?.offsetKind ?? "nil")",
+            "lastViewportMutationBeforeActiveColumnIndex=\(mutationBeforeActiveColumnIndexText)",
+            "lastViewportMutationAfterCurrentOffset=\(mutationAfterCurrentOffsetText)",
+            "lastViewportMutationAfterTargetOffset=\(mutationAfterTargetOffsetText)",
+            "lastViewportMutationAfterKind=\(mutationAfter?.offsetKind ?? "nil")",
+            "lastViewportMutationAfterActiveColumnIndex=\(mutationAfterActiveColumnIndexText)"
+        ] : []
 
         let timestamp = Date()
         let line = ([
@@ -2746,24 +2781,13 @@ final class WMController {
             "gesture=\(state.viewOffsetPixels.isGesture)",
             "animating=\(state.viewOffsetPixels.isAnimating)",
             "preserveUnsnapped=\(state.preservesUnsnappedGestureOffset)",
-            "lastViewportMutation=\(state.lastViewportMutationReason ?? "nil")",
-            "lastViewportMutationCaller=\(state.lastViewportMutationCaller ?? "nil")",
-            "lastViewportMutationAgeMs=\(mutationAgeText)",
-            "lastViewportMutationBeforeCurrentOffset=\(mutationBeforeCurrentOffsetText)",
-            "lastViewportMutationBeforeTargetOffset=\(mutationBeforeTargetOffsetText)",
-            "lastViewportMutationBeforeKind=\(mutationBefore?.offsetKind ?? "nil")",
-            "lastViewportMutationBeforeActiveColumnIndex=\(mutationBeforeActiveColumnIndexText)",
-            "lastViewportMutationAfterCurrentOffset=\(mutationAfterCurrentOffsetText)",
-            "lastViewportMutationAfterTargetOffset=\(mutationAfterTargetOffsetText)",
-            "lastViewportMutationAfterKind=\(mutationAfter?.offsetKind ?? "nil")",
-            "lastViewportMutationAfterActiveColumnIndex=\(mutationAfterActiveColumnIndexText)",
             "selectedNode=\(selectedNode)",
             "preferredFocus=\(preferredFocus)",
             "confirmedFocus=\(confirmedFocus)",
             "resizeCommandSeq=\(engine.resizeCommandGeneration)",
             "layout=\(layoutDecisions)"
-        ])
-        .joined(separator: " ")
+        ] + mutationTraceFields)
+            .joined(separator: " ")
 
         if runtimeTraceCaptureSession != nil {
             runtimeViewportTraceRecords.append(line)
