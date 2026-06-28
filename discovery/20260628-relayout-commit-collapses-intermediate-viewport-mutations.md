@@ -182,25 +182,29 @@ gone.
 
 ### Why only one trace record is emitted per commit
 
-`Sources/Nehir/Core/Workspace/WorkspaceManager.swift`
-
-- `:3612-3617` inside `updateNiriViewportState` (the single live-write path that
-  every committed planning copy funnels through):
+`Sources/Nehir/Core/Workspace/WorkspaceManager.swift` — inside
+`updateNiriViewportState` (the single live-write path that every committed
+planning copy funnels through), the offset observer gate (around `:3620`):
 
 ```swift
 if let previousViewportState,
    !normalizedState.viewOffsetPixels.isGesture,
-   !normalizedState.viewOffsetPixels.isAnimating,
    abs(previousViewportState.viewOffsetPixels.target() - normalizedState.viewOffsetPixels.target()) > 0.5
 {
     niriViewportOffsetMutationObserver?(workspaceId)
 }
 ```
 
+(An earlier version of this gate also required `!isAnimating`; that clause was
+removed because it suppressed the focus-activation spring-retarget case — see
+`discovery/20260628-relayout-path-recenters-fully-visible-unchanged-selection.md`.
+The `.spring` collapses analyzed here commit with `animating=false`, so the
+removal does not affect this finding.)
+
 The observer compares the *previously committed* target (`-173.2`) against the
 *newly committed* target (`-408.0`) and fires once, emitting one
-`reason=relayout.viewportOffsetChanged` record (`WMController.swift:362-369`
-registers the observer; `:366` supplies that reason). It does not see the
+`reason=relayout.viewportOffsetChanged` record (the observer is registered in
+`WMController.init`, around `:363`, supplying that reason). It does not see the
 intermediate `830.8` because that value only ever existed on the planning copy
 and was never committed on its own.
 

@@ -17,6 +17,38 @@ included so the code stays findable.
 
 ---
 
+## Status (updated 2026-06-28)
+
+Phases 1 and 2 have landed; Phase 3's fix site is now source-attributed and ready.
+
+- **Phase 1 — centralized audit + provenance: done.** `ViewportState.withRecordedViewportMutation`
+  and the `lastViewportMutation*` fields are in tree (earlier commits on this branch).
+  Every direct `viewOffsetPixels` write routes through it.
+- **Phase 2 — make unrecorded mutations attributable: done.** An observer in
+  `WorkspaceManager.updateNiriViewportState` (the single live-write chokepoint)
+  emits `reason=relayout.viewportOffsetChanged` whenever the committed offset
+  target moves beyond a half-pixel, carrying the `lastViewportMutation*` caller.
+  This catches relayout rebases, removal shifts, focus-activation reveals, and
+  restores that previously vanished. (An initial `!isAnimating` gate clause was
+  removed because it suppressed the focus-activation spring-retarget case.)
+- **Phase 3 — behavioral fix: site identified, ready to implement.** The
+  "viewport moves when I type" repros are source-attributed to the relayout path's
+  selection reconciliation (`resolveSelection` → `ensureSelectionVisible` →
+  `scrollToReveal`), which snap-recenters a fully-visible, unchanged-selection
+  viewport. `dad2e63a` already suppressed this recenter on the focus-confirmation
+  path (`revealForFocusActivation` no-ops when fully visible) but not on the
+  relayout path. The fix extends that rule to relayout-driven reconciliation. See
+  `discovery/20260628-relayout-path-recenters-fully-visible-unchanged-selection.md`
+  for the inlined evidence and exact call sites. No additional trace capture is
+  required to implement the fix; a re-capture on the current binary would confirm
+  via the now-emitting `relayout.viewportOffsetChanged` caller field.
+- **Residual attribution gap (separate follow-up, not blocking Phase 3):** when a
+  single relayout pass applies multiple offset mutations to the planning copy, the
+  single-slot audit collapses the intermediate step. See
+  `discovery/20260628-relayout-commit-collapses-intermediate-viewport-mutations.md`.
+
+---
+
 ## TL;DR
 
 - **Symptom.** Between a settled `scroll_animation_stop` and the next user-driven
