@@ -848,7 +848,7 @@ final class WMController {
         guard let entry = workspaceManager.entry(for: token) else {
             return .notFound
         }
-        let moved = workspaceNavigationHandler.moveWindow(
+        let moved = workspaceNavigationHandler.moveWindowFromBar(
             handle: entry.handle,
             toWorkspaceId: toWorkspaceId
         )
