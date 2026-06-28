@@ -2001,13 +2001,20 @@ final class WMController {
             return target
         }
 
-        if let frontmostPid,
-           let target = samePidFloatingCommandTarget(pid: frontmostPid, excluding: frontmostToken)
-        {
+        // A concrete layout selection (the selected tiled node of the interaction
+        // workspace) must win over an unfocused same-pid floating sibling. Without
+        // this ordering, a visible floating window of the frontmost app shadows the
+        // selected tiled window for move/focus commands — e.g. moving a PiP sibling
+        // instead of the focused tiled window. A floating window that is genuinely
+        // focused is still resolved first (confirmed/frontmost floating branches
+        // above) before reaching this point.
+        if let target = layoutSelectionCommandTarget() {
             return target
         }
 
-        if let target = layoutSelectionCommandTarget() {
+        if let frontmostPid,
+           let target = samePidFloatingCommandTarget(pid: frontmostPid, excluding: frontmostToken)
+        {
             return target
         }
 
