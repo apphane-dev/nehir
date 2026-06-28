@@ -906,32 +906,11 @@ final class WorkspaceNavigationHandler {
                 controller?.focusWindow(token)
             }
         } else {
-            if let actualSourceWsId {
-                let sourceState = controller.workspaceManager.niriViewportState(for: actualSourceWsId)
-                controller.recoverSourceFocusAfterMove(
-                    in: actualSourceWsId,
-                    preferredNodeId: sourceState.selectedNodeId
-                )
-            }
-            let focusToken = actualSourceWsId.flatMap { controller.resolveAndSetWorkspaceFocusToken(for: $0) }
-
-            if let actualSourceWsId,
-               let sourceMonitor = controller.workspaceManager.monitor(for: actualSourceWsId)
-            {
-                controller.layoutRefreshController.stopScrollAnimation(for: sourceMonitor.displayId)
-            }
-            prepareMovedWindowTargetViewport(token: token, workspaceId: target.id)
-            controller.layoutRefreshController.commitWorkspaceTransition(
-                affectedWorkspaces: affectedWorkspaceIds(
-                    sourceWorkspaceId: actualSourceWsId,
-                    targetWorkspaceId: target.id
-                ),
-                reason: .workspaceTransition
-            ) { [weak controller] in
-                if let focusToken {
-                    controller?.focusWindow(focusToken)
-                }
-            }
+            commitNonFollowingWindowMove(
+                token: token,
+                actualSourceWsId: actualSourceWsId,
+                targetWorkspaceId: target.id
+            )
         }
     }
 
@@ -958,6 +937,79 @@ final class WorkspaceNavigationHandler {
         }
 
         return true
+    }
+
+    /// Moves a window to another workspace via the engine, updates the model
+    /// assignment, and commits the workspace transition so both workspaces are
+    /// re-laid-out. This is the explicit-token, non-focus-following move used by
+    /// workspace-bar interactions (right-click "Move to Workspace"). Unlike
+    /// `moveWindow(handle:toWorkspaceId:)` — a refresh-free primitive shared with
+    /// summon-right and overview drag, which own their own refresh — this always
+    /// drives the hide/show/frame refresh itself, so the moved window does not
+    /// remain physically resting on the source workspace until an unrelated
+    /// refresh applies the assignment.
+    @discardableResult
+    func moveWindowFromBar(handle: WindowHandle, toWorkspaceId targetWsId: WorkspaceDescriptor.ID) -> Bool {
+        guard let controller else { return false }
+        let token = handle.id
+
+        let currentWorkspaceId = controller.workspaceManager.workspace(for: token)
+        let transferResult = transferWindowFromSourceEngine(
+            token: token,
+            from: currentWorkspaceId,
+            to: targetWsId
+        )
+        guard transferResult.succeeded else { return false }
+
+        controller.reassignManagedWindow(token, to: targetWsId)
+
+        let actualSourceWsId = transferResult.sourceWorkspaceId ?? currentWorkspaceId
+        commitNonFollowingWindowMove(
+            token: token,
+            actualSourceWsId: actualSourceWsId,
+            targetWorkspaceId: targetWsId
+        )
+        return true
+    }
+
+    /// Shared commit tail for a non-focus-following window move: recovers source
+    /// focus, stops any in-flight scroll on the source monitor, prepares the
+    /// target viewport, and schedules the workspace-transition refresh that
+    /// actually re-lays-out both workspaces. Used by the hotkey move (when not
+    /// following focus to the target monitor) and the bar right-click move.
+    private func commitNonFollowingWindowMove(
+        token: WindowToken,
+        actualSourceWsId: WorkspaceDescriptor.ID?,
+        targetWorkspaceId: WorkspaceDescriptor.ID
+    ) {
+        guard let controller else { return }
+
+        if let actualSourceWsId {
+            let sourceState = controller.workspaceManager.niriViewportState(for: actualSourceWsId)
+            controller.recoverSourceFocusAfterMove(
+                in: actualSourceWsId,
+                preferredNodeId: sourceState.selectedNodeId
+            )
+        }
+        let focusToken = actualSourceWsId.flatMap { controller.resolveAndSetWorkspaceFocusToken(for: $0) }
+
+        if let actualSourceWsId,
+           let sourceMonitor = controller.workspaceManager.monitor(for: actualSourceWsId)
+        {
+            controller.layoutRefreshController.stopScrollAnimation(for: sourceMonitor.displayId)
+        }
+        prepareMovedWindowTargetViewport(token: token, workspaceId: targetWorkspaceId)
+        controller.layoutRefreshController.commitWorkspaceTransition(
+            affectedWorkspaces: affectedWorkspaceIds(
+                sourceWorkspaceId: actualSourceWsId,
+                targetWorkspaceId: targetWorkspaceId
+            ),
+            reason: .workspaceTransition
+        ) { [weak controller] in
+            if let focusToken {
+                controller?.focusWindow(focusToken)
+            }
+        }
     }
 
     func moveWindowToWorkspaceOnMonitor(workspaceIndex: Int, monitorDirection: Direction) {
