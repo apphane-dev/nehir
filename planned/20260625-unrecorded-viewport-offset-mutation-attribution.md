@@ -31,17 +31,20 @@ Phases 1 and 2 have landed; Phase 3's fix site is now source-attributed and read
   This catches relayout rebases, removal shifts, focus-activation reveals, and
   restores that previously vanished. (An initial `!isAnimating` gate clause was
   removed because it suppressed the focus-activation spring-retarget case.)
-- **Phase 3 — behavioral fix: site identified, ready to implement.** The
-  "viewport moves when I type" repros are source-attributed to the relayout path's
-  selection reconciliation (`resolveSelection` → `ensureSelectionVisible` →
-  `scrollToReveal`), which snap-recenters a fully-visible, unchanged-selection
-  viewport. `dad2e63a` already suppressed this recenter on the focus-confirmation
-  path (`revealForFocusActivation` no-ops when fully visible) but not on the
-  relayout path. The fix extends that rule to relayout-driven reconciliation. See
+- **Phase 3 — behavioral fix: site confirmed, ready to implement.** The
+  "viewport moves with no trackpad input" repros are confirmed by a live hook
+  capture to the relayout path's selection reconciliation (`resolveSelection` →
+  `ensureSelectionVisible` → `scrollToReveal` → `animateToOffset`), which
+  snap-recenters a fully-visible, unchanged-selection viewport. `dad2e63a` already
+  suppressed this recenter on the focus-confirmation path (`revealForFocusActivation`
+  no-ops when fully visible) but not on the relayout path. The trigger is any
+  settled-viewport relayout — typing (transient surfaces) or display topology change
+  — and a confirmed repro proves the recentered value is not a geometry correction
+  (display frame and column layout unchanged). The fix extends the
+  `dad2e63a` rule into relayout-driven reconciliation. See
   `discovery/20260628-relayout-path-recenters-fully-visible-unchanged-selection.md`
-  for the inlined evidence and exact call sites. No additional trace capture is
-  required to implement the fix; a re-capture on the current binary would confirm
-  via the now-emitting `relayout.viewportOffsetChanged` caller field.
+  for the three inlined repros and exact call sites. No additional trace capture is
+  required to implement the fix.
 - **Residual attribution gap (separate follow-up, not blocking Phase 3):** when a
   single relayout pass applies multiple offset mutations to the planning copy, the
   single-slot audit collapses the intermediate step. See
