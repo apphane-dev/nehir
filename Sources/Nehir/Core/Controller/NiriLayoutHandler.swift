@@ -825,9 +825,11 @@ enum NiriWindowMoveResult {
         geometry: SingleWindowViewportGeometry?,
         state: inout ViewportState
     ) {
-        state.activeColumnIndex = 0
-        state.setStaticViewOffsetPixels(geometry?.centerOffset ?? 0, reason: "resetViewportForCenteredLoneWindow")
-        state.preservesUnsnappedGestureOffset = false
+        state.withRecordedViewportMutation(reason: "resetViewportForCenteredLoneWindow") { state in
+            state.activeColumnIndex = 0
+            state.viewOffsetPixels = .static(geometry?.centerOffset ?? 0)
+            state.preservesUnsnappedGestureOffset = false
+        }
         state.activatePrevColumnOnRemoval = nil
         state.viewOffsetToRestore = nil
         state.selectionProgress = 0

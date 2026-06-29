@@ -169,6 +169,14 @@ struct ViewportState {
         let currentOffset: CGFloat
         let targetOffset: CGFloat
         let offsetKind: String
+
+        static func == (lhs: ViewportMutationSnapshot, rhs: ViewportMutationSnapshot) -> Bool {
+            // Keep currentOffset in trace output, but exclude its animated,
+            // time-sensitive value from change detection.
+            lhs.activeColumnIndex == rhs.activeColumnIndex
+                && lhs.targetOffset == rhs.targetOffset
+                && lhs.offsetKind == rhs.offsetKind
+        }
     }
 
     var activeColumnIndex: Int = 0

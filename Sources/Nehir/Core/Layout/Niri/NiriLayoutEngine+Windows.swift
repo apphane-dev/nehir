@@ -487,10 +487,12 @@ extension NiriLayoutEngine {
                   let previousOffset = pendingPreviousOffset,
                   removedIdx > 0
         {
-            state.activeColumnIndex = activeIdx - 1
+            state.withRecordedViewportMutation(reason: "removeWindow.restorePreviousOffset") { state in
+                state.activeColumnIndex = activeIdx - 1
+                state.viewOffsetPixels = .static(previousOffset)
+                state.preservesUnsnappedGestureOffset = false
+            }
             state.activatePrevColumnOnRemoval = nil
-            state.setStaticViewOffsetPixels(previousOffset, reason: "removeWindow.restorePreviousOffset")
-            state.preservesUnsnappedGestureOffset = false
             viewportNeedsRecalc = true
             fallbackSelectionId = fallbackSelectionFromActiveColumn(
                 in: workspaceId,

@@ -429,6 +429,7 @@ final class WMController {
         // an app relaunch.
         updateWorkspaceBarSettings()
         updateBackgroundTraceBufferConfiguration()
+        applyViewportTraceVerbosity()
         _ = syncMouseWarpPolicy()
 
         setEnabled(true)
