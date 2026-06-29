@@ -56,7 +56,7 @@ struct BehaviorSettingsTab: View {
                     controller.updateNiriConfig(revealPartial: newValue)
                 }
                 SettingsCaption(
-                    "Default uses closest snap only when that snap aligns both viewport edges and visible columns fill the viewport; otherwise it centers."
+                    "Controls how activating a partially visible window reveals it. Fully visible windows do not move the viewport."
                 )
             }
 
