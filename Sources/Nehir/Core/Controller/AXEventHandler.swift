@@ -2510,7 +2510,7 @@ final class AXEventHandler: CGSEventDelegate {
                         "snapCount=\(columnSnaps.count)"
                     ]
                 )
-                let didReveal = engine.scrollToReveal(
+                let didReveal = engine.revealForFocusActivation(
                     columnIndex: columnIndex,
                     isFFM: isFFM,
                     state: &state,
