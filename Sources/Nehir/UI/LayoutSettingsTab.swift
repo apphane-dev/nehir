@@ -9,7 +9,7 @@ struct LayoutSettingsTab: View {
     @Bindable var settings: SettingsStore
     @Bindable var controller: WMController
 
-    @State private var selectedMonitor: Monitor.ID?
+    @State private var selectedScope: LayoutSettingsScope = .global
     @State private var connectedMonitors: [Monitor] = Monitor.current()
     @State private var draftGapSize: Double?
     @State private var draftOuterGapLeft: Double?
@@ -37,48 +37,135 @@ struct LayoutSettingsTab: View {
         draftOuterGapBottom ?? settings.outerGapBottom
     }
 
+    private var inactiveNiriOverrides: [MonitorNiriSettings] {
+        settings.inactiveNiriSettings(connectedMonitors: connectedMonitors)
+    }
+
+    private var inactiveGapOverrides: [MonitorGapSettings] {
+        settings.inactiveGapSettings(connectedMonitors: connectedMonitors)
+    }
+
     var body: some View {
         Form {
-            MonitorScopeSection(
-                selectedMonitor: $selectedMonitor,
-                monitors: connectedMonitors,
+            LayoutScopeSection(
+                selectedScope: $selectedScope,
+                connectedMonitors: connectedMonitors,
+                inactiveGapOverrides: inactiveGapOverrides,
+                inactiveNiriOverrides: inactiveNiriOverrides,
                 hasOverrides: {
-                    settings.niriSettings(for: $0) != nil || settings.gapSettings(for: $0)?.hasOverrides == true
+                    settings.niriSettings(for: $0, connectedMonitors: connectedMonitors) != nil ||
+                        settings.gapSettings(for: $0, connectedMonitors: connectedMonitors)?.hasOverrides == true
                 },
-                reset: { monitor in
-                    settings.removeGapSettings(for: monitor)
-                    settings.removeNiriSettings(for: monitor)
+                resetConnected: { monitor in
+                    settings.removeGapSettings(for: monitor, connectedMonitors: connectedMonitors)
+                    settings.removeNiriSettings(for: monitor, connectedMonitors: connectedMonitors)
                     controller.updateMonitorGapSettings()
+                    controller.updateMonitorNiriSettings()
+                },
+                deleteInactiveGap: { id in
+                    settings.removeGapSettings(id: id)
+                    selectedScope = .global
+                    controller.updateMonitorGapSettings()
+                },
+                deleteInactiveNiri: { id in
+                    settings.removeNiriSettings(id: id)
+                    selectedScope = .global
                     controller.updateMonitorNiriSettings()
                 }
             )
 
-            if let monitorId = selectedMonitor,
-               let monitor = connectedMonitors.first(where: { $0.id == monitorId })
-            {
-                MonitorGapSettingsSection(
-                    settings: settings,
-                    controller: controller,
-                    monitor: monitor
-                )
-
-                MonitorNiriSettingsSection(
-                    settings: settings,
-                    controller: controller,
-                    monitor: monitor
-                )
-            } else {
+            switch selectedScope {
+            case .global:
                 globalSpacingSections
 
                 GlobalNiriSettingsSection(
                     settings: settings,
                     controller: controller
                 )
+            case let .connected(monitorId):
+                if let monitor = connectedMonitors.first(where: { $0.id == monitorId }) {
+                    MonitorGapSettingsSection(
+                        settings: settings,
+                        controller: controller,
+                        monitor: monitor,
+                        connectedMonitors: connectedMonitors
+                    )
+
+                    MonitorNiriSettingsSection(
+                        settings: settings,
+                        controller: controller,
+                        monitor: monitor,
+                        connectedMonitors: connectedMonitors
+                    )
+                } else {
+                    globalSpacingSections
+
+                    GlobalNiriSettingsSection(
+                        settings: settings,
+                        controller: controller
+                    )
+                }
+            case let .inactiveGapOverride(id):
+                if let override = inactiveGapOverrides.first(where: { $0.id == id }) {
+                    SavedMonitorGapOverrideSection(
+                        override: override,
+                        deleteOverride: {
+                            settings.removeGapSettings(id: id)
+                            selectedScope = .global
+                            controller.updateMonitorGapSettings()
+                        }
+                    )
+                } else {
+                    globalSpacingSections
+
+                    GlobalNiriSettingsSection(
+                        settings: settings,
+                        controller: controller
+                    )
+                }
+            case let .inactiveNiriOverride(id):
+                if let override = inactiveNiriOverrides.first(where: { $0.id == id }) {
+                    SavedMonitorNiriOverrideSection(
+                        override: override,
+                        deleteOverride: {
+                            settings.removeNiriSettings(id: id)
+                            selectedScope = .global
+                            controller.updateMonitorNiriSettings()
+                        }
+                    )
+                } else {
+                    globalSpacingSections
+
+                    GlobalNiriSettingsSection(
+                        settings: settings,
+                        controller: controller
+                    )
+                }
             }
         }
         .formStyle(.grouped)
         .onAppear {
-            connectedMonitors = Monitor.current()
+            refreshConnectedMonitors()
+        }
+    }
+
+    private func refreshConnectedMonitors() {
+        connectedMonitors = Monitor.current()
+        switch selectedScope {
+        case .global:
+            break
+        case let .connected(monitorId):
+            if !connectedMonitors.contains(where: { $0.id == monitorId }) {
+                selectedScope = .global
+            }
+        case let .inactiveGapOverride(id):
+            if !inactiveGapOverrides.contains(where: { $0.id == id }) {
+                selectedScope = .global
+            }
+        case let .inactiveNiriOverride(id):
+            if !inactiveNiriOverrides.contains(where: { $0.id == id }) {
+                selectedScope = .global
+            }
         }
     }
 
@@ -207,15 +294,167 @@ struct LayoutSettingsTab: View {
     }
 }
 
+private enum LayoutSettingsScope: Hashable {
+    case global
+    case connected(Monitor.ID)
+    case inactiveGapOverride(MonitorGapSettings.ID)
+    case inactiveNiriOverride(MonitorNiriSettings.ID)
+}
+
+private struct LayoutScopeSection: View {
+    @Binding var selectedScope: LayoutSettingsScope
+    let connectedMonitors: [Monitor]
+    let inactiveGapOverrides: [MonitorGapSettings]
+    let inactiveNiriOverrides: [MonitorNiriSettings]
+    let hasOverrides: (Monitor) -> Bool
+    let resetConnected: (Monitor) -> Void
+    let deleteInactiveGap: (MonitorGapSettings.ID) -> Void
+    let deleteInactiveNiri: (MonitorNiriSettings.ID) -> Void
+
+    var body: some View {
+        Section("Configuration Scope") {
+            Picker("Configure", selection: $selectedScope) {
+                Text("Global Defaults").tag(LayoutSettingsScope.global)
+                if !connectedMonitors.isEmpty {
+                    Divider()
+                    ForEach(connectedMonitors, id: \.id) { monitor in
+                        HStack {
+                            Text(monitor.name)
+                            if monitor.isMain {
+                                Text("(Main)")
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .tag(LayoutSettingsScope.connected(monitor.id))
+                    }
+                }
+                if !inactiveGapOverrides.isEmpty || !inactiveNiriOverrides.isEmpty {
+                    Divider()
+                    ForEach(inactiveGapOverrides) { override in
+                        Text("\(override.monitorName) — Inactive Spacing")
+                            .tag(LayoutSettingsScope.inactiveGapOverride(override.id))
+                    }
+                    ForEach(inactiveNiriOverrides) { override in
+                        Text("\(override.monitorName) — Inactive Columns")
+                            .tag(LayoutSettingsScope.inactiveNiriOverride(override.id))
+                    }
+                }
+            }
+
+            statusRow
+        }
+    }
+
+    @ViewBuilder
+    private var statusRow: some View {
+        switch selectedScope {
+        case .global:
+            EmptyView()
+        case let .connected(monitorId):
+            if let monitor = connectedMonitors.first(where: { $0.id == monitorId }) {
+                LabeledContent("Overrides") {
+                    HStack {
+                        Text(hasOverrides(monitor) ? "Custom" : "Using global defaults")
+                            .foregroundStyle(.secondary)
+                        Button("Reset to Global") {
+                            resetConnected(monitor)
+                        }
+                        .disabled(!hasOverrides(monitor))
+                    }
+                }
+            }
+        case let .inactiveGapOverride(id):
+            LabeledContent("Status") {
+                HStack {
+                    Text("Inactive / disconnected")
+                        .foregroundStyle(.secondary)
+                    Button("Delete Override") {
+                        deleteInactiveGap(id)
+                    }
+                }
+            }
+        case let .inactiveNiriOverride(id):
+            LabeledContent("Status") {
+                HStack {
+                    Text("Inactive / disconnected")
+                        .foregroundStyle(.secondary)
+                    Button("Delete Override") {
+                        deleteInactiveNiri(id)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct SavedMonitorGapOverrideSection: View {
+    let override: MonitorGapSettings
+    let deleteOverride: () -> Void
+
+    var body: some View {
+        Section("Saved Display Override") {
+            LabeledContent("Display") {
+                Text(override.monitorName)
+            }
+            LabeledContent("Status") {
+                Text("Inactive / disconnected")
+                    .foregroundStyle(.secondary)
+            }
+            if let displayId = override.monitorDisplayId {
+                LabeledContent("Runtime Display ID") {
+                    Text("\(displayId) (advisory)")
+                        .foregroundStyle(.secondary)
+                }
+            }
+            if let anchor = override.monitorAnchorPoint {
+                LabeledContent("Saved Position") {
+                    Text("x \(formatCoordinate(anchor.x)), y \(formatCoordinate(anchor.y))")
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Button("Delete Override", role: .destructive) {
+                deleteOverride()
+            }
+            SettingsCaption(
+                "This saved layout override is not active for any connected monitor. It is kept on disk until you delete it."
+            )
+        }
+
+        Section("Saved Spacing Values") {
+            savedValue("Inner Gap", override.gapSize.map { "\(Int($0)) px" })
+            savedValue("Left Margin", override.outerGapLeft.map { "\(Int($0)) px" })
+            savedValue("Right Margin", override.outerGapRight.map { "\(Int($0)) px" })
+            savedValue("Top Margin", override.outerGapTop.map { "\(Int($0)) px" })
+            savedValue("Bottom Margin", override.outerGapBottom.map { "\(Int($0)) px" })
+            SettingsCaption(
+                "Inactive overrides are read-only here; reconnect the display to edit them as an active monitor."
+            )
+        }
+    }
+
+    private func savedValue(_ label: String, _ value: String?) -> some View {
+        LabeledContent(label) {
+            Text(value ?? "Uses global default")
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func formatCoordinate(_ coordinate: CGFloat) -> String {
+        coordinate == coordinate.rounded() ? String(Int(coordinate)) : String(Double(coordinate))
+    }
+}
+
 struct MonitorGapSettingsSection: View {
     @Bindable var settings: SettingsStore
     @Bindable var controller: WMController
     let monitor: Monitor
+    var connectedMonitors: [Monitor] = []
 
     private var monitorSettings: MonitorGapSettings {
-        settings.gapSettings(for: monitor) ?? MonitorGapSettings(
+        settings.gapSettings(for: monitor, connectedMonitors: connectedMonitors) ?? MonitorGapSettings(
             monitorName: monitor.name,
-            monitorDisplayId: monitor.displayId
+            monitorDisplayId: monitor.displayId,
+            monitorAnchorPoint: monitor.workspaceAnchorPoint
         )
     }
 
@@ -223,11 +462,12 @@ struct MonitorGapSettingsSection: View {
         var ms = monitorSettings
         ms.monitorName = monitor.name
         ms.monitorDisplayId = monitor.displayId
+        ms.monitorAnchorPoint = monitor.workspaceAnchorPoint
         update(&ms)
         if ms.hasOverrides {
             settings.updateGapSettings(ms)
         } else {
-            settings.removeGapSettings(for: monitor)
+            settings.removeGapSettings(for: monitor, connectedMonitors: connectedMonitors)
         }
         controller.updateMonitorGapSettings()
     }

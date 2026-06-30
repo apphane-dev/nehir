@@ -518,7 +518,7 @@ final class WMController {
     }
 
     func resolvedGapSettings(for monitor: Monitor) -> ResolvedGapSettings {
-        settings.resolvedGapSettings(for: monitor)
+        settings.resolvedGapSettings(for: monitor, connectedMonitors: workspaceManager.monitors)
     }
 
     func gapSize(for monitor: Monitor) -> CGFloat {

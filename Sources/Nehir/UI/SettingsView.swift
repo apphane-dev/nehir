@@ -237,40 +237,229 @@ struct NiriSettingsTab: View {
     @Bindable var settings: SettingsStore
     @Bindable var controller: WMController
 
-    @State private var selectedMonitor: Monitor.ID?
+    @State private var selectedScope: NiriSettingsScope = .global
     @State private var connectedMonitors: [Monitor] = Monitor.current()
+
+    private var inactiveOverrides: [MonitorNiriSettings] {
+        settings.inactiveNiriSettings(connectedMonitors: connectedMonitors)
+    }
 
     var body: some View {
         Form {
-            MonitorScopeSection(
-                selectedMonitor: $selectedMonitor,
-                monitors: connectedMonitors,
-                hasOverrides: { settings.niriSettings(for: $0) != nil },
-                reset: { monitor in
-                    settings.removeNiriSettings(for: monitor)
+            NiriScopeSection(
+                selectedScope: $selectedScope,
+                connectedMonitors: connectedMonitors,
+                inactiveOverrides: inactiveOverrides,
+                hasOverrides: { settings.niriSettings(for: $0, connectedMonitors: connectedMonitors) != nil },
+                resetConnected: { monitor in
+                    settings.removeNiriSettings(for: monitor, connectedMonitors: connectedMonitors)
+                    controller.updateMonitorNiriSettings()
+                },
+                deleteInactive: { id in
+                    settings.removeNiriSettings(id: id)
+                    selectedScope = .global
                     controller.updateMonitorNiriSettings()
                 }
             )
 
-            if let monitorId = selectedMonitor,
-               let monitor = connectedMonitors.first(where: { $0.id == monitorId })
-            {
-                MonitorNiriSettingsSection(
-                    settings: settings,
-                    controller: controller,
-                    monitor: monitor
-                )
-            } else {
+            switch selectedScope {
+            case .global:
                 GlobalNiriSettingsSection(
                     settings: settings,
                     controller: controller
                 )
+            case let .connected(monitorId):
+                if let monitor = connectedMonitors.first(where: { $0.id == monitorId }) {
+                    MonitorNiriSettingsSection(
+                        settings: settings,
+                        controller: controller,
+                        monitor: monitor,
+                        connectedMonitors: connectedMonitors
+                    )
+                } else {
+                    GlobalNiriSettingsSection(
+                        settings: settings,
+                        controller: controller
+                    )
+                }
+            case let .inactiveOverride(id):
+                if let override = inactiveOverrides.first(where: { $0.id == id }) {
+                    SavedMonitorNiriOverrideSection(
+                        override: override,
+                        deleteOverride: {
+                            settings.removeNiriSettings(id: id)
+                            selectedScope = .global
+                            controller.updateMonitorNiriSettings()
+                        }
+                    )
+                } else {
+                    GlobalNiriSettingsSection(
+                        settings: settings,
+                        controller: controller
+                    )
+                }
             }
         }
         .formStyle(.grouped)
         .onAppear {
-            connectedMonitors = Monitor.current()
+            refreshConnectedMonitors()
         }
+    }
+
+    private func refreshConnectedMonitors() {
+        connectedMonitors = Monitor.current()
+        switch selectedScope {
+        case .global:
+            break
+        case let .connected(monitorId):
+            if !connectedMonitors.contains(where: { $0.id == monitorId }) {
+                selectedScope = .global
+            }
+        case let .inactiveOverride(id):
+            if !inactiveOverrides.contains(where: { $0.id == id }) {
+                selectedScope = .global
+            }
+        }
+    }
+}
+
+enum NiriSettingsScope: Hashable {
+    case global
+    case connected(Monitor.ID)
+    case inactiveOverride(MonitorNiriSettings.ID)
+}
+
+struct NiriScopeSection: View {
+    @Binding var selectedScope: NiriSettingsScope
+    let connectedMonitors: [Monitor]
+    let inactiveOverrides: [MonitorNiriSettings]
+    let hasOverrides: (Monitor) -> Bool
+    let resetConnected: (Monitor) -> Void
+    let deleteInactive: (MonitorNiriSettings.ID) -> Void
+
+    var body: some View {
+        Section("Configuration Scope") {
+            Picker("Configure", selection: $selectedScope) {
+                Text("Global Defaults").tag(NiriSettingsScope.global)
+                if !connectedMonitors.isEmpty {
+                    Divider()
+                    ForEach(connectedMonitors, id: \.id) { monitor in
+                        HStack {
+                            Text(monitor.name)
+                            if monitor.isMain {
+                                Text("(Main)")
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .tag(NiriSettingsScope.connected(monitor.id))
+                    }
+                }
+                if !inactiveOverrides.isEmpty {
+                    Divider()
+                    ForEach(inactiveOverrides) { override in
+                        Text("\(override.monitorName) — Inactive")
+                            .tag(NiriSettingsScope.inactiveOverride(override.id))
+                    }
+                }
+            }
+
+            statusRow
+        }
+    }
+
+    @ViewBuilder
+    private var statusRow: some View {
+        switch selectedScope {
+        case .global:
+            EmptyView()
+        case let .connected(monitorId):
+            if let monitor = connectedMonitors.first(where: { $0.id == monitorId }) {
+                LabeledContent("Overrides") {
+                    HStack {
+                        Text(hasOverrides(monitor) ? "Custom" : "Using global defaults")
+                            .foregroundStyle(.secondary)
+                        Button("Reset to Global") {
+                            resetConnected(monitor)
+                        }
+                        .disabled(!hasOverrides(monitor))
+                    }
+                }
+            }
+        case let .inactiveOverride(id):
+            LabeledContent("Status") {
+                HStack {
+                    Text("Inactive / disconnected")
+                        .foregroundStyle(.secondary)
+                    Button("Delete Override") {
+                        deleteInactive(id)
+                    }
+                }
+            }
+        }
+    }
+}
+
+struct SavedMonitorNiriOverrideSection: View {
+    let override: MonitorNiriSettings
+    let deleteOverride: () -> Void
+
+    var body: some View {
+        Section("Saved Display Override") {
+            LabeledContent("Display") {
+                Text(override.monitorName)
+            }
+            LabeledContent("Status") {
+                Text("Inactive / disconnected")
+                    .foregroundStyle(.secondary)
+            }
+            if let displayId = override.monitorDisplayId {
+                LabeledContent("Runtime Display ID") {
+                    Text("\(displayId) (advisory)")
+                        .foregroundStyle(.secondary)
+                }
+            }
+            if let anchor = override.monitorAnchorPoint {
+                LabeledContent("Saved Position") {
+                    Text("x \(formatCoordinate(anchor.x)), y \(formatCoordinate(anchor.y))")
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Button("Delete Override", role: .destructive) {
+                deleteOverride()
+            }
+            SettingsCaption(
+                "This saved display override is not active for any connected monitor. It is kept on disk until you delete it."
+            )
+        }
+
+        Section("Saved Niri Values") {
+            LabeledContent("Columns to Fit") {
+                Text(override.balancedColumnCount.map(String.init) ?? "Uses global default")
+                    .foregroundStyle(.secondary)
+            }
+            LabeledContent("Single-Window Default") {
+                Text(loneWindowPolicyDescription)
+                    .foregroundStyle(.secondary)
+            }
+            SettingsCaption(
+                "Inactive overrides are read-only here; reconnect the display to edit them as an active monitor."
+            )
+        }
+    }
+
+    private var loneWindowPolicyDescription: String {
+        switch override.loneWindowPolicy {
+        case .fill:
+            return "Fill"
+        case let .centered(maxWidthFraction):
+            return "Centered (\(Int((maxWidthFraction * 100).rounded()))%)"
+        case .none:
+            return "Uses global default"
+        }
+    }
+
+    private func formatCoordinate(_ coordinate: CGFloat) -> String {
+        coordinate == coordinate.rounded() ? String(Int(coordinate)) : String(Double(coordinate))
     }
 }
 
@@ -523,11 +712,13 @@ struct MonitorNiriSettingsSection: View {
     @Bindable var settings: SettingsStore
     @Bindable var controller: WMController
     let monitor: Monitor
+    var connectedMonitors: [Monitor] = []
 
     private var monitorSettings: MonitorNiriSettings {
-        settings.niriSettings(for: monitor) ?? MonitorNiriSettings(
+        settings.niriSettings(for: monitor, connectedMonitors: connectedMonitors) ?? MonitorNiriSettings(
             monitorName: monitor.name,
-            monitorDisplayId: monitor.displayId
+            monitorDisplayId: monitor.displayId,
+            monitorAnchorPoint: monitor.workspaceAnchorPoint
         )
     }
 
@@ -535,6 +726,7 @@ struct MonitorNiriSettingsSection: View {
         var ms = monitorSettings
         ms.monitorName = monitor.name
         ms.monitorDisplayId = monitor.displayId
+        ms.monitorAnchorPoint = monitor.workspaceAnchorPoint
         update(&ms)
         settings.updateNiriSettings(ms)
         controller.updateMonitorNiriSettings()

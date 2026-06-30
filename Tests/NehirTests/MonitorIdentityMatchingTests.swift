@@ -83,7 +83,7 @@ private func makeIdentityTestMonitor(
 
     // MARK: - MonitorSettingsStore
 
-    @Test func monitorSettingsStoreUsesReboundDisplayIdentityOnly() {
+    @Test func monitorSettingsStoreRejectsCrossNameDisplayIdMatches() {
         let setting = MonitorBarSettings(
             monitorName: "Right",
             monitorAnchorPoint: CGPoint(x: 1920, y: 1080),
@@ -98,7 +98,19 @@ private func makeIdentityTestMonitor(
         )
 
         #expect(MonitorSettingsStore.get(for: rightMonitor, in: [setting]) == nil)
-        #expect(MonitorSettingsStore.get(for: rightMonitor, in: [rebound])?.id == rebound.id)
+        #expect(MonitorSettingsStore.get(for: rightMonitor, in: [rebound]) == nil)
+    }
+
+    @Test func monitorSettingsStoreFallsBackToAnchorWhenDisplayIdDoesNotMatch() {
+        let setting = MonitorBarSettings(
+            monitorName: "Shared",
+            monitorDisplayId: 111,
+            monitorAnchorPoint: CGPoint(x: 1920, y: 1080),
+            enabled: false
+        )
+        let monitor = makeIdentityTestMonitor(displayId: 900, name: "Shared", x: 1920)
+
+        #expect(MonitorSettingsStore.get(for: monitor, in: [setting])?.id == setting.id)
     }
 
     // MARK: - WorkspacesTOMLCodec anchor persistence

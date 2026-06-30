@@ -379,6 +379,7 @@ private struct SelectedMonitorDetails: View {
         let newSettings = MonitorOrientationSettings(
             monitorName: monitor.name,
             monitorDisplayId: monitor.displayId,
+            monitorAnchorPoint: monitor.workspaceAnchorPoint,
             orientation: orientation
         )
 

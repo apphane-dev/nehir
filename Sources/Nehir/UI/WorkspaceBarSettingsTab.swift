@@ -11,62 +11,198 @@ struct WorkspaceBarSettingsTab: View {
     @Bindable var settings: SettingsStore
     @Bindable var controller: WMController
 
-    @State private var selectedMonitor: Monitor.ID?
+    @State private var selectedScope: BarSettingsScope = .global
     @State private var connectedMonitors: [Monitor] = Monitor.current()
+
+    private var inactiveOverrides: [MonitorBarSettings] {
+        settings.inactiveBarSettings(connectedMonitors: connectedMonitors)
+    }
 
     var body: some View {
         Form {
-            MonitorScopeSection(
-                selectedMonitor: $selectedMonitor,
-                monitors: connectedMonitors,
-                hasOverrides: { settings.barSettings(for: $0) != nil },
-                reset: { monitor in
-                    settings.removeBarSettings(for: monitor)
+            BarScopeSection(
+                selectedScope: $selectedScope,
+                connectedMonitors: connectedMonitors,
+                inactiveOverrides: inactiveOverrides,
+                hasOverrides: { settings.barSettings(for: $0, connectedMonitors: connectedMonitors) != nil },
+                resetConnected: { monitor in
+                    settings.removeBarSettings(for: monitor, connectedMonitors: connectedMonitors)
+                    controller.updateWorkspaceBarSettings()
+                },
+                deleteInactive: { id in
+                    settings.removeBarSettings(id: id)
+                    selectedScope = .global
                     controller.updateWorkspaceBarSettings()
                 }
             )
 
             WorkspaceBarPreviewSection(configuration: previewConfiguration)
 
-            if let monitorId = selectedMonitor,
-               let monitor = connectedMonitors.first(where: { $0.id == monitorId })
-            {
-                MonitorBarSettingsSection(
-                    settings: settings,
-                    controller: controller,
-                    monitor: monitor
-                )
-            } else {
+            switch selectedScope {
+            case .global:
                 GlobalBarSettingsSection(
                     settings: settings,
                     controller: controller
                 )
+            case let .connected(monitorId):
+                if let monitor = connectedMonitors.first(where: { $0.id == monitorId }) {
+                    MonitorBarSettingsSection(
+                        settings: settings,
+                        controller: controller,
+                        monitor: monitor,
+                        connectedMonitors: connectedMonitors
+                    )
+                } else {
+                    GlobalBarSettingsSection(
+                        settings: settings,
+                        controller: controller
+                    )
+                }
+            case let .inactiveOverride(id):
+                if let override = inactiveOverrides.first(where: { $0.id == id }) {
+                    SavedMonitorBarOverrideSection(
+                        override: override,
+                        deleteOverride: {
+                            settings.removeBarSettings(id: id)
+                            selectedScope = .global
+                            controller.updateWorkspaceBarSettings()
+                        }
+                    )
+                } else {
+                    GlobalBarSettingsSection(
+                        settings: settings,
+                        controller: controller
+                    )
+                }
             }
         }
         .formStyle(.grouped)
         .onAppear {
-            connectedMonitors = Monitor.current()
+            refreshConnectedMonitors()
         }
     }
 
     private var previewConfiguration: WorkspaceBarPreviewConfiguration {
-        if let monitorId = selectedMonitor,
-           let monitor = connectedMonitors.first(where: { $0.id == monitorId })
-        {
+        switch selectedScope {
+        case .global:
             return WorkspaceBarPreviewConfiguration(
-                resolved: settings.resolvedBarSettings(for: monitor),
+                isEnabled: settings.workspaceBarEnabled,
+                showLabels: settings.workspaceBarShowLabels,
+                showFloatingWindows: settings.workspaceBarShowFloatingWindows,
+                deduplicateAppIcons: settings.workspaceBarDeduplicateAppIcons,
+                hideEmptyWorkspaces: settings.workspaceBarHideEmptyWorkspaces,
+                scopeDescription: "Preview reflects the global workspace bar defaults."
+            )
+        case let .connected(monitorId):
+            guard let monitor = connectedMonitors.first(where: { $0.id == monitorId }) else {
+                return WorkspaceBarPreviewConfiguration.global(settings: settings)
+            }
+            return WorkspaceBarPreviewConfiguration(
+                resolved: settings.resolvedBarSettings(for: monitor, connectedMonitors: connectedMonitors),
                 scopeDescription: "Preview reflects \(monitor.name)'s effective bar settings, including monitor overrides."
             )
+        case let .inactiveOverride(id):
+            guard let override = inactiveOverrides.first(where: { $0.id == id }) else {
+                return WorkspaceBarPreviewConfiguration.global(settings: settings)
+            }
+            return WorkspaceBarPreviewConfiguration(
+                override: override,
+                settings: settings,
+                scopeDescription: "Preview reflects the saved inactive override for \(override.monitorName)."
+            )
         }
+    }
 
-        return WorkspaceBarPreviewConfiguration(
-            isEnabled: settings.workspaceBarEnabled,
-            showLabels: settings.workspaceBarShowLabels,
-            showFloatingWindows: settings.workspaceBarShowFloatingWindows,
-            deduplicateAppIcons: settings.workspaceBarDeduplicateAppIcons,
-            hideEmptyWorkspaces: settings.workspaceBarHideEmptyWorkspaces,
-            scopeDescription: "Preview reflects the global workspace bar defaults."
-        )
+    private func refreshConnectedMonitors() {
+        connectedMonitors = Monitor.current()
+        switch selectedScope {
+        case .global:
+            break
+        case let .connected(monitorId):
+            if !connectedMonitors.contains(where: { $0.id == monitorId }) {
+                selectedScope = .global
+            }
+        case let .inactiveOverride(id):
+            if !inactiveOverrides.contains(where: { $0.id == id }) {
+                selectedScope = .global
+            }
+        }
+    }
+}
+
+private enum BarSettingsScope: Hashable {
+    case global
+    case connected(Monitor.ID)
+    case inactiveOverride(MonitorBarSettings.ID)
+}
+
+private struct BarScopeSection: View {
+    @Binding var selectedScope: BarSettingsScope
+    let connectedMonitors: [Monitor]
+    let inactiveOverrides: [MonitorBarSettings]
+    let hasOverrides: (Monitor) -> Bool
+    let resetConnected: (Monitor) -> Void
+    let deleteInactive: (MonitorBarSettings.ID) -> Void
+
+    var body: some View {
+        Section("Configuration Scope") {
+            Picker("Configure", selection: $selectedScope) {
+                Text("Global Defaults").tag(BarSettingsScope.global)
+                if !connectedMonitors.isEmpty {
+                    Divider()
+                    ForEach(connectedMonitors, id: \.id) { monitor in
+                        HStack {
+                            Text(monitor.name)
+                            if monitor.isMain {
+                                Text("(Main)")
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .tag(BarSettingsScope.connected(monitor.id))
+                    }
+                }
+                if !inactiveOverrides.isEmpty {
+                    Divider()
+                    ForEach(inactiveOverrides) { override in
+                        Text("\(override.monitorName) — Inactive")
+                            .tag(BarSettingsScope.inactiveOverride(override.id))
+                    }
+                }
+            }
+
+            statusRow
+        }
+    }
+
+    @ViewBuilder
+    private var statusRow: some View {
+        switch selectedScope {
+        case .global:
+            EmptyView()
+        case let .connected(monitorId):
+            if let monitor = connectedMonitors.first(where: { $0.id == monitorId }) {
+                LabeledContent("Overrides") {
+                    HStack {
+                        Text(hasOverrides(monitor) ? "Custom" : "Using global defaults")
+                            .foregroundStyle(.secondary)
+                        Button("Reset to Global") {
+                            resetConnected(monitor)
+                        }
+                        .disabled(!hasOverrides(monitor))
+                    }
+                }
+            }
+        case let .inactiveOverride(id):
+            LabeledContent("Status") {
+                HStack {
+                    Text("Inactive / disconnected")
+                        .foregroundStyle(.secondary)
+                    Button("Delete Override") {
+                        deleteInactive(id)
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -102,6 +238,28 @@ private struct WorkspaceBarPreviewConfiguration {
             deduplicateAppIcons: resolved.deduplicateAppIcons,
             hideEmptyWorkspaces: resolved.hideEmptyWorkspaces,
             scopeDescription: scopeDescription
+        )
+    }
+
+    @MainActor init(override: MonitorBarSettings, settings: SettingsStore, scopeDescription: String) {
+        self.init(
+            isEnabled: override.enabled ?? settings.workspaceBarEnabled,
+            showLabels: override.showLabels ?? settings.workspaceBarShowLabels,
+            showFloatingWindows: override.showFloatingWindows ?? settings.workspaceBarShowFloatingWindows,
+            deduplicateAppIcons: override.deduplicateAppIcons ?? settings.workspaceBarDeduplicateAppIcons,
+            hideEmptyWorkspaces: override.hideEmptyWorkspaces ?? settings.workspaceBarHideEmptyWorkspaces,
+            scopeDescription: scopeDescription
+        )
+    }
+
+    @MainActor static func global(settings: SettingsStore) -> WorkspaceBarPreviewConfiguration {
+        WorkspaceBarPreviewConfiguration(
+            isEnabled: settings.workspaceBarEnabled,
+            showLabels: settings.workspaceBarShowLabels,
+            showFloatingWindows: settings.workspaceBarShowFloatingWindows,
+            deduplicateAppIcons: settings.workspaceBarDeduplicateAppIcons,
+            hideEmptyWorkspaces: settings.workspaceBarHideEmptyWorkspaces,
+            scopeDescription: "Preview reflects the global workspace bar defaults."
         )
     }
 }
@@ -404,15 +562,83 @@ private struct GlobalBarSettingsSection: View {
     }
 }
 
+private struct SavedMonitorBarOverrideSection: View {
+    let override: MonitorBarSettings
+    let deleteOverride: () -> Void
+
+    var body: some View {
+        Section("Saved Display Override") {
+            LabeledContent("Display") {
+                Text(override.monitorName)
+            }
+            LabeledContent("Status") {
+                Text("Inactive / disconnected")
+                    .foregroundStyle(.secondary)
+            }
+            if let displayId = override.monitorDisplayId {
+                LabeledContent("Runtime Display ID") {
+                    Text("\(displayId) (advisory)")
+                        .foregroundStyle(.secondary)
+                }
+            }
+            if let anchor = override.monitorAnchorPoint {
+                LabeledContent("Saved Position") {
+                    Text("x \(formatCoordinate(anchor.x)), y \(formatCoordinate(anchor.y))")
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Button("Delete Override", role: .destructive) {
+                deleteOverride()
+            }
+            SettingsCaption(
+                "This saved workspace-bar override is not active for any connected monitor. It is kept on disk until you delete it."
+            )
+        }
+
+        Section("Saved Workspace Bar Values") {
+            savedValue("Enabled", override.enabled.map { $0 ? "On" : "Off" })
+            savedValue("Show Workspace Labels", override.showLabels.map { $0 ? "On" : "Off" })
+            savedValue("Show Floating Windows", override.showFloatingWindows.map { $0 ? "On" : "Off" })
+            savedValue("Group Windows by App", override.deduplicateAppIcons.map { $0 ? "On" : "Off" })
+            savedValue("Hide Empty Workspaces", override.hideEmptyWorkspaces.map { $0 ? "On" : "Off" })
+            savedValue("Show Trace Capture Button", override.showTraceButton.map { $0 ? "On" : "Off" })
+            savedValue("Position", override.position?.displayName)
+            savedValue("Window Level", override.windowLevel?.displayName)
+            savedValue("Notch-Aware Positioning", override.notchAware.map { $0 ? "On" : "Off" })
+            savedValue("Reserve Space", override.reserveLayoutSpace.map { $0 ? "On" : "Off" })
+            savedValue("X Offset", override.xOffset.map { "\(Int($0)) px" })
+            savedValue("Y Offset", override.yOffset.map { "\(Int($0)) px" })
+            savedValue("Bar Height", override.height.map { "\(Int($0)) px" })
+            savedValue("Background Opacity", override.backgroundOpacity.map { "\(Int($0 * 100))%" })
+            SettingsCaption(
+                "Inactive overrides are read-only here; reconnect the display to edit them as an active monitor."
+            )
+        }
+    }
+
+    private func savedValue(_ label: String, _ value: String?) -> some View {
+        LabeledContent(label) {
+            Text(value ?? "Uses global default")
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func formatCoordinate(_ coordinate: CGFloat) -> String {
+        coordinate == coordinate.rounded() ? String(Int(coordinate)) : String(Double(coordinate))
+    }
+}
+
 private struct MonitorBarSettingsSection: View {
     @Bindable var settings: SettingsStore
     @Bindable var controller: WMController
     let monitor: Monitor
+    var connectedMonitors: [Monitor] = []
 
     private var monitorSettings: MonitorBarSettings {
-        settings.barSettings(for: monitor) ?? MonitorBarSettings(
+        settings.barSettings(for: monitor, connectedMonitors: connectedMonitors) ?? MonitorBarSettings(
             monitorName: monitor.name,
-            monitorDisplayId: monitor.displayId
+            monitorDisplayId: monitor.displayId,
+            monitorAnchorPoint: monitor.workspaceAnchorPoint
         )
     }
 
@@ -420,6 +646,7 @@ private struct MonitorBarSettingsSection: View {
         var ms = monitorSettings
         ms.monitorName = monitor.name
         ms.monitorDisplayId = monitor.displayId
+        ms.monitorAnchorPoint = monitor.workspaceAnchorPoint
         update(&ms)
         settings.updateBarSettings(ms)
         controller.updateWorkspaceBarSettings()
