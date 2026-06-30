@@ -247,6 +247,18 @@ final class WorkspaceBarManager {
                         section: .diagnostics
                     )
                 },
+                onCreateAppRuleForWindow: { [weak controller, weak settings] token in
+                    guard let controller, let settings,
+                          let snapshot = controller.windowDecisionDebugSnapshot(for: token),
+                          let draft = AppRuleDraft.guided(from: snapshot)
+                    else { return }
+                    SettingsWindowController.shared.show(
+                        settings: settings,
+                        controller: controller,
+                        section: .appRules,
+                        pendingAppRuleDraft: draft
+                    )
+                },
                 onToggleWindowFloating: { [weak controller] token in
                     _ = controller?.toggleWindowFloating(token: token)
                 },
