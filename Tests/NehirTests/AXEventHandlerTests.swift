@@ -1016,7 +1016,9 @@ private func waitUntilAXEventTest(
 
         guard let oldNode = engine.findNode(for: oldToken),
               let newNode = engine.findNode(for: newToken),
-              let newEntry = controller.workspaceManager.entry(for: newToken)
+              let newEntry = controller.workspaceManager.entry(for: newToken),
+              let newColumn = engine.column(of: newNode),
+              let newColumnIndex = engine.columnIndex(of: newColumn, in: workspaceId)
         else {
             Issue.record("Missing Niri nodes for active viewport focus confirmation test")
             return
@@ -1046,10 +1048,120 @@ private func waitUntilAXEventTest(
 
         let updatedState = controller.workspaceManager.niriViewportState(for: workspaceId)
         #expect(updatedState.selectedNodeId == newNode.id)
-        #expect(updatedState.activeColumnIndex == 0)
+        // activeColumnIndex tracks the newly selected node's real column even though
+        // preserveActiveViewport left the offset/spring itself untouched below.
+        #expect(updatedState.activeColumnIndex == newColumnIndex)
         #expect(updatedState.viewOffsetPixels.isAnimating)
         #expect(updatedState.viewOffsetPixels.target() == springTarget)
         #expect(controller.workspaceManager.confirmedManagedFocusToken == newToken)
+    }
+
+    // Regression test for the bug where state.activeColumnIndex was left stale by
+    // focus-confirmation, forcing the unconditionally-requested follow-up relayout's
+    // ensureSelectionVisible to perform its own instant rebase + recenter even when
+    // the focus-confirm step's own reveal already ran successfully.
+    @Test @MainActor func focusConfirmationSyncsActiveColumnIndexForClippedTarget() async {
+        let controller = makeAXEventTestController()
+        guard let monitor = controller.workspaceManager.monitors.first,
+              let workspaceId = controller.workspaceManager.activeWorkspaceOrFirst(on: monitor.id)?.id
+        else {
+            Issue.record("Missing monitor or workspace for active column sync test")
+            return
+        }
+
+        controller.enableNiriLayout()
+        controller.updateNiriConfig(balancedColumnCount: 1)
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+        controller.syncMonitorsToNiriEngine()
+
+        let oldToken = controller.workspaceManager.addWindow(
+            AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: 878),
+            pid: getpid(),
+            windowId: 878,
+            to: workspaceId
+        )
+        _ = controller.workspaceManager.addWindow(
+            AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: 879),
+            pid: getpid(),
+            windowId: 879,
+            to: workspaceId
+        )
+        let newToken = controller.workspaceManager.addWindow(
+            AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: 880),
+            pid: getpid(),
+            windowId: 880,
+            to: workspaceId
+        )
+        guard let oldHandle = controller.workspaceManager.handle(for: oldToken),
+              let engine = controller.niriEngine
+        else {
+            Issue.record("Missing Niri setup for active column sync test")
+            return
+        }
+
+        let handles = controller.workspaceManager.entries(in: workspaceId).map(\.handle)
+        _ = engine.syncWindows(
+            handles,
+            in: workspaceId,
+            selectedNodeId: nil,
+            focusedHandle: oldHandle
+        )
+        // Wide columns relative to the 1920pt-wide test monitor guarantee the third
+        // column (the focus-confirmation target below) starts off clipped past the
+        // right edge of the viewport at offset 0 — matching repro 2 from the plan.
+        for column in engine.columns(in: workspaceId) {
+            column.cachedWidth = 900
+            column.cachedHeight = 800
+        }
+
+        guard let oldNode = engine.findNode(for: oldToken),
+              let newNode = engine.findNode(for: newToken),
+              let newEntry = controller.workspaceManager.entry(for: newToken),
+              let targetColumn = engine.column(of: newNode),
+              let targetColumnIndex = engine.columnIndex(of: targetColumn, in: workspaceId)
+        else {
+            Issue.record("Missing Niri nodes for active column sync test")
+            return
+        }
+        #expect(targetColumnIndex != 0)
+
+        controller.workspaceManager.withNiriViewportState(for: workspaceId) { state in
+            state.selectedNodeId = oldNode.id
+            state.activeColumnIndex = 0
+            state.viewOffsetPixels = .static(0)
+        }
+
+        controller.axEventHandler.handleManagedAppActivation(
+            entry: newEntry,
+            isWorkspaceActive: true,
+            appFullscreen: false,
+            source: .focusedWindowChanged
+        )
+
+        let updatedState = controller.workspaceManager.niriViewportState(for: workspaceId)
+        #expect(updatedState.selectedNodeId == newNode.id)
+        // Phase 1 fix: activeColumnIndex must already match the newly selected
+        // node's real column right after focus-confirmation, before any relayout runs.
+        #expect(updatedState.activeColumnIndex == targetColumnIndex)
+        #expect(!updatedState.viewOffsetPixels.isGesture)
+
+        // Drive the same ensureSelectionVisible the deferred relayout's resolveSelection
+        // calls. With activeColumnIndex already in sync, the instant rebase must be a
+        // true no-op: no "moveSelectionToContainer.rebaseActiveColumn" mutation recorded.
+        var relayoutState = updatedState
+        relayoutState.isViewportMutationAuditEnabled = true
+        relayoutState.lastViewportMutationReason = nil
+        let workingFrame = controller.insetWorkingFrame(for: monitor)
+        let gaps = controller.gapSize(for: monitor)
+        engine.ensureSelectionVisible(
+            node: newNode,
+            in: workspaceId,
+            state: &relayoutState,
+            workingFrame: workingFrame,
+            gaps: gaps
+        )
+        #expect(relayoutState.lastViewportMutationReason != "moveSelectionToContainer.rebaseActiveColumn")
+        #expect(relayoutState.activeColumnIndex == targetColumnIndex)
     }
 
     @Test @MainActor func newAppActivationWaitsForFocusedWindowBeforeLeavingManagedFocus() async throws {

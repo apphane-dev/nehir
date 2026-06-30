@@ -2473,6 +2473,14 @@ final class AXEventHandler: CGSEventDelegate {
                     "preserveActiveViewport=\(preserveActiveViewport)"
                 ]
             )
+            // Keep activeColumnIndex honest regardless of preserveActiveViewport, so the
+            // relayout this function unconditionally requests below finds nothing stale to
+            // rebase via ensureSelectionVisible's instant-rebase-then-recenter path.
+            if let activatedColumn = engine.column(of: node),
+               let activatedColumnIndex = engine.columnIndex(of: activatedColumn, in: wsId)
+            {
+                state.activeColumnIndex = activatedColumnIndex
+            }
             if !isFFM,
                !preserveActiveViewport,
                let column = engine.column(of: node),
