@@ -563,28 +563,12 @@ final class SettingsStore {
         workspaceBarYOffset = export.workspaceBarYOffset
         workspaceBarAccentColor = export.workspaceBarAccentColor
         workspaceBarTextColor = export.workspaceBarTextColor
-        monitorBarSettings = SettingsStore.reboundMonitorSettings(
-            export.monitorBarSettings,
-            monitors: monitors,
-            ignoreIdentity: export.ignoreMonitorIdentity
-        )
+        monitorBarSettings = export.monitorBarSettings
 
         appRules = export.appRules
-        monitorGapSettings = SettingsStore.reboundMonitorSettings(
-            export.monitorGapSettings,
-            monitors: monitors,
-            ignoreIdentity: export.ignoreMonitorIdentity
-        )
-        monitorOrientationSettings = SettingsStore.reboundMonitorSettings(
-            export.monitorOrientationSettings,
-            monitors: monitors,
-            ignoreIdentity: export.ignoreMonitorIdentity
-        )
-        monitorNiriSettings = SettingsStore.reboundMonitorSettings(
-            export.monitorNiriSettings,
-            monitors: monitors,
-            ignoreIdentity: export.ignoreMonitorIdentity
-        )
+        monitorGapSettings = export.monitorGapSettings
+        monitorOrientationSettings = export.monitorOrientationSettings
+        monitorNiriSettings = export.monitorNiriSettings
 
         preventSleepEnabled = export.preventSleepEnabled
         ipcEnabled = export.ipcEnabled
@@ -720,151 +704,97 @@ final class SettingsStore {
         return normalized
     }
 
-    private static func reboundMonitorSettings<T: MonitorSettingsType>(
-        _ settings: [T],
-        monitors: [Monitor],
-        ignoreIdentity: Bool = false
-    ) -> [T] {
-        if ignoreIdentity {
-            return reboundMonitorSettingsByPosition(settings, monitors: monitors)
-        }
-
-        return settings.map { setting in
-            var rebound = setting
-            let resolvedMonitor = reboundMonitor(
-                displayId: rebound.monitorDisplayId,
-                monitorName: rebound.monitorName,
-                anchorPoint: nil,
-                monitors: monitors,
-                ignoreIdentity: false
-            )
-            applyResolvedMonitor(resolvedMonitor, to: &rebound)
-            return rebound
-        }
+    private func connectedMonitorPeers(_ connectedMonitors: [Monitor], fallback monitor: Monitor) -> [Monitor] {
+        connectedMonitors.isEmpty ? [monitor] : connectedMonitors
     }
 
-    private static func reboundMonitorSettingsByPosition<T: MonitorSettingsType>(
-        _ settings: [T],
-        monitors: [Monitor]
-    ) -> [T] {
-        var rebound = settings
-        var resolvedMonitorByIndex: [Int: Monitor] = [:]
-        var usedMonitorIds = Set<Monitor.ID>()
-
-        for index in rebound.indices {
-            guard let displayId = rebound[index].monitorDisplayId,
-                  let exact = monitors.first(where: { $0.displayId == displayId }),
-                  usedMonitorIds.insert(exact.id).inserted
-            else { continue }
-            resolvedMonitorByIndex[index] = exact
-        }
-
-        let anchorMatches = rebound.indices.flatMap { index -> [(index: Int, monitor: Monitor, distance: CGFloat)] in
-            guard resolvedMonitorByIndex[index] == nil,
-                  let anchor = rebound[index].monitorAnchorPoint
-            else { return [] }
-            return monitors
-                .filter { !usedMonitorIds.contains($0.id) }
-                .map { (index: index, monitor: $0, distance: anchor.distanceSquared(to: $0.workspaceAnchorPoint)) }
-        }
-        .sorted { lhs, rhs in
-            if lhs.distance != rhs.distance { return lhs.distance < rhs.distance }
-            if lhs.index != rhs.index { return lhs.index < rhs.index }
-            return monitorSortKey(lhs.monitor) < monitorSortKey(rhs.monitor)
-        }
-
-        var usedSettingIndices = Set(resolvedMonitorByIndex.keys)
-        for match in anchorMatches {
-            guard !usedSettingIndices.contains(match.index),
-                  usedMonitorIds.insert(match.monitor.id).inserted
-            else { continue }
-            resolvedMonitorByIndex[match.index] = match.monitor
-            usedSettingIndices.insert(match.index)
-        }
-
-        for index in rebound.indices where resolvedMonitorByIndex[index] == nil {
-            let matches = monitors.filter {
-                !usedMonitorIds.contains($0.id) && $0.name
-                    .caseInsensitiveCompare(rebound[index].monitorName) == .orderedSame
-            }
-            guard matches.count == 1, let match = matches.first else { continue }
-            resolvedMonitorByIndex[index] = match
-            usedMonitorIds.insert(match.id)
-        }
-
-        for index in rebound.indices {
-            applyResolvedMonitor(resolvedMonitorByIndex[index], to: &rebound[index])
-        }
-        return rebound
+    private func activeMonitorSetting<T: MonitorSettingsType>(
+        for monitor: Monitor,
+        in settings: [T],
+        connectedMonitors: [Monitor] = []
+    ) -> T? {
+        MonitorSettingsResolver.activeSetting(
+            for: monitor,
+            in: settings,
+            connectedMonitors: connectedMonitorPeers(connectedMonitors, fallback: monitor),
+            ignoreIdentity: ignoreMonitorIdentity
+        )
     }
 
-    private static func applyResolvedMonitor<T: MonitorSettingsType>(_ monitor: Monitor?, to setting: inout T) {
-        setting.monitorDisplayId = monitor?.displayId
-        // Refresh the saved anchor whenever the monitor is currently connected, so a later
-        // reconnect can match this override by layout position. When the monitor is absent,
-        // keep the previously stored anchor.
-        if let monitor {
-            setting.monitorAnchorPoint = monitor.workspaceAnchorPoint
+    private func upsertMonitorSetting<T: MonitorSettingsType>(_ item: T, in settings: inout [T]) {
+        if let index = settings.firstIndex(where: { $0.id == item.id }) {
+            settings[index] = item
+            return
         }
+
+        if let index = settings.firstIndex(where: {
+            $0.monitorName.caseInsensitiveCompare(item.monitorName) == .orderedSame &&
+                $0.monitorDisplayId == item.monitorDisplayId
+        }) {
+            settings[index] = item
+            return
+        }
+
+        if item.monitorDisplayId != nil,
+           let index = settings.firstIndex(where: {
+               $0.monitorName.caseInsensitiveCompare(item.monitorName) == .orderedSame &&
+                   $0.monitorDisplayId == nil
+           })
+        {
+            settings[index] = item
+            return
+        }
+
+        settings.append(item)
     }
 
-    private static func reboundMonitorDisplayId(
-        _ displayId: CGDirectDisplayID?,
-        monitorName: String,
-        monitors: [Monitor]
-    ) -> CGDirectDisplayID? {
-        reboundMonitor(
-            displayId: displayId,
-            monitorName: monitorName,
-            anchorPoint: nil,
-            monitors: monitors,
-            ignoreIdentity: false
-        )?.displayId
+    private func removeActiveMonitorSetting<T: MonitorSettingsType>(
+        for monitor: Monitor,
+        from settings: inout [T],
+        connectedMonitors: [Monitor] = []
+    ) {
+        guard let active = activeMonitorSetting(
+            for: monitor,
+            in: settings,
+            connectedMonitors: connectedMonitors
+        ) else { return }
+        settings.removeAll { $0.id == active.id }
     }
 
-    private static func reboundMonitor(
-        displayId: CGDirectDisplayID?,
-        monitorName: String,
-        anchorPoint: CGPoint?,
-        monitors: [Monitor],
-        ignoreIdentity: Bool
-    ) -> Monitor? {
-        if let displayId, let exact = monitors.first(where: { $0.displayId == displayId }) {
-            return exact
-        }
-        if ignoreIdentity, let anchorPoint {
-            return monitors.min {
-                $0.workspaceAnchorPoint.distanceSquared(to: anchorPoint)
-                    < $1.workspaceAnchorPoint.distanceSquared(to: anchorPoint)
-            }
-        }
-        let matches = monitors.filter { $0.name.caseInsensitiveCompare(monitorName) == .orderedSame }
-        guard matches.count == 1 else { return nil }
-        return matches[0]
-    }
-
-    func barSettings(for monitor: Monitor) -> MonitorBarSettings? {
-        MonitorSettingsStore.get(for: monitor, in: monitorBarSettings)
+    func barSettings(for monitor: Monitor, connectedMonitors: [Monitor] = []) -> MonitorBarSettings? {
+        activeMonitorSetting(for: monitor, in: monitorBarSettings, connectedMonitors: connectedMonitors)
     }
 
     func barSettings(for monitorName: String) -> MonitorBarSettings? {
         MonitorSettingsStore.get(for: monitorName, in: monitorBarSettings)
     }
 
-    func updateBarSettings(_ settings: MonitorBarSettings) {
-        MonitorSettingsStore.update(settings, in: &monitorBarSettings)
+    func inactiveBarSettings(connectedMonitors: [Monitor]) -> [MonitorBarSettings] {
+        MonitorSettingsResolver.inactiveSettings(
+            monitorBarSettings,
+            connectedMonitors: connectedMonitors,
+            ignoreIdentity: ignoreMonitorIdentity
+        )
     }
 
-    func removeBarSettings(for monitor: Monitor) {
-        MonitorSettingsStore.remove(for: monitor, from: &monitorBarSettings)
+    func updateBarSettings(_ settings: MonitorBarSettings) {
+        upsertMonitorSetting(settings, in: &monitorBarSettings)
+    }
+
+    func removeBarSettings(for monitor: Monitor, connectedMonitors: [Monitor] = []) {
+        removeActiveMonitorSetting(for: monitor, from: &monitorBarSettings, connectedMonitors: connectedMonitors)
     }
 
     func removeBarSettings(for monitorName: String) {
         MonitorSettingsStore.remove(for: monitorName, from: &monitorBarSettings)
     }
 
-    func resolvedBarSettings(for monitor: Monitor) -> ResolvedBarSettings {
-        resolvedBarSettings(override: barSettings(for: monitor))
+    func removeBarSettings(id: MonitorBarSettings.ID) {
+        monitorBarSettings.removeAll { $0.id == id }
+    }
+
+    func resolvedBarSettings(for monitor: Monitor, connectedMonitors: [Monitor] = []) -> ResolvedBarSettings {
+        resolvedBarSettings(override: barSettings(for: monitor, connectedMonitors: connectedMonitors))
     }
 
     func resolvedBarSettings(for monitorName: String) -> ResolvedBarSettings {
@@ -896,28 +826,40 @@ final class SettingsStore {
         appRules.first { $0.bundleId == bundleId }
     }
 
-    func gapSettings(for monitor: Monitor) -> MonitorGapSettings? {
-        MonitorSettingsStore.get(for: monitor, in: monitorGapSettings)
+    func gapSettings(for monitor: Monitor, connectedMonitors: [Monitor] = []) -> MonitorGapSettings? {
+        activeMonitorSetting(for: monitor, in: monitorGapSettings, connectedMonitors: connectedMonitors)
     }
 
     func gapSettings(for monitorName: String) -> MonitorGapSettings? {
         MonitorSettingsStore.get(for: monitorName, in: monitorGapSettings)
     }
 
-    func updateGapSettings(_ settings: MonitorGapSettings) {
-        MonitorSettingsStore.update(settings, in: &monitorGapSettings)
+    func inactiveGapSettings(connectedMonitors: [Monitor]) -> [MonitorGapSettings] {
+        MonitorSettingsResolver.inactiveSettings(
+            monitorGapSettings,
+            connectedMonitors: connectedMonitors,
+            ignoreIdentity: ignoreMonitorIdentity
+        )
     }
 
-    func removeGapSettings(for monitor: Monitor) {
-        MonitorSettingsStore.remove(for: monitor, from: &monitorGapSettings)
+    func updateGapSettings(_ settings: MonitorGapSettings) {
+        upsertMonitorSetting(settings, in: &monitorGapSettings)
+    }
+
+    func removeGapSettings(for monitor: Monitor, connectedMonitors: [Monitor] = []) {
+        removeActiveMonitorSetting(for: monitor, from: &monitorGapSettings, connectedMonitors: connectedMonitors)
     }
 
     func removeGapSettings(for monitorName: String) {
         MonitorSettingsStore.remove(for: monitorName, from: &monitorGapSettings)
     }
 
-    func resolvedGapSettings(for monitor: Monitor) -> ResolvedGapSettings {
-        let override = gapSettings(for: monitor)
+    func removeGapSettings(id: MonitorGapSettings.ID) {
+        monitorGapSettings.removeAll { $0.id == id }
+    }
+
+    func resolvedGapSettings(for monitor: Monitor, connectedMonitors: [Monitor] = []) -> ResolvedGapSettings {
+        let override = gapSettings(for: monitor, connectedMonitors: connectedMonitors)
         return ResolvedGapSettings(
             gapSize: (override?.gapSize ?? gapSize).clamped(to: 0 ... 64),
             outerGapLeft: (override?.outerGapLeft ?? outerGapLeft).clamped(to: 0 ... 64),
@@ -927,16 +869,16 @@ final class SettingsStore {
         )
     }
 
-    func orientationSettings(for monitor: Monitor) -> MonitorOrientationSettings? {
-        MonitorSettingsStore.get(for: monitor, in: monitorOrientationSettings)
+    func orientationSettings(for monitor: Monitor, connectedMonitors: [Monitor] = []) -> MonitorOrientationSettings? {
+        activeMonitorSetting(for: monitor, in: monitorOrientationSettings, connectedMonitors: connectedMonitors)
     }
 
     func orientationSettings(for monitorName: String) -> MonitorOrientationSettings? {
         MonitorSettingsStore.get(for: monitorName, in: monitorOrientationSettings)
     }
 
-    func effectiveOrientation(for monitor: Monitor) -> Monitor.Orientation {
-        if let override = orientationSettings(for: monitor),
+    func effectiveOrientation(for monitor: Monitor, connectedMonitors: [Monitor] = []) -> Monitor.Orientation {
+        if let override = orientationSettings(for: monitor, connectedMonitors: connectedMonitors),
            let orientation = override.orientation
         {
             return orientation
@@ -945,39 +887,55 @@ final class SettingsStore {
     }
 
     func updateOrientationSettings(_ settings: MonitorOrientationSettings) {
-        MonitorSettingsStore.update(settings, in: &monitorOrientationSettings)
+        upsertMonitorSetting(settings, in: &monitorOrientationSettings)
     }
 
-    func removeOrientationSettings(for monitor: Monitor) {
-        MonitorSettingsStore.remove(for: monitor, from: &monitorOrientationSettings)
+    func removeOrientationSettings(for monitor: Monitor, connectedMonitors: [Monitor] = []) {
+        removeActiveMonitorSetting(
+            for: monitor,
+            from: &monitorOrientationSettings,
+            connectedMonitors: connectedMonitors
+        )
     }
 
     func removeOrientationSettings(for monitorName: String) {
         MonitorSettingsStore.remove(for: monitorName, from: &monitorOrientationSettings)
     }
 
-    func niriSettings(for monitor: Monitor) -> MonitorNiriSettings? {
-        MonitorSettingsStore.get(for: monitor, in: monitorNiriSettings)
+    func niriSettings(for monitor: Monitor, connectedMonitors: [Monitor] = []) -> MonitorNiriSettings? {
+        activeMonitorSetting(for: monitor, in: monitorNiriSettings, connectedMonitors: connectedMonitors)
     }
 
     func niriSettings(for monitorName: String) -> MonitorNiriSettings? {
         MonitorSettingsStore.get(for: monitorName, in: monitorNiriSettings)
     }
 
-    func updateNiriSettings(_ settings: MonitorNiriSettings) {
-        MonitorSettingsStore.update(settings, in: &monitorNiriSettings)
+    func inactiveNiriSettings(connectedMonitors: [Monitor]) -> [MonitorNiriSettings] {
+        MonitorSettingsResolver.inactiveSettings(
+            monitorNiriSettings,
+            connectedMonitors: connectedMonitors,
+            ignoreIdentity: ignoreMonitorIdentity
+        )
     }
 
-    func removeNiriSettings(for monitor: Monitor) {
-        MonitorSettingsStore.remove(for: monitor, from: &monitorNiriSettings)
+    func updateNiriSettings(_ settings: MonitorNiriSettings) {
+        upsertMonitorSetting(settings, in: &monitorNiriSettings)
+    }
+
+    func removeNiriSettings(for monitor: Monitor, connectedMonitors: [Monitor] = []) {
+        removeActiveMonitorSetting(for: monitor, from: &monitorNiriSettings, connectedMonitors: connectedMonitors)
     }
 
     func removeNiriSettings(for monitorName: String) {
         MonitorSettingsStore.remove(for: monitorName, from: &monitorNiriSettings)
     }
 
-    func resolvedNiriSettings(for monitor: Monitor) -> ResolvedNiriSettings {
-        resolvedNiriSettings(override: niriSettings(for: monitor))
+    func removeNiriSettings(id: MonitorNiriSettings.ID) {
+        monitorNiriSettings.removeAll { $0.id == id }
+    }
+
+    func resolvedNiriSettings(for monitor: Monitor, connectedMonitors: [Monitor] = []) -> ResolvedNiriSettings {
+        resolvedNiriSettings(override: niriSettings(for: monitor, connectedMonitors: connectedMonitors))
     }
 
     func resolvedNiriSettings(for monitorName: String) -> ResolvedNiriSettings {
@@ -1029,17 +987,5 @@ final class SettingsStore {
     static func validatedLoneWindowMaxWidth(_ width: Double?) -> Double? {
         guard let width else { return nil }
         return min(1.0, max(0.10, width))
-    }
-
-    private static func monitorSortKey(_ monitor: Monitor) -> (CGFloat, CGFloat, UInt32) {
-        (monitor.frame.minX, -monitor.frame.maxY, monitor.displayId)
-    }
-}
-
-private extension CGPoint {
-    func distanceSquared(to point: CGPoint) -> CGFloat {
-        let dx = x - point.x
-        let dy = y - point.y
-        return dx * dx + dy * dy
     }
 }

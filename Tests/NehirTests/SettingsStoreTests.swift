@@ -707,7 +707,7 @@ struct HotkeySurfaceTests {
         #expect(reloaded.ignoreMonitorIdentity == true)
     }
 
-    @Test func tomlApplyClearsStaleMonitorDisplayIdWhenNameCannotBeResolved() {
+    @Test func tomlApplyPreservesDisconnectedMonitorDisplayIdWhenNameCannotBeResolved() {
         let settings = SettingsStore(defaults: makeTestDefaults())
         let currentMonitor = makeSettingsTestMonitor(displayId: 202, name: "Studio Display")
         var export = SettingsExport.defaults()
@@ -717,11 +717,11 @@ struct HotkeySurfaceTests {
 
         settings.applyExport(export, monitors: [currentMonitor])
 
-        #expect(settings.monitorBarSettings.first?.monitorDisplayId == nil)
+        #expect(settings.monitorBarSettings.first?.monitorDisplayId == 101)
         #expect(settings.barSettings(for: currentMonitor) == nil)
     }
 
-    @Test func tomlApplyRebindsMonitorSettingsByPositionWhenIdentityIgnored() {
+    @Test func tomlApplyPreservesMonitorSettingsWhenIdentityIgnored() {
         let settings = SettingsStore(defaults: makeTestDefaults())
         let leftMonitor = makeSettingsTestMonitor(displayId: 201, name: "Left Office", x: 0)
         let rightMonitor = makeSettingsTestMonitor(displayId: 202, name: "Right Office", x: 1920)
@@ -738,11 +738,14 @@ struct HotkeySurfaceTests {
 
         settings.applyExport(export, monitors: [leftMonitor, rightMonitor])
 
-        #expect(settings.monitorBarSettings.first?.monitorDisplayId == rightMonitor.displayId)
-        #expect(settings.monitorBarSettings.first?.monitorAnchorPoint == rightMonitor.workspaceAnchorPoint)
+        #expect(settings.monitorBarSettings.first?.monitorDisplayId == 101)
+        #expect(settings.monitorBarSettings.first?.monitorAnchorPoint == CGPoint(x: 1910, y: 1080))
+        #expect(settings.barSettings(for: leftMonitor, connectedMonitors: [leftMonitor, rightMonitor]) == nil)
+        #expect(settings.barSettings(for: rightMonitor, connectedMonitors: [leftMonitor, rightMonitor])?
+            .monitorName == "Home")
     }
 
-    @Test func tomlApplyRebindsMonitorSettingsByPositionOneToOne() {
+    @Test func tomlApplyPreservesMonitorSettingsByPositionWhenIdentityIgnored() {
         let settings = SettingsStore(defaults: makeTestDefaults())
         let leftMonitor = makeSettingsTestMonitor(displayId: 201, name: "Left Office", x: 0)
         let rightMonitor = makeSettingsTestMonitor(displayId: 202, name: "Right Office", x: 1920)
@@ -755,8 +758,12 @@ struct HotkeySurfaceTests {
 
         settings.applyExport(export, monitors: [leftMonitor, rightMonitor])
 
-        let displayIds = settings.monitorBarSettings.compactMap(\.monitorDisplayId)
-        #expect(Set(displayIds) == [leftMonitor.displayId, rightMonitor.displayId])
+        #expect(settings.monitorBarSettings[0].monitorAnchorPoint == CGPoint(x: 0, y: 1080))
+        #expect(settings.monitorBarSettings[1].monitorAnchorPoint == CGPoint(x: 1920, y: 1080))
+        #expect(settings.barSettings(for: leftMonitor, connectedMonitors: [leftMonitor, rightMonitor])?
+            .monitorName == "Home Left")
+        #expect(settings.barSettings(for: rightMonitor, connectedMonitors: [leftMonitor, rightMonitor])?
+            .monitorName == "Home Right")
     }
 }
 

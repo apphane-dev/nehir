@@ -1891,8 +1891,12 @@ enum NiriWindowMoveResult {
     func refreshResolvedMonitorSettings() {
         guard let controller, let engine = controller.niriEngine else { return }
 
-        for monitor in controller.workspaceManager.monitors {
-            let resolved = controller.settings.resolvedNiriSettings(for: monitor)
+        let connectedMonitors = controller.workspaceManager.monitors
+        for monitor in connectedMonitors {
+            let resolved = controller.settings.resolvedNiriSettings(
+                for: monitor,
+                connectedMonitors: connectedMonitors
+            )
             engine.updateMonitorSettings(resolved, for: monitor.id)
         }
     }
