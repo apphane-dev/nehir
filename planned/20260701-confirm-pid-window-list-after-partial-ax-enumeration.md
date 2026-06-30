@@ -1,5 +1,64 @@
 # Confirm a pid's AX window list after admission instead of trusting the first query — Plan
 
+## Status
+
+**Phase 1 (instrumentation) implemented, 2026-07-01.** Phases 2-4 (the actual
+confirm-and-reconcile behavior change) are not started; this plan stays in
+`planned/` until those land. Implemented on branch
+`patch/confirm-pid-window-list-after-partial-ax-enumeration` in the main Nehir
+repo (uncommitted, pending review).
+
+What shipped:
+
+1. `AppAXContext.getWindowsAsync()` (`Sources/Nehir/Core/Ax/AppAXContext.swift`)
+   now logs every raw `kAXWindowsAttribute` result — pid, window id list, and a
+   `newContext` flag (true only for the first query against a given
+   `AppAXContext` instance) — into a new bounded ring buffer
+   (`Sources/Nehir/Core/Ax/AXWindowsQueryTrace.swift`), dumped into runtime
+   trace captures under a new `## AX windows query trace` section.
+2. `AXManager.fullRescanEnumerationSnapshot()` (`Sources/Nehir/Core/Ax/AXManager.swift`)
+   now cross-checks each pid's AX-reported window count against a per-pid
+   WindowServer/CGWindowList on-screen count and traces
+   `ax_window_count_mismatch pid=… ax=… windowServer=…` into the same ring
+   buffer whenever AX undershoots.
+3. The reconcile `windowAdmitted` event
+   (`Sources/Nehir/Core/Reconcile/WMEvent.swift`) now carries a
+   `WindowAdmissionContext`, printed in its trace summary as `context=…`:
+   `startup_full_rescan` / `pid_reevaluation` / `window_rule_reevaluation` /
+   `focused_admission` / `window_create` / `ax_context_confirmation`.
+   `ax_context_confirmation` is defined but not yet emitted anywhere —
+   reserved for Phase 2-3.
+
+Deviations from this plan's exact wording, decided during implementation:
+
+- This plan named four admission-context values; the real `addWindow` call
+  sites needed two more (`window_rule_reevaluation` for
+  `reevaluateWindowRules`'s `.window`-target path, distinct from its `.pid`
+  branch; and `window_create` for the default CGS-create path) to stay
+  exhaustive without mislabeling the majority of ordinary admissions.
+- `LayoutRefreshController`'s single full-rescan `addWindow` call site is
+  reached by every `RefreshReason` that routes to `.fullRescan` (startup,
+  unlock, space change, etc.), not literally only cold start; it is tagged
+  `startup_full_rescan` per this plan's naming regardless.
+- A focused-admission candidate that gets deferred into the
+  managed-replacement burst queue and replayed later loses its
+  `focused_admission` tag and reports as `window_create` instead — threading
+  context through that queue was judged out of scope for Phase 1.
+- `WorkspaceManager.addWindow`'s new `admissionContext` parameter defaults to
+  an added `unspecified` case rather than being required, since roughly two
+  dozen test call sites construct windows directly and do not care about
+  admission context.
+
+Build (`swift build`, `swift build --build-tests`) and the full test suite
+(1378 tests) pass with no regressions.
+
+**Still needed before Phase 2:** the actual capture described in Phase 1's
+"Deliverable" below — a real startup-rescan repro showing
+`ax_window_count_mismatch` and/or a `newContext=true` partial query — to
+confirm or refute this plan's central hypothesis before behavior changes.
+
+---
+
 A single per-app `kAXWindowsAttribute` query — used by both the startup/full-
 rescan path and the targeted pid-reevaluation path — can return fewer windows
 than an app actually has. Nehir treats that first answer as final: it never
@@ -184,7 +243,7 @@ window's admission, not per-rescan-pass).
 
 ## Implementation plan
 
-### Phase 1 — Instrumentation first (per both discoveries' "tracing improvements")
+### Phase 1 — Instrumentation first (per both discoveries' "tracing improvements") — implemented, see Status above
 
 Before changing admission behavior, add the diagnostics both discoveries
 identify as missing, so the fix can be verified against a capture instead of
