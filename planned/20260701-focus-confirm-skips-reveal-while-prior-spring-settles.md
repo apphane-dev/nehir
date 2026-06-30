@@ -1,44 +1,93 @@
-# Focus-confirm skips reveal while a prior spring is settling; relayout snaps instead — Plan
+# Focus-confirm's reveal is superseded by the relayout it triggers — Plan
 
 ## Verdict on the "D. Relayout viewport stability" catalogue
 
 Checked against the three candidate items from the catalogue:
 
 - **Item 7** ("Settled relayout recenters an already fully-visible unchanged
-  selection") — **does not match**. In this repro the selection's column
-  genuinely changes (the clicked window is not in the previously active
-  column), so this is not a no-op/unchanged-selection case. Item 7's fix
-  (`discovery/20260628-relayout-path-recenters-fully-visible-unchanged-selection.md`)
+  selection") — **does not match**. In both repros below the selection's
+  column genuinely changes (the newly focused window is not in the
+  previously active column), so this is not a no-op/unchanged-selection
+  case. Item 7's fix (`discovery/20260628-relayout-path-recenters-fully-visible-unchanged-selection.md`)
   explicitly preserves "genuine selection change" as a legitimate recenter
-  trigger, so shipping it would **not** fix this repro.
+  trigger, so shipping it would **not** fix either repro here.
 - **Item 8** ("Stale relayout patch overwrites a live gesture / newer state")
-  — **does not match**. There is no stale async session patch race here; the
-  whole sequence below happens synchronously within one focus-confirmation
-  call plus the relayout it requests. (Item 8 is `discovery/20260618-stale-session-selection-revision-guard.md`,
-  already fixed on an unmerged branch — unrelated code path: `WorkspaceManager.applySessionPatch`.)
+  — **does not match**, but is closely related and **already shipped**:
+  verified against the current main source tree, `WorkspaceManager.applySessionPatch`
+  (`Sources/Nehir/Core/Workspace/WorkspaceManager.swift:1753-1794`) already
+  carries both the gesture-only guard (`:1764-1767`) and the
+  `plannedSelectionRevision` stale-patch guard (`:1769-1783`) described in
+  `discovery/20260618-stale-session-selection-revision-guard.md` — landed as
+  commit `42ac731f` ("Prevent stale async session patches from overwriting
+  newer selection (M6)"), which **is** an ancestor of current `main` (the
+  identically-named branch tip `da25d160` is a stale, separately-rebased
+  copy and is *not* the landed commit — checking branch ancestry against
+  `da25d160` alone is misleading; `42ac731f` is the one that matters).
+  Neither guard touches `viewportState.viewOffsetPixels` outside the
+  gesture case, so it does not protect the offset/spring staleness seen
+  below.
 - **Item 9** ("Settings/config relayout reinterprets a parked/edge-snapped
-  selection") — **does not match**. The trigger is a mouse click and its
-  focus confirmation, not an app-rule/workspace-config/monitor-settings/gap
-  change.
+  selection") — **does not match**. Neither repro involves an app-rule/
+  workspace-config/monitor-settings/gap change.
 
 This is a **fourth, previously undocumented** mechanism. It shares the same
 downstream "mover" code as item 7 (`ensureSelectionVisible` →
 `scrollToReveal` → `animateToOffset`) and the same unrecorded-intermediate-
 mutation pattern as the "Residual attribution gap" noted in
-`planned/20260625-unrecorded-viewport-offset-mutation-attribution.md`, but
-the *trigger* — a click confirming focus while an unrelated prior spring is
-in its settle tail — is new.
+`planned/20260625-unrecorded-viewport-offset-mutation-attribution.md`. Two
+independent repros pin it down:
+
+1. A click confirming focus while an unrelated prior spring is in its
+   settle tail (`isAnimating == true` but already converged) — the
+   focus-confirm's own reveal is skipped outright.
+2. **A focus change with zero user input** (an app self-activation,
+   `workspaceDidActivateApplication`) — the focus-confirm's own reveal
+   *does* run and reports success, and the viewport **still** jumps via the
+   relayout it triggers, landing at a different value than what the
+   focus-confirm reveal computed.
+
+Repro 2 shows the bug is broader than "the `isAnimating` gate skips reveal":
+even a successful, policy-respecting `revealForFocusActivation` call gets
+superseded by the unconditional follow-up relayout, because that relayout's
+`ensureSelectionVisible` only knows `state.activeColumnIndex` — which
+`revealForFocusActivation`/`scrollToReveal` never update — so it always
+treats the new selection as needing its own (re)reveal, redundantly or
+divergently.
 
 ---
 
 ## TL;DR
 
-- **Symptom.** Clicking a window in a column outside the currently active
-  column, while a previous relayout's viewport spring is still technically
-  "animating" (even though it has already visually reached its target),
-  produces no movement at focus-confirmation time, then a visible viewport
-  snap moments later when the requested relayout runs.
-- **Root cause.** `AXEventHandler`'s `preserveActiveViewport` gate treats
+- **Symptom (repro 1, click).** Clicking a window in a column outside the
+  currently active column, while a previous relayout's viewport spring is
+  still technically "animating" (even though it has already visually
+  reached its target), produces no movement at focus-confirmation time,
+  then a visible viewport snap moments later when the requested relayout
+  runs.
+- **Symptom (repro 2, no user input).** A window in another app process
+  self-activates (e.g. raising a previously backgrounded window — observed
+  as `event=focus_lease_changed owner=native_app_switch
+  reason=workspaceDidActivateApplication`, with **no preceding mouse or
+  keyboard trace record at all**). The newly OS-focused window is in a
+  clipped, non-active column. Focus-confirmation runs its reveal
+  computation cleanly this time (no skip), reports success — and the
+  viewport still visibly jumps moments later via the relayout the
+  focus-confirm step unconditionally requests, landing at a value the
+  reveal computation itself never produced.
+- **Root cause (shared).** `state.activeColumnIndex` is never updated by
+  the focus-activation reveal path (`revealForFocusActivation`/
+  `scrollToReveal` only move the offset, never `activeColumnIndex`).
+  `ax_focus_confirm_request_relayout` *always* triggers a follow-up
+  relayout regardless of whether the focus-confirm reveal ran or what it
+  did. That relayout's `resolveSelection` → `ensureSelectionVisible` always
+  re-derives the real column for the (now up to date) `selectedNodeId`,
+  finds the stale `activeColumnIndex` disagrees, and performs its own
+  instant rebase + recenter — independent of, and potentially divergent
+  from, whatever the focus-confirm reveal already did. Repro 1 additionally
+  has a *more specific* triggering bug (below) that causes the
+  focus-confirm reveal to be skipped outright rather than merely
+  superseded.
+- **Root cause (repro 1's specific trigger).** `AXEventHandler`'s `preserveActiveViewport` gate treats
   `ViewportOffset.isAnimating` (true for the entire lifetime of a `.spring`
   representation, including the cosmetic tail after `current == target`) the
   same as an actual in-flight gesture. When it's true, the focus-confirmation
@@ -59,7 +108,7 @@ in its settle tail — is new.
 
 ---
 
-## Evidence — one repro, full causal chain
+## Evidence — repro 1: click during a settling spring, full causal chain
 
 Captured 2026-06-30 on a ten-column Niri workspace (`columns=10`) with
 several `net.imput.helium` (Helium browser) windows tiled, after a trackpad
@@ -163,6 +212,114 @@ rebase, then a large spring — is the "snap" reported.
 
 ---
 
+## Evidence — repro 2: zero user input, app self-activation
+
+Captured the same session, on the same ten-column workspace, several
+minutes later. The viewport had been fully settled for ~5 seconds
+(`reason=scroll_animation_stop … activeColumnIndex=1 currentOffset=-1337.2
+targetOffset=-1337.2 currentViewStart=570.4 targetViewStart=570.4
+gesture=false animating=false`, with `lastViewportMutation=tickAnimation.complete`
+— i.e. the prior spring had finished on its own, not via any new input).
+
+**No mouse or keyboard activity is recorded in this window.** The mouse
+focus trace's first record after the settle is four seconds *after* the
+jump (`tap.mouseMoved … loc=(1460.7,1214.4)` at the next timestamp second);
+the AX notification trace only shows `AXFocusedWindowChanged pid=22641
+window=nil` (the same Helium process posting its own internal focus
+notifications). The only events in this window are:
+
+```text
+event=focus_lease_changed owner=native_app_switch reason=workspaceDidActivateApplication …
+event=non_managed_focus_changed active=true …
+event=focus_lease_changed owner=nil reason= … focus_lease=cleared
+event=focus_lease_changed owner=native_app_switch reason=workspaceDidActivateApplication …
+event=managed_focus_confirmed token=WindowToken(pid: 22641, windowId: 6537) …
+```
+
+i.e. macOS/the app itself (pid 22641, `net.imput.helium`) reactivated and
+brought window `6537` to native focus — an app self-activation, not a
+click, key press, or trackpad gesture.
+
+`6537` lives in column `c0` (`x=0.0`, `cached=1875.6`, `preset=3`,
+`manual=true` — a wide/maximized-style column), while the active column at
+settle time was `c1` (`x=1907.6`, the previously selected `w6892`). The
+focus-confirmation sequence:
+
+```text
+reason=ax_focus_confirm_before_activate token=WindowToken(pid: 22641, windowId: 6537)
+  isGesture=false wasAnimating=false preserveActiveViewport=false
+  activeColumnIndex=1 currentOffset=-1337.2 targetOffset=-1337.2
+  selectedNode=NodeId(uuid: DA42CCD3-…)
+reason=ax_focus_confirm_after_activate token=WindowToken(pid: 22641, windowId: 6537)
+  preserveActiveViewport=false activeColumnIndex=1 currentOffset=-1337.2 targetOffset=-1337.2
+  selectedNode=NodeId(uuid: FD06C1F1-…)   # now c0's w6537:selected
+```
+
+This time `preserveActiveViewport=false` (nothing was gesturing or
+animating), so the reveal computation runs — unlike repro 1, it is **not**
+skipped:
+
+```text
+reason=ax_focus_confirm_reveal_candidate token=WindowToken(pid: 22641, windowId: 6537)
+  columnIndex=0 revealPartial=default visibility=clipped(Nehir.AxisHideEdge.minimum)
+  viewStart=570.4 closest=-32.0:leftEdge closestFills=false
+  center=-82.2:center centerFills=false snapCount=3
+reason=ax_focus_confirm_reveal_result token=WindowToken(pid: 22641, windowId: 6537)
+  columnIndex=0 isFFM=false didReveal=true
+```
+
+`didReveal=true` — `revealForFocusActivation`'s `.clipped` branch found
+neither candidate "fills" the viewport, fell back to the center snap, and
+called `state.animateToOffset(...)`. (The `currentOffset`/`targetOffset`
+fields printed on this same trace line still show `-1337.2`/`-1337.2`
+because `recordRuntimeViewportTrace` reads the **live, already-committed**
+`workspaceManager` state, not the function's local `inout state` parameter
+that `revealForFocusActivation` just mutated — that local state is only
+written back via `applySessionPatch`, called a few lines later. This is a
+trace-display artifact, not evidence the reveal had no effect.)
+
+Immediately after, `ax_focus_confirm_request_relayout` fires and schedules
+`LayoutRefreshController.requestRefresh(reason: .layoutCommand)`. The
+resulting relayout record:
+
+```text
+reason=relayout.viewportOffsetChanged
+  activeColumnIndex=1 currentOffset=-1346.5 targetOffset=-1989.8
+  currentViewStart=567.7 targetViewStart=-82.2 gesture=false animating=true
+  selectedNode=NodeId(uuid: FD06C1F1-…)
+  lastViewportMutationCaller=Nehir/ViewportState+Animation.swift:98 animateToOffset(_:motion:config:scale:)
+  lastViewportMutationBeforeCurrentOffset=-1337.2 lastViewportMutationBeforeTargetOffset=-1337.2
+  lastViewportMutationBeforeKind=static lastViewportMutationBeforeActiveColumnIndex=1
+```
+
+Two things stand out:
+
+- The **"before" snapshot is `activeColumnIndex=1`, `.static`,
+  `-1337.2`/`-1337.2`** — i.e. from this relayout pass's point of view,
+  nothing had moved yet and `activeColumnIndex` was still the stale,
+  pre-focus-confirm value. Whatever `revealForFocusActivation` had set up
+  moments earlier is not what this pass animates from.
+- The actual jump (`-1337.2 → -1989.8`, `currentViewStart 570.4 → -82.2`,
+  a 652.6pt move) is what the user sees. `targetViewStart=-82.2`
+  numerically matches the **center** snap candidate's printed offset
+  (`-82.2`) from the reveal-candidate computation above — so the
+  *destination* coincides with what `revealForFocusActivation` had already
+  computed for column `0`, but it is the **relayout's own**
+  `ensureSelectionVisible`/`scrollToReveal` pass that performs the move,
+  starting from the stale `activeColumnIndex=1` anchor rather than from
+  wherever the focus-confirm reveal had already gotten to.
+
+This confirms the mechanism is not specific to the `isAnimating`-skip case
+in repro 1: even when `revealForFocusActivation` runs cleanly and reports
+success, the unconditional follow-up relayout's `ensureSelectionVisible`
+still re-derives and re-applies the reveal from a stale `activeColumnIndex`,
+because nothing in the focus-confirm path ever updates it. The user-visible
+result is a 652pt viewport jump, attributable only to an app's own internal
+window-activation, with literally no trackpad, mouse, or keyboard event
+anywhere in the capture window that could explain it.
+
+---
+
 ## Source attribution
 
 ### Skip site: `preserveActiveViewport` conflates "mid-gesture" with "spring settle tail"
@@ -246,35 +403,70 @@ fires, never the intended one.
 
 ## Root cause
 
-Two gates that should agree don't:
+There are two layers, one general (explains both repros) and one specific
+(explains why repro 1's focus-confirm reveal is skipped outright rather
+than merely superseded):
 
-1. `AXEventHandler`'s `preserveActiveViewport` skips `revealForFocusActivation`
-   whenever `state.viewOffsetPixels.isAnimating`, which stays true through a
-   spring's cosmetic settle tail (`current == target`, not yet flipped to
-   `.static`).
-2. The relayout the focus-confirm step itself requests runs moments later,
-   by which point the same spring has settled and `isGestureOrAnimation` is
-   false — so `resolveSelection` always proceeds to `ensureSelectionVisible`,
-   which has no fully-visible/`revealPartial` awareness and instead does an
-   instant rebase followed by a hard centering spring.
+**General (both repros).** Nothing in the focus-confirmation path updates
+`state.activeColumnIndex` — `revealForFocusActivation` and `scrollToReveal`
+only ever move the viewport offset, never the active-column pointer. But
+`ax_focus_confirm_request_relayout` *unconditionally* requests a follow-up
+relayout after every focus confirmation, success or skip
+(`AXEventHandler.swift:2549-2558`). That relayout's `resolveSelection` →
+`ensureSelectionVisible` (gated only on `!isGestureOrAnimation`, which is
+essentially always true again by the time the relayout actually executes)
+compares the *real* column of `state.selectedNodeId` against the *stale*
+`state.activeColumnIndex` and, finding them different, performs its own
+instant rebase + recenter — regardless of whether the focus-confirm step's
+own reveal already ran, was skipped, or already landed on the right
+answer. Repro 2 shows this firing even when the focus-confirm reveal
+succeeded (`didReveal=true`): the relayout's "before" snapshot still shows
+the pre-focus-confirm `activeColumnIndex`, so it treats the selection as
+unrevealed and redoes the work itself.
 
-The combination means: any click on a window outside the active column,
-landing during another spring's settle tail, **always** gets routed through
-the generic relayout reveal path instead of the focus-activation-specific
-one — guaranteeing the jarring rebase-then-recenter motion instead of the
-smooth, visibility-aware reveal `revealForFocusActivation` exists to
-provide. This is not a rare race; it reproduces whenever a transient
-relayout (Helium's address-bar/preview popups, or anything else that
-briefly nudges the viewport — see
-`discovery/20260628-relayout-path-recenters-fully-visible-unchanged-selection.md`
-for triggers) is still settling when the user clicks a window in a
-different column.
+**Specific to repro 1 (why the focus-confirm reveal is skipped, not just
+superseded).** `AXEventHandler`'s `preserveActiveViewport` skips
+`revealForFocusActivation` whenever `state.viewOffsetPixels.isAnimating`,
+which stays true through a spring's cosmetic settle tail (`current ==
+target`, not yet flipped to `.static`). This is what makes repro 1 produce
+*zero* visible motion at focus-confirm time (rather than repro 2's
+"correct-but-then-redone" pattern) — the relayout ends up being the *only*
+mover, working from a `state.selectedNodeId` whose column was never even
+looked up by the focus-confirm step.
+
+Both repros converge on the same downstream "mover":
+`Sources/Nehir/Core/Layout/Niri/NiriNavigation.swift:173` →
+`Sources/Nehir/Core/Layout/Niri/NiriLayoutEngine+ViewportCommands.swift:70`
+(`ensureSelectionVisible` → `scrollToReveal`), reached via
+`Sources/Nehir/Core/Controller/NiriLayoutHandler.swift:570`
+(`resolveSelection`). This is not a rare race; it reproduces whenever a
+window in a different, clipped column receives focus — by click, by
+keyboard, or, per repro 2, by an unrelated app simply self-activating one
+of its own background windows.
 
 ---
 
 ## Fix direction
 
-### Phase 1 — Stop treating a converged spring as "in flight"
+### Phase 1 — Keep `activeColumnIndex` synced at focus-confirm time (primary fix, covers both repros)
+
+When `activateNode` updates `state.selectedNodeId`
+(`AXEventHandler.swift:2457-2466`), also resolve and store the node's real
+column index immediately — unconditionally, on both the
+`preserveActiveViewport == true` and `== false` branches — i.e. update
+`state.activeColumnIndex` without necessarily moving the viewport offset
+itself (offset movement stays gated by the existing
+`revealForFocusActivation`/`preserveActiveViewport` logic). This removes
+the staleness that forces `ensureSelectionVisible`'s rebase branch to fire
+on the next relayout: if `activeColumnIndex` is already correct,
+`ensureSelectionVisible`'s `offsetDelta` rebase becomes a no-op (`targetIdx
+== state.activeColumnIndex`), and the relayout either does nothing further
+(repro 2: the focus-confirm reveal already got there) or performs a single,
+policy-respecting `scrollToReveal` call from the *actual* current offset
+(repro 1: the focus-confirm reveal was skipped, so this becomes the one and
+only mover, instead of an instant-rebase-then-recenter pair).
+
+### Phase 2 — Stop treating a converged spring as "in flight" (repro 1's specific trigger)
 
 Narrow the animation half of `preserveActiveViewport`
 (`AXEventHandler.swift:2438-2440`) so it only protects a *genuinely moving*
@@ -285,21 +477,9 @@ derived from `displayScale`); reuse that pattern rather than introducing a
 new threshold. Concretely: compute `isAnimating` for the gate as
 `state.viewOffsetPixels.isAnimating && abs(current - target) > pixel`,
 or equivalently treat a spring within tolerance of its target as `.static`
-for this purpose only.
-
-### Phase 2 — Keep `activeColumnIndex` synced at focus-confirm time
-
-Independent of Phase 1 (defense in depth): when `activateNode` updates
-`state.selectedNodeId` (`AXEventHandler.swift:2457-2466`), also resolve and
-store the node's real column index immediately, even on the
-`preserveActiveViewport == true` branch — i.e. update
-`state.activeColumnIndex` without moving the viewport offset. This removes
-the staleness that forces `ensureSelectionVisible`'s rebase branch to fire
-on the next relayout; if `activeColumnIndex` is already correct,
-`ensureSelectionVisible`'s `offsetDelta` rebase becomes a no-op (`targetIdx
-== state.activeColumnIndex`), and only `scrollToReveal` proper runs — and
-only if the column truly isn't visible yet from the *new* (still-unmoved)
-viewport.
+for this purpose only. This lets the focus-confirm step's own
+`revealForFocusActivation` run (and honor `revealPartial`) instead of
+leaving the relayout as the sole, policy-blind mover.
 
 ### Phase 3 — Regression tests
 
@@ -319,26 +499,44 @@ viewport.
   with `state.activeColumnIndex` already equal to the selected node's real
   column must not perform the `moveSelectionToContainer.rebaseActiveColumn`
   mutation (i.e. it's a true no-op rebase when already in sync).
+- `AXEventHandlerTests`: repro-2 shape — focus-confirm a node in a
+  different, clipped column with `preserveActiveViewport == false` (no
+  gesture, no animation), let `revealForFocusActivation` succeed
+  (`didReveal == true`), then drive the follow-up relayout
+  (`resolveSelection`/`ensureSelectionVisible`) and assert it performs **no
+  further offset mutation** — `state.activeColumnIndex` was already synced
+  by Phase 1, so the relayout's rebase is a no-op and the only viewport
+  motion observed end to end is the one `revealForFocusActivation` already
+  produced.
 
-**Exit criteria:** the repro above — click a clipped window in a non-active
-column while a prior spring is in its settle tail — produces a single,
-visibility-policy-respecting reveal motion (or no motion, if `revealPartial
-== .off`), not an instant rebase followed by a separate centering spring.
+**Exit criteria:** both repros — a click landing during a settling spring,
+and a zero-input app self-activation focusing a clipped, non-active-column
+window — produce a single, visibility-policy-respecting reveal motion (or
+no motion, if `revealPartial == .off`), not an instant rebase followed by a
+separate centering spring, and not two independent reveal computations
+landing on the same destination by coincidence.
 
 ---
 
 ## Acceptance criteria
 
+- `state.activeColumnIndex` reflects the newly confirmed selection's real
+  column immediately after `activateNode`, regardless of
+  `preserveActiveViewport` — fixed unconditionally, not just for the click
+  case.
+- The relayout requested by every focus confirmation no longer needs to
+  perform a column rebase when the focus-confirm step already resolved
+  `activeColumnIndex` (repro 2: a successful `revealForFocusActivation` is
+  not redundantly redone by the relayout).
 - Clicking a window in a different, clipped column while a prior relayout's
   viewport spring has visually converged (but not yet formally stopped)
   triggers `revealForFocusActivation`/`scrollToReveal` directly from the
-  focus-confirmation step, honoring `revealPartial`.
-- `state.activeColumnIndex` reflects the newly confirmed selection's real
-  column immediately after `activateNode`, regardless of
-  `preserveActiveViewport`.
-- The subsequent relayout's `ensureSelectionVisible` no longer needs to
-  perform a column rebase for this case (it was already in sync), so only
-  one viewport motion is observed end to end, not two.
+  focus-confirmation step, honoring `revealPartial` (repro 1).
+- A window in another process self-activating (no click, no gesture, no
+  keyboard input) and landing in a clipped, non-active column produces at
+  most one viewport motion, sourced from a single, identifiable reveal
+  computation — not an opaque jump whose destination only coincidentally
+  matches what the focus-confirm step already computed.
 
 ## Out of scope / risks
 
@@ -357,27 +555,38 @@ visibility-policy-respecting reveal motion (or no motion, if `revealPartial
   path. Land in either order; re-validate this repro after item 7 ships in
   case its `resolveSelection` gating changes shift the `isGestureOrAnimation`
   timing assumed above.
-- If Phase 1's tolerance-based "settled spring" check turns out to be used
+- If Phase 2's tolerance-based "settled spring" check turns out to be used
   elsewhere and has subtle interactions with the gesture-interrupt path
   (`settleAtCurrentOffset`, `ViewportState+Animation.swift`), keep the
   check local to the `preserveActiveViewport` computation rather than
   changing `ViewportOffset.isAnimating`'s general definition.
+- Repro 2 confirms `recordRuntimeViewportTrace`'s `currentOffset`/
+  `targetOffset` fields reflect the **committed** `workspaceManager` state,
+  not a function's in-flight local `inout ViewportState` — anyone reading
+  future traces of this code path should not interpret unchanged
+  offset/target fields on `ax_focus_confirm_reveal_result` as proof the
+  reveal had no effect; cross-check `didReveal` and the *next* mutation's
+  `lastViewportMutationBefore*` fields instead.
 
 ## References
 
-- Skip site: `Sources/Nehir/Core/Controller/AXEventHandler.swift:2438-2540`
-  (`preserveActiveViewport`, reveal block, `ax_focus_confirm_reveal_skipped`).
+- Skip site: `Sources/Nehir/Core/Controller/AXEventHandler.swift:2438-2570`
+  (`preserveActiveViewport`, reveal block, `ax_focus_confirm_reveal_skipped`,
+  unconditional relayout request at `:2549-2558`).
 - Animation predicate: `Sources/Nehir/Core/Layout/Niri/ViewportState.swift:111-120`
   (`ViewportOffset.isAnimating`).
-- Focus-activation reveal (added by `dad2e63a`/`0602387d`, currently
-  unreachable for this repro): `Sources/Nehir/Core/Layout/Niri/NiriLayoutEngine+ViewportCommands.swift:160-211`
-  (`revealForFocusActivation`).
+- Focus-activation reveal (added by `dad2e63a`/`0602387d`): `Sources/Nehir/Core/Layout/Niri/NiriLayoutEngine+ViewportCommands.swift:160-211`
+  (`revealForFocusActivation`) — reachable in repro 2, unreachable in repro 1.
 - Generic relayout reveal mover: `Sources/Nehir/Core/Layout/Niri/NiriNavigation.swift:173-246`
   (`ensureSelectionVisible`, instant rebase at `:220-223`),
   `Sources/Nehir/Core/Layout/Niri/NiriLayoutEngine+ViewportCommands.swift:70-150`
   (`scrollToReveal`).
 - Relayout entry point: `Sources/Nehir/Core/Controller/NiriLayoutHandler.swift:570-654`
   (`resolveSelection`, `isGestureOrAnimation` gate at `:597`).
+- Stale-patch guard already shipped (item 8, verified present): `Sources/Nehir/Core/Workspace/WorkspaceManager.swift:1753-1794`
+  (`applySessionPatch`, gesture guard `:1764-1767`, `plannedSelectionRevision`
+  guard `:1769-1783`) — landed as `42ac731f`; does not cover the
+  `activeColumnIndex`/offset desync this plan addresses.
 - Related, not overlapping: `discovery/20260628-relayout-path-recenters-fully-visible-unchanged-selection.md`
   (item 7 — unchanged-selection no-op recenter, same mover, different
   trigger), `discovery/20260618-stale-session-selection-revision-guard.md`
