@@ -827,8 +827,8 @@ final class WMController {
         windowActionHandler.focusWindowFromBar(token: token, suppressMouseWarp: true)
     }
 
-    /// Token-based close backing the workspace bar's right-click *Close* item
-    /// (plan #18). Resolves the token to its handle (same lookup as
+    /// Token-based close backing the workspace bar's right-click *Close* item.
+    /// Resolves the token to its handle (same lookup as
     /// `focusWindowFromBar(token:)`) and delegates to the shared
     /// `WindowActionHandler.closeWindow(handle:)`.
     @discardableResult
@@ -840,9 +840,10 @@ final class WMController {
     }
 
     /// Token-based move backing the workspace bar's right-click *Move to
-    /// Workspace* submenu (plan #18 / #2). Thin wrapper over
-    /// `WorkspaceNavigationHandler.moveWindow(handle:toWorkspaceId:)`, which is
-    /// already token-targeted via its `WindowHandle` argument.
+    /// Workspace* submenu. Resolves the token to its handle and delegates to
+    /// `WorkspaceNavigationHandler.moveWindowFromBar(handle:toWorkspaceId:)`,
+    /// which commits the workspace transition so the affected workspaces relayout
+    /// immediately after the explicit-token move.
     @discardableResult
     func moveWindowFromBar(token: WindowToken, toWorkspaceId: WorkspaceDescriptor.ID) -> ExternalCommandResult {
         guard let entry = workspaceManager.entry(for: token) else {
@@ -4097,7 +4098,7 @@ final class WMController {
 
     /// Token-parameterized toggle of floating/tiling for an explicit window,
     /// independent of focus. Backs the workspace bar's right-click *Toggle
-    /// Floating* item (plan #18). The focused wrapper below delegates here.
+    /// Floating* item. The focused wrapper below delegates here.
     func toggleWindowFloating(token: WindowToken) -> ExternalCommandResult {
         guard let entry = workspaceManager.entry(for: token) else {
             return .notFound
@@ -4211,10 +4212,10 @@ final class WMController {
     }
 
     /// Assigns an explicit token to the single scratchpad slot, honoring the
-    /// single-slot constraint (#7): returns `.notFound` when the slot is held by
-    /// a different managed window so the right-click menu can disable/relabel
-    /// the item rather than silently no-op'ing. Token-parameterized twin of the
-    /// assign branch of `assignFocusedWindowToScratchpad()` (plan #18 / #8).
+    /// single-slot constraint: returns `.notFound` when the slot is held by a
+    /// different managed window so the right-click menu can disable/relabel the
+    /// item rather than silently no-op'ing. Token-parameterized twin of the
+    /// assign branch of `assignFocusedWindowToScratchpad()`.
     @discardableResult
     func assignWindowToScratchpad(token: WindowToken) -> ExternalCommandResult {
         guard let entry = workspaceManager.entry(for: token),
@@ -4260,7 +4261,7 @@ final class WMController {
     /// Unassigns an explicit token from the scratchpad slot, restoring it to
     /// tiling. Returns `.notFound` when the token is not the current scratchpad
     /// or is suspended for native fullscreen. Backs the workspace bar's
-    /// scratchpad-pill *Unassign* item (plan #18).
+    /// scratchpad-pill *Unassign* item.
     @discardableResult
     func unassignWindowFromScratchpad(token: WindowToken) -> ExternalCommandResult {
         guard workspaceManager.isScratchpadToken(token),
@@ -4286,7 +4287,7 @@ final class WMController {
 
     /// Token-aware assign-or-unassign routed by current scratchpad state. Used
     /// by both the window-icon *Assign to Scratchpad* and the scratchpad-pill
-    /// *Unassign from Scratchpad* menu items (plan #18).
+    /// *Unassign from Scratchpad* menu items.
     @discardableResult
     func toggleWindowScratchpadAssignment(token: WindowToken) -> ExternalCommandResult {
         if workspaceManager.isScratchpadToken(token) {

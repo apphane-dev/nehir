@@ -9,7 +9,7 @@ import Foundation
 @testable import Nehir
 import Testing
 
-/// Bar-wiring tests for the right-click action family (plan #18 Phase 3).
+/// Bar-wiring tests for the right-click action family.
 ///
 /// `.contextMenu` closures live inside the SwiftUI view hierarchy and cannot be
 /// driven programmatically without simulating a real right-click gesture, so
@@ -18,7 +18,7 @@ import Testing
 ///
 /// 1. The bar snapshot exposes the window/scratchpad tokens the closures act on.
 /// 2. The controller entry points the closures wrap work end-to-end on those
-///    exact tokens (token-target, not focus — the #8/#18 seam).
+///    exact tokens (token-target, not focus).
 /// 3. The single-slot disable flag (`scratchpadSlotOccupied`) tracks scratchpad
 ///    presence so the *Assign to Scratchpad* item disables correctly.
 @Suite(.serialized) struct WorkspaceBarRightClickWiringTests {
@@ -98,8 +98,8 @@ import Testing
     }
 
     @Test @MainActor func scratchpadPresenceDrivesAssignItemDisabledFlag() throws {
-        // The single-slot constraint (#7): the *Assign to Scratchpad* item must
-        // disable when the slot is occupied. The view derives
+        // The *Assign to Scratchpad* item must disable when the slot is
+        // occupied. The view derives
         // `scratchpadSlotOccupied` from `snapshot.scratchpad != nil`; verify the
         // snapshot tracks scratchpad presence.
         let monitor = makeLayoutPlanTestMonitor(displayId: 903)

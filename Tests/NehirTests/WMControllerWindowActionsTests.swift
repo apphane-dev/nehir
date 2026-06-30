@@ -35,10 +35,10 @@ private func syncNiriWorkspaceState(
     }
 }
 
-/// Token-target semantics for the workspace-bar right-click action family
-/// (plan #18 Phase 1). These exercise the load-bearing refactor: the
-/// per-window actions must act on the *passed* token, not the focused window
-/// (the #8 defect). Mirrors the assertion style of `WMControllerScratchpadTests`.
+/// Token-target semantics for the workspace-bar right-click action family.
+/// These exercise the load-bearing refactor: the per-window actions must act on
+/// the *passed* token, not the focused window. Mirrors the assertion style of
+/// `WMControllerScratchpadTests`.
 @Suite(.serialized) struct WMControllerWindowActionsTests {
     // MARK: - Toggle Floating
 
@@ -181,8 +181,8 @@ private func syncNiriWorkspaceState(
     }
 
     @Test @MainActor func assignWindowToScratchpadReturnsNotFoundWhenSlotOccupied() {
-        // Single-slot collision (#7): a second assignment must return .notFound
-        // so the right-click menu item disables rather than silently no-op'ing.
+        // Single-slot collision: a second assignment must return .notFound so
+        // the right-click menu item disables rather than silently no-op'ing.
         let controller = makeLayoutPlanTestController()
         guard let monitor = controller.workspaceManager.monitors.first,
               let workspaceId = controller.workspaceManager.activeWorkspaceOrFirst(on: monitor.id)?.id

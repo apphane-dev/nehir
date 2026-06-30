@@ -178,7 +178,7 @@ struct WorkspaceBarWindowMoveTarget: Identifiable, Hashable {
 
 /// Bundle of right-click actions threaded from the controller through the bar
 /// to each window icon. Bundling keeps `WindowIconView` a value type without a
-/// long parameter list (plan #18).
+/// long parameter list.
 struct WorkspaceBarWindowActions {
     let onToggleFloating: (WindowToken) -> Void
     let onToggleSticky: (WindowToken) -> Void
@@ -258,7 +258,7 @@ private struct WorkspaceBarContentView: View {
     }
 
     /// True when the single scratchpad slot is held, so the window-icon
-    /// *Assign to Scratchpad* item is disabled (single-slot constraint, #7).
+    /// *Assign to Scratchpad* item is disabled.
     private var scratchpadSlotOccupied: Bool {
         snapshot.scratchpad != nil
     }
@@ -525,8 +525,7 @@ private struct WorkspaceLabelButton: View {
         }
         .buttonStyle(.plain)
         // Right-click workspace label: *Focus* equals left-click. The
-        // *Move Workspace to Monitor ▸* item is omitted until Nehir #62 lands
-        // (plan #18 prerequisite — not an ancestor of this branch).
+        // *Move Workspace to Monitor ▸* item is omitted until Nehir #62 lands.
         .contextMenu {
             Button {
                 onFocusWorkspace()
@@ -736,8 +735,8 @@ private struct ScratchpadPillView: View {
         .onHover { hovering in
             isHovered = hovering
         }
-        // Right-click scratchpad pill: *Toggle Visible / Unassign / Focus*
-        // (plan #18). *Focus* mirrors the pill's left-click activation.
+        // Right-click scratchpad pill: *Toggle Visible / Unassign / Focus*.
+        // *Focus* mirrors the pill's left-click activation.
         .contextMenu {
             Button {
                 onToggleScratchpadVisible()
@@ -849,8 +848,8 @@ private struct WindowIconView: View {
             isHovered = hovering
         }
         // Right-click window icon: *Toggle Floating; Assign to Scratchpad;
-        // Move to Workspace ▸; Close; Windows…* (plan #18 v1 item set; no
-        // fullscreen — see Non-goals). Acts on this window's token, not focus.
+        // Move to Workspace ▸; Close; Windows…*. Acts on this window's token,
+        // not focus.
         .contextMenu {
             Button {
                 actions.onToggleFloating(window.id)
