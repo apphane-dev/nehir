@@ -84,6 +84,7 @@ enum HotkeyCommand: Codable, Equatable, Hashable {
 
     case openMenuAnywhere
     case openSettings
+    case createAppRuleForFocusedWindow
 
     case debugDumpRuntimeState
     case debugResetRuntimeState

@@ -732,6 +732,13 @@ enum ActionCatalog {
                 keywords: ["settings", "preferences", "configure", "config"]
             ),
             action(
+                id: "createAppRuleForFocusedWindow",
+                command: .createAppRuleForFocusedWindow,
+                category: .focus,
+                binding: .unassigned,
+                keywords: ["app rule", "rule", "bundle", "focused window", "create rule"]
+            ),
+            action(
                 id: "debug.dumpRuntimeState",
                 command: .debugDumpRuntimeState,
                 category: .debugging,
@@ -940,6 +947,7 @@ enum ActionCatalog {
         case .toggleScratchpadWindow: "Toggle Scratchpad Window"
         case .openMenuAnywhere: "Open Menu Anywhere"
         case .openSettings: "Open Settings"
+        case .createAppRuleForFocusedWindow: "Create App Rule for Focused Window…"
         case .debugDumpRuntimeState: "Debug: Dump Runtime State"
         case .debugResetRuntimeState: "Debug: Reset Runtime State"
         case .debugRestartClearingRuntimeState: "Debug: Restart Clearing Runtime State"
@@ -1101,6 +1109,12 @@ enum ActionCatalog {
             .openMenuAnywhere
         case .openSettings:
             .openSettings
+        case .createAppRuleForFocusedWindow:
+            // Intentionally no headless IPC/CLI form: this command opens an
+            // interactive App Rules editor the user must finish by hand.
+            // Returning nil here is what keeps the NehirIPC module (the
+            // command-request/router/manifest surface) out of scope for v1.
+            nil
         case .debugDumpRuntimeState:
             .debugDumpRuntimeState
         case .debugResetRuntimeState:

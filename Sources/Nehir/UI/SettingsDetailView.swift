@@ -45,7 +45,7 @@ struct SettingsDetailView: View {
         case .bar:
             WorkspaceBarSettingsTab(settings: settings, controller: controller)
         case .appRules:
-            AppRulesView(settings: settings, controller: controller)
+            AppRulesView(settings: settings, controller: controller, navigation: navigation)
         case .hotkeys:
             HotkeySettingsView(settings: settings, controller: controller, navigation: navigation)
         case .diagnostics:

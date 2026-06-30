@@ -126,6 +126,11 @@ import Testing
     }
 
     @Test func allCatalogActionsAreAssignableSearchableConfigurableAndPubliclyInvokable() {
+        // Commands that intentionally have no headless IPC/CLI equivalent
+        // (they open an interactive editor the user must finish by hand), so
+        // they legitimately carry no ipcCommandName. Every other catalogued
+        // action must remain IPC-invokable.
+        let interactiveOnlyCommandIds: Set<String> = ["createAppRuleForFocusedWindow"]
         for spec in ActionCatalog.allSpecs() {
             #expect(
                 HotkeySettingsDisplayModel.isVisible(bindingId: spec.id, developerModeEnabled: true),
@@ -135,7 +140,11 @@ import Testing
                 HotkeyConfigMapping.configKey(forInternalId: spec.id) != nil,
                 "\(spec.id) should have a TOML config key"
             )
-            #expect(spec.ipcCommandName != nil, "\(spec.id) should have an IPC/CLI command")
+            if interactiveOnlyCommandIds.contains(spec.id) {
+                #expect(spec.ipcCommandName == nil, "\(spec.id) should not have an IPC command")
+            } else {
+                #expect(spec.ipcCommandName != nil, "\(spec.id) should have an IPC/CLI command")
+            }
         }
     }
 

@@ -195,6 +195,17 @@ final class CommandHandler {
             controller.openMenuAnywhere()
         case .openSettings:
             SettingsWindowController.shared.show(settings: controller.settings, controller: controller)
+        case .createAppRuleForFocusedWindow:
+            let snapshot = controller.focusedWindowDecisionDebugSnapshot()
+            guard let draft = snapshot.flatMap(AppRuleDraft.guided(from:)) else {
+                return .notFound
+            }
+            SettingsWindowController.shared.show(
+                settings: controller.settings,
+                controller: controller,
+                section: .appRules,
+                pendingAppRuleDraft: draft
+            )
         case .debugDumpRuntimeState:
             controller.dumpRuntimeState()
         case .debugResetRuntimeState:

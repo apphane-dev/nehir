@@ -27,11 +27,13 @@ final class SettingsWindowController {
     func show(
         settings: SettingsStore,
         controller: WMController,
-        section: SettingsSection? = nil
+        section: SettingsSection? = nil,
+        pendingAppRuleDraft: AppRuleDraft? = nil
     ) {
         if let section {
             navigation.selectedSection = section
         }
+        navigation.pendingAppRuleDraft = pendingAppRuleDraft
 
         if let window {
             window.makeKeyAndOrderFront(nil)

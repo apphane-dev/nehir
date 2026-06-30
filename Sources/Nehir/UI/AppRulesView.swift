@@ -17,6 +17,7 @@ struct RunningAppInfo: Identifiable {
 struct AppRulesView: View {
     @Bindable var settings: SettingsStore
     @Bindable var controller: WMController
+    @Bindable var navigation: SettingsNavigationModel
 
     @State private var selectedRuleId: AppRule.ID?
     @State private var addDraft: AppRuleDraft?
@@ -92,6 +93,7 @@ struct AppRulesView: View {
                         },
                         onCancel: { addDraft = nil }
                     )
+                    .id(draft.id)
                 } else if let ruleId = selectedRuleId,
                           let ruleIndex = settings.appRules.firstIndex(where: { $0.id == ruleId })
                 {
@@ -141,6 +143,12 @@ struct AppRulesView: View {
         } message: { rule in
             Text("Delete the rule for \(rule.bundleId)?")
         }
+        .onAppear {
+            consumePendingAppRuleDraft()
+        }
+        .onChange(of: navigation.pendingAppRuleDraft) { _, _ in
+            consumePendingAppRuleDraft()
+        }
     }
 
     private var workspaceNames: [String] {
@@ -170,6 +178,20 @@ struct AppRulesView: View {
         guard let draft = AppRuleDraft.guided(from: snapshot) else { return }
         addDraft = draft
         selectedRuleId = nil
+    }
+
+    /// Consumes a one-shot app-rule draft handed over by another surface (e.g.
+    /// the "Create App Rule for Focused Window…" command via
+    /// `SettingsNavigationModel.pendingAppRuleDraft`) and opens the add editor
+    /// on it. Mirrors how the Hotkeys tab consumes `hotkeySearchSeed`: it runs
+    /// on appear (fresh navigation) and on change (command re-fired while the
+    /// App Rules tab is already visible, so the explicit command replaces any
+    /// in-flight draft), and clears the seed after consuming so it fires once.
+    private func consumePendingAppRuleDraft() {
+        guard let pending = navigation.pendingAppRuleDraft else { return }
+        addDraft = pending
+        selectedRuleId = nil
+        navigation.pendingAppRuleDraft = nil
     }
 }
 

@@ -14,6 +14,11 @@ final class SettingsNavigationModel {
     /// Hotkeys view consumes and clears it on appear so it filters to the
     /// relevant bindings (e.g. the debug commands) instead of showing all.
     var hotkeySearchSeed: String?
+    /// A one-shot pre-filled app-rule draft handed to the App Rules tab on
+    /// navigation (e.g. from the "Create App Rule for Focused Window…"
+    /// command). AppRulesView consumes and clears it on appear / change so the
+    /// add editor opens on the seeded draft exactly once.
+    var pendingAppRuleDraft: AppRuleDraft?
 
     init(selectedSection: SettingsSection = .general) {
         self.selectedSection = selectedSection
