@@ -52,10 +52,37 @@ Deviations from this plan's exact wording, decided during implementation:
 Build (`swift build`, `swift build --build-tests`) and the full test suite
 (1378 tests) pass with no regressions.
 
-**Still needed before Phase 2:** the actual capture described in Phase 1's
-"Deliverable" below — a real startup-rescan repro showing
-`ax_window_count_mismatch` and/or a `newContext=true` partial query — to
-confirm or refute this plan's central hypothesis before behavior changes.
+**Update, 2026-07-01: the capture came back, and it refutes this plan's
+central hypothesis.** See
+[`../discovery/20260701-structural-replacement-correlation-merges-distinct-startup-windows.md`](../discovery/20260701-structural-replacement-correlation-merges-distinct-startup-windows.md).
+Two real cold-start captures, taken using the Phase 1 instrumentation above,
+show the affected pids' very first `kAXWindowsAttribute` query already
+returning every window id the app actually had — `newContext=true` queries
+came back complete, and `ax_window_count_mismatch` never fired in either
+capture. What actually happens is downstream of the AX query: the full
+rescan's structural-replacement correlation
+(`rekeyStructuralManagedReplacementIfNeeded`,
+`Sources/Nehir/Core/Controller/AXEventHandler.swift:837`) matches a brand-new
+candidate against a *different, still-live* window admitted earlier in the
+**same rescan pass**, because every one of an app's just-opened windows
+shares an identical pre-layout default frame and the matcher does not
+distinguish "a live entry from this very pass" from "a genuinely
+destroyed-and-recreated window." Several distinct real windows get silently
+rekeyed into one managed token — and, in one of the two captures, the loss
+was not transient: the same windows were still unmanaged ~20 seconds later
+with no recovery event of any kind.
+
+**Phases 2-4 of this plan, as designed, would not fix what the capture
+shows.** Re-querying `kAXWindowsAttribute` after admission (this plan's
+proposed fix) would return the same complete id list a second time — it
+already does, per the capture — and the structural-replacement correlation
+would re-collapse them identically, since nothing about a second query
+changes the shared startup frame the candidates collapse on. This plan's
+instrumentation (Phase 1) remains useful and stays in place, but the design
+in "Design: confirm-after-admission for newly-created AX contexts" above
+needs to be revisited against the new discovery before Phase 2 proceeds — the
+real fix surface is the same-pid structural-replacement matcher, not an
+AX re-query.
 
 ---
 
