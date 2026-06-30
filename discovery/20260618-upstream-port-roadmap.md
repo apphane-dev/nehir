@@ -10,6 +10,15 @@ Source upstream range: `BarutSRB/OmniWM` after `ee9b4f0707668d43f73e4af8c9a4f358
 > [`20260625-upstream-post-roadmap-candidates.md`](20260625-upstream-post-roadmap-candidates.md)
 > (M4-S2/M6/A1 landed detail with residuals + a 12-commit post-cutoff triage whose
 > headline recommendation is porting `b8a545f` directional cross-monitor focus).
+>
+> **Post-roadmap update (2026-06-29).** The next upstream releases — **0.5.2**
+> (`9a1b28f6`) and **0.5.2.1** (`cf5e72b0`) — are triaged in
+> [`20260629-upstream-post-roadmap-candidates.md`](20260629-upstream-post-roadmap-candidates.md)
+> (a 16-commit behavioural sweep whose headline 🔴 ports are `79067d45` Focus Lock
+> Modifier, `3e26655c` column-width settings re-tiling existing windows, the
+> `c836fbb0`+`e82cd168` tabbed-column cluster, and `8a8ecbd8` min-size floor for
+> offscreen-scroll windows). That sweep also notes `b8a545f` (the prior #1 🔴) must
+> carry `18c30dd0`'s empty-adjacent-monitor guard when it lands.
 
 **This doc is the single source of truth** for tier, verdict, deliverability, sequencing, and status of every port candidate. Per-cluster discovery docs carry the detail; this carries the priority/categorization.
 

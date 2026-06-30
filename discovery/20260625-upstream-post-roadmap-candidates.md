@@ -1,5 +1,13 @@
 # Upstream post-roadmap candidates — landed-status correction + post-cutoff triage
 
+> **Superseded-for-new-commits (2026-06-29).** This sweep covered upstream through
+> `36461fe1` (2026-06-24). Commits after that — releases **0.5.2** / **0.5.2.1** —
+> are triaged in
+> [`20260629-upstream-post-roadmap-candidates.md`](20260629-upstream-post-roadmap-candidates.md).
+> The standing open 🔴 recommendation here (`b8a545f` directional cross-monitor focus)
+> still holds; the 2026-06-29 sweep adds that it must carry `18c30dd0`'s
+> empty-adjacent-monitor guard.
+
 Two-part sweep of `BarutSRB/OmniWM` against Nehir `main`:
 
 1. **Part 1** corrects the now-stale Status column of

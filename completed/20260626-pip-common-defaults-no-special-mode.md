@@ -67,7 +67,7 @@ limitations recorded below.
   `Sources/Nehir/Core/Layout/Niri/ViewportState+Geometry.swift`.
 - **Docs** updated: `docs/CONFIGURATION.md`, `docs/glossary.md`,
   `docs/ARCHITECTURE.md`, `docs/IPC-CLI.md`, `docs/index.md`,
-  `docs/offscreen-clamp-fix.md`, `docs/viewport-navigation-spec.md`.
+  `docs/window-parking-and-offscreen-clamp.md`, `docs/viewport-navigation-spec.md`.
 
 ### Runtime-driven deviations
 

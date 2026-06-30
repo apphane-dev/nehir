@@ -16,13 +16,13 @@ access to any captured log. Code citations (`file:line`) were current as of comm
 `8dd8f39` and will drift — re-verify before implementing.
 
 This is a **sharper characterization of a failure mode already flagged** in
-`docs/offscreen-clamp-fix.md` (§ "Iteration finding: live AX evidence suggests one
+`docs/window-parking-and-offscreen-clamp.md` (§ "Iteration finding: live AX evidence suggests one
 failure mode is stale cached / last-applied state … `hidePlan.staleCachedAlreadyHidden`
 … re-applies the parking move when live AX disagrees"). That doc identified the
 per-window drift reconciliation and wired it into the hide path. This discovery pins
 **why it still misses**: the reconciliation runs only on a hide *transition*, so a
 window that is already stably hidden when its live frame drifts is never re-checked.
-See [Relationship to `offscreen-clamp-fix.md`](#relationship-to-offscreen-clamp-fixmd).
+See [Relationship to `window-parking-and-offscreen-clamp.md`](#relationship-to-window-parking-and-offscreen-clampmd).
 
 ---
 
@@ -108,7 +108,7 @@ Where did `986` come from? It is the column's last *on-screen* x-origin from a p
 viewport position: `986 ≈ 2028 (c2 workspace-x) − viewStart`, i.e. from when `viewStart`
 was ≈`1042` and c2 was visible at screen `x=986`. When the viewport later slid right and
 c2 scrolled off-left, the park write to `-1006` either failed WindowServer verification
-(offscreen clamp — see `offscreen-clamp-fix.md`) or was never issued, leaving `live`
+(offscreen clamp — see `window-parking-and-offscreen-clamp.md`) or was never issued, leaving `live`
 frozen at that last-shown `986`.
 
 The sibling Helium window and all other far-offscreen columns are parked correctly at
@@ -287,9 +287,9 @@ Until one of those fires, the drifted `live` frame is permanent.
 
 ---
 
-## Relationship to `offscreen-clamp-fix.md`
+## Relationship to `window-parking-and-offscreen-clamp.md`
 
-`docs/offscreen-clamp-fix.md` documents the broader, still-open problem that macOS clamps
+`docs/window-parking-and-offscreen-clamp.md` documents the broader, still-open problem that macOS clamps
 offscreen positions so full-size external windows cannot be truly hidden, and records
 (among its iteration findings) the exact drift failure mode this discovery is about:
 
@@ -308,7 +308,7 @@ are the ones least likely to be re-checked.
 
 Note also the clamp angle: the park target here was `(-1006, 0)` for a 1006-wide window,
 i.e. the kind of fully-offscreen coordinate WindowServer is known to clamp
-(`offscreen-clamp-fix.md` §1). A clamped/failed park write is a plausible *origin* of the
+(`window-parking-and-offscreen-clamp.md` §1). A clamped/failed park write is a plausible *origin* of the
 `live=986` drift; this discovery does not depend on which origin caused the drift, only
 on the fact that once it exists, nothing corrects it for stably-hidden windows.
 
@@ -365,7 +365,7 @@ transitions `.hide`. The three distinguishable outcomes each point at a differen
 | Apply trace at the `.hide` transition | Implied origin | Correct fix layer |
 |---|---|---|
 | `enqueue → confirmed`, then drift later | app self-move / restore race | reconciliation (gap (1), this doc) |
-| `enqueue → failed` / `verificationMismatch` (clamped) | WindowServer clamp rejects park | reconciliation re-applies, but park itself still the open `offscreen-clamp-fix.md` problem |
+| `enqueue → failed` / `verificationMismatch` (clamped) | WindowServer clamp rejects park | reconciliation re-applies, but park itself still the open `window-parking-and-offscreen-clamp.md` problem |
 | **no `enqueue` at all** | dedup/skip suppresses the write | the dedup/`lastApplied` path, not reconciliation |
 
 That single capture both names the root cause and yields the repro needed to validate
@@ -402,7 +402,7 @@ confirms the cause is one-shot rather than recurring.
    transition. Simplest to implement but adds a per-pass AX read for every hidden window
    on every layout tick — likely overkill vs. the cadenced (1).
 
-Any fix must be validated against the `offscreen-clamp-fix.md` pitfalls: do **not** claim
+Any fix must be validated against the `window-parking-and-offscreen-clamp.md` pitfalls: do **not** claim
 the park itself is "fixed" from geometry or unit tests alone — WindowServer clamp behavior
 must be confirmed in a real run. The reconciliation here only guarantees that the live
 frame is *re-driven* toward the park slot; whether WindowServer finally accepts it is the

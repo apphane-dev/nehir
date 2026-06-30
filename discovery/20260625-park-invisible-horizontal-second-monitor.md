@@ -12,7 +12,7 @@ All source references were verified against the main Nehir source tree at
 (`git log -1 --format='%h %s'` → `8887adcb`). Line numbers drift; function names
 are included so the code stays findable. No trace-log filenames are referenced;
 every runtime claim is either inlined as a quoted value or sourced from the
-durable repo document `docs/offscreen-clamp-fix.md`.
+durable repo document `docs/window-parking-and-offscreen-clamp.md`.
 
 This doc is **strategy**, not a source change. It sits at the intersection of
 three existing clusters and owns only the **horizontal-arrangement math + the
@@ -61,7 +61,7 @@ It cross-links (does not copy) the prior work.
   monitor even after they land.
 
 - **There is exactly one zero-cost mitigation that targets the horizontal case
-  directly: arrange monitors vertically (the existing `docs/offscreen-clamp-fix.md`
+  directly: arrange monitors vertically (the existing `docs/window-parking-and-offscreen-clamp.md`
   recommendation).** It converts "whole window on neighbour" into "~40px strip on
   own monitor." Two further cheap options are re-evaluated here for the
   horizontal case specifically (§D): **(a) force transient parks onto the outer
@@ -89,7 +89,7 @@ It cross-links (does not copy) the prior work.
   bounded virtual-display spike. Escalate to a full `planned/` design **only if
   H1 passes**. Until H1 passes (or Separate-Spaces-ON is runtime-confirmed for
   the transient case), **no doc may claim the horizontal-bleed is "fixed"** —
-  per the explicit pitfall in `docs/offscreen-clamp-fix.md`.
+  per the explicit pitfall in `docs/window-parking-and-offscreen-clamp.md`.
 
 ---
 
@@ -109,7 +109,7 @@ static let hiddenWindowEdgeRevealEpsilon: CGFloat = 1.0
 ```
 
 and both are bounded above by the macOS offscreen-position clamp, inlined
-verbatim from `docs/offscreen-clamp-fix.md`:
+verbatim from `docs/window-parking-and-offscreen-clamp.md`:
 
 > macOS clamps both horizontal and vertical positions of a full-size window that
 > would be moved completely offscreen. `AXUIElementSetAttributeValue(kAXPositionAttribute)`
@@ -196,7 +196,7 @@ case .horizontal:
 
 The override is deliberate: parking a column on the *opposite* edge from the side
 it scrolled off causes a visible fly-across (this is exactly why approach #13 in
-`docs/offscreen-clamp-fix.md` — "push all hidden windows to one edge" — was
+`docs/window-parking-and-offscreen-clamp.md` — "push all hidden windows to one edge" — was
 rejected: "left-hidden windows visibly fly across the screen to get there"). The
 `placement` value is computed and traced (`hideOrigin.resolve experiment=physicalEdge1pt
 … placement=…`) but its `.resolvedEdge` is dead for the result. **The cost of that
@@ -241,7 +241,7 @@ window on the neighbour.
 
 ### A.5 Why the vertical-arrangement workaround works (and horizontal doesn't)
 
-`docs/offscreen-clamp-fix.md` recommends arranging monitors **vertically**. With
+`docs/window-parking-and-offscreen-clamp.md` recommends arranging monitors **vertically**. With
 A and B stacked (B below A, same `x`-range), the transient `.right` park on A at
 `x = 2055` extends into `x > 2056`, which is **offscreen** — no monitor owns that
 horizontal band. The window is now fully offscreen → the clamp fires → a ~40px
@@ -280,7 +280,7 @@ They are necessary, not sufficient, for the maintainer's goal.
 ### B.2 The clamp ceiling — the only thing that gives TRUE invisibility on a horizontal layout
 
 Sixteen position/visibility primitives are logged as failed in
-`docs/offscreen-clamp-fix.md` (AX retry, resize-to-1×1, `kAXMinimizedAttribute`,
+`docs/window-parking-and-offscreen-clamp.md` (AX retry, resize-to-1×1, `kAXMinimizedAttribute`,
 `SLSSetWindowOpacity`, `SkyLight.orderWindow`, `y=-10000`, `SLSWindowSetShape`,
 `SLSTransactionOrderWindow`/`SLSOrderWindow` with `kCGSOrderOut`,
 `SLSSetWindowTransform`, explicit 1px edge parking, …). The recurring reason:
@@ -298,7 +298,7 @@ untried direction that instead creates **new** display space to park windows
 > as today).
 
 H1 cannot be settled by reading source or by a unit test
-(`docs/offscreen-clamp-fix.md`: *"Private WindowServer/SkyLight/AX behavior
+(`docs/window-parking-and-offscreen-clamp.md`: *"Private WindowServer/SkyLight/AX behavior
 cannot be proven by coordinate math or unit tests… Unconfirmed hypotheses are not
 fixes."*). It requires a runtime spike — see §C.
 
@@ -373,7 +373,7 @@ window at the **centre** of the virtual frame, with large margin on every side
 (e.g. target `origin = virtualFrame.origin + (500, 500)`). Run **two** widths:
 
 - **narrow (~852px)** and **wide (~1600px)** — wide windows have different clamp
-  behaviour (`docs/offscreen-clamp-fix.md`: a 1626px window pushed to `x=1728`
+  behaviour (`docs/window-parking-and-offscreen-clamp.md`: a 1626px window pushed to `x=1728`
   clamped to `x=1688`, 40px visible; a narrow 852px window at `x=1728` was
   allowed at `x=1727`, 1px). Both must pass.
 
@@ -393,12 +393,12 @@ wide:   target={(vx+500, vy+500), 1600×1068} observed={(vx+500, vy+500), 1600×
   design.**
 - **Any clamp (e.g. `observed.x` pulled back so ~40px would sit at a virtual/real
   boundary, or any `verificationMismatch`) ⇒ H1 is false ⇒ record as approach
-  #17 failure in `docs/offscreen-clamp-fix.md` with the inlined `target=` /
+  #17 failure in `docs/window-parking-and-offscreen-clamp.md` with the inlined `target=` /
   `observed=` pairs, and stop.**
 
 ### C.4 Visual confirmation (the clamp doc's four-scenario rule)
 
-Per `docs/offscreen-clamp-fix.md`'s "must confirm manually" rule, observe during:
+Per `docs/window-parking-and-offscreen-clamp.md`'s "must confirm manually" rule, observe during:
 (1) slow gesture approach, (2) snap/keyboard navigation, (3) focus change, (4)
 settled idle state — that **no pixels of the parked window appear on either real
 monitor**, for both the narrow and the wide window. Also confirm the parked
@@ -420,7 +420,7 @@ identity-tagged, hard-excluded display across (concise list, mirroring
   there.
 - **Restore / reveal** — `executeHiddenReveal` / `restoreWindowFromHiddenState`
   must move the window back to a real monitor before unhiding (the proportional-
-  restore pitfall in `docs/offscreen-clamp-fix.md` §"Restore Path for Tiled
+  restore pitfall in `docs/window-parking-and-offscreen-clamp.md` §"Restore Path for Tiled
   Windows" applies).
 - **Diagnostics** — `DisplayEnvironmentDiagnostics` and the monitors dump must
   not report it as a user monitor.
@@ -432,7 +432,7 @@ identity-tagged, hard-excluded display across (concise list, mirroring
 
 ## D. Cheaper alternatives — rule them in or out for the horizontal case
 
-`docs/offscreen-clamp-fix.md` already ruled out 16 approaches. Re-checked here
+`docs/window-parking-and-offscreen-clamp.md` already ruled out 16 approaches. Re-checked here
 **for the horizontal case specifically**:
 
 ### D.1 Far-edge park (force transient parks onto the outer edge) — partial win, real cost
@@ -539,7 +539,7 @@ known path to *zero* bleed.**
    the hard-exclusion surface (C.5) and sequence behind the reconciliation fixes.
 5. **Until H1 passes or Separate-Spaces-ON is runtime-confirmed for the
    transient case, no doc may claim the horizontal-bleed is "fixed"/"solved"** —
-   per `docs/offscreen-clamp-fix.md`'s explicit pitfall. A unit test can prove
+   per `docs/window-parking-and-offscreen-clamp.md`'s explicit pitfall. A unit test can prove
    Nehir *requested* a coordinate; it cannot prove macOS *rendered* the window
    hidden.
 
@@ -547,7 +547,7 @@ known path to *zero* bleed.**
 
 ## Cross-links (do not duplicate)
 
-- `docs/offscreen-clamp-fix.md` (repo document) — authoritative clamp record +
+- `docs/window-parking-and-offscreen-clamp.md` (repo document) — authoritative clamp record +
   16 failed approaches; treat as ground truth.
 - `discovery/20260621-virtual-display-park-offscreen-windows.md` — the
   virtual-display proposal (approach #17); §C makes its "Suggested validation"

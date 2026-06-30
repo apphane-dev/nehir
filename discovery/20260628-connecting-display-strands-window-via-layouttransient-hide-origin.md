@@ -84,7 +84,7 @@ Three facts make the mechanism unambiguous:
    `0..2056`). It never consulted the fact that display 3 now occupies
    `-2560..0`.
 3. `-971` is on display 3, so the window is not offscreen, so the macOS
-   offscreen-position clamp (documented in `docs/offscreen-clamp-fix.md`) does
+   offscreen-position clamp (documented in `docs/window-parking-and-offscreen-clamp.md`) does
    not fire. `SkyLight.move` resolved it onto display 3
    (`heuristicTransform=display=3`).
 
@@ -159,19 +159,16 @@ is the clamp ceiling, not a coordinate bug we can arithmetic our way past. See
 `discovery/20260625-park-invisible-horizontal-second-monitor.md` §B/§D for the
 full strategy; the parts that bear on *this* capture:
 
-- **Cheap reduction (doable now, ~10 lines):** route `.layoutTransient` through
-  the same overlap-aware resolver as `.workspaceInactive` — i.e. use
-  `placement.resolvedEdge` instead of `requestedEdge`, or call
-  `physicalScreenEdgeOrigin` directly. For this capture that moves the park from
-  `x=-971` (fully on display 3) to the outer edge `x=2055`, which is offscreen
-  beyond display 1. That eliminates the "whole window on the wrong display"
-  case. **But** macOS then clamps the offscreen position, leaving a ~15–40px
-  strip on display 1 (approach #16 variance, `docs/offscreen-clamp-fix.md`), and
-  a hidden column flying to the opposite edge has a visible fly-across cost
-  (why approach #13 / the `physicalEdge1pt` override chose `requestedEdge` in the
-  first place). Net: neighbour-monitor bleed → own-monitor strip. Strictly better
-  for the topology-change case (where the window is being hidden anyway, so the
-  fly-across is largely masked), still not "invisible."
+- **Cheap reduction (doable now):** if the requested hide edge borders another
+  display, park on the source monitor's non-neighbour edge using the overlap
+  resolver's alternate edge. For this capture, `side=left` no longer parks at
+  `x=-971` (inside display 3); it parks at the source display's opposite edge
+  (`x=2055` for the built-in display spanning `0..2056`). This can visibly pop
+  the hidden column to the other side of the source display and can still leave a
+  clamp strip, but it avoids moving the window into another display/Space region.
+  Same-direction row-edge parking was tried and rejected by the real repro trace:
+  a workspace-1 window parked at `x=-3531` with `hidden:left` was later logged as
+  a normal workspace-6/display-3 tile.
 - **True zero:** requires the virtual-display approach (#17), gated on the
   unverified hypothesis H1 in
   `discovery/20260621-virtual-display-park-offscreen-windows.md`. No coordinate
@@ -186,8 +183,74 @@ full strategy; the parts that bear on *this* capture:
 
 So: the defect is fully understood and a strict improvement is cheap, but per the
 clamp-doc pitfall no doc may claim the strand-on-connected-display is "fixed"
-until either the far-edge reduction is accepted as a degraded mode or the
-virtual-display spike confirms H1.
+until the source-monitor non-neighbour-edge reduction is validated in the real
+repro or a Separate-Spaces-native park primitive is proven.
+
+## Separate Spaces follow-up — 1px seam parking is not reachable by geometry alone
+
+A live no-Nehir probe on 2026-06-28 refined the strategy for users with
+**Displays have separate Spaces** enabled. The important result is that geometry
+and native Space ownership can disagree, but only until the window centre crosses
+the display seam.
+
+Probe topology:
+
+```text
+SLSGetSpaceManagementMode = 1
+Built-in Retina Display: frame=(0,0,2056,1329), active native Space 5
+DELL P2423D:             frame=(-2560,-111,2560,1440), active native Space 65
+```
+
+A sacrificial Helium window had `windowId=2882`, `pid=13175`,
+`frame=(-1198,39 1224x1226)`, and `SLSCopySpacesForWindows=[5]`. This proves
+that, with Separate Spaces enabled, a window may geometrically straddle the seam
+while remaining owned by the source display's native Space. Moving that same
+window via AX produced this threshold:
+
+```text
+x=-1    -> spaces=[5]
+x=-8    -> spaces=[5]
+x=-16   -> spaces=[5]
+x=-32   -> spaces=[5]
+x=-64   -> spaces=[5]
+x=-128  -> spaces=[5]
+x=-256  -> spaces=[5]
+x=-512  -> spaces=[5]
+x=-612  -> spaces=[5]
+x=-613  -> spaces=[65]
+x=-971  -> spaces=[65]
+x=-1223 -> spaces=[65]
+```
+
+For a `1224px`-wide window, `x=-612` places the centre exactly on the seam
+(`x + width/2 = 0`) and remains source-owned; `x=-613` crosses the centre one
+pixel into the neighbour and flips to the neighbour Space. Therefore a desired
+"1px visible on the source display only" park (`x = -width + 1`, here
+`x=-1223`) is **not reachable by geometry-only AX movement**. It lands in
+`spaces=[65]`, which is the wrong display/Space for this bug.
+
+Additional live probes tried the obvious non-geometry escape hatches:
+
+```text
+SLSMoveWindowsToManagedSpace / CGSMoveWindowsToManagedSpace: returned/called but spaces stayed [65]
+SLSAddWindowsToSpaces + SLSRemoveWindowsFromSpaces: returned success but spaces stayed [65]
+SLSSpaceSetCompatID + SLSSetWindowListWorkspace (Sonoma 14.5+ workaround): SLSSetWindowListWorkspace returned 1006; spaces stayed [65]
+CGSMoveWorkspaceWindowList: returned 1006; spaces stayed [65]
+CGSSpaceAddWindowsAndRemoveFromSpaces: called but spaces stayed [65]
+AX resize to width=2: AX returned success, observed size remained 1224x1226
+SLSSetWindowAlpha / SLSSetWindowOpacity: returned success, CG alpha remained 1
+SLSSetWindowShape with a 1px strip: returned success, captured window alpha bounds were unchanged
+Direct SLSMoveWindow from the probe process: returned success but did not move the app window
+```
+
+Implication: the ideal Separate-Spaces-native target remains: keep the hidden
+window on its source native Space while allowing deep seam geometry. But the live
+evidence says Nehir cannot get to the 1px seam position with plain frame writes,
+and the later real-repro trace showed same-direction row-edge parking can be
+adopted into workspace 6. Until a working native-Space reassignment primitive and
+logical-workspace guard exist, row-edge parking is rejected. The current degraded
+reduction parks on the source monitor's non-neighbour edge when the requested
+edge borders another display.
 
 ## Secondary finding — the offset-mutation audit collapses intermediate steps
 

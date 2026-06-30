@@ -59,7 +59,7 @@ scope here (see "Optional future feature, explicitly not recommended").
 
 Where does the "stack vertically" recommendation the reporter mentions come
 from? It is **not** about mouse warping. It is the offscreen-clamp guidance in
-`docs/offscreen-clamp-fix.md:101-104`:
+`docs/window-parking-and-offscreen-clamp.md:101-104`:
 
 > "For multi-monitor setups, the practical recommendation is to arrange monitors
 > **vertically** in macOS System Settings. Side-by-side horizontal displays put
@@ -257,7 +257,7 @@ Suggested response on the issue (operational, not code):
    vs lower-right) so they no longer share a full horizontal edge. Both the
    reporter and @flschulz confirmed this removes the unwanted jump while keeping
    Nehir's horizontal warp useful.
-4. Note the tension with `docs/offscreen-clamp-fix.md:101-104`, which
+4. Note the tension with `docs/window-parking-and-offscreen-clamp.md:101-104`, which
    *recommends* vertical arrangement for offscreen-window clamp reasons. Users
    hitting both problems may need to pick the arrangement that bothers them
    less, or use a diagonal compromise.

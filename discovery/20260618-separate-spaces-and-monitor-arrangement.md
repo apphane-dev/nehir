@@ -6,7 +6,7 @@ Scope: clarify whether upstream's "Displays have separate Spaces" work addresses
 
 Related:
 
-- `docs/offscreen-clamp-fix.md`
+- `docs/window-parking-and-offscreen-clamp.md`
 - `docs/CONFIGURATION.md` display-arrangement recommendation
 - upstream commits `de971b6`, `ee554c7`, `2dcab36`
 - minor candidate M4 in `20260618-upstream-port-minor-candidates.md`
@@ -29,7 +29,7 @@ Related:
 
 > Arrange displays **vertically** in macOS System Settings (`Displays > Arrange`) instead of side-by-side horizontally. Nehir parks transient offscreen tiled windows near the horizontal screen edge. With side-by-side monitors, those parked windows can bleed into the neighboring display because macOS does not allow fully hiding external app windows by position alone. A vertical monitor arrangement keeps the horizontal parking edges away from adjacent displays and avoids the most visible bleed artifacts.
 
-`docs/offscreen-clamp-fix.md` confirms the mechanism:
+`docs/window-parking-and-offscreen-clamp.md` confirms the mechanism:
 
 - macOS clamps horizontal and vertical offscreen positions for external app windows;
 - workspace-inactive/transient parking is not true hiding;

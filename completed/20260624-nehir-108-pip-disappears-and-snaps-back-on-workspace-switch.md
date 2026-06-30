@@ -472,7 +472,7 @@ macOS on switch/restore — Levers 1+2 — not to exclude PiP from the model.
 
 These are the runtime assertions a fix should satisfy; none can be proven by a unit
 test alone (private WindowServer/SkyLight behavior — see
-`docs/offscreen-clamp-fix.md`'s "must confirm manually" rule cited by
+`docs/window-parking-and-offscreen-clamp.md`'s "must confirm manually" rule cited by
 `discovery/20260621-virtual-display-park-offscreen-windows.md`).
 
 1. **PiP survives a workspace switch in place.** With a browser PiP open on the

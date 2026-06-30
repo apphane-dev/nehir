@@ -329,7 +329,7 @@ recommendations, which close #235 directly:
 These are the same fixes the workspace-inactive discovery already specifies; #235 adds no
 new root cause, only confirms the symptom is reported upstream and is still live in the
 latest upstream release the reporter tested. Any repair must also be validated against the
-`docs/offscreen-clamp-fix.md` pitfalls: a unit test can prove a park *plan is issued*, but
+`docs/window-parking-and-offscreen-clamp.md` pitfalls: a unit test can prove a park *plan is issued*, but
 whether WindowServer finally accepts the offscreen park and the external window renders
 hidden is the separate, still-open clamp problem — the reconciliation here only guarantees
 the live frame is *re-driven* toward the park slot.
@@ -345,7 +345,7 @@ Mirror the workspace-inactive discovery's recommended test, framed for #235:
    (e.g. `live={{1050,0},{1006,1280}}`). After `hideWorkspace` runs, assert a park plan
    toward the right-edge origin (`x≈2055`) is issued for that window rather than skipped.
    (Asserting WindowServer *renders* it hidden is out of scope for a unit test — see
-   `docs/offscreen-clamp-fix.md` — but the plan being issued is the gateable invariant.)
+   `docs/window-parking-and-offscreen-clamp.md` — but the plan being issued is the gateable invariant.)
 2. **Full-width window reproduces the wide bleed; narrow window parks cleanly.** Parametrize
    (1) over window width and assert that the visible-strip width on the active monitor
    shrinks to ≤ the reveal epsilon after the fix, capturing the "full column width" condition

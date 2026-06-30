@@ -263,7 +263,7 @@ upstream-symptom record `noop/20260616-omniwm-235-window-bleed-different-workspa
 
    As with #235, a unit test can prove a park **plan is issued** for a drifted
    already-hidden floating window; whether WindowServer finally renders it hidden is the
-   separate, still-open offscreen-clamp problem noted in `docs/offscreen-clamp-fix.md`.
+   separate, still-open offscreen-clamp problem noted in `docs/window-parking-and-offscreen-clamp.md`.
 
 ## Suggested tests
 

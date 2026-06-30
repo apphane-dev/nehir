@@ -72,7 +72,7 @@ Docs reviewed after implementation:
   now explicitly uses effective viewport width for lone-window rendering.
 - `docs/glossary.md` needed updates because the previous default-column-width
   wording implied lone policy participates in canonical column-width resolution.
-- `docs/CONFIGURATION.md`, `docs/offscreen-clamp-fix.md`, `docs/index.md`, and
+- `docs/CONFIGURATION.md`, `docs/window-parking-and-offscreen-clamp.md`, `docs/index.md`, and
   other docs were checked and did not require source-of-truth changes for this
   implementation beyond the files above.
 

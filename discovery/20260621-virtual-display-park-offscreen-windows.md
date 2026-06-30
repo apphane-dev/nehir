@@ -10,7 +10,7 @@ window is guaranteed invisible — no edge strip, no corner, no cross-monitor bl
 All code citations were verified against the main Nehir source tree at `56573ba2`
 ("Fix focus-follows-mouse blocked by click-through overlays (#64)"). Re-verify before
 implementing; line numbers drift. No trace logs are referenced; every runtime claim is
-either inlined as a quoted value or sourced from `docs/offscreen-clamp-fix.md`, which is a
+either inlined as a quoted value or sourced from `docs/window-parking-and-offscreen-clamp.md`, which is a
 durable repo document.
 
 ---
@@ -24,7 +24,7 @@ durable repo document.
   positions: `AXUIElementSetAttributeValue(kAXPositionAttribute)` returns `.success` but
   clamps the window back so ~40px horizontally / ~34px vertically stays visible, detected
   downstream as `.verificationMismatch` (`AXWindow.swift:58`, `:430`). Nehir's own
-  `docs/offscreen-clamp-fix.md` records **sixteen** attempted hide primitives — AX retries,
+  `docs/window-parking-and-offscreen-clamp.md` records **sixteen** attempted hide primitives — AX retries,
   resize-to-1×1, `kAXMinimizedAttribute`, `SLSSetWindowOpacity`, `SkyLight.orderWindow`,
   `y=-10000` vertical push, `SLSWindowSetShape`, `SLSTransactionOrderWindow`/`SLSOrderWindow`
   with `kCGSOrderOut`, `SLSSetWindowTransform`, explicit 1px edge parking — and concludes:
@@ -82,7 +82,7 @@ their work:
   (`Sources/Nehir/Core/Layout/SideHiding.swift:78`). Those mitigate *which real edge* a
   hidden window bleeds onto; they cannot make a parked window invisible because the clamp
   still leaves a strip. A virtual display removes the real-edge dependency entirely.
-- **The clamp failure log.** `docs/offscreen-clamp-fix.md` (repo document, not a planning
+- **The clamp failure log.** `docs/window-parking-and-offscreen-clamp.md` (repo document, not a planning
   doc) is the authoritative record of the macOS clamp and the sixteen failed approaches.
   This doc treats it as ground truth and proposes the virtual display as approach #17.
 - **Separate-Spaces topology.** `discovery/20260618-displays-separate-spaces-mode-detection.md`
@@ -160,7 +160,7 @@ thousands of pixels of margin on every side, so even large park-write drift is h
    windows (`DragGhostWindow.swift:71`, `NativeFullscreenPlaceholderManager.swift:209`/`:228`)
    — never on external app windows. `SkyLight.transactionHide` exists
    (`SkyLight.swift`, `transactionOrderWindow(transaction, wid, 0, 0)`) but is used for
-   Nehir's own border/overlay windows. `docs/offscreen-clamp-fix.md` confirms why:
+   Nehir's own border/overlay windows. `docs/window-parking-and-offscreen-clamp.md` confirms why:
    `SLSTransactionOrderWindow`/`SLSOrderWindow` with `kCGSOrderOut` (mode 1) are *silently
    ignored* for windows owned by other processes (`isWindowOrderedIn` stays `true` after the
    call). External app windows cannot be ordered out by Nehir.
@@ -173,7 +173,7 @@ thousands of pixels of margin on every side, so even large park-write drift is h
    (`LayoutRefreshController.swift:2728`).
 
 4. **Fully-offscreen parks are silently clamped by macOS.** From
-   `docs/offscreen-clamp-fix.md` (durable repo document, inlined verbatim):
+   `docs/window-parking-and-offscreen-clamp.md` (durable repo document, inlined verbatim):
 
    > *"macOS clamps both horizontal and vertical positions of a full-size window that would
    > be moved completely offscreen. Instead of accepting the target coordinate, WindowServer
@@ -227,7 +227,7 @@ from real ones in the clamp path — then the idea fails for the same reason the
 prior approaches did, and should be dropped.
 
 H1 is the single gateable unknown. It cannot be settled by reading source or by a unit test
-(`docs/offscreen-clamp-fix.md` is emphatic: *"Private WindowServer/SkyLight/AX behavior
+(`docs/window-parking-and-offscreen-clamp.md` is emphatic: *"Private WindowServer/SkyLight/AX behavior
 cannot be proven by coordinate math or unit tests… Unconfirmed hypotheses are not fixes."*).
 It requires a runtime spike.
 
@@ -282,7 +282,7 @@ implementer has anchors; none of this is proposed for the docs-only branch.
      must never warp there.
    - **Restore / reveal** — `executeHiddenReveal` and `restoreWindowFromHiddenState`
      (`LayoutRefreshController.swift`) must move the window back to a real monitor before
-     unhiding; the proportional-restore pitfalls in `docs/offscreen-clamp-fix.md` (§
+     unhiding; the proportional-restore pitfalls in `docs/window-parking-and-offscreen-clamp.md` (§
      "Restore Path for Tiled Windows") apply.
    - **Diagnostics** — `DisplayEnvironmentDiagnostics`
      (`Sources/Nehir/Core/Monitor/DisplayEnvironmentDiagnostics.swift`) and the monitors
@@ -294,7 +294,7 @@ implementer has anchors; none of this is proposed for the docs-only branch.
 
 1. **H1 is unverified (the dominant unknown).** If macOS clamps at virtual-display
    boundaries too, the idea is dead. This must be settled by a runtime spike before any
-   design work. Per `docs/offscreen-clamp-fix.md`, a positive result requires live AX
+   design work. Per `docs/window-parking-and-offscreen-clamp.md`, a positive result requires live AX
    readback showing `observed == target` (no clamp) for both narrow and wide windows parked
    inside the virtual frame, plus visual confirmation of no strip on any real display.
 
@@ -334,7 +334,7 @@ implementer has anchors; none of this is proposed for the docs-only branch.
    docs are mandatory and orthogonal; shipping a virtual display without them would still
    bleed (the window would stay on the real display because it was never moved).
 
-8. **Multi-monitor arrangement guidance becomes moot — or conflicts.** `docs/offscreen-clamp-fix.md`
+8. **Multi-monitor arrangement guidance becomes moot — or conflicts.** `docs/window-parking-and-offscreen-clamp.md`
    currently recommends arranging monitors **vertically** to keep parking edges away from
    neighbours. If the park target is a virtual display, that workaround is unnecessary; but
    the virtual display's own global placement must avoid overlapping real monitors, and
@@ -355,7 +355,7 @@ implementer has anchors; none of this is proposed for the docs-only branch.
    reconfiguration flash?
 4. **How do apps behave when their window is "on" a display with no physical screen?** Do
    any pause rendering, auto-minimize, or relocate themselves (which would defeat the
-   park)? `docs/offscreen-clamp-fix.md` notes some apps reposition on resize; the same risk
+   park)? `docs/window-parking-and-offscreen-clamp.md` notes some apps reposition on resize; the same risk
    applies to display membership.
 5. **Is `CGVirtualDisplay` permitted under Nehir's signing/notarization?** Nehir already
    ships private SkyLight usage via `dlsym`, which strongly suggests yes, but a notarized
@@ -389,7 +389,7 @@ Rationale, in priority order:
      virtual frame via the existing `AXWindowService.setFrame` path.
    - Read back `kAXPositionAttribute` and assert `observed == target` to within the existing
      1.0pt tolerance (`AXWindow.swift:430`). No `verificationMismatch` ⇒ H1 holds. Any clamp
-     ⇒ H1 is false; record it in `docs/offscreen-clamp-fix.md` as approach #17 and stop.
+     ⇒ H1 is false; record it in `docs/window-parking-and-offscreen-clamp.md` as approach #17 and stop.
    - Visually confirm no strip on any real display (per the doc's "must confirm manually"
      rule).
 
@@ -401,7 +401,7 @@ Rationale, in priority order:
    point.
 
 4. **Do not promote any positional-hide claim to "fixed"/"solved" without runtime
-   confirmation**, per the explicit pitfall in `docs/offscreen-clamp-fix.md`. A unit test
+   confirmation**, per the explicit pitfall in `docs/window-parking-and-offscreen-clamp.md`. A unit test
    can prove Nehir *requested* a virtual-display coordinate; it cannot prove macOS
    *rendered* the window hidden.
 
@@ -419,7 +419,7 @@ criteria are:
    Inline the concrete `target=` / `observed=` pairs into the follow-up doc.
 2. **No real-display strip.** Visual confirmation that no pixels of the parked window
    appear on any real monitor, including during slow gesture approach, snap, and idle
-   settle (the four scenarios `docs/offscreen-clamp-fix.md` requires).
+   settle (the four scenarios `docs/window-parking-and-offscreen-clamp.md` requires).
 3. **App stays live.** The parked window remains ordered-in and its AX frame remains
    readable (confirming the virtual display preserves the "live window" property the
    current positional park relies on).
@@ -428,4 +428,4 @@ criteria are:
 
 If all four pass, open a `planned/` design doc that specifies the exclusion surface (§
 "Where / how") and sequences behind the reconciliation fixes. If any fail, record the
-failure with inlined evidence in `docs/offscreen-clamp-fix.md` and close this idea.
+failure with inlined evidence in `docs/window-parking-and-offscreen-clamp.md` and close this idea.
