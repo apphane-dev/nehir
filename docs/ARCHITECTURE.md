@@ -25,14 +25,14 @@ This document is for contributors who want to understand Nehir's internals. It i
   - [4.1 WMController — The Orchestrator](#41-wmcontroller--the-orchestrator)
   - [4.2 Workspace & Window State](#42-workspace--window-state)
   - [4.3 Niri Layout Engine (Scrolling Columns)](#43-niri-layout-engine-scrolling-columns)
-  - [4.5 Focus Lifecycle](#45-focus-lifecycle)
-  - [4.6 Input Handling](#46-input-handling)
-  - [4.7 Window Rules Engine](#47-window-rules-engine)
-  - [4.8 IPC System](#48-ipc-system)
-  - [4.9 Accessibility Layer](#49-accessibility-layer)
-  - [4.10 Animation System](#410-animation-system)
-  - [4.11 Border System](#411-border-system)
-  - [4.12 Additional Features](#412-additional-features)
+  - [4.4 Focus Lifecycle](#44-focus-lifecycle)
+  - [4.5 Input Handling](#45-input-handling)
+  - [4.6 Window Rules Engine](#46-window-rules-engine)
+  - [4.7 IPC System](#47-ipc-system)
+  - [4.8 Accessibility Layer](#48-accessibility-layer)
+  - [4.9 Animation System](#49-animation-system)
+  - [4.10 Border System](#410-border-system)
+  - [4.11 Additional Features](#411-additional-features)
 - [5. Data Flow Diagrams](#5-data-flow-diagrams)
 - [6. Common Contribution Patterns](#6-common-contribution-patterns)
 - [7. Testing](#7-testing)
@@ -50,10 +50,10 @@ Nehir is built with Swift Package Manager (Swift 6.3.2, strict concurrency). The
 NehirIPC          (zero dependencies — shared IPC protocol models)
     ^         ^
     |          \
-NehirCtl      NehirIPC         (CLI tool)
+NehirCtl       Nehir           (CLI tool / core library)
                    ^
                    |
-               NehirApp              (@main entry point)
+               NehirApp        (@main entry point)
 ```
 
 | Target | Purpose | Dependencies |
@@ -67,7 +67,7 @@ NehirCtl      NehirIPC         (CLI tool)
 
 ```
 Sources/
-├── Nehir/                          Main library (~38K LOC)
+├── Nehir/                          Main library (~88K LOC)
 │   ├── App/                         Application bootstrap, delegate,
 │   │                                and owned-window registry
 │   ├── Core/
@@ -75,36 +75,36 @@ Sources/
 │   │   ├── CommandPaletteMode.swift Command palette mode enum
 │   │   ├── PrivateAPIs.swift        Private API declarations via @_silgen_name
 │   │   ├── Animation/               Spring, cubic & workspace-switch animations (6 files)
-│   │   ├── Ax/                      Accessibility wrappers, DefaultFloatingApps (10 files)
-│   │   ├── Border/                  Focused window border rendering (3 files)
-│   │   ├── Config/                  Settings store, export, per-monitor settings (26 files)
-│   │   ├── Controller/              WMController, event handlers, refresh pipeline (17 files)
+│   │   ├── Ax/                      Accessibility wrappers, DefaultFloatingApps (12 files)
+│   │   ├── Border/                  Focused window border rendering (4 files)
+│   │   ├── Config/                  Settings store, export, per-monitor settings (35 files)
+│   │   ├── Controller/              WMController, event handlers, refresh pipeline (19 files)
 │   │   ├── Input/                   Hotkey action catalog, binding persistence (7 files)
 │   │   ├── Layout/
 │   │   │   ├── DNode.swift          Shared types: WindowToken, WindowHandle
 │   │   │   ├── LayoutBoundary.swift Layout snapshots & workspace geometry
 │   │   │   ├── SideHiding.swift     Side-hiding edge types
-│   │   │   ├── Niri/                Scrolling columns layout engine (31 files)
+│   │   │   ├── Niri/                Scrolling columns layout engine (32 files)
 │   │   ├── LockScreen/              Lock screen detection (1 file)
 │   │   ├── Menu/                    Menu extraction for MenuAnywhere (3 files)
-│   │   ├── Monitor/                 Display detection, OutputId, restore assignments (5 files)
+│   │   ├── Monitor/                 Display detection, OutputId, restore assignments (6 files)
 │   │   ├── Overview/                Bird's-eye workspace overview mode (9 files)
 │   │   ├── Reconcile/               Runtime snapshot/trace, restore planning,
 │   │   │                            and persisted restore models (14 files)
 │   │   ├── Rules/                   Window rule evaluation engine (1 file)
-│   │   ├── SkyLight/                Private macOS API wrappers (2 files)
+│   │   ├── SkyLight/                Private macOS API wrappers (4 files)
 │   │   ├── Sleep/                   Sleep prevention manager (1 file)
-│   │   ├── Support/                 Utility types & extensions (3 files)
+│   │   ├── Support/                 Utility types & extensions (4 files)
 │   │   ├── Surface/                 Shared surface policy, hit-testing,
 │   │   │                            and capture eligibility (2 files)
 │   │   └── Workspace/               Workspace model, session state,
-│   │                                and runtime coordination (6 files)
+│   │                                and runtime coordination (7 files)
 │   ├── IPC/                         IPC server, connections, routing (9 files)
 │   └── UI/                          SwiftUI settings, status bar, workspace bar,
 │                                    command palette
 ├── NehirApp/                       2 files: @main entry + settings redirect
-├── NehirCtl/                       7 files: CLI parser, IPC client, renderer
-└── NehirIPC/                       5 files: models, wire format, socket path
+├── NehirCtl/                       8 files: CLI parser, IPC client, renderer
+└── NehirIPC/                       6 files: models, wire format, socket path
 ```
 
 ### External Dependencies
@@ -125,10 +125,10 @@ swift build
 swift test
 
 # Code quality
-make format        # Rewrite Swift formatting with SwiftFormat
-make format-check  # Verify SwiftFormat output without rewriting
-make lint          # Run SwiftLint diagnostics
-make check         # Verify formatting, lint, audit, build, and test
+mise run format        # Rewrite Swift formatting with SwiftFormat
+mise run format:check  # Verify SwiftFormat output without rewriting
+mise run lint          # Run SwiftLint diagnostics
+mise run check         # Verify formatting, lint, build, and test
 
 # Create distributable app bundle
 mise run package:release -- true          # Run checks, build, sign, notarize
@@ -496,7 +496,7 @@ Entries are indexed by both `WindowToken` and raw `windowId` for fast lookup fro
 
 **Directory:** `Sources/Nehir/Core/Layout/Niri/`
 
-Niri arranges windows in vertical columns that scroll horizontally, inspired by the [Niri](https://github.com/YaLTeR/niri) Wayland compositor.
+Niri arranges windows in vertical columns that scroll horizontally, inspired by the [Niri](https://github.com/niri-wm/niri) Wayland compositor.
 
 **Node Tree:**
 
@@ -541,7 +541,7 @@ All three types inherit from `NiriNode` (base class with `id: NodeId`, `parent`,
 | Monitor-aware gap resolution | `SettingsStore.resolvedGapSettings(for:)`, exposed at runtime through `WMController.gapSize(for:)` and `WMController.outerGaps(for:)` | Use these helpers when a monitor is known. Direct `workspaceManager.gaps` / `workspaceManager.outerGaps` access should be limited to no-monitor fallback paths. |
 | Monitor-aware Niri settings and lone-window override resolution | `SettingsStore.resolvedNiriSettings(for:)` and `MonitorNiriSettings.loneWindowPolicy` | `nil` means inherit global policy; `.fill` and `.centered(maxWidthFraction:)` are explicit per-monitor overrides. Do not infer override mode from nullable centered width. |
 
-**File Organization (31 files):**
+**File Organization (32 files):**
 
 The Niri directory is the largest subsystem. Files are organized by responsibility:
 
@@ -564,7 +564,7 @@ The Niri directory is the largest subsystem. Files are organized by responsibili
 
 **Overflow tabbing:** If the sum of stacked windows' minimum heights plus gaps exceeds the current column height (or, on vertically oriented monitors, minimum widths plus gaps exceed the current column width), a normal column enters transient `usesOverflowTabbedMode`. This makes the column behave like tabbed for that layout pass without changing its persisted `displayMode`, preventing impossible stack geometry and WindowServer position clamps. The overflow state is computed before hidden/offscreen column placement, so returning from offscreen should already have the correct tabbed frames. If the user toggles tabbed mode while this state is active, Nehir splits the windows into separate columns only when the stacked layout still overflows; otherwise it simply clears the transient forced-tab state and preserves the column.
 
-### 4.5 Focus Lifecycle
+### 4.4 Focus Lifecycle
 
 **File:** `Sources/Nehir/Core/Controller/KeyboardFocusLifecycleCoordinator.swift`
 
@@ -613,11 +613,11 @@ Recovery is deliberately short-lived and signal-driven:
 
 During the `windowCloseFocusRecovery` lease, unrelated activations off the recovery workspace are suppressed. Same-workspace activations for a different token are also suppressed when they are native fallbacks rather than requests. Because macOS can report the successor `workspaceDidActivateApplication` before the close signal, Nehir briefly defers ambiguous inactive-workspace native activations and retries them; if recovery armed in the meantime they are suppressed, otherwise the retry proceeds.
 
-### 4.6 Input Handling
+### 4.5 Input Handling
 
 **Hotkeys** (`Sources/Nehir/Core/Input/`)
 
-`ActionCatalog` is the source of truth for the 67 hotkey-triggerable actions. It defines each action's title, category, layout compatibility, search terms, default and alternate bindings, and optional IPC command linkage. `HotkeyBinding` persists a single binding per action, and `HotkeyBindingRegistry` canonicalizes settings data.
+`ActionCatalog` is the source of truth for all hotkey-triggerable actions (90+, several generated per-workspace/per-direction). It defines each action's title, category, layout compatibility, search terms, default and alternate bindings, and optional IPC command linkage. `HotkeyBinding` persists a single binding per action, and `HotkeyBindingRegistry` canonicalizes settings data.
 
 `HotkeyCenter` registers each key+modifiers combination via Carbon's `RegisterEventHotKey` API. Actions are still tagged with layout compatibility:
 
@@ -626,7 +626,7 @@ During the `windowCloseFocusRecovery` lease, unrelated activations off the recov
 
 **Command routing** (`Sources/Nehir/Core/Controller/CommandHandler.swift`)
 
-`CommandHandler.performCommand()` is a switch statement over all 67 `HotkeyCommand` cases, delegating to the appropriate handler. It first checks layout compatibility.
+`CommandHandler.performCommand()` is a switch statement over all `HotkeyCommand` cases, delegating to the appropriate handler. It first checks layout compatibility.
 
 **Mouse events** (`Sources/Nehir/Core/Controller/MouseEventHandler.swift`)
 
@@ -654,7 +654,7 @@ enum CGSWindowEvent {
 
 Events are buffered in a lock-protected `PendingCGSEventState` and drained on the main run loop via `CFRunLoopPerformBlock`. Frame change events are coalesced by windowId.
 
-### 4.7 Window Rules Engine
+### 4.6 Window Rules Engine
 
 **File:** `Sources/Nehir/Core/Rules/WindowRuleEngine.swift`
 
@@ -684,7 +684,7 @@ struct WindowRuleFacts {
 }
 ```
 
-### 4.8 IPC System
+### 4.7 IPC System
 
 For the protocol specification, wire format, and CLI command reference, see [IPC-CLI.md](IPC-CLI.md). This section covers the internal code architecture.
 
@@ -721,7 +721,7 @@ IPCClient ──── Unix Socket ────► IPCConnection (per client)
 
 **Security:** The trust boundary is the local macOS user account, not individual client processes. Each request carries a per-session authorization token stored in plaintext at `<socket-path>.secret`; the server also enforces socket permissions `0o600`, creates new socket directories with `0o700`, and verifies peer UID via `getpeereid()`. If `NEHIR_SOCKET` points into an existing directory, Nehir reuses that directory as-is instead of re-permissioning it, so custom socket paths should live in a private directory owned by the same user.
 
-### 4.9 Accessibility Layer
+### 4.8 Accessibility Layer
 
 **File:** `Sources/Nehir/Core/Ax/AXManager.swift`
 
@@ -739,7 +739,7 @@ IPCClient ──── Unix Socket ────► IPCConnection (per client)
 
 **Inactive workspace suppression:** Windows on non-visible workspaces are tracked in `inactiveWorkspaceWindowIds`. Frame writes to these windows are skipped, preventing unnecessary AX API calls and visual glitches.
 
-### 4.10 Animation System
+### 4.9 Animation System
 
 **Directory:** `Sources/Nehir/Core/Animation/`
 
@@ -763,7 +763,7 @@ Used for: Niri viewport scrolling, column movement, column resize, tabbed/new-wi
 
 **Accessibility:** All animation configs support `resolvedForReduceMotion()`, which returns the `reducedMotion` preset when the user has enabled "Reduce Motion" in macOS accessibility settings.
 
-### 4.11 Border System
+### 4.10 Border System
 
 **Files:** `Sources/Nehir/Core/Border/BorderManager.swift`, `BorderWindow.swift`
 
@@ -774,7 +774,7 @@ A lightweight `NSWindow` overlay that draws a rounded rectangle around the focus
 - Deduplication: skips updates if windowId and frame haven't changed (0.5pt tolerance)
 - Configurable: enable/disable, width (points), color (RGBA)
 
-### 4.12 Additional Features
+### 4.11 Additional Features
 
 | Feature | Key Files | Description |
 |---------|-----------|-------------|
@@ -987,7 +987,7 @@ Nehir uses SkyLight (private macOS framework) for low-latency window operations.
 
 **Runner:** `swift test` via SwiftPM. Requires macOS 15+.
 
-**Test directory:** `Tests/NehirTests/` (55 files: 52 test files + 3 support files)
+**Test directory:** `Tests/NehirTests/` (86 files: 82 test files + 4 support files)
 
 **Test patterns:**
 
@@ -1002,6 +1002,7 @@ Nehir uses SkyLight (private macOS framework) for low-latency window operations.
 - `TestSharedStateSupport.swift` — shared test fixtures
 - `TokenCompatibilityTestSupport.swift` — window token creation helpers
 - `LayoutPlanTestSupport.swift` — layout test utilities
+- `MotionTestSupport.swift` — animation/motion test utilities
 
 **What's hard to test:** Anything requiring live accessibility permissions or actual window manipulation. These are covered by the override/hook pattern — production code checks for test overrides (closures/hooks) and uses them instead of real system calls.
 
@@ -1026,7 +1027,7 @@ Nehir uses SkyLight (private macOS framework) for low-latency window operations.
 | `ManagedFocusRequest` | In-flight focus request with status (`.pending`/`.confirmed`) and retry tracking. |
 | `FocusBridgeCoordinator` | Focus state machine coordinating Nehir's focus intent with macOS confirmation. |
 | `CGSEventObserver` | SkyLight event listener for window create/destroy/frame-change/front-app-change. |
-| `HotkeyCommand` | Enum of all 67 commands that can be triggered by hotkeys or IPC. |
+| `HotkeyCommand` | Enum of all commands that can be triggered by hotkeys or IPC. |
 | `IPCApplicationBridge` | Swift actor routing IPC requests to `@MainActor` command/query/rule handlers. |
 | `IPCEventBroker` | Swift actor managing real-time event subscriptions for IPC clients. |
 | `ProportionalSize` | `.proportion(CGFloat)` or `.fixed(CGFloat)` — Niri column width specification. |

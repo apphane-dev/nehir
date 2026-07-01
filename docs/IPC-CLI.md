@@ -165,7 +165,7 @@ Enabling IPC starts the server immediately and creates the Unix domain socket pl
 
 ## IPC Protocol
 
-**Protocol version:** 3
+**Protocol version:** 6
 
 ### Socket & Authorization
 
@@ -750,7 +750,7 @@ Completions are context-aware: query names, selectors, field names, command path
 
 ```json
 {
-  "version": 3,
+  "version": 6,
   "id": "<uuid>",
   "kind": "<ping|version|command|query|rule|workspace|window|subscribe>",
   "authorizationToken": "<token>",
@@ -824,7 +824,7 @@ Completions are context-aware: query names, selectors, field names, command path
 
 ```json
 {
-  "version": 3,
+  "version": 6,
   "id": "<request-id>",
   "ok": true,
   "kind": "<ping|version|command|query|rule|workspace|window|subscribe>",
@@ -841,7 +841,7 @@ Authorization, protocol, validation, and routing failures keep the originating r
 
 ```json
 {
-  "version": 3,
+  "version": 6,
   "id": "<request-id>",
   "ok": false,
   "kind": "query",
@@ -858,7 +858,7 @@ Events are sent on subscription connections after the initial response.
 
 ```json
 {
-  "version": 3,
+  "version": 6,
   "id": "<event-id>",
   "kind": "event",
   "channel": "focus",
