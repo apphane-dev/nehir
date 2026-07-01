@@ -686,9 +686,17 @@ final class WMController {
         )
     }
 
+    func workspaceBarMoveTargets() -> [WorkspaceBarWindowMoveTarget] {
+        WorkspaceBarDataSource.workspaceBarMoveTargets(
+            workspaceManager: workspaceManager,
+            settings: settings
+        )
+    }
+
     func workspaceBarProjection(
         for monitor: Monitor,
-        projection options: WorkspaceBarProjectionOptions
+        projection options: WorkspaceBarProjectionOptions,
+        moveTargets: [WorkspaceBarWindowMoveTarget]? = nil
     ) -> WorkspaceBarProjection {
         WorkspaceBarDataSource.workspaceBarProjection(
             for: monitor,
@@ -698,7 +706,8 @@ final class WMController {
             niriEngine: niriEngine,
             focusedToken: workspaceManager.confirmedManagedFocusToken,
             viewportSelectedToken: viewportSelectedToken(for: monitor),
-            settings: settings
+            settings: settings,
+            moveTargets: moveTargets
         )
     }
 

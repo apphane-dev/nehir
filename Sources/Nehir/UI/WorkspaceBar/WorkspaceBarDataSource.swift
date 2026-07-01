@@ -46,7 +46,8 @@ enum WorkspaceBarDataSource {
         niriEngine: NiriLayoutEngine?,
         focusedToken: WindowToken?,
         viewportSelectedToken: WindowToken? = nil,
-        settings: SettingsStore
+        settings: SettingsStore,
+        moveTargets: [WorkspaceBarWindowMoveTarget]? = nil
     ) -> WorkspaceBarProjection {
         WorkspaceBarProjection(
             items: workspaceItems(
@@ -76,7 +77,8 @@ enum WorkspaceBarDataSource {
             isViewportScrollLocked: activeWorkspaceScrollLockState(
                 for: monitor,
                 workspaceManager: workspaceManager
-            )
+            ),
+            moveTargets: moveTargets ?? moveTargetItems(workspaceManager: workspaceManager, settings: settings)
         )
     }
 
@@ -364,5 +366,34 @@ enum WorkspaceBarDataSource {
         guard let title = AXWindowService.titlePreferFast(windowId: UInt32(entry.windowId)),
               !title.isEmpty else { return nil }
         return title
+    }
+
+    static func workspaceBarMoveTargets(
+        workspaceManager: WorkspaceManager,
+        settings: SettingsStore
+    ) -> [WorkspaceBarWindowMoveTarget] {
+        moveTargetItems(workspaceManager: workspaceManager, settings: settings)
+    }
+
+    /// Every realized (monitor-assigned) workspace across all monitors, for the
+    /// flat *Move to Workspace ▸* submenu.
+    private static func moveTargetItems(
+        workspaceManager: WorkspaceManager,
+        settings: SettingsStore
+    ) -> [WorkspaceBarWindowMoveTarget] {
+        var seen: Set<WorkspaceDescriptor.ID> = []
+        var targets: [WorkspaceBarWindowMoveTarget] = []
+        for monitor in workspaceManager.monitors {
+            for workspace in workspaceManager.workspaces(on: monitor.id) {
+                guard seen.insert(workspace.id).inserted else { continue }
+                targets.append(
+                    WorkspaceBarWindowMoveTarget(
+                        id: workspace.id,
+                        name: settings.displayName(for: workspace.name)
+                    )
+                )
+            }
+        }
+        return targets
     }
 }

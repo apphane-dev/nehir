@@ -171,6 +171,7 @@ final class WorkspaceBarManager {
     func reconfigureBars(using monitors: [Monitor]) {
         guard let controller, let settings else { return }
 
+        let moveTargets = controller.workspaceBarMoveTargets()
         var existingMonitorIds = Set(barsByMonitor.keys)
 
         for monitor in monitors {
@@ -184,12 +185,12 @@ final class WorkspaceBarManager {
             }
 
             if let existing = barsByMonitor[monitor.id] {
-                if !updateBarForMonitor(monitor, instance: existing) {
+                if !updateBarForMonitor(monitor, instance: existing, moveTargets: moveTargets) {
                     removeBarForMonitor(monitor.id)
-                    createBarForMonitor(monitor)
+                    createBarForMonitor(monitor, moveTargets: moveTargets)
                 }
             } else {
-                createBarForMonitor(monitor)
+                createBarForMonitor(monitor, moveTargets: moveTargets)
             }
         }
 
@@ -205,20 +206,21 @@ final class WorkspaceBarManager {
     }
 
     private func refreshBarsContent() {
-        guard settings != nil else { return }
+        guard let controller, settings != nil else { return }
 
+        let moveTargets = controller.workspaceBarMoveTargets()
         let currentMonitors = Dictionary(uniqueKeysWithValues: monitorProvider().map { ($0.id, $0) })
         for instance in barsByMonitor.values {
             let monitor = currentMonitors[instance.monitorId] ?? instance.monitor
-            refreshBarContent(for: monitor, instance: instance)
+            refreshBarContent(for: monitor, instance: instance, moveTargets: moveTargets)
         }
     }
 
-    private func createBarForMonitor(_ monitor: Monitor) {
+    private func createBarForMonitor(_ monitor: Monitor, moveTargets: [WorkspaceBarWindowMoveTarget]) {
         guard let controller, let settings else { return }
 
         let resolved = settings.resolvedBarSettings(for: monitor)
-        let snapshot = makeSnapshot(for: monitor, resolved: resolved)
+        let snapshot = makeSnapshot(for: monitor, resolved: resolved, moveTargets: moveTargets)
         let model = WorkspaceBarModel(snapshot: snapshot)
 
         let hostingView = NSHostingView(
@@ -327,7 +329,11 @@ final class WorkspaceBarManager {
         panel.orderFrontRegardless()
     }
 
-    private func updateBarForMonitor(_ monitor: Monitor, instance: MonitorBarInstance) -> Bool {
+    private func updateBarForMonitor(
+        _ monitor: Monitor,
+        instance: MonitorBarInstance,
+        moveTargets: [WorkspaceBarWindowMoveTarget]
+    ) -> Bool {
         guard let settings else { return false }
 
         let screen = screenProvider(monitor.displayId)
@@ -349,7 +355,7 @@ final class WorkspaceBarManager {
         instance.screenDisplayId = nextScreenDisplayId
 
         let resolved = settings.resolvedBarSettings(for: monitor)
-        let snapshot = makeSnapshot(for: monitor, resolved: resolved)
+        let snapshot = makeSnapshot(for: monitor, resolved: resolved, moveTargets: moveTargets)
         instance.model.snapshot = snapshot
         applyCurrentAppearance(
             to: instance.panel,
@@ -366,14 +372,18 @@ final class WorkspaceBarManager {
         return true
     }
 
-    private func refreshBarContent(for monitor: Monitor, instance: MonitorBarInstance) {
+    private func refreshBarContent(
+        for monitor: Monitor,
+        instance: MonitorBarInstance,
+        moveTargets: [WorkspaceBarWindowMoveTarget]
+    ) {
         guard let settings else { return }
 
         instance.monitor = monitor
         instance.panel.targetFrame = monitor.frame
 
         let resolved = settings.resolvedBarSettings(for: monitor)
-        let snapshot = makeSnapshot(for: monitor, resolved: resolved)
+        let snapshot = makeSnapshot(for: monitor, resolved: resolved, moveTargets: moveTargets)
         if snapshot != instance.model.snapshot {
             instance.model.snapshot = snapshot
         }
@@ -463,13 +473,21 @@ final class WorkspaceBarManager {
 
     private func makeSnapshot(
         for monitor: Monitor,
-        resolved: ResolvedBarSettings
+        resolved: ResolvedBarSettings,
+        moveTargets: [WorkspaceBarWindowMoveTarget]
     ) -> WorkspaceBarSnapshot {
         let geometry = WorkspaceBarGeometry.resolve(monitor: monitor, resolved: resolved, isVisible: true)
         let projection = controller?.workspaceBarProjection(
             for: monitor,
-            projection: resolved.projectionOptions
-        ) ?? WorkspaceBarProjection(items: [], sticky: nil, scratchpad: nil, isViewportScrollLocked: false)
+            projection: resolved.projectionOptions,
+            moveTargets: moveTargets
+        ) ?? WorkspaceBarProjection(
+            items: [],
+            sticky: nil,
+            scratchpad: nil,
+            isViewportScrollLocked: false,
+            moveTargets: []
+        )
 
         return WorkspaceBarSnapshot(
             projection: projection,

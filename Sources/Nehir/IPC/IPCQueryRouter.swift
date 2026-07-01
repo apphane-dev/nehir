@@ -32,6 +32,7 @@ final class IPCQueryRouter {
     }
 
     func workspaceBarResult() -> IPCWorkspaceBarQueryResult {
+        let moveTargets = controller.workspaceBarMoveTargets()
         let monitors = controller.workspaceManager.monitors.map { monitor in
             let resolved = controller.settings.resolvedBarSettings(for: monitor)
             let isVisible = controller.isWorkspaceBarVisible(on: monitor, resolved: resolved)
@@ -42,7 +43,8 @@ final class IPCQueryRouter {
             )
             let projection = controller.workspaceBarProjection(
                 for: monitor,
-                projection: resolved.projectionOptions
+                projection: resolved.projectionOptions,
+                moveTargets: moveTargets
             )
 
             return IPCWorkspaceBarMonitor(
