@@ -1,5 +1,17 @@
 # Workspace-inactive window can remain visible on the active workspace — Discovery
 
+**Status:** resolved — the workspace-inactive repair path landed on `main` in
+`70ed2619` ("Stop inactive-workspace layout frame writes from leaking windows
+onscreen") and `196dee9a` ("Close inactive-workspace `.show` reveal and
+multi-monitor drift gaps") on 2026-06-25. The remaining stale-cached live AX guard
+for non-`layoutTransient` hide reasons landed on 2026-07-01 in `07ce4168`
+("Reconcile stale hidden-window live frames"). Together these commits re-check
+visibly drifting workspace-inactive windows instead of trusting stale hidden
+metadata, avoid inactive-workspace `.show`/frame-write leaks, and let the
+stale-cached-already-hidden live-frame repair run for `workspaceInactive` hides.
+This fixes Nehir's internal re-park/re-drive behavior; it does **not** defeat the
+macOS offscreen clamp.
+
 Discovery (2026-06-16). Telegram was assigned to workspace 6, but its live AX frame was
 visible on workspace 1 while Nehir believed the window was hidden because its workspace was
 inactive. This is the same **wrong-parked / stale-live-frame family** as
@@ -46,16 +58,17 @@ captured log. Code citations were checked at commit `75f34c7` and may drift.
   so `resolveHideOperation` was not revisited. Telegram is different: its layout target is
   the normal tiled frame `(10,0,2036,1280)` because workspace 6 itself is hidden, and the
   hide reason is `workspaceInactive`.
-- **New mechanism found.** `hideWorkspace` marks inactive windows and then skips moving any
-  window that already has *any* hidden state (`LayoutRefreshController.swift:2153-2158`).
-  If that hidden-state bit is stale or was set without a successful park write, every later
-  inactive-workspace hide pass treats the window as already parked and never re-checks the
-  live AX frame.
-- **Second mechanism found.** Focusing Telegram via app switch cleared `hidden=workspaceInactive`
-  at `09:43:58Z`, but the trace immediately records `ax_focus_confirm_skip_relayout` with
-  `isWorkspaceActive=false`. That gives a path where an inactive-workspace reveal can clear
-  hidden state without activating the workspace and without requesting a layout refresh for
-  the target workspace.
+- **Mechanism found, now fixed.** `hideWorkspace` marked inactive windows and then skipped
+  moving any window that already had *any* hidden state. If that hidden-state bit was stale
+  or was set without a successful park write, later inactive-workspace hide passes treated
+  the window as already parked and did not re-check the live AX frame. Current `main`
+  re-checks visibly drifting workspace-inactive windows and reissues the park.
+- **Second mechanism found, now fixed.** Focusing Telegram via app switch cleared
+  `hidden=workspaceInactive` at `09:43:58Z`, but the trace immediately recorded
+  `ax_focus_confirm_skip_relayout` with `isWorkspaceActive=false`. That gave a path where
+  an inactive-workspace reveal could clear hidden state without activating the workspace
+  and without requesting a layout refresh for the target workspace. Current `main` blocks
+  inactive-plan `.show`/ordinary frame-write reveal paths unless the workspace is active.
 - **Unknown origin.** The capture starts after Telegram is already wrong. `lastApplied=nil`
   and there are no recorded `hidePlan.*`, `hideOrigin.resolve`, enqueue, or confirmation
   entries for `id=159` anywhere in the captured frame-apply trace. The first failed / skipped
@@ -233,7 +246,7 @@ frame.
 
 ---
 
-## Mechanism — why workspace-inactive drift can stick
+## Historical mechanism — why workspace-inactive drift could stick before the merged fixes
 
 ### 1. `hideWorkspace` skips any window that already has hidden state
 
@@ -259,7 +272,7 @@ This is analogous to the Helium discovery's stably-hidden gap, but it is on a di
 path. In the Helium case, `.hide` visibility changes are transition-gated. Here,
 `hideWorkspace` itself transition-gates by hidden-state existence.
 
-### 2. The existing stale-live reconciliation is layout-transient only
+### 2. The stale-live reconciliation was layout-transient only before `07ce4168`
 
 `hideWindow` would route through `resolveHideOperation` (`LayoutRefreshController.swift:2353-2378`).
 That function already contains a live-AX re-read for stale cached hidden state:
@@ -284,7 +297,7 @@ if abs(frame.origin.x - origin.x) < moveEpsilon,
 }
 ```
 
-Two important limitations matter for Telegram:
+Two important historical limitations mattered for Telegram:
 
 1. `hideWorkspace` does not call `hideWindow` at all if `hiddenState != nil`, so
    `resolveHideOperation` is often not reached for already-hidden inactive-workspace
@@ -390,21 +403,22 @@ file.
 
 ## Recommendations
 
-1. **Add workspace-inactive stale-live reconciliation.** Hidden workspace-inactive windows
-   should not be skipped solely because `hiddenState != nil`. Re-check their live AX frame
-   against the expected physical-edge park origin on a bounded cadence or before returning
-   from `hideWorkspace`'s already-hidden branch. If the live frame is not near the park
-   origin, issue the same kind of park plan `hideWindow` would issue.
-2. **Generalize the stale-cached live-AX guard.** The `hidePlan.staleCachedAlreadyHidden`
-   live re-read is currently `layoutTransient`-only. The same invariant applies to
-   `workspaceInactive`: if cached/metadata says parked but live AX is visible or not near
-   the computed park origin, return `.movable`.
-3. **Do not clear `workspaceInactive` hidden state without either activating the workspace
-   or writing a restore frame.** In app-switch focus handling, if the focused window's
-   workspace is still inactive, either activate / transition to that workspace, or leave
-   it hidden and re-park it. The current `hidden=false` + `isWorkspaceActive=false` + no
-   relayout combination is unsafe.
-4. **Instrument the uncertain edges.** Add trace fields around:
+1. **Completed — add workspace-inactive stale-live reconciliation.** Hidden
+   workspace-inactive windows are no longer skipped solely because `hiddenState != nil`:
+   current `hideWorkspace` can detect visibly drifting already-hidden entries and reissue
+   the same kind of park plan `hideWindow` would issue.
+2. **Completed — generalize the stale-cached live-AX guard.** The
+   `hidePlan.staleCachedAlreadyHidden` live re-read now applies beyond
+   `layoutTransient`, including `workspaceInactive`: if cached/metadata says parked but
+   live AX is not near the computed live-frame-derived park origin, it returns `.movable`.
+3. **Completed — do not clear `workspaceInactive` hidden state without either activating
+   the workspace or writing a restore frame.** Current layout execution blocks inactive
+   workspace `.show` / ordinary frame writes from becoming visible-frame reveal work while
+   the workspace is still inactive.
+4. **Partly completed — instrument the uncertain edges.** Current traces include
+   `workspaceInactiveVisibleDrift` and `hidePlan.staleCachedAlreadyHidden ...
+   reason=workspaceInactive`; remaining instrumentation can still be added if a new runtime
+   capture exposes another edge. Existing requested trace points were:
    - `hideWorkspace` already-hidden skips: token, reason, hidden state, live frame, expected
      park origin, and whether drift was detected.
    - `executeHiddenReveal` return branch: `.none`, `.positionPlan`, or `.asyncFrame`.

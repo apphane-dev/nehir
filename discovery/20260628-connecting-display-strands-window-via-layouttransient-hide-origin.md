@@ -175,11 +175,11 @@ full strategy; the parts that bear on *this* capture:
   trick defeats the macOS clamp; only parking *inside* new (virtual) display
   space is known to.
 - **Reconciliation prerequisites do not apply to this capture.** The park here
-  succeeded (`observed==requested`), so the B.1 reconciliation fixes
-  (`planned/20260625-inactive-workspace-frame-writes-leak.md` and the two
-  stale-live-frame discoveries) — which fix cases where Nehir fails to move or
-  undoes a move — are not on the critical path for *this* symptom. They remain
-  mandatory for the broader hide-correctness story.
+  succeeded (`observed==requested`), so the now-shipped B.1 reconciliation fixes
+  (`completed/20260625-inactive-workspace-frame-writes-leak.md` and the two
+  resolved stale-live-frame discoveries) — which fix cases where Nehir fails to
+  move or undoes a move — are not on the critical path for *this* symptom. They
+  remain mandatory for the broader hide-correctness story.
 
 So: the defect is fully understood and a strict improvement is cheap, but per the
 clamp-doc pitfall no doc may claim the strand-on-connected-display is "fixed"

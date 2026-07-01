@@ -37,28 +37,17 @@ It cross-links (does not copy) the prior work.
   **That transient-onto-neighbour park is the maintainer's visible-on-2nd-monitor
   symptom in its purest form.** (Worked math in §A.)
 
-- **The reconciliation fixes are mandatory and mostly NOT about the clamp — but
-  they are the first thing to ship, because a window Nehir never moved (or undid
-  its own move) is visible regardless of arrangement.** Status at `8887adcb`:
-  - `planned/20260625-inactive-workspace-frame-writes-leak.md` (diff-executor
-    defeats the inactive guard) — **🟡 in flight** (sibling workspace
-    `impl-inactive-workspace-frame-leak`); the bug is still present in main
-    (`LayoutRefreshController.swift:4213`–`4231` marks every inactive-workspace
-    frame job active with no `isPlanWorkspaceActive` gate).
-  - `discovery/20260616-workspace-inactive-stale-live-frame.md`
-    (`hideWorkspace.skipAlreadyHidden` + generalise the stale-cached guard to
-    `workspaceInactive`) — **⚪ not started** (the skip is at
-    `LayoutRefreshController.swift:2458`; the stale-cached guard is still
-    `reason == .layoutTransient`-only at `:2794`).
-  - `discovery/20260616-stale-live-frame-on-stably-hidden-column.md`
-    (transition-gated reconciliation for stably-hidden `layoutTransient`
-    columns) — **⚪ not started** (reconciliation only fires on a hide
-    *transition*).
-  These fix the **Nehir-internal** half ("is the park issued and not undone?").
-  They do **not** defeat the macOS clamp, and they do **not** stop the
-  transient path from parking onto the neighbour. So on a horizontal layout a
-  correctly-issued edge-park can still leave a strip / a whole window on the 2nd
-  monitor even after they land.
+- **The reconciliation fixes were mandatory and mostly NOT about the clamp — and
+  they have now shipped.** Current `main` contains the three prerequisite
+  Nehir-internal fixes: inactive-workspace frame writes no longer defeat the
+  inactive guard (`70ed2619`), inactive `.show` reveal and multi-monitor drift
+  gaps are closed (`196dee9a`), and stale hidden-window live frames are
+  reconciled for both workspace-inactive and stably-hidden `layoutTransient`
+  cases (`07ce4168`). These fix the **Nehir-internal** half ("is the park issued
+  and not undone?"). They do **not** defeat the macOS clamp, and they do **not**
+  stop the transient path from parking onto the neighbour. So on a horizontal
+  layout a correctly-issued edge-park can still leave a strip / a whole window on
+  the 2nd monitor even after they land.
 
 - **There is exactly one zero-cost mitigation that targets the horizontal case
   directly: arrange monitors vertically (the existing `docs/window-parking-and-offscreen-clamp.md`
@@ -265,11 +254,11 @@ arrangement. These close the Nehir-internal half — "is the park actually issue
 and not undone?" They are sequenced first because they are cheaper, lower-risk,
 and required no matter which clamp-defeat direction wins.
 
-| Item | Status at `8887adcb` | What it fixes | Source anchor (verified) |
+| Item | Status on current `main` | What it fixes | Source anchor (verified) |
 |---|---|---|---|
-| `planned/20260625-inactive-workspace-frame-writes-leak.md` | **🟡 in flight** (sibling `impl-inactive-workspace-frame-leak`) | Diff executor marks inactive-workspace frame jobs active, removing them from `inactiveWorkspaceWindowIds` so the visible frame is written while `hiddenState.workspaceInactive == true`; `hideWorkspace` then only logs `workspaceInactiveVisibleDrift` and skips the repair. | Bug present: `LayoutRefreshController.swift:4213`–`4231` calls `markWindowActive`/`unsuppressFrameWrites` for every `visibleFrameJobs` entry with **no** `isPlanWorkspaceActive` gate. The intended guard exists at `AXManager.enqueueFrameApplications` (`skip-inactive`). |
-| `discovery/20260616-workspace-inactive-stale-live-frame.md` | **⚪ not started** | `hideWorkspace` skips any window that already has hidden state; stale `workspaceInactive` metadata then blocks re-park. Plus the stale-cached live-AX guard is `layoutTransient`-only. | Skip at `LayoutRefreshController.swift:2458`–`2464` (`trigger: "hideWorkspace.skipAlreadyHidden"`); stale-cached guard `reason == .layoutTransient`-only at `:2794`. |
-| `discovery/20260616-stale-live-frame-on-stably-hidden-column.md` | **⚪ not started** | A stably-hidden `layoutTransient` column whose live AX drifted is never re-checked, because reconciliation only fires on a hide *transition*. | `resolveHideOperation` reconciliation (`:2759`) is transition-gated; `hidePlan.staleCachedAlreadyHidden` (`:2803`) only reached on transition. |
+| `completed/20260625-inactive-workspace-frame-writes-leak.md` | **✅ shipped** in `70ed2619` and `196dee9a` | Diff executor must not mark inactive-workspace ordinary frame jobs active or unsuppress their frame writes; inactive-plan `.show` entries must not become visible-frame reveal work unless the workspace is active. | `LayoutDiffExecutor.execute` computes `isPlanWorkspaceActive`, blocks inactive-plan `.show` reveal work, preserves inactive suppression for ordinary frame writes, and leaves `hideInactiveWorkspaces` responsible for parking. |
+| `discovery/20260616-workspace-inactive-stale-live-frame.md` | **✅ shipped** in `196dee9a` and `07ce4168` | Already-hidden workspace-inactive windows whose live AX frame drifted back onscreen are re-checked and re-parked; the stale-cached live-AX guard is no longer `layoutTransient`-only. | `hideWorkspace` uses `isWorkspaceInactiveWindowVisiblyDrifting` to repair drift, and `resolveHideOperation` records `hidePlan.staleCachedAlreadyHidden ... reason=workspaceInactive` before returning a live-frame-derived park plan. |
+| `discovery/20260616-stale-live-frame-on-stably-hidden-column.md` | **✅ shipped** in `07ce4168` | A stably-hidden `layoutTransient` column whose live AX drifted is re-checked even when no new `.hide` transition is emitted. | `LayoutDiffExecutor.execute` calls `reconcileStablyHiddenLayoutTransientColumns`; the helper is throttled per workspace and returns reconciled tokens so ordinary frame writes skip them in the same pass. |
 
 What these fixes **do not** do: defeat the macOS clamp, or stop the transient
 path (§A.3) from parking onto the neighbour. So even with all three landed, a
@@ -519,12 +508,12 @@ known path to *zero* bleed.**
 
 ## Recommendation — what to do next
 
-1. **Ship the reconciliation fixes first and independently** (B.1): let the
-   in-flight `20260625-inactive-workspace-frame-writes-leak` land, then take the
-   two open stale-live-frame fixes. These are mandatory on every arrangement and
-   unblock honest evaluation of the rest. Do not treat them as the horizontal
-   fix.
-2. **In parallel, validate the two cheap horizontal options on the maintainer's
+1. **Reconciliation prerequisite complete** (B.1): the inactive-workspace frame
+   leak fix, workspace-inactive stale-live repair, and stably-hidden
+   `layoutTransient` reconciliation are all on current `main`. They are mandatory
+   on every arrangement and unblock honest evaluation of the rest, but they are
+   not the horizontal invisibility fix.
+2. **Next, validate the two cheap horizontal options on the maintainer's
    real host (no design work):**
    - Toggle **Displays have separate Spaces ON** and reproduce a transient park
      towards the neighbour (D.2). If the bleed disappears, that may be the
@@ -552,11 +541,12 @@ known path to *zero* bleed.**
 - `discovery/20260621-virtual-display-park-offscreen-windows.md` — the
   virtual-display proposal (approach #17); §C makes its "Suggested validation"
   runnable and adds the horizontal-arrangement critical-path context.
-- `planned/20260625-inactive-workspace-frame-writes-leak.md` — the in-flight
-  reconciliation fix (B.1, row 1).
+- `completed/20260625-inactive-workspace-frame-writes-leak.md` — the shipped
+  inactive-workspace frame-write reconciliation fix (B.1, row 1).
 - `discovery/20260616-workspace-inactive-stale-live-frame.md` and
-  `discovery/20260616-stale-live-frame-on-stably-hidden-column.md` — the two
-  open reconciliation fixes (B.1, rows 2–3).
+  `discovery/20260616-stale-live-frame-on-stably-hidden-column.md` — resolved
+  stale-live-frame discoveries whose fixes shipped in current `main` (B.1, rows
+  2–3).
 - `noop/20260616-omniwm-349-hidden-window-bleeds-multi-monitor.md` and
   `noop/20260616-omniwm-364-clamp-visible-frames-monitor-bounds.md` — the
   cross-monitor geometry half (already mitigated for *visible* tiled frames;

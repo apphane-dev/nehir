@@ -1,5 +1,14 @@
 # Stale live AX frame persists on a stably-hidden scrolled-off column — Discovery
 
+**Status:** resolved — merged to `main` on 2026-07-01 in `07ce4168`
+("Reconcile stale hidden-window live frames"). The shipped fix folds a throttled,
+per-workspace reconciliation sweep into `LayoutDiffExecutor.execute` for
+stably-hidden `layoutTransient` columns, reuses `resolveHideOperation` to re-drive
+drifted live AX frames toward their park origin, and treats reconciled tokens as
+hidden before ordinary frame writes are applied. This closes the Nehir-internal
+reachability gap described here; it does **not** defeat the macOS offscreen clamp
+or make horizontal monitor parking universally invisible.
+
 Discovery (2026-06-16). A tiled window belonging to a far-offscreen column of a
 Niri horizontal-scrolling workspace keeps an **on-screen live AX frame** long after
 the layout has marked it hidden and parked. The window is "wrong-parked": its layout
@@ -61,10 +70,10 @@ See [Relationship to `window-parking-and-offscreen-clamp.md`](#relationship-to-w
   time, and the other Helium window `1692` at c3 was correctly parked `live=-1005` from
   start to end. Only `7194` had drifted. That asymmetry is the fingerprint of a missing
   *re-check* for stably-hidden windows, not a broken park computation.
-- **Fix direction.** Reconcile stably-hidden windows' live AX frames against their park
-  origins on a cadence (a low-frequency sweep, or folded into existing layout ticks),
-  reusing the exact `hidePlan.staleCachedAlreadyHidden` re-apply logic that already
-  exists for transitions. See [Recommendations](#recommendations).
+- **Resolution.** Reconcile stably-hidden windows' live AX frames against their park
+  origins on a cadence folded into existing layout ticks, reusing the exact
+  `hidePlan.staleCachedAlreadyHidden` re-apply logic that already exists for
+  transitions. This shipped in `07ce4168`. See [Recommendations](#recommendations).
 
 ---
 
@@ -186,7 +195,7 @@ scrolling until the column re-enters the apply band, which forces the one transi
 
 ---
 
-## Mechanism — why stably-hidden drift is never re-checked
+## Historical mechanism — why stably-hidden drift was not re-checked before `07ce4168`
 
 ### 1. Hidden windows emit `.hide` only on the transition
 
@@ -235,7 +244,7 @@ Because `hiddenEntries` is populated **exclusively** from `diff.visibilityChange
 `.hide` events (the loop at `:3266-3274`), and those events are transition-only (§1), a
 stably-hidden window never reaches `resolveHideOperation` on a later pass.
 
-### 3. `resolveHideOperation` already contains the correct per-window fix — it just isn't called
+### 3. `resolveHideOperation` contained the correct per-window fix — it just was not called
 
 ```swift
 // LayoutRefreshController.swift:2225-2289 (abridged)
@@ -375,14 +384,16 @@ any fix against. The characterization in this doc is the brief for that capture.
 
 ## Recommendations
 
-All options reuse the existing, correct per-window logic in `resolveHideOperation`
-(`:2258-2289`); the gap is purely *reachability* for stably-hidden windows. Pick by cost
-tolerance, not by re-deriving the reconciliation. Read in light of the open questions
-above: option (1) is *defensive* (corrects drift regardless of origin) but should not be
-claimed as the root-cause fix until the [origin capture](#recommended-next-step-before-fixing--capture-the-origin)
-confirms the cause is one-shot rather than recurring.
+**Implemented:** option (1) shipped in `07ce4168` as a throttled reconciliation
+sweep folded into layout execution for stably-hidden `layoutTransient` columns.
+The implementation reuses `resolveHideOperation`, returns the reconciled token
+set, and excludes those tokens from ordinary frame writes in the same layout pass.
 
-1. **(Preferred) Cadenced background reconciliation of hidden windows.** On a low-frequency
+The original options are preserved below for context. All options reuse the
+existing, correct per-window logic in `resolveHideOperation`; the gap was purely
+*reachability* for stably-hidden windows.
+
+1. **(Shipped) Cadenced background reconciliation of hidden windows.** On a low-frequency
    timer (or folded into an existing `LayoutRefreshController` tick, throttled), sweep the
    set of currently-hidden windows and call `resolveHideOperation` for each, re-applying
    when `hidePlan.staleCachedAlreadyHidden` fires. This directly closes the stably-hidden
