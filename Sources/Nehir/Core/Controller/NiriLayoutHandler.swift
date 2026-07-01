@@ -355,6 +355,9 @@ enum NiriWindowMoveResult {
         )
         let windowTokens = snapshot.windows.map(\.token)
         let currentSelection = state.selectedNodeId
+        // Column identity before any removal/sync so resolveSelection can tell a pure
+        // config/settings relayout (columns untouched) from a structural change.
+        let columnIdsBeforePass = pass.engine.columns(in: pass.wsId).map(\.id)
 
         let removal = processWindowRemovals(
             pass: pass,
@@ -386,7 +389,8 @@ enum NiriWindowMoveResult {
             state: &state,
             windowTokens: windowTokens,
             removal: removal,
-            snapshot: snapshot
+            snapshot: snapshot,
+            columnIdsBeforePass: columnIdsBeforePass
         )
 
         let arrival = handleNewWindowArrival(
@@ -573,7 +577,8 @@ enum NiriWindowMoveResult {
         state: inout ViewportState,
         windowTokens: [WindowToken],
         removal: RemovalContext,
-        snapshot: NiriWorkspaceSnapshot
+        snapshot: NiriWorkspaceSnapshot,
+        columnIdsBeforePass: [NodeId]
     ) -> (viewportNeedsRecalc: Bool, rememberedFocusToken: WindowToken?) {
         state.displayRefreshRate = snapshot.displayRefreshRate
 
@@ -630,10 +635,30 @@ enum NiriWindowMoveResult {
             }
         }
 
+        // Whether anything that justifies re-revealing / re-centering the viewport
+        // actually changed this pass. A pure config/settings relayout (app rules,
+        // workspace/layout config, monitor settings, gaps) leaves the selection, active
+        // column, and column set untouched. In that case a deliberately parked or
+        // edge-snapped viewport must survive as-is — even when the selected column is
+        // deliberately clipped against an edge (a park is *supposed* to leave content
+        // off-screen). Only a real change reveals/recenters, matching the lone-window
+        // branch above that only recenters on a real change.
+        let columnsAfterSync = pass.engine.columns(in: pass.wsId)
+        let selectionChanged = snapshot.viewportState.selectedNodeId != state.selectedNodeId
+        let activeColumnChanged = snapshot.viewportState.activeColumnIndex != state.activeColumnIndex
+        let columnSetChanged = columnsAfterSync.map(\.id) != columnIdsBeforePass
+        let removalShiftedVisibility = removal.removalResult.fromIndexForVisibility != nil
+            || removal.removalResult.visibilityWasCorrected
+        let selectionOrLayoutChanged = selectionChanged
+            || activeColumnChanged
+            || columnSetChanged
+            || removalShiftedVisibility
+
         if !usesCenteredLoneWindow,
            !isGestureOrAnimation,
            !state.preservesUnsnappedGestureOffset,
            snapshot.isActiveWorkspace,
+           selectionOrLayoutChanged,
            let selectedId = state.selectedNodeId,
            let selectedNode = pass.engine.findNode(by: selectedId),
            !removal.removalResult.visibilityWasCorrected,
@@ -668,12 +693,20 @@ enum NiriWindowMoveResult {
                 )
                 let viewStart = context.currentViewStart(in: state)
                 let pixel = 1.0 / max(pass.engine.displayScale(in: pass.wsId), 1.0)
-                if let centeredStart = context.centeredFillingViewportStart(
-                    at: viewStart,
-                    in: state,
-                    pixelTolerance: pixel
-                ),
-                    abs(centeredStart - viewStart) > pixel
+                // A deliberately parked/edge-snapped viewport sits on one of the layout's
+                // snap points. If it still does and nothing changed, it is a valid,
+                // intentional anchor — never "correct" it back to centered. Only recenter
+                // when something changed (Phase 1's condition) or the parked view start is
+                // no longer a reachable snap for the new column layout (e.g. a width change
+                // moved the snap range), analogous to the lone-window width gate above.
+                let viewStartIsReachableSnap = context.snapPoints.contains { abs($0.offset - viewStart) <= pixel }
+                if selectionOrLayoutChanged || !viewStartIsReachableSnap,
+                   let centeredStart = context.centeredFillingViewportStart(
+                       at: viewStart,
+                       in: state,
+                       pixelTolerance: pixel
+                   ),
+                   abs(centeredStart - viewStart) > pixel
                 {
                     let activeIndex = state.activeColumnIndex.clamped(to: 0 ... max(0, columns.count - 1))
                     state.setStaticViewOffsetPixels(

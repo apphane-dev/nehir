@@ -96,6 +96,9 @@ copyright is preserved **in addition to** Nehir's, never instead of it.
 
 Generated Swift headers are driven by `.provenance.json` and the mise task files
 under `.config/mise/tasks/license/` (`mise run license`, `mise run license:check`).
+The manifest is the source of truth for the concrete path list: files listed in
+its `nehir-original` override are the Nehir-originated files that should render
+Nehir-only copyright headers.
 
 ## Git history
 
