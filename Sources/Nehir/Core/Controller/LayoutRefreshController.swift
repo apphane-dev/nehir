@@ -1442,7 +1442,8 @@ import QuartzCore
                 to: wsForWindow,
                 mode: admittedMode,
                 ruleEffects: ruleEffects,
-                managedReplacementMetadata: managedReplacementMetadata
+                managedReplacementMetadata: managedReplacementMetadata,
+                admissionContext: .startupFullRescan
             )
             if existingEntry == nil {
                 controller.axEventHandler.discardCreatePlacementContext(for: winId)

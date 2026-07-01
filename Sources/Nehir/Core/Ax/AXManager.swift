@@ -460,6 +460,17 @@ final class AXManager {
         let visibleWindows = SkyLight.shared.queryAllVisibleWindows()
         var pidsWithWindows = Set(visibleWindows.map { $0.pid })
 
+        // Diagnostic only: per-pid on-screen window counts, used below to
+        // cross-check against each app's AX-reported window count and trace
+        // a mismatch (the AX query returning fewer windows than the pid
+        // actually has on screen). Takes the max of the two WindowServer
+        // sources since neither alone is guaranteed complete (see the
+        // CGWindowList comment below).
+        var windowServerCountsByPid: [pid_t: Int] = [:]
+        for window in visibleWindows {
+            windowServerCountsByPid[window.pid, default: 0] += 1
+        }
+
         // Some Electron apps are missed by the broad SLS enumeration but are
         // visible through CGWindowList. Add regular rendered windows from the
         // public API without changing apps already discovered through SLS.
@@ -467,6 +478,7 @@ final class AXManager {
             [.optionOnScreenOnly, .excludeDesktopElements],
             kCGNullWindowID
         ) as? [[String: Any]] {
+            var cgWindowCountsByPid: [pid_t: Int] = [:]
             for window in cgWindows {
                 guard let pidNumber = window[kCGWindowOwnerPID as String] as? Int,
                       let layer = window[kCGWindowLayer as String] as? Int,
@@ -474,13 +486,19 @@ final class AXManager {
                       let alpha = window[kCGWindowAlpha as String] as? Double,
                       alpha > 0
                 else { continue }
-                pidsWithWindows.insert(pid_t(pidNumber))
+                let pid = pid_t(pidNumber)
+                pidsWithWindows.insert(pid)
+                cgWindowCountsByPid[pid, default: 0] += 1
+            }
+            for (pid, count) in cgWindowCountsByPid {
+                windowServerCountsByPid[pid] = max(windowServerCountsByPid[pid] ?? 0, count)
             }
         }
 
         let apps = NSWorkspace.shared.runningApplications.filter {
             shouldTrack($0) && pidsWithWindows.contains($0.processIdentifier)
         }
+        let windowServerCounts = windowServerCountsByPid
 
         return await withTaskGroup(
             of: (pid: pid_t, windows: [(AXWindowRef, pid_t, Int)], failed: Bool).self
@@ -497,6 +515,15 @@ final class AXManager {
                         }
 
                         if let windows = appWindows {
+                            if let windowServerCount = windowServerCounts[app.processIdentifier],
+                               windows.count < windowServerCount
+                            {
+                                await AppAXContext.recordAXWindowCountMismatch(
+                                    pid: app.processIdentifier,
+                                    axCount: windows.count,
+                                    windowServerCount: windowServerCount
+                                )
+                            }
                             return (
                                 app.processIdentifier,
                                 windows.map { ($0.0, app.processIdentifier, $0.1) },

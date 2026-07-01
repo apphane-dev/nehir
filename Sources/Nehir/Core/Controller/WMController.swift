@@ -3672,6 +3672,7 @@ final class WMController {
         workspaceManager.resetInteractionMonitorWriteTraceForDebug()
         workspaceManager.resetFloatingBarProjectionTraceForDebug()
         AppAXContext.resetRawAXNotificationTraceForDebug()
+        AppAXContext.resetAXWindowsQueryTraceForDebug()
         workspaceBarManager.update()
         debugBarManager.update()
         return .executed
@@ -3709,6 +3710,7 @@ final class WMController {
             ? "create focus trace empty"
             : createFocusTraceEvents.map(\.description).joined(separator: "\n")
         let rawAXNotificationDump = AppAXContext.rawAXNotificationTraceDump()
+        let axWindowsQueryDump = AppAXContext.axWindowsQueryTraceDump()
         let interactionMonitorWriteDump = workspaceManager.interactionMonitorWriteTraceDump()
         let floatingBarProjectionDump = workspaceManager.floatingBarProjectionTraceDump()
         let body = [
@@ -3737,6 +3739,9 @@ final class WMController {
             "",
             "## AX notification trace",
             rawAXNotificationDump,
+            "",
+            "## AX windows query trace",
+            axWindowsQueryDump,
             "",
             "## Interaction monitor writes",
             interactionMonitorWriteDump,
@@ -3867,6 +3872,11 @@ final class WMController {
         var tokensToReevaluate: Set<WindowToken> = []
         var pidTargets: Set<pid_t> = []
         var resolvedAnyTarget = false
+        // Diagnostic only: tracks which tokens reached this reevaluation via a
+        // `.pid` target (a whole-pid AX re-query) vs a `.window` target (a
+        // single-token reevaluation), so the resulting `windowAdmitted` event
+        // can be tagged with an accurate admission context.
+        var tokensFromPidTarget: Set<WindowToken> = []
 
         for target in targets {
             switch target {
@@ -3899,11 +3909,13 @@ final class WMController {
                     let token = WindowToken(pid: pid, windowId: windowId)
                     tokensToReevaluate.insert(token)
                     liveWindowsByToken[token] = axRef
+                    tokensFromPidTarget.insert(token)
                 }
             }
 
             for entry in managedEntries {
                 tokensToReevaluate.insert(entry.token)
+                tokensFromPidTarget.insert(entry.token)
             }
         }
 
@@ -4019,7 +4031,8 @@ final class WMController {
                 windowId: token.windowId,
                 to: workspaceId,
                 mode: oldMode ?? effectiveTrackedMode,
-                ruleEffects: effectiveRuleEffects
+                ruleEffects: effectiveRuleEffects,
+                admissionContext: tokensFromPidTarget.contains(token) ? .pidReevaluation : .windowRuleReevaluation
             )
             if existingEntry == nil {
                 axEventHandler.discardCreatePlacementContext(for: token.windowId)

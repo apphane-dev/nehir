@@ -16,13 +16,45 @@ enum WMEventSource: String, Equatable {
     case focusPolicy
 }
 
+/// Why a `windowAdmitted` event fired — diagnostic only, does not affect
+/// admission decisions. Added to confirm/refute the hypothesis (see
+/// `plans/discovery/20260701-startup-full-rescan-under-enumerates-multi-window-app.md`
+/// and `plans/discovery/20260630-visible-unmanaged-windows-admitted-late-as-columns.md`)
+/// that a multi-window app's first per-app AX windows query can under-report
+/// its windows, leaving the rest to be admitted late by an incidental event.
+enum WindowAdmissionContext: String, Equatable {
+    /// Admitted by the startup/full-rescan path
+    /// (`AXManager.fullRescanEnumerationSnapshot()`).
+    case startupFullRescan = "startup_full_rescan"
+    /// Admitted by `WMController.reevaluateWindowRules`'s `.pid` target —
+    /// a fresh whole-pid AX windows query swept this token in.
+    case pidReevaluation = "pid_reevaluation"
+    /// Admitted by `WMController.reevaluateWindowRules`'s `.window` target —
+    /// single-token rule reevaluation, not a pid-wide re-query.
+    case windowRuleReevaluation = "window_rule_reevaluation"
+    /// Admitted via `admitFocusedWindowBeforeNonManagedFallback` — the window
+    /// took AX focus before Nehir otherwise knew about it.
+    case focusedAdmission = "focused_admission"
+    /// Admitted via the normal CGS-create pipeline (`trackPreparedCreate`'s
+    /// default path — a real `.created` event, deferred-create replay, or a
+    /// managed-replacement-delayed create).
+    case windowCreate = "window_create"
+    /// Reserved for the Phase 2-3 confirm-after-admission re-query
+    /// (see the plan above) — not yet emitted by any code path.
+    case axContextConfirmation = "ax_context_confirmation"
+    /// Call sites (mostly tests) that have not been threaded with a specific
+    /// admission context.
+    case unspecified
+}
+
 enum WMEvent: Equatable {
     case windowAdmitted(
         token: WindowToken,
         workspaceId: WorkspaceDescriptor.ID,
         monitorId: Monitor.ID?,
         mode: TrackedWindowMode,
-        source: WMEventSource
+        source: WMEventSource,
+        admissionContext: WindowAdmissionContext
     )
     case windowRekeyed(
         from: WindowToken,
@@ -118,7 +150,7 @@ enum WMEvent: Equatable {
 
     var token: WindowToken? {
         switch self {
-        case let .windowAdmitted(token, _, _, _, _),
+        case let .windowAdmitted(token, _, _, _, _, _),
              let .windowRemoved(token, _, _),
              let .workspaceAssigned(token, _, _, _, _),
              let .windowModeChanged(token, _, _, _, _),
@@ -145,7 +177,7 @@ enum WMEvent: Equatable {
 
     var source: WMEventSource {
         switch self {
-        case let .windowAdmitted(_, _, _, _, source),
+        case let .windowAdmitted(_, _, _, _, source, _),
              let .windowRekeyed(_, _, _, _, _, source),
              let .windowRemoved(_, _, source),
              let .workspaceAssigned(_, _, _, _, source),
@@ -169,8 +201,8 @@ enum WMEvent: Equatable {
 
     var summary: String {
         switch self {
-        case let .windowAdmitted(token, workspaceId, _, mode, _):
-            "window_admitted token=\(token) workspace=\(workspaceId.uuidString) mode=\(mode)"
+        case let .windowAdmitted(token, workspaceId, _, mode, _, admissionContext):
+            "window_admitted token=\(token) workspace=\(workspaceId.uuidString) mode=\(mode) context=\(admissionContext.rawValue)"
         case let .windowRekeyed(from, to, workspaceId, _, reason, _):
             "window_rekeyed from=\(from) to=\(to) workspace=\(workspaceId.uuidString) reason=\(reason.rawValue)"
         case let .windowRemoved(token, workspaceId, _):

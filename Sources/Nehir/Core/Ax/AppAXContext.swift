@@ -108,6 +108,10 @@ final class AppAXContext {
     private let axObserver: ThreadGuardedValue<AXObserver?>
     private let focusedWindowObserver: ThreadGuardedValue<AXObserver?>
     private let subscribedWindows: ThreadGuardedValue<[Int: AXUIElement]>
+    /// Diagnostic only: true until the first `getWindowsAsync()` call against
+    /// this context completes — i.e. while the context is still "newly
+    /// created" for tracing purposes.
+    private var hasCompletedFirstWindowsQuery = false
 
     @MainActor static var onWindowDestroyed: ((pid_t, Int) -> Void)?
     @MainActor static var onWindowMiniaturized: ((pid_t, Int) -> Void)?
@@ -117,6 +121,11 @@ final class AppAXContext {
     /// captured before the destroy/miniaturize filter. Diagnostic only — see
     /// `RawAXNotificationRecorder`.
     @MainActor static let rawAXNotificationRecorder = RawAXNotificationRecorder()
+
+    /// Bounded ring of raw `kAXWindowsAttribute` query results and AX-vs-
+    /// WindowServer count mismatches. Diagnostic only — see
+    /// `AXWindowsQueryRecorder`.
+    @MainActor static let axWindowsQueryRecorder = AXWindowsQueryRecorder()
 
     @MainActor static var contexts: [pid_t: AppAXContext] = [:]
     @MainActor private static var inFlightCreations: [pid_t: Task<AppAXContext?, Error>] = [:]
@@ -278,6 +287,20 @@ final class AppAXContext {
 
     @MainActor static func resetRawAXNotificationTraceForDebug() {
         rawAXNotificationRecorder.reset()
+    }
+
+    @MainActor static func axWindowsQueryTraceDump() -> String {
+        axWindowsQueryRecorder.dump()
+    }
+
+    @MainActor static func resetAXWindowsQueryTraceForDebug() {
+        axWindowsQueryRecorder.reset()
+    }
+
+    /// Records a full-rescan per-pid AX-vs-WindowServer window-count
+    /// mismatch. Called from `AXManager.fullRescanEnumerationSnapshot()`.
+    @MainActor static func recordAXWindowCountMismatch(pid: pid_t, axCount: Int, windowServerCount: Int) {
+        axWindowsQueryRecorder.append(.countMismatch(pid: pid, axCount: axCount, windowServerCount: windowServerCount))
     }
 
     nonisolated static func handleWindowDestroyedCallback(
@@ -479,6 +502,12 @@ final class AppAXContext {
             frameWriteGenerations.remove(deadWindowId)
             unsuppressFrameWrites(for: [deadWindowId])
         }
+
+        let isFirstWindowsQuery = !hasCompletedFirstWindowsQuery
+        hasCompletedFirstWindowsQuery = true
+        AppAXContext.axWindowsQueryRecorder.append(
+            .queryResult(pid: pid, windowIds: results.map(\.1), newContext: isFirstWindowsQuery)
+        )
 
         return results
     }
