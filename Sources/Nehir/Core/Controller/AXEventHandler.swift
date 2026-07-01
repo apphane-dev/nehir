@@ -820,7 +820,8 @@ final class AXEventHandler: CGSEventDelegate {
         token: WindowToken,
         bundleId: String?,
         mode: TrackedWindowMode,
-        facts: WindowRuleFacts
+        facts: WindowRuleFacts,
+        admittedThisPass: Set<WindowToken>
     ) -> WorkspaceDescriptor.ID? {
         if let workspaceId = recentManagedAdmissionWorkspaceId(for: token) {
             return workspaceId
@@ -829,7 +830,8 @@ final class AXEventHandler: CGSEventDelegate {
             token: token,
             bundleId: bundleId,
             mode: mode,
-            facts: facts
+            facts: facts,
+            admittedThisPass: admittedThisPass
         )?.workspaceId
     }
 
@@ -840,13 +842,15 @@ final class AXEventHandler: CGSEventDelegate {
         axRef: AXWindowRef,
         bundleId: String?,
         mode: TrackedWindowMode,
-        facts: WindowRuleFacts
+        facts: WindowRuleFacts,
+        admittedThisPass: Set<WindowToken>
     ) -> Bool {
         guard let match = structuralReplacementMatch(
             token: token,
             bundleId: bundleId,
             mode: mode,
-            facts: facts
+            facts: facts,
+            admittedThisPass: admittedThisPass
         ) else {
             return false
         }
@@ -3198,7 +3202,8 @@ final class AXEventHandler: CGSEventDelegate {
             token: token,
             bundleId: resolvedBundleId,
             mode: trackedMode,
-            facts: evaluation.facts
+            facts: evaluation.facts,
+            admittedThisPass: []
         )
         let inheritTrackedParentWorkspace = controller.shouldInheritTrackedParentWorkspace(for: evaluation)
         let placementFrame = evaluation.facts.windowServer?.frame ?? matchingWindowInfo?.frame
@@ -3784,7 +3789,8 @@ final class AXEventHandler: CGSEventDelegate {
         token: WindowToken,
         bundleId: String?,
         mode: TrackedWindowMode,
-        facts: WindowRuleFacts
+        facts: WindowRuleFacts,
+        admittedThisPass: Set<WindowToken>
     ) -> StructuralReplacementMatch? {
         guard let controller,
               let fallbackWorkspaceId = controller.interactionWorkspace()?.id
@@ -3840,7 +3846,9 @@ final class AXEventHandler: CGSEventDelegate {
             }
         }
 
-        for entry in controller.workspaceManager.entries(forPid: token.pid) where entry.token != token {
+        for entry in controller.workspaceManager.entries(forPid: token.pid)
+            where entry.token != token && !admittedThisPass.contains(entry.token)
+        {
             let cachedMetadata = cachedManagedReplacementMetadata(
                 for: entry,
                 fallbackBundleId: bundleId

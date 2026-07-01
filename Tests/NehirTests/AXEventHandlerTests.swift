@@ -5205,6 +5205,57 @@ private func waitUntilAXEventTest(
         #expect(controller.workspaceManager.entry(for: replacementToken)?.workspaceId == replacementWorkspaceId)
     }
 
+    @Test @MainActor func fullRescanDoesNotMergeDistinctSamePidWindowsSharingStartupFrame() async {
+        let bundleId = currentTestBundleId()
+        let controller = makeAXEventTestController(
+            trackedBundleId: bundleId,
+            workspaceConfigurations: [
+                WorkspaceConfiguration(name: "1", monitorAssignment: .main)
+            ]
+        )
+        defer { controller.axManager.fullRescanEnumerationOverrideForTests = nil }
+
+        // Two brand-new windows of the same app, discovered in the same
+        // rescan pass, sharing the identical pre-layout default frame and
+        // parent ID that an app's just-opened windows commonly share before
+        // Niri lays them out distinctly.
+        let sharedFrame = CGRect(x: -971, y: 71, width: 972, height: 1226)
+        let firstInfo = makeAXEventWindowInfo(id: 900, title: "Welcome", frame: sharedFrame, parentId: 92)
+        let secondInfo = makeAXEventWindowInfo(id: 901, title: "project.swift", frame: sharedFrame, parentId: 92)
+        let firstAXRef = AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: 900)
+        let secondAXRef = AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: 901)
+
+        controller.axManager.fullRescanEnumerationOverrideForTests = {
+            AXManager.FullRescanEnumerationSnapshot(
+                windows: [(firstAXRef, getpid(), 900), (secondAXRef, getpid(), 901)],
+                failedPIDs: []
+            )
+        }
+        controller.axEventHandler.windowFactsProvider = { axRef, _ in
+            switch axRef.windowId {
+            case 900:
+                makeAXEventWindowRuleFacts(bundleId: bundleId, title: firstInfo.title, windowServer: firstInfo)
+            default:
+                makeAXEventWindowRuleFacts(bundleId: bundleId, title: secondInfo.title, windowServer: secondInfo)
+            }
+        }
+
+        controller.layoutRefreshController.requestFullRescan(reason: .startup)
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+        await waitUntilAXEventTest {
+            controller.workspaceManager.entry(forPid: getpid(), windowId: 900) != nil
+                && controller.workspaceManager.entry(forPid: getpid(), windowId: 901) != nil
+        }
+
+        guard let firstEntry = controller.workspaceManager.entry(forPid: getpid(), windowId: 900),
+              let secondEntry = controller.workspaceManager.entry(forPid: getpid(), windowId: 901)
+        else {
+            Issue.record("Missing one or both distinct same-pid entries")
+            return
+        }
+        #expect(firstEntry.handle !== secondEntry.handle)
+    }
+
     @Test @MainActor func fullRescanUsesFrameMonitorWhenInteractionMonitorIsStale() async {
         let controller = makeAXEventTestController(
             workspaceConfigurations: [
