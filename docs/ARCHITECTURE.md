@@ -67,44 +67,44 @@ NehirCtl       Nehir           (CLI tool / core library)
 
 ```
 Sources/
-├── Nehir/                          Main library (~88K LOC)
+├── Nehir/                          Main library
 │   ├── App/                         Application bootstrap, delegate,
 │   │                                and owned-window registry
 │   ├── Core/
 │   │   ├── AppInfoCache.swift       App icon/name cache
 │   │   ├── CommandPaletteMode.swift Command palette mode enum
 │   │   ├── PrivateAPIs.swift        Private API declarations via @_silgen_name
-│   │   ├── Animation/               Spring, cubic & workspace-switch animations (6 files)
-│   │   ├── Ax/                      Accessibility wrappers, DefaultFloatingApps (12 files)
-│   │   ├── Border/                  Focused window border rendering (4 files)
-│   │   ├── Config/                  Settings store, export, per-monitor settings (35 files)
-│   │   ├── Controller/              WMController, event handlers, refresh pipeline (19 files)
-│   │   ├── Input/                   Hotkey action catalog, binding persistence (7 files)
+│   │   ├── Animation/               Spring, cubic & workspace-switch animations
+│   │   ├── Ax/                      Accessibility wrappers, DefaultFloatingApps
+│   │   ├── Border/                  Focused window border rendering
+│   │   ├── Config/                  Settings store, export, per-monitor settings
+│   │   ├── Controller/              WMController, event handlers, refresh pipeline
+│   │   ├── Input/                   Hotkey action catalog, binding persistence
 │   │   ├── Layout/
 │   │   │   ├── DNode.swift          Shared types: WindowToken, WindowHandle
 │   │   │   ├── LayoutBoundary.swift Layout snapshots & workspace geometry
 │   │   │   ├── SideHiding.swift     Side-hiding edge types
-│   │   │   ├── Niri/                Scrolling columns layout engine (32 files)
-│   │   ├── LockScreen/              Lock screen detection (1 file)
-│   │   ├── Menu/                    Menu extraction for MenuAnywhere (3 files)
-│   │   ├── Monitor/                 Display detection, OutputId, restore assignments (6 files)
-│   │   ├── Overview/                Bird's-eye workspace overview mode (9 files)
+│   │   │   ├── Niri/                Scrolling columns layout engine
+│   │   ├── LockScreen/              Lock screen detection
+│   │   ├── Menu/                    Menu extraction for MenuAnywhere
+│   │   ├── Monitor/                 Display detection, OutputId, restore assignments
+│   │   ├── Overview/                Bird's-eye workspace overview mode
 │   │   ├── Reconcile/               Runtime snapshot/trace, restore planning,
-│   │   │                            and persisted restore models (14 files)
-│   │   ├── Rules/                   Window rule evaluation engine (1 file)
-│   │   ├── SkyLight/                Private macOS API wrappers (4 files)
-│   │   ├── Sleep/                   Sleep prevention manager (1 file)
-│   │   ├── Support/                 Utility types & extensions (4 files)
+│   │   │                            and persisted restore models
+│   │   ├── Rules/                   Window rule evaluation engine
+│   │   ├── SkyLight/                Private macOS API wrappers
+│   │   ├── Sleep/                   Sleep prevention manager
+│   │   ├── Support/                 Utility types & extensions
 │   │   ├── Surface/                 Shared surface policy, hit-testing,
-│   │   │                            and capture eligibility (2 files)
+│   │   │                            and capture eligibility
 │   │   └── Workspace/               Workspace model, session state,
-│   │                                and runtime coordination (7 files)
-│   ├── IPC/                         IPC server, connections, routing (9 files)
+│   │                                and runtime coordination
+│   ├── IPC/                         IPC server, connections, routing
 │   └── UI/                          SwiftUI settings, status bar, workspace bar,
 │                                    command palette
-├── NehirApp/                       2 files: @main entry + settings redirect
-├── NehirCtl/                       8 files: CLI parser, IPC client, renderer
-└── NehirIPC/                       6 files: models, wire format, socket path
+├── NehirApp/                       @main entry + settings redirect
+├── NehirCtl/                       CLI parser, IPC client, renderer
+└── NehirIPC/                       models, wire format, socket path
 ```
 
 ### External Dependencies
@@ -541,7 +541,7 @@ All three types inherit from `NiriNode` (base class with `id: NodeId`, `parent`,
 | Monitor-aware gap resolution | `SettingsStore.resolvedGapSettings(for:)`, exposed at runtime through `WMController.gapSize(for:)` and `WMController.outerGaps(for:)` | Use these helpers when a monitor is known. Direct `workspaceManager.gaps` / `workspaceManager.outerGaps` access should be limited to no-monitor fallback paths. |
 | Monitor-aware Niri settings and lone-window override resolution | `SettingsStore.resolvedNiriSettings(for:)` and `MonitorNiriSettings.loneWindowPolicy` | `nil` means inherit global policy; `.fill` and `.centered(maxWidthFraction:)` are explicit per-monitor overrides. Do not infer override mode from nullable centered width. |
 
-**File Organization (32 files):**
+**File Organization:**
 
 The Niri directory is the largest subsystem. Files are organized by responsibility:
 
@@ -987,7 +987,7 @@ Nehir uses SkyLight (private macOS framework) for low-latency window operations.
 
 **Runner:** `swift test` via SwiftPM. Requires macOS 15+.
 
-**Test directory:** `Tests/NehirTests/` (86 files: 82 test files + 4 support files)
+**Test directory:** `Tests/NehirTests/`
 
 **Test patterns:**
 
