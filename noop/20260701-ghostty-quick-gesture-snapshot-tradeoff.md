@@ -1,8 +1,8 @@
 # Ghostty Quick Terminal gesture suppression trade-off
 
-Status: no-op for now — after restoring screen-share trackpad gestures, Nehir can again accept workspace gestures while the pointer is over Ghostty Quick Terminal in the field-empty / snapshot-only case. That is an intentional trade-off for the current fix: do not reintroduce broad WindowServer snapshot-only gesture suppression unless we can distinguish interactive overlays from screen-share / capture / presenter surfaces with stronger evidence.
+Status: no-op for now — after the screen-share trackpad gesture fix merged, Nehir can again accept workspace gestures while the pointer is over Ghostty Quick Terminal in the field-empty / snapshot-only case. That is an intentional trade-off for the current fix: do not reintroduce broad WindowServer snapshot-only gesture suppression unless we can distinguish interactive overlays from screen-share / capture / presenter surfaces with stronger evidence.
 
-Related plan: `planned/20260701-screen-share-gesture-overlay-suppression.md`.
+Related completed plan: `completed/20260701-screen-share-gesture-overlay-suppression.md`.
 
 ## Decision
 

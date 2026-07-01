@@ -1,12 +1,12 @@
-# Screen share gesture is suppressed by unmanaged-overlay snapshot fallback — Plan
+# Screen share gesture suppressed by unmanaged-overlay snapshot fallback
 
-Status: planned — the runtime evidence shows Nehir receiving three-finger gesture samples during a screen-share session, but every attempt is aborted by the unmanaged-overlay guard before the gesture can arm or commit. The source path and root cause are visible.
+Status: completed — fixed on `main` by `3f81235d` (`Restore screen-share trackpad gestures`) on 2026-07-01. The merged fix disables snapshot-only unmanaged-overlay suppression for gestures when the event has no `windowUnderPointer`, while preserving direct-window unmanaged overlay suppression and leaving focus-follows-mouse overlay policy unchanged.
 
-Validated against `main` on 2026-07-01 at commit `07ce4168` (`Reconcile stale hidden-window live frames`).
+Originally validated against `main` on 2026-07-01 at commit `07ce4168` (`Reconcile stale hidden-window live frames`). Implementation verified after merge at `3f81235d`.
 
 ## Summary
 
-During screen sharing, trackpad workspace gestures do not work because `MouseEventHandler.handleGestureEvent` treats an empty `windowUnderPointer` on an idle gesture as permission to run the WindowServer snapshot overlay fallback. That fallback reports a regular, on-screen, unmanaged WindowServer surface covering the gesture point, so the handler emits `gesture.skip reason=unmanagedOverlay`, aborts any active gesture, sets `suppressGestureUntilTouchesEnd = true`, and then drops the rest of that finger sequence as `gesture.skip reason=suppressed`.
+During screen sharing, trackpad workspace gestures did not work because `MouseEventHandler.handleGestureEvent` treated an empty `windowUnderPointer` on an idle gesture as permission to run the WindowServer snapshot overlay fallback. That fallback reports a regular, on-screen, unmanaged WindowServer surface covering the gesture point, so the handler emits `gesture.skip reason=unmanagedOverlay`, aborts any active gesture, sets `suppressGestureUntilTouchesEnd = true`, and then drops the rest of that finger sequence as `gesture.skip reason=suppressed`.
 
 The result is not a missing input problem: the trace contains many three-finger samples. The problem is that the first valid three-finger sample in each attempt is classified as being over an unmanaged overlay, so the gesture is suppressed before Nehir reaches the arming / commit path.
 
@@ -141,27 +141,57 @@ This maps directly to the trace: `unmanagedOverlay` is immediately followed by m
 
 That predicate is intentionally conservative for interactive overlays, but during screen sharing it is too conservative for gestures: a screen-share / presenter / capture surface can be regular, visible, large enough, and unmanaged while still not being a reason to disable Nehir workspace gestures. When the raw gesture event also lacks `windowUnderPointer`, Nehir cannot distinguish that case and suppresses the gesture globally until fingers lift.
 
-## Fix direction
+## Implemented resolution
 
-Make gesture overlay suppression less aggressive than focus-follows-mouse suppression.
+The merged fix made gesture overlay suppression less aggressive than focus-follows-mouse suppression. In `Sources/Nehir/Core/Controller/MouseEventHandler.swift`, `handleGestureEvent(_:)` now only uses the direct event-window path for unmanaged-overlay gesture suppression:
 
-Recommended implementation:
+```swift
+let isOverUnmanagedOverlay = controller.unmanagedWindowServerWindowCovers(
+    point: location,
+    windowUnderPointer: snapshot.windowUnderPointer,
+    allowWindowServerSnapshotFallback: false
+)
+```
 
-1. Split the overlay policy into a gesture-specific predicate, for example `unmanagedGestureBlockingWindowServerWindowCovers(point:)`.
-2. Keep the direct `windowUnderPointer` fast path: if the event identifies a real unmanaged interactive window under the pointer, continue suppressing gestures over it.
-3. For `windowUnderPointer == nil` snapshot fallback, do not treat every regular unmanaged snapshot window as gesture-blocking. Either:
-   - disable snapshot fallback for gestures entirely; or
-   - require stronger evidence that the surface is truly interactive and not a screen-share/capture/presenter surface.
-4. Add diagnostics to the fallback result before changing behavior: trace the candidate `windowId`, owner pid/name, bundle id, layer, frame, activation policy, and whether it was tracked/owned. The current `gesture.skip reason=unmanagedOverlay` proves the branch but not the exact snapshot candidate.
+The removed branch was the snapshot-only fallback:
 
-The safest first fix is to disable snapshot fallback for gestures when `windowUnderPointer == nil`, while preserving the direct-number suppression path. This should restore screen-share gestures and avoid regressing the case where the event itself identifies an unmanaged overlay.
+```swift
+shouldProbeWindowServerOverlay && controller.unmanagedOverlayWindowServerWindowCovers(point: location)
+```
 
-## Tests
+That means:
 
-Add unit coverage in `Tests/NehirTests/MouseEventHandlerTests.swift`:
+1. **Direct-window suppression is preserved.** If a gesture event identifies an untracked, unowned unmanaged window id under the pointer, Nehir still emits `gesture.skip reason=unmanagedOverlay`, aborts any active gesture, and suppresses until the touch sequence ends.
+2. **Nil-window snapshot-only broad overlay suppression is disabled for gestures.** If `windowUnderPointer == nil`, Nehir does not ask the WindowServer snapshot overlay fallback whether a generic unmanaged surface covers the gesture point. This avoids treating screen-share / capture / presenter surfaces as gesture blockers.
+3. **FFM overlay behavior is unchanged.** Focus-follows-mouse still uses `unmanagedInteractiveWindowServerWindowCovers(...)` and its snapshot fallback, including the Ghostty Quick Terminal / click-through decorative overlay distinction from earlier work.
 
-1. **Nil-window gesture over snapshot-only overlay should not suppress.** Configure a regular unmanaged overlay in `unmanagedOverlayWindowInfoProvider`, send a gesture snapshot with `windowUnderPointer=nil`, three active touches, and assert that Nehir does not emit `gesture.skip reason=unmanagedOverlay` / `suppressed` and proceeds to the arming path.
-2. **Direct unmanaged window id still suppresses.** Send a gesture snapshot with `windowUnderPointer` set to an untracked, unowned window id and assert `gesture.skip reason=unmanagedOverlay` is still emitted.
-3. **Suppression state clears on touch end.** Preserve existing behavior that once suppression is intentionally entered, `phase=.ended`, `phase=.cancelled`, or `activeTouchCount=0` clears `suppressGestureUntilTouchesEnd`.
+The gesture skip trace now records direct unmanaged suppression with `snapshotProbe=false`, making it clear that gestures no longer use the snapshot-only probe.
 
-Also add or update `WMController` predicate tests if a new gesture-specific overlay predicate is introduced.
+## Known trade-off
+
+Disabling snapshot-only gesture suppression reopens one intentional old behavior in the field-empty case: Ghostty Quick Terminal may no longer block Nehir workspace gestures when the gesture event path provides no `windowUnderPointer`. That trade-off is recorded in `noop/20260701-ghostty-quick-gesture-snapshot-tradeoff.md`. The decision is to prefer reliable screen-share gestures over restoring broad snapshot-only overlay suppression.
+
+A future follow-up should only restore Ghostty-style blocking if it can use a gesture-specific predicate that distinguishes interactive overlays from screen-share / capture / presenter surfaces.
+
+## Verification
+
+Merged tests in `Tests/NehirTests/MouseEventHandlerTests.swift` cover the completed policy:
+
+1. **Nil-window gesture over snapshot-only overlay does not suppress.** `trackpadGestureIgnoresSnapshotOnlyOverlayWhenEventWindowIsMissing` stubs `unmanagedOverlayWindowServerWindowCoversOverride` to return `true` and counts calls. A gesture snapshot with `windowUnderPointer=nil` arms and commits, emits neither `gesture.skip reason=unmanagedOverlay` nor `gesture.skip reason=suppressed`, and leaves the override call count at `0`.
+2. **Direct unmanaged window id still suppresses.** `trackpadGestureSuppressesViaEventWindowUnderPointerWithoutSnapshot` sends `windowUnderPointer=55_555`, verifies no frame-snapshot call, verifies `gesture.skip reason=unmanagedOverlay ... snapshotProbe=false`, and verifies suppression until touches end.
+3. **Suppression state still clears.** `suppressedTrackpadGestureClearsOnEndedCancelledOrNoActiveTouches` verifies ended, cancelled, and no-active-touch samples clear `suppressGestureUntilTouchesEnd`.
+4. **FFM overlay behavior remains covered.** Existing focus-follows-mouse tests still verify click-through decorative overlays are ignored while Ghostty-like interactive overlays suppress FFM on the snapshot-fallback path.
+
+Focused verification before merge passed:
+
+```text
+swift test --filter MouseEventHandlerTests/trackpadGestureIgnoresSnapshotOnlyOverlayWhenEventWindowIsMissing \
+  --filter MouseEventHandlerTests/trackpadGestureSuppressesViaEventWindowUnderPointerWithoutSnapshot \
+  --filter MouseEventHandlerTests/suppressedTrackpadGestureClearsOnEndedCancelledOrNoActiveTouches \
+  --filter MouseEventHandlerTests/focusFollowsMouseFiresThroughClickThroughOverlay \
+  --filter MouseEventHandlerTests/focusFollowsMouseSuppressesOverInteractiveAppOverlayOnSnapshotFallback
+
+Test run with 5 tests in 1 suite passed.
+```
+
+Formatting and changeset checks also passed before merge.
