@@ -1,5 +1,13 @@
 # Multi-window app's visible-but-unmanaged windows get admitted as new columns late — Discovery
 
+**Status:** completed — the symptom this doc documents is fixed, but not by
+either candidate explanation this doc left open. Confirmed root cause and
+fix:
+[`20260701-structural-replacement-correlation-merges-distinct-startup-windows.md`](20260701-structural-replacement-correlation-merges-distinct-startup-windows.md);
+fix shipped on `main` as `0b0ec493` ("Prevent structural-replacement
+correlation from merging same-pass sibling windows") via PR #126 on
+2026-07-01. Moved from `discovery/` to `completed/` on 2026-07-01.
+
 Discovery (2026-06-30). The reporter has **3 Helium windows** (`net.imput.helium`).
 At the moment captured, Nehir manages only **1** of them as a column, so the
 workspace shows a single Helium column and a single Helium icon in the workspace

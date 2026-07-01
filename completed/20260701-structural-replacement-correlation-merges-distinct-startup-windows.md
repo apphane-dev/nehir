@@ -1,7 +1,15 @@
 # Structural-replacement correlation merges distinct same-pid startup windows into one — Discovery
 
+**Status:** completed — the fix this doc's findings pointed at shipped on
+`main` as `0b0ec493` ("Prevent structural-replacement correlation from
+merging same-pass sibling windows") via PR #126 on 2026-07-01, and was
+further validated against a third, higher-multiplicity (10-window/11-window)
+capture the same day. Implementation record:
+[`20260701-confirm-pid-window-list-after-partial-ax-enumeration.md`](20260701-confirm-pid-window-list-after-partial-ax-enumeration.md).
+Moved from `discovery/` to `completed/` on 2026-07-01.
+
 Discovery (2026-07-01), captured using the Phase 1 instrumentation added by
-[`../planned/20260701-confirm-pid-window-list-after-partial-ax-enumeration.md`](../planned/20260701-confirm-pid-window-list-after-partial-ax-enumeration.md).
+[`20260701-confirm-pid-window-list-after-partial-ax-enumeration.md`](20260701-confirm-pid-window-list-after-partial-ax-enumeration.md).
 Two runtime trace captures of a real cold start (taken seconds apart, the
 second picking up where the first left off) show the same root cause this
 plan is investigating, but it is **not** the plan's central hypothesis
@@ -230,7 +238,7 @@ the rest of both observation windows.
 ## Relationship to the plan and the two prior discoveries
 
 This capture was taken specifically to validate or refute
-[`../planned/20260701-confirm-pid-window-list-after-partial-ax-enumeration.md`](../planned/20260701-confirm-pid-window-list-after-partial-ax-enumeration.md)'s
+[`20260701-confirm-pid-window-list-after-partial-ax-enumeration.md`](20260701-confirm-pid-window-list-after-partial-ax-enumeration.md)'s
 central hypothesis ("a single per-app `kAXWindowsAttribute` query can return
 fewer windows than the app actually has, and Nehir trusts that first answer
 as final"). **The hypothesis is not supported by this capture.** Both
@@ -314,7 +322,7 @@ path, so it remains untested.
 ## Relationship to other discoveries
 
 - **Refines the central hypothesis of:**
-  [`../planned/20260701-confirm-pid-window-list-after-partial-ax-enumeration.md`](../planned/20260701-confirm-pid-window-list-after-partial-ax-enumeration.md) —
+  [`20260701-confirm-pid-window-list-after-partial-ax-enumeration.md`](20260701-confirm-pid-window-list-after-partial-ax-enumeration.md) —
   this capture was taken using that plan's Phase 1 instrumentation
   specifically to confirm or refute its hypothesis; see "Relationship to the
   plan" above.

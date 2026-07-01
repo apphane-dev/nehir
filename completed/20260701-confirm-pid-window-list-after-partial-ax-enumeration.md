@@ -2,11 +2,17 @@
 
 ## Status
 
-**Phase 1 (instrumentation) implemented, 2026-07-01.** Phases 2-4 (the actual
-confirm-and-reconcile behavior change) are not started; this plan stays in
-`planned/` until those land. Implemented on branch
+**Status: completed — merged to `main` as `0b0ec493` ("Prevent
+structural-replacement correlation from merging same-pass sibling windows")
+via PR #126 on 2026-07-01.** The shipped fix targets a different root cause
+than this plan's original design (see "Fix landed" below) — Phases 2-4 as
+originally proposed were not built and are not planned; the concrete defect
+both discoveries observed is closed. Moved from `planned/` to `completed/` on
+2026-07-01.
+
+**Phase 1 (instrumentation) implemented, 2026-07-01.** Implemented on branch
 `patch/confirm-pid-window-list-after-partial-ax-enumeration` in the main Nehir
-repo (uncommitted, pending review).
+repo, merged as part of PR #126.
 
 What shipped:
 
@@ -54,7 +60,7 @@ Build (`swift build`, `swift build --build-tests`) and the full test suite
 
 **Update, 2026-07-01: the capture came back, and it refutes this plan's
 central hypothesis.** See
-[`../discovery/20260701-structural-replacement-correlation-merges-distinct-startup-windows.md`](../discovery/20260701-structural-replacement-correlation-merges-distinct-startup-windows.md).
+[`20260701-structural-replacement-correlation-merges-distinct-startup-windows.md`](20260701-structural-replacement-correlation-merges-distinct-startup-windows.md).
 Two real cold-start captures, taken using the Phase 1 instrumentation above,
 show the affected pids' very first `kAXWindowsAttribute` query already
 returning every window id the app actually had — `newContext=true` queries
@@ -104,7 +110,8 @@ path passes an empty set (no batch to exclude). A regression test,
 two-same-pid-window-in-one-pass shape and was confirmed to fail without the
 fix (timeout waiting for both entries; only one of the two windows ends up
 managed) and pass with it. Full test suite (1379 tests) passes. Implemented
-on the same branch as Phase 1, on top of it (not yet merged to `main`).
+on the same branch as Phase 1, on top of it, merged to `main` as part of
+PR #126.
 
 This closes the concrete defect both discoveries observed. What remains
 optional/unresolved: whether this plan's original confirm-after-admission
@@ -112,6 +119,30 @@ design is still worth doing as defense-in-depth for a genuine partial
 `kAXWindowsAttribute` result (a scenario neither capture actually
 demonstrated — see "Unknowns" below) — that would need its own future
 capture showing a real partial-query case before it's worth building.
+
+**Validated against a third, higher-multiplicity capture, 2026-07-01.** A
+follow-up cold-start capture (VS Code Insiders and Helium each already open,
+version header confirming the fix commit) showed AX reporting 10 windows for
+one pid and 11 for the other on the very first query — more windows than
+either original discovery or the earlier two validation captures exercised.
+All 21 windows ended up as distinct managed entries (`windows total=21` at
+capture end, matching 10 + 11 exactly); "Visible Unmanaged WindowServer
+Windows" was empty at capture end; no `ax_window_count_mismatch` fired
+(consistent with the AX query never having been the gap). This confirms the
+fix generalizes beyond the 5-window/8-window shapes the original discoveries
+captured.
+
+Before merge, review also caught and fixed: a new `nehir-original` file
+(`Sources/Nehir/Core/Ax/AXWindowsQueryTrace.swift`) had picked up the default
+`upstream-derived` provenance header and was reclassified in
+`.provenance.json`; the shared AX-windows-query trace ring let frequent
+`queryResult` entries evict the rarer `countMismatch` diagnostic, fixed by
+splitting them into independently-capped buffers; `WindowAdmissionContext
+.unspecified` was given an explicit raw value; and the regression test above
+was strengthened to assert the two admitted entries have distinct handles
+(not just distinct window ids), following the reference-identity pattern
+`browserReplacementDoesNotCoalesceAmbiguousMultipleCreates` already used
+elsewhere in the same file.
 
 ---
 
@@ -127,11 +158,11 @@ triggers a fresh query that happens to return the complete list.
 This plan covers two companion discoveries that show the same defect with two
 different recovery shapes:
 
-- [`../discovery/20260701-startup-full-rescan-under-enumerates-multi-window-app.md`](../discovery/20260701-startup-full-rescan-under-enumerates-multi-window-app.md) —
+- [`20260701-startup-full-rescan-under-enumerates-multi-window-app.md`](20260701-startup-full-rescan-under-enumerates-multi-window-app.md) —
   VS Code Insiders, 2 of 3 windows missing after the **startup full rescan**,
   recovered one at a time via **per-window focused admission** (staggered,
   single-column pop-in).
-- [`../discovery/20260630-visible-unmanaged-windows-admitted-late-as-columns.md`](../discovery/20260630-visible-unmanaged-windows-admitted-late-as-columns.md) —
+- [`20260630-visible-unmanaged-windows-admitted-late-as-columns.md`](20260630-visible-unmanaged-windows-admitted-late-as-columns.md) —
   Helium, 2 of 3 windows missing, recovered together via a **pid-scoped
   reevaluation** triggered by an unrelated auxiliary-window create on the same
   pid (batched, multi-column pop-in).

@@ -1,5 +1,12 @@
 # Startup full-rescan under-enumerates a multi-window app's AX windows — Discovery
 
+**Status:** completed — the symptom this doc documents is fixed, but not by
+the mechanism it hypothesized. Confirmed root cause and fix:
+[`20260701-structural-replacement-correlation-merges-distinct-startup-windows.md`](20260701-structural-replacement-correlation-merges-distinct-startup-windows.md);
+fix shipped on `main` as `0b0ec493` ("Prevent structural-replacement
+correlation from merging same-pass sibling windows") via PR #126 on
+2026-07-01. Moved from `discovery/` to `completed/` on 2026-07-01.
+
 Discovery (2026-07-01). At cold start, a single per-app AX windows query made
 during the startup full rescan returned **1 of 3** windows for a multi-window
 Electron app (VS Code Insiders, `com.microsoft.VSCodeInsiders`, pid `54505`).
