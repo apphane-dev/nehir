@@ -266,9 +266,11 @@ private func activatePreparedOverviewSelection(
         // in between and cannot leak into a suspended sibling test.
         AXWindowService.fastFrameProviderForTests = { _ in .zero }
         AXWindowService.titleLookupProviderForTests = { _ in nil }
+        defer {
+            AXWindowService.fastFrameProviderForTests = nil
+            AXWindowService.titleLookupProviderForTests = nil
+        }
         overview.prepareOpenState()
-        AXWindowService.fastFrameProviderForTests = nil
-        AXWindowService.titleLookupProviderForTests = nil
 
         await activatePreparedOverviewSelection(in: overview, expectedHandle: firstHandle)
 

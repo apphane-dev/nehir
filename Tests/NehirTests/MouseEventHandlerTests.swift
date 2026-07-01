@@ -1733,9 +1733,12 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
             Issue.record("Expected in-flight viewport gesture after crossing threshold")
             return
         }
+        let cumulativeX = CGFloat((0.224 - 0.20) * 500.0)
+        let expectedOvershoot = max(0.0, cumulativeX - 16.0)
         let actualAppliedDelta = CGFloat(gesture.currentViewOffset - gesture.stationaryViewOffset)
         #expect(handler.state.gesturePhase == .committed)
-        #expect(actualAppliedDelta >= 0)
+        #expect(expectedOvershoot == 0)
+        #expect(abs(actualAppliedDelta) < 0.1)
     }
 
     @Test @MainActor func committedTrackpadGestureKeepsSubPixelDeltasForVelocity() async {
