@@ -17,7 +17,17 @@ included so the code stays findable.
 
 ---
 
-## Status (updated 2026-06-28)
+## Status (updated 2026-07-01)
+
+Phases 1 and 2 are now confirmed merged to `main` (the flag-gated audit +
+provenance and the relayout attribution observer shipped across `18a3174e`,
+`4aa2c9b2`, `90a752ce`, `32ba67a1`, and `3456b5a3`). **Phase 3 — the behavioral
+fix — has not landed.** `0602387d` ("Do not recenter viewport on activation of
+fully visible windows") suppressed the recenter on the focus-confirmation path
+only; the relayout path still snap-recenters a settled, fully-visible,
+unchanged-selection viewport. Phase 3 (extending that rule into relayout-driven
+reconciliation) remains the open work, tracked by
+`discovery/20260628-relayout-path-recenters-fully-visible-unchanged-selection.md`.
 
 Phases 1 and 2 have landed; Phase 3's fix site is now source-attributed and ready.
 
