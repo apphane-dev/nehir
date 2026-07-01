@@ -20,6 +20,8 @@ struct DisplayDiagnosticsSettingsTab: View {
     @State private var migrationError: String?
     @State private var unknownKeysConfirmation: String?
     @State private var unknownKeysError: String?
+    @State private var appRuleFileConfirmations: [String: String] = [:]
+    @State private var appRuleFileErrors: [String: String] = [:]
     @State private var traceCaptureStatus: WMController.RuntimeTraceCaptureStatus = .init(
         isActive: false,
         startedAt: nil
@@ -90,7 +92,7 @@ struct DisplayDiagnosticsSettingsTab: View {
 
             if !applicableSettingsIssues
                 .isEmpty || migrationConfirmation != nil || migrationError != nil || unknownKeysConfirmation != nil ||
-                unknownKeysError != nil
+                unknownKeysError != nil || !appRuleFileConfirmations.isEmpty || !appRuleFileErrors.isEmpty
             {
                 Section("Settings Configuration") {
                     ForEach(applicableSettingsIssues) { issue in
@@ -113,6 +115,13 @@ struct DisplayDiagnosticsSettingsTab: View {
                                 onCopyPrompt: { copyUnknownKeysPrompt(issue) },
                                 onPostpone: { postponeUnknownKeys(issue) },
                                 onClean: { cleanUnknownKeys(issue) }
+                            )
+                        case .appRuleFile(let issue):
+                            AppRuleFileDiagnosticWarningView(
+                                issue: issue,
+                                confirmation: appRuleFileConfirmations[issue.id],
+                                error: appRuleFileErrors[issue.id],
+                                onClean: { cleanAppRuleFile(issue) }
                             )
                         case .hotkeyConflict(let issue):
                             HotkeyConflictWarningView(conflict: issue)
@@ -137,6 +146,18 @@ struct DisplayDiagnosticsSettingsTab: View {
                         if let unknownKeysError {
                             Label(unknownKeysError, systemImage: "xmark.circle.fill")
                                 .foregroundStyle(.red)
+                        }
+                        ForEach(appRuleFileConfirmations.keys.sorted(), id: \.self) { issueID in
+                            if let confirmation = appRuleFileConfirmations[issueID] {
+                                Label(confirmation, systemImage: "checkmark.circle.fill")
+                                    .foregroundStyle(.green)
+                            }
+                        }
+                        ForEach(appRuleFileErrors.keys.sorted(), id: \.self) { issueID in
+                            if let error = appRuleFileErrors[issueID] {
+                                Label(error, systemImage: "xmark.circle.fill")
+                                    .foregroundStyle(.red)
+                            }
                         }
                     }
                 }
@@ -652,6 +673,21 @@ struct DisplayDiagnosticsSettingsTab: View {
             unknownKeysError = error.localizedDescription
         }
     }
+
+    private func cleanAppRuleFile(_ issue: AppRuleFileDiagnosticIssue) {
+        appRuleFileConfirmations[issue.id] = nil
+        appRuleFileErrors[issue.id] = nil
+
+        do {
+            let backupURL = try AppRuleFileStore.cleanIgnoredEntries(fileURL: issue.fileURL)
+            appRuleFileConfirmations[issue.id] =
+                "Removed ignored app-rule entries. Backup: \(backupURL.lastPathComponent)"
+            refreshSettingsIssues()
+            NotificationCenter.default.post(name: .settingsMigrationStateDidChange, object: nil)
+        } catch {
+            appRuleFileErrors[issue.id] = error.localizedDescription
+        }
+    }
 }
 
 private struct TraceFile: Identifiable {
@@ -764,6 +800,63 @@ private struct SettingsMigrationWarningView: View {
                     }
                     .buttonStyle(.bordered)
                 }
+            }
+
+            if let confirmation {
+                Label(confirmation, systemImage: "checkmark.circle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.green)
+            }
+
+            if let error {
+                Label(error, systemImage: "xmark.circle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+private struct AppRuleFileDiagnosticWarningView: View {
+    let issue: AppRuleFileDiagnosticIssue
+    let confirmation: String?
+    let error: String?
+    let onClean: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("App-rule config issue", systemImage: "exclamationmark.triangle.fill")
+                .font(.headline)
+                .foregroundStyle(Color.yellow)
+
+            Text(
+                "This app-rule file contains lines or values Nehir ignores. Fix the entries below so the rule matches the behavior you expect."
+            )
+            .foregroundStyle(.secondary)
+
+            Text("File: \(issue.fileURL.path)")
+                .font(.caption.monospaced())
+                .foregroundStyle(.secondary)
+                .textSelection(.enabled)
+
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(Array(issue.messages.enumerated()), id: \.offset) { _, message in
+                    Label(message, systemImage: "questionmark.circle")
+                        .font(.caption.monospaced())
+                        .textSelection(.enabled)
+                }
+            }
+
+            if issue.canClean {
+                Button("Remove Ignored Entries") {
+                    onClean()
+                }
+                .buttonStyle(.bordered)
+            } else {
+                Text("Edit this file manually; Nehir cannot safely rewrite it while required fields are invalid.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             if let confirmation {
