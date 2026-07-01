@@ -1,23 +1,35 @@
 # Focus-confirm's reveal is superseded by the relayout it triggers — Plan
 
-**Status:** in progress — Phase 1 ("Keep `activeColumnIndex` synced at
-focus-confirm time") landed on `main` on 2026-07-01 in commit `26b4f8a3` ("Sync
-activeColumnIndex during focus confirmation"). The fix resolves and stores the
-newly-activated node's real column right after `activateNode`, unconditionally
-on both `preserveActiveViewport` branches, in
-`Sources/Nehir/Core/Controller/AXEventHandler.swift` (the block immediately
-after the `ax_focus_confirm_after_activate` trace record, ahead of the existing
-`if !isFFM, !preserveActiveViewport, ...` reveal branch). This covers both
-repros' shared root cause. The pre-existing
-`focusConfirmationPreservesActiveViewportSpring` test in
-`Tests/NehirTests/AXEventHandlerTests.swift` was updated — its old assertion
-that `activeColumnIndex` stayed put under `preserveActiveViewport == true`
-encoded the bug itself — and a new regression test,
-`focusConfirmationSyncsActiveColumnIndexForClippedTarget`, was added covering
-the repro-2 shape (see Phase 3 status below). **Phase 2** (narrowing
-`preserveActiveViewport`'s settle-tail false positive, which is repro 1's
-specific triggering bug) and the **remaining three** Phase-3 regression tests
-are not yet implemented; this doc stays in `planned/` until those land.
+**Status:** in progress — Phases 1, 2, and 3 are implemented on branch
+`patch/focus-confirm-skips-reveal-while-prior-spring-settles` (uncommitted in
+its worktree as of 2026-07-01; not yet merged to `main`). This doc stays in
+`planned/` until that branch lands.
+
+**Correction (2026-07-01): a prior status note here was wrong and has been
+superseded.** An earlier revision of this doc claimed Phase 1 had "landed on
+`main`" in commit `26b4f8a3`. That commit exists only as the tip of an
+unmerged branch (`patch/sync-active-column-index-on-focus-confirm`) checked
+out in a sibling worktree — it was never on `main`. Worse, that
+implementation has a **verified regression**: it assigns
+`state.activeColumnIndex = activatedColumnIndex` directly, without
+compensating `viewOffsetPixels`. Viewport position is
+`columnX(activeColumnIndex) + viewOffsetPixels`, so changing the anchor index
+alone — without an equal-and-opposite offset delta — moves the *rendered*
+viewport even though the raw offset number is untouched. Concretely
+reproduced against that commit: in the existing
+`reconfirmedFocusViaFocusedWindowChangedPreservesViewport` test scenario (a
+legitimate `preserveActiveViewport == true` case — re-confirming an
+already-focused window via `.focusedWindowChanged` while the user has
+deliberately scrolled its column offscreen), that fix's own debug output
+showed `activeColumnIndex` flipping `1 → 0` while `viewOffsetPixels.target()`
+stayed at the pre-activation `-916.0` — i.e. the rendered `viewStart` jumped
+from `0` to `-916`, a ~916pt spurious snap, in a case the whole plan exists to
+eliminate. That commit's own version of the test didn't catch this because it
+only asserted the raw offset number was unchanged, not the resulting
+`columnX(activeColumnIndex) + offset` visual position. **Do not merge
+`26b4f8a3`/`patch/sync-active-column-index-on-focus-confirm` as-is.** The
+branch referenced in the Status line above supersedes it with an
+anchor-preserving implementation (below).
 
 ## Verdict on the "D. Relayout viewport stability" catalogue
 
@@ -485,17 +497,27 @@ policy-respecting `scrollToReveal` call from the *actual* current offset
 (repro 1: the focus-confirm reveal was skipped, so this becomes the one and
 only mover, instead of an instant-rebase-then-recenter pair).
 
-**Implementation status (2026-07-01): landed**, commit `26b4f8a3` ("Sync
-activeColumnIndex during focus confirmation") on `main`. Verified against the
-current source tree: the `activateNode` call is still at
-`AXEventHandler.swift:2457-2466` (line numbers had not drifted), and the new
-column-sync block sits at `AXEventHandler.swift:2476-2483`, immediately after
-the `ax_focus_confirm_after_activate` trace record and before the existing
-`if !isFFM, !preserveActiveViewport, ...` reveal branch — guarded by `if let
-activatedColumn = engine.column(of: node), let activatedColumnIndex =
-engine.columnIndex(of: activatedColumn, in: wsId)` so a floating/non-tiled
-node leaves `activeColumnIndex` untouched, exactly as scoped. Viewport offset
-movement was not touched.
+**Implementation status (2026-07-01): implemented**, uncommitted on branch
+`patch/focus-confirm-skips-reveal-while-prior-spring-settles` (supersedes the
+flawed `26b4f8a3` attempt described in the Status correction above). Verified
+against the current source tree: the `activateNode` call is still at
+`AXEventHandler.swift:2457-2466` (line numbers had not drifted). Immediately
+after it, unconditionally (both `preserveActiveViewport` branches), the code
+calls `controller.niriLayoutHandler.rebaseViewportAnchor(to: node, in: wsId,
+state: &state)` — the existing anchor-preserving helper `NiriLayoutHandler`
+already used internally by `activateNode` itself when
+`preserveViewportAnchor == false` (`NiriLayoutHandler.swift:1927-2056`),
+exposed from `private` to internal so `AXEventHandler` can call it directly.
+Unlike a bare index assignment, this helper computes the compensating offset
+delta (`containerPosition(at: oldIndex) - containerPosition(at: newIndex)`)
+and applies it via `state.viewOffsetPixels.offset(delta:)` in the same
+`withRecordedViewportMutation` block that updates `activeColumnIndex` — so
+`columnX(activeColumnIndex) + offset` (the rendered viewport position) is
+unchanged, and a genuinely in-flight `.spring`'s `from`/`target` both shift by
+the same delta, preserving its trajectory and velocity exactly. This is what
+avoids the regression documented in the Status correction above. No-op when
+the activated node is already in the active column (existing early-return in
+`rebaseViewportAnchor`) or isn't tiled (`engine.column(of:)` returns `nil`).
 
 ### Phase 2 — Stop treating a converged spring as "in flight" (repro 1's specific trigger)
 
@@ -512,6 +534,20 @@ for this purpose only. This lets the focus-confirm step's own
 `revealForFocusActivation` run (and honor `revealPartial`) instead of
 leaving the relayout as the sole, policy-blind mover.
 
+**Implementation status (2026-07-01): implemented**, uncommitted on branch
+`patch/focus-confirm-skips-reveal-while-prior-spring-settles`. The
+`preserveActiveViewport` computation at `AXEventHandler.swift:2438-2440` (line
+numbers had not drifted) was narrowed exactly as suggested: a local
+`settleTolerance = 1.0 / max(engine.displayScale(in: wsId), 1.0)` (the same
+pixel-tolerance pattern `scrollToReveal`/`revealForFocusActivation` already
+use) and `isSpringInFlight = state.viewOffsetPixels.isAnimating &&
+abs(current() - target()) > settleTolerance` replace the bare `isAnimating`
+term in the `preserveActiveViewport` OR-chain. The `isGesture` and
+`wasAlreadyConfirmedFocus && source == .focusedWindowChanged` clauses are
+untouched, per the out-of-scope note below. `ViewportOffset.isAnimating`
+itself (`ViewportState.swift`) was not changed — the tolerance check is local
+to this call site only, as the risks section requires.
+
 ### Phase 3 — Regression tests
 
 - `AXEventHandlerTests` (or equivalent focus-confirmation test target):
@@ -522,28 +558,47 @@ leaving the relayout as the sole, policy-blind mover.
   is recorded / the equivalent return value path is taken) and that the
   resulting viewport motion is a single `scrollToReveal`-policy move, not an
   instant rebase followed by a second spring.
-  **Implementation status (2026-07-01): not yet implemented** — this needs
-  Phase 2 (the settle-tail fix) to be meaningful, since today a converged
-  spring still reports `preserveActiveViewport == true` and skips
-  `revealForFocusActivation` outright.
+  **Implementation status (2026-07-01): implemented** as
+  `focusConfirmationRevealsClippedColumnWhenPriorSpringHasSettled` in
+  `Tests/NehirTests/AXEventHandlerTests.swift`. Uses a `.spring` built with
+  `from == to` (so `current() == target()` exactly, deterministically,
+  independent of wall-clock timing) targeting a node one column over in a
+  fixture sized so that column is `.clipped` at the pre-activation offset.
+  Asserts the post-activation state is `.fullyVisible` for the target column
+  (i.e. `revealForFocusActivation` actually ran and moved the offset, not
+  left it at the stale spring's converged target), then awaits the queued
+  follow-up relayout and asserts the offset target is unchanged afterward —
+  i.e. a single mover, no redundant rebase-then-recenter.
 - Regression test mirroring the existing `dad2e63a` fully-visible no-op
   test, but for a **clipped** target column under a converged-but-still-
   `.spring` `viewOffsetPixels`, asserting `revealPartial` policy is honored
   exactly as it would be from `.static`.
-  **Implementation status (2026-07-01): not yet implemented** — same Phase 2
-  dependency as above.
+  **Implementation status (2026-07-01): implemented** as
+  `focusConfirmationHonorsRevealPartialPolicyIdenticallyForSettledSpringAndStatic`.
+  Rather than hand-computing the expected snap pixel-by-pixel, it runs the
+  identical clipped-column focus confirmation twice against two otherwise
+  identical fixtures — once with `viewOffsetPixels = .static(0)`, once with
+  the converged `.spring` from the bullet above — and asserts both land on
+  the same `activeColumnIndex` and the same offset target within tolerance.
+  That directly proves the settle-tail fix (Phase 2) makes the spring case
+  behave identically to `.static`, i.e. `revealPartial` policy is honored
+  exactly as it would be from `.static`.
 - `NiriNavigationTests` (or equivalent): `ensureSelectionVisible` called
   with `state.activeColumnIndex` already equal to the selected node's real
   column must not perform the `moveSelectionToContainer.rebaseActiveColumn`
   mutation (i.e. it's a true no-op rebase when already in sync).
-  **Implementation status (2026-07-01): covered, not as a standalone
+  **Implementation status (2026-07-01): implemented, not as a standalone
   suite** — there is no `NiriNavigationTests` target; `ensureSelectionVisible`
-  is otherwise exercised in `NiriLayoutEngineTests.swift`. This specific
-  already-in-sync no-op assertion was instead folded into the
-  `AXEventHandlerTests` test below, which drives `engine.ensureSelectionVisible`
-  directly on the post-focus-confirm state and asserts
-  `lastViewportMutationReason != "moveSelectionToContainer.rebaseActiveColumn"`
-  with `state.isViewportMutationAuditEnabled` turned on for the check.
+  is otherwise exercised in `NiriLayoutEngineTests.swift`, so the new test,
+  `ensureSelectionVisibleNoOpRebaseWhenActiveColumnIndexAlreadyMatchesTarget`,
+  was added there instead. It sets `state.activeColumnIndex` to the target
+  node's real column with the viewport already positioned to exactly fill it
+  (so neither the rebase nor `scrollToReveal` have anything to do), enables
+  `state.isViewportMutationAuditEnabled`, and asserts
+  `state.lastViewportMutationReason == nil` after calling
+  `ensureSelectionVisible` — a true no-op, not merely "no rebase reason
+  because something else overwrote it" (the single-slot audit collapse noted
+  elsewhere in this doc).
 - `AXEventHandlerTests`: repro-2 shape — focus-confirm a node in a
   different, clipped column with `preserveActiveViewport == false` (no
   gesture, no animation), let `revealForFocusActivation` succeed
@@ -553,19 +608,46 @@ leaving the relayout as the sole, policy-blind mover.
   by Phase 1, so the relayout's rebase is a no-op and the only viewport
   motion observed end to end is the one `revealForFocusActivation` already
   produced.
-  **Implementation status (2026-07-01): landed** as
-  `focusConfirmationSyncsActiveColumnIndexForClippedTarget` in
-  `Tests/NehirTests/AXEventHandlerTests.swift`, alongside an update to the
-  pre-existing `focusConfirmationPreservesActiveViewportSpring` test (its old
-  `activeColumnIndex == 0` assertion under `preserveActiveViewport == true`
-  encoded the bug; it now asserts `activeColumnIndex` matches the activated
-  node's real column, derived via `engine.column(of:)`/`columnIndex(of:in:)`
-  rather than hardcoded). Confirmed the new test catches the regression: with
-  the Phase 1 source change reverted, it fails with `activeColumnIndex → 0 ==
-  targetColumnIndex → 1`. Full validation run clean: `swift build`,
-  `AXEventHandlerTests` (167/167), `NiriLayoutEngineTests` (142/142, the
-  closest existing target to "NiriNavigationTests"), `WorkspaceManagerTests`
-  (62/62), and the full `swift test` suite (1379/1379 across 113 suites).
+  **Implementation status (2026-07-01): implemented** as
+  `focusConfirmationOnClippedColumnIsNotRedoneByFollowUpRelayout`. Uses
+  `viewOffsetPixels = .static(0)` from the start (matching repro 2's
+  no-gesture, no-animation precondition exactly), asserts the target column
+  is `.fullyVisible` after focus-confirmation (the reveal ran and succeeded),
+  captures the offset target, awaits the real queued relayout via
+  `layoutRefreshController.waitForRefreshWorkForTests()` (exercising the
+  actual `resolveSelection`/`ensureSelectionVisible` path, not a hand-driven
+  call), and asserts the offset target and `activeColumnIndex` are unchanged
+  afterward.
+
+  Two pre-existing tests also needed updating because their old assertions
+  encoded the stale-`activeColumnIndex` bug itself (checking the raw offset
+  number rather than the resulting `columnX(activeColumnIndex) + offset`
+  visual position) — the same blind spot that let the flawed `26b4f8a3`
+  attempt pass unnoticed (see Status correction above):
+  - `focusConfirmationPreservesActiveViewportSpring`: previously asserted
+    `activeColumnIndex == 0` (stale) and `viewOffsetPixels.target() ==
+    springTarget` (unshifted) under a genuinely in-flight spring. Now uses a
+    spring anchored at `CACurrentMediaTime()` (so it's actually still moving
+    when activation runs, not already converged by real wall-clock time —
+    the previous `startTime: 0` made it converge before the assertions ran
+    regardless of its stated velocity), and asserts `activeColumnIndex == 1`
+    plus the anchor-preserving delta: `target() == springTarget +
+    columnX(0) - columnX(1)`.
+  - `reconfirmedFocusViaFocusedWindowChangedPreservesViewport`: previously
+    asserted the raw offset target stayed at `-parkedOffset`. Now computes
+    the visual `columnX(activeColumnIndex) + offset` before and after
+    activation and asserts *that* is unchanged (plus `activeColumnIndex ==
+    0`, the reconfirmed token's real column). This test is the one that
+    exposed the `26b4f8a3` regression: replayed against that commit with
+    this stronger assertion, it fails — `activeColumnIndex` flips `1 → 0`
+    but the offset stays at the pre-activation `-916.0`, so the computed
+    visual position jumps from `0` to `-916`.
+
+  Full validation run clean on the superseding branch: `swift build`,
+  `AXEventHandlerTests` (169/169), `NiriLayoutEngineTests` (143/143, the
+  closest existing target to "NiriNavigationTests"), and the full `swift
+  test --no-parallel` suite (1359/1359 across 112 suites, `IPCServerTests`
+  run separately per this repo's documented test-isolation workaround).
 
 **Exit criteria:** both repros — a click landing during a settling spring,
 and a zero-input app self-activation focusing a clipped, non-active-column
