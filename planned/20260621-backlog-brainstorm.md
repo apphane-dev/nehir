@@ -21,7 +21,7 @@ each idea lands in `discovery/20260621-<slug>.md`.
 - **#4** Command palette: fallback to all sources if no results, or use all sources by default *(shipped Variant A — fallback on empty — commit `1aa518bc`; see `completed/20260621-command-palette-fallback-all-sources.md`. Variant B unified `.all` tab still deferred.)*
 - **#9** Assign hotkey for an action from the command palette *(related: `discovery/20260619-nehir-48-command-palette-hotkey-conflict.md`, planned `n48-command-palette-hotkey`)*
 - **#11** Fuzzy search in the command palette
-- **#26** Command to create an app rule for the focused window
+- **#26** Command to create an app rule for the focused window *(shipped — commit `472f7185`; palette command + workspace-bar right-click action, assignable hotkey; see `completed/20260627-create-app-rule-for-focused-window.md`.)*
 - **#29** Command to collect all windows on the current workspace
 
 ## Workspaces / window management

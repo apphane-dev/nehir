@@ -1,5 +1,15 @@
 # Command to create an app rule for the focused window — Discovery
 
+**Status:** completed — the feature this discovery scoped shipped on `main` as
+`472f7185` ("Add focused-window app rule action across surfaces") on 2026-06-30. It
+added a "Create App Rule for Focused Window…" action that resolves the focused
+window, builds a pre-filled `AppRuleDraft`, and opens Settings on the App Rules
+tab, surfaced in both the command palette and the workspace-bar window-icon
+right-click menu (assignable hotkey, no default). Moved from `discovery/` to
+`completed/` on 2026-07-01. Backlog item #26 in
+[`../planned/20260621-backlog-brainstorm.md`](../planned/20260621-backlog-brainstorm.md)
+is now shipped.
+
 Source: backlog item **#26** ("Command to create an app rule for the focused
 window"), captured in
 [`planned/20260621-backlog-brainstorm.md`](../planned/20260621-backlog-brainstorm.md)
