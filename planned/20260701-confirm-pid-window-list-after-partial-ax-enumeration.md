@@ -84,6 +84,35 @@ needs to be revisited against the new discovery before Phase 2 proceeds — the
 real fix surface is the same-pid structural-replacement matcher, not an
 AX re-query.
 
+**Fix landed, 2026-07-01, targeting the actual root cause instead of this
+plan's original design.** `structuralReplacementMatch`
+(`Sources/Nehir/Core/Controller/AXEventHandler.swift:3789`, called from
+`rekeyStructuralManagedReplacementIfNeeded` and
+`structuralReplacementWorkspaceIdForCreate`) now takes an `admittedThisPass:
+Set<WindowToken>` parameter and excludes those tokens from its same-pid match
+search. Both admission-pass callers —
+`LayoutRefreshController.buildFullRefreshExecutionPlan()`'s full-rescan loop
+and `WMController.reevaluateWindowRules`'s per-token loop — now track every
+token they admit (fresh or via a completed structural rekey) in a
+pass-scoped set and pass it through, so a candidate can never get merged into
+a sibling admitted earlier in the very same pass; genuine cross-pass
+replacement (an already-tracked entry from a prior pass being destroyed and
+recreated) is unaffected. `prepareCreateCandidate`'s single-window create
+path passes an empty set (no batch to exclude). A regression test,
+`fullRescanDoesNotMergeDistinctSamePidWindowsSharingStartupFrame`
+(`Tests/NehirTests/AXEventHandlerTests.swift`), reproduces the discovery's
+two-same-pid-window-in-one-pass shape and was confirmed to fail without the
+fix (timeout waiting for both entries; only one of the two windows ends up
+managed) and pass with it. Full test suite (1379 tests) passes. Implemented
+on the same branch as Phase 1, on top of it (not yet merged to `main`).
+
+This closes the concrete defect both discoveries observed. What remains
+optional/unresolved: whether this plan's original confirm-after-admission
+design is still worth doing as defense-in-depth for a genuine partial
+`kAXWindowsAttribute` result (a scenario neither capture actually
+demonstrated — see "Unknowns" below) — that would need its own future
+capture showing a real partial-query case before it's worth building.
+
 ---
 
 A single per-app `kAXWindowsAttribute` query — used by both the startup/full-
