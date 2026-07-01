@@ -1,18 +1,21 @@
 # Focus-confirm's reveal is superseded by the relayout it triggers — Plan
 
-**Status:** in progress — Phases 1, 2, and 3 are implemented on branch
-`patch/focus-confirm-skips-reveal-while-prior-spring-settles` (uncommitted in
-its worktree as of 2026-07-01; not yet merged to `main`). This doc stays in
-`planned/` until that branch lands.
+**Status:** completed — Phases 1, 2, and 3 shipped on `main` as `ca7ac372`
+("Keep activeColumnIndex synced at focus-confirm time and stop treating a
+settled spring as in-flight") via PR #127, merged 2026-07-01. Two follow-up
+review comments (an unused test binding, and a test fixture using the raw
+workspace gap default instead of the per-monitor-resolved
+`controller.gapSize(for:)`) were folded into the same PR before merge. Moved
+from `planned/` to `completed/` on 2026-07-01.
 
-**Correction (2026-07-01): a prior status note here was wrong and has been
-superseded.** An earlier revision of this doc claimed Phase 1 had "landed on
-`main`" in commit `26b4f8a3`. That commit exists only as the tip of an
-unmerged branch (`patch/sync-active-column-index-on-focus-confirm`) checked
-out in a sibling worktree — it was never on `main`. Worse, that
-implementation has a **verified regression**: it assigns
-`state.activeColumnIndex = activatedColumnIndex` directly, without
-compensating `viewOffsetPixels`. Viewport position is
+**Correction (2026-07-01, kept for record): a prior status note here was
+wrong.** An earlier revision of this doc claimed Phase 1 had "landed on
+`main`" in commit `26b4f8a3`. That commit was only ever the tip of an
+unmerged sibling-worktree branch (`patch/sync-active-column-index-on-focus-confirm`,
+no PR was ever opened for it) — it never reached `main`, and per the note
+below it should not be revived as-is. That implementation had a **verified
+regression**: it assigned `state.activeColumnIndex = activatedColumnIndex`
+directly, without compensating `viewOffsetPixels`. Viewport position is
 `columnX(activeColumnIndex) + viewOffsetPixels`, so changing the anchor index
 alone — without an equal-and-opposite offset delta — moves the *rendered*
 viewport even though the raw offset number is untouched. Concretely
@@ -26,10 +29,9 @@ stayed at the pre-activation `-916.0` — i.e. the rendered `viewStart` jumped
 from `0` to `-916`, a ~916pt spurious snap, in a case the whole plan exists to
 eliminate. That commit's own version of the test didn't catch this because it
 only asserted the raw offset number was unchanged, not the resulting
-`columnX(activeColumnIndex) + offset` visual position. **Do not merge
-`26b4f8a3`/`patch/sync-active-column-index-on-focus-confirm` as-is.** The
-branch referenced in the Status line above supersedes it with an
-anchor-preserving implementation (below).
+`columnX(activeColumnIndex) + offset` visual position. The merged `ca7ac372`
+supersedes it with an anchor-preserving implementation (below) that reuses
+`NiriLayoutHandler.rebaseViewportAnchor` instead of a bare index assignment.
 
 ## Verdict on the "D. Relayout viewport stability" catalogue
 
@@ -497,10 +499,10 @@ policy-respecting `scrollToReveal` call from the *actual* current offset
 (repro 1: the focus-confirm reveal was skipped, so this becomes the one and
 only mover, instead of an instant-rebase-then-recenter pair).
 
-**Implementation status (2026-07-01): implemented**, uncommitted on branch
-`patch/focus-confirm-skips-reveal-while-prior-spring-settles` (supersedes the
-flawed `26b4f8a3` attempt described in the Status correction above). Verified
-against the current source tree: the `activateNode` call is still at
+**Implementation status (2026-07-01): shipped** on `main` as `ca7ac372`
+(supersedes the flawed `26b4f8a3` attempt described in the Status correction
+above). Verified against the source tree at merge time: the `activateNode`
+call is still at
 `AXEventHandler.swift:2457-2466` (line numbers had not drifted). Immediately
 after it, unconditionally (both `preserveActiveViewport` branches), the code
 calls `controller.niriLayoutHandler.rebaseViewportAnchor(to: node, in: wsId,
@@ -534,8 +536,7 @@ for this purpose only. This lets the focus-confirm step's own
 `revealForFocusActivation` run (and honor `revealPartial`) instead of
 leaving the relayout as the sole, policy-blind mover.
 
-**Implementation status (2026-07-01): implemented**, uncommitted on branch
-`patch/focus-confirm-skips-reveal-while-prior-spring-settles`. The
+**Implementation status (2026-07-01): shipped** on `main` as `ca7ac372`. The
 `preserveActiveViewport` computation at `AXEventHandler.swift:2438-2440` (line
 numbers had not drifted) was narrowed exactly as suggested: a local
 `settleTolerance = 1.0 / max(engine.displayScale(in: wsId), 1.0)` (the same
@@ -558,7 +559,7 @@ to this call site only, as the risks section requires.
   is recorded / the equivalent return value path is taken) and that the
   resulting viewport motion is a single `scrollToReveal`-policy move, not an
   instant rebase followed by a second spring.
-  **Implementation status (2026-07-01): implemented** as
+  **Implementation status (2026-07-01): shipped** as
   `focusConfirmationRevealsClippedColumnWhenPriorSpringHasSettled` in
   `Tests/NehirTests/AXEventHandlerTests.swift`. Uses a `.spring` built with
   `from == to` (so `current() == target()` exactly, deterministically,
@@ -573,7 +574,7 @@ to this call site only, as the risks section requires.
   test, but for a **clipped** target column under a converged-but-still-
   `.spring` `viewOffsetPixels`, asserting `revealPartial` policy is honored
   exactly as it would be from `.static`.
-  **Implementation status (2026-07-01): implemented** as
+  **Implementation status (2026-07-01): shipped** as
   `focusConfirmationHonorsRevealPartialPolicyIdenticallyForSettledSpringAndStatic`.
   Rather than hand-computing the expected snap pixel-by-pixel, it runs the
   identical clipped-column focus confirmation twice against two otherwise
@@ -587,7 +588,7 @@ to this call site only, as the risks section requires.
   with `state.activeColumnIndex` already equal to the selected node's real
   column must not perform the `moveSelectionToContainer.rebaseActiveColumn`
   mutation (i.e. it's a true no-op rebase when already in sync).
-  **Implementation status (2026-07-01): implemented, not as a standalone
+  **Implementation status (2026-07-01): shipped, not as a standalone
   suite** — there is no `NiriNavigationTests` target; `ensureSelectionVisible`
   is otherwise exercised in `NiriLayoutEngineTests.swift`, so the new test,
   `ensureSelectionVisibleNoOpRebaseWhenActiveColumnIndexAlreadyMatchesTarget`,
@@ -598,7 +599,9 @@ to this call site only, as the risks section requires.
   `state.lastViewportMutationReason == nil` after calling
   `ensureSelectionVisible` — a true no-op, not merely "no rebase reason
   because something else overwrote it" (the single-slot audit collapse noted
-  elsewhere in this doc).
+  elsewhere in this doc). A post-merge review comment flagged an unused
+  `columns` binding left over from an earlier draft of this test; removed
+  before merge.
 - `AXEventHandlerTests`: repro-2 shape — focus-confirm a node in a
   different, clipped column with `preserveActiveViewport == false` (no
   gesture, no animation), let `revealForFocusActivation` succeed
@@ -608,7 +611,7 @@ to this call site only, as the risks section requires.
   by Phase 1, so the relayout's rebase is a no-op and the only viewport
   motion observed end to end is the one `revealForFocusActivation` already
   produced.
-  **Implementation status (2026-07-01): implemented** as
+  **Implementation status (2026-07-01): shipped** as
   `focusConfirmationOnClippedColumnIsNotRedoneByFollowUpRelayout`. Uses
   `viewOffsetPixels = .static(0)` from the start (matching repro 2's
   no-gesture, no-animation precondition exactly), asserts the target column
@@ -617,7 +620,10 @@ to this call site only, as the risks section requires.
   `layoutRefreshController.waitForRefreshWorkForTests()` (exercising the
   actual `resolveSelection`/`ensureSelectionVisible` path, not a hand-driven
   call), and asserts the offset target and `activeColumnIndex` are unchanged
-  afterward.
+  afterward. This test and the one above share a fixture that resolves gap
+  via `controller.gapSize(for: monitor)`; a post-merge review comment caught
+  it initially using the raw, per-monitor-unaware `workspaceManager.gaps`
+  default instead, fixed before merge.
 
   Two pre-existing tests also needed updating because their old assertions
   encoded the stale-`activeColumnIndex` bug itself (checking the raw offset
@@ -643,11 +649,11 @@ to this call site only, as the risks section requires.
     but the offset stays at the pre-activation `-916.0`, so the computed
     visual position jumps from `0` to `-916`.
 
-  Full validation run clean on the superseding branch: `swift build`,
-  `AXEventHandlerTests` (169/169), `NiriLayoutEngineTests` (143/143, the
-  closest existing target to "NiriNavigationTests"), and the full `swift
-  test --no-parallel` suite (1359/1359 across 112 suites, `IPCServerTests`
-  run separately per this repo's documented test-isolation workaround).
+  Full validation run clean pre-merge: `swift build`, `AXEventHandlerTests`
+  (169/169), `NiriLayoutEngineTests` (143/143, the closest existing target to
+  "NiriNavigationTests"), and the full `swift test --no-parallel` suite
+  (1359/1359 across 112 suites, `IPCServerTests` run separately per this
+  repo's documented test-isolation workaround).
 
 **Exit criteria:** both repros — a click landing during a settling spring,
 and a zero-input app self-activation focusing a clipped, non-active-column
