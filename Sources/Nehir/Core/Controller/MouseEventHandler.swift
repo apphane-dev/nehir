@@ -1493,23 +1493,24 @@ final class MouseEventHandler {
             abortActiveGestureIfNeeded()
             return
         }
-        let shouldProbeWindowServerOverlay = snapshot.windowUnderPointer == nil
-            && state.gesturePhase == .idle
-            && phase != .ended
-            && phase != .cancelled
-            && activeTouchCount > 0
+        // Gestures only trust the event-provided window id for unmanaged-overlay
+        // suppression. Screen-share/capture surfaces can appear in the broad
+        // WindowServer snapshot fallback while gesture events report no
+        // window-under-pointer, so probing the snapshot-only path here can
+        // suppress an otherwise valid touch sequence. Focus-follows-mouse keeps
+        // its stricter snapshot policy separately.
         let isOverUnmanagedOverlay = controller.unmanagedWindowServerWindowCovers(
             point: location,
             windowUnderPointer: snapshot.windowUnderPointer,
             allowWindowServerSnapshotFallback: false
-        ) || (shouldProbeWindowServerOverlay && controller.unmanagedOverlayWindowServerWindowCovers(point: location))
+        )
         if isOverUnmanagedOverlay,
            phase != .ended,
            phase != .cancelled,
            activeTouchCount > 0
         {
             traceMouseFocus(
-                "gesture.skip reason=unmanagedOverlay loc=\(formatPoint(location)) windowUnderPointer=\(snapshot.windowUnderPointer.map(String.init) ?? "nil") snapshotProbe=\(shouldProbeWindowServerOverlay)"
+                "gesture.skip reason=unmanagedOverlay loc=\(formatPoint(location)) windowUnderPointer=\(snapshot.windowUnderPointer.map(String.init) ?? "nil") snapshotProbe=false"
             )
             abortActiveGestureIfNeeded()
             state.suppressGestureUntilTouchesEnd = true

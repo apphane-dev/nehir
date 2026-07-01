@@ -1373,7 +1373,7 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
         #expect(covers == true)
     }
 
-    @Test @MainActor func trackpadGestureSuppressesViaOverlaySnapshotOnlyWhenEventWindowIsMissing() async {
+    @Test @MainActor func trackpadGestureIgnoresSnapshotOnlyOverlayWhenEventWindowIsMissing() async {
         let fixture = await prepareMouseWheelScrollFixture()
         let controller = fixture.controller
         let handler = fixture.handler
@@ -1383,6 +1383,7 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
             overlayProbeCount += 1
             return true
         }
+        controller.toggleRuntimeTraceCapture(desiredState: .active)
 
         handler.receiveTapGestureEvent(
             .init(
@@ -1401,9 +1402,16 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
             )
         )
 
-        #expect(overlayProbeCount == 1)
-        #expect(handler.state.gesturePhase == .idle)
-        #expect(handler.state.lockedGestureContext == nil)
+        let mouseTraces = controller.runtimeMouseTraceRecordsForTests()
+        let viewportTraces = controller.runtimeViewportTraceRecordsForTests()
+        #expect(overlayProbeCount == 0)
+        #expect(mouseTraces.contains { $0.contains("gesture.skip reason=unmanagedOverlay") } == false)
+        #expect(mouseTraces.contains { $0.contains("gesture.skip reason=suppressed") } == false)
+        #expect(viewportTraces.contains { $0.contains("reason=touch_scroll_gesture_armed") })
+        #expect(viewportTraces.contains { $0.contains("reason=touch_scroll_gesture_committed") })
+        #expect(handler.state.gesturePhase == .committed)
+        #expect(handler.state.lockedGestureContext != nil)
+        #expect(handler.state.suppressGestureUntilTouchesEnd == false)
     }
 
     @Test @MainActor func trackpadGestureSuppressesViaEventWindowUnderPointerWithoutSnapshot() async {
@@ -1416,6 +1424,7 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
             snapshotCalls += 1
             return []
         }
+        controller.toggleRuntimeTraceCapture(desiredState: .active)
 
         handler.receiveTapGestureEvent(
             .init(
@@ -1436,9 +1445,58 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
             )
         )
 
+        let mouseTraces = controller.runtimeMouseTraceRecordsForTests()
         #expect(snapshotCalls == 0)
+        #expect(mouseTraces.contains {
+            $0.contains("gesture.skip reason=unmanagedOverlay")
+                && $0.contains("windowUnderPointer=55555")
+                && $0.contains("snapshotProbe=false")
+        })
+        #expect(mouseTraces.contains {
+            $0.contains("gesture.skip reason=suppressed")
+        })
         #expect(handler.state.gesturePhase == .idle)
         #expect(handler.state.lockedGestureContext == nil)
+        #expect(handler.state.suppressGestureUntilTouchesEnd == true)
+    }
+
+    @Test @MainActor func suppressedTrackpadGestureClearsOnEndedCancelledOrNoActiveTouches() async {
+        let fixture = await prepareMouseWheelScrollFixture()
+        let handler = fixture.handler
+        let baseTime = CACurrentMediaTime()
+
+        handler.state.suppressGestureUntilTouchesEnd = true
+        handler.receiveTapGestureEvent(
+            .init(
+                location: fixture.location,
+                phaseRawValue: NSEvent.Phase.ended.rawValue,
+                timestamp: baseTime,
+                touches: makeGestureTouchSamples(xPositions: [0.20, 0.25, 0.30], phase: .ended)
+            )
+        )
+        #expect(handler.state.suppressGestureUntilTouchesEnd == false)
+
+        handler.state.suppressGestureUntilTouchesEnd = true
+        handler.receiveTapGestureEvent(
+            .init(
+                location: fixture.location,
+                phaseRawValue: NSEvent.Phase.cancelled.rawValue,
+                timestamp: baseTime + 0.016,
+                touches: makeGestureTouchSamples(xPositions: [0.20, 0.25, 0.30], phase: .cancelled)
+            )
+        )
+        #expect(handler.state.suppressGestureUntilTouchesEnd == false)
+
+        handler.state.suppressGestureUntilTouchesEnd = true
+        handler.receiveTapGestureEvent(
+            .init(
+                location: fixture.location,
+                phaseRawValue: NSEvent.Phase.changed.rawValue,
+                timestamp: baseTime + 0.032,
+                touches: makeGestureTouchSamples(xPositions: [0.20, 0.25, 0.30], phase: .ended)
+            )
+        )
+        #expect(handler.state.suppressGestureUntilTouchesEnd == false)
     }
 
     @Test @MainActor func trackpadGestureFocusSuppressesMouseMoveToFocusedWindow() async {
