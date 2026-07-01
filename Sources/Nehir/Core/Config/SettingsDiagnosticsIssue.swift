@@ -18,6 +18,16 @@ struct UnknownSettingsKeysIssue: Identifiable, Equatable {
     }
 }
 
+struct AppRuleFileDiagnosticIssue: Identifiable, Equatable {
+    let fileURL: URL
+    let messages: [String]
+    let canClean: Bool
+
+    var id: String {
+        "app-rule-file:\(fileURL.path)"
+    }
+}
+
 /// A live (Carbon-level or internal Nehir) hotkey registration failure surfaced as a
 /// Diagnostics row. Built from `HotkeyCenter.registrationFailures`.
 struct HotkeyConflictIssue: Identifiable, Equatable {
@@ -67,6 +77,7 @@ struct HotkeyAdvisoryIssue: Identifiable, Equatable {
 enum SettingsDiagnosticsIssue: Identifiable, Equatable {
     case softMigration(PendingSettingsMigration)
     case unknownKeys(UnknownSettingsKeysIssue)
+    case appRuleFile(AppRuleFileDiagnosticIssue)
     case hotkeyConflict(HotkeyConflictIssue)
     case hotkeyAdvisory(HotkeyAdvisoryIssue)
 
@@ -75,6 +86,8 @@ enum SettingsDiagnosticsIssue: Identifiable, Equatable {
         case .softMigration(let migration):
             return "migration:\(migration.id)"
         case .unknownKeys(let issue):
+            return issue.id
+        case .appRuleFile(let issue):
             return issue.id
         case .hotkeyConflict(let issue):
             return issue.id
@@ -128,10 +141,12 @@ enum SettingsDiagnosticsDetector {
             return migration.id
         case .unknownKeys(let issue):
             return issue.id
-        case .hotkeyConflict,
+        case .appRuleFile,
+             .hotkeyConflict,
              .hotkeyAdvisory:
-            // Live hotkey advisories are not postponable; they clear once the user
-            // reassigns the conflicting chord, so they always pass the postponement filter.
+            // These issues are not postponable. Hotkey conflicts/advisories clear once the user
+            // reassigns the conflicting chord, while app-rule file diagnostics persist until the
+            // malformed config is fixed or removed, so they always pass the postponement filter.
             return Self.nonPostponableID
         }
     }
@@ -149,6 +164,14 @@ enum SettingsDiagnosticsDetector {
         if !unknownKeys.isEmpty {
             issues.append(.unknownKeys(UnknownSettingsKeysIssue(fileURL: settingsURL, keyPaths: unknownKeys)))
         }
+
+        let appRulesDirectoryURL = configDirectory.appendingPathComponent(
+            SettingsFilePersistence.appRulesDirectoryName,
+            isDirectory: true
+        )
+        issues.append(contentsOf: AppRuleFileStore.diagnostics(from: appRulesDirectoryURL).map {
+            SettingsDiagnosticsIssue.appRuleFile($0)
+        })
         return issues
     }
 
