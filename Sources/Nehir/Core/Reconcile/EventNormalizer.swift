@@ -13,13 +13,14 @@ enum EventNormalizer {
         monitors _: [Monitor]
     ) -> WMEvent {
         switch event {
-        case let .windowAdmitted(token, workspaceId, monitorId, mode, source):
+        case let .windowAdmitted(token, workspaceId, monitorId, mode, source, admissionContext):
             return .windowAdmitted(
                 token: token,
                 workspaceId: workspaceId,
                 monitorId: monitorId ?? existingEntry?.observedState.monitorId ?? existingEntry?.desiredState.monitorId,
                 mode: mode,
-                source: source
+                source: source,
+                admissionContext: admissionContext
             )
 
         case let .windowRekeyed(from, to, workspaceId, monitorId, reason, source):

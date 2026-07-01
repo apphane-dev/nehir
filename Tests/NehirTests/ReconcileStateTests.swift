@@ -105,7 +105,7 @@ private func lastWindowRemovedTrace(in manager: WorkspaceManager) -> ReconcileTr
 
         let trace = manager.reconcileTraceSnapshotForTests()
         #expect(trace.contains { record in
-            if case let .windowAdmitted(recordedToken, recordedWorkspaceId, _, recordedMode, _) = record.event {
+            if case let .windowAdmitted(recordedToken, recordedWorkspaceId, _, recordedMode, _, _) = record.event {
                 return recordedToken == token
                     && recordedWorkspaceId == workspaceId
                     && recordedMode == .floating

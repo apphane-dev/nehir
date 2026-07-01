@@ -2559,7 +2559,8 @@ final class WorkspaceManager {
         to workspace: WorkspaceDescriptor.ID,
         mode: TrackedWindowMode = .tiling,
         ruleEffects: ManagedWindowRuleEffects = .none,
-        managedReplacementMetadata: ManagedReplacementMetadata? = nil
+        managedReplacementMetadata: ManagedReplacementMetadata? = nil,
+        admissionContext: WindowAdmissionContext = .unspecified
     ) -> WindowToken {
         let token = windows.upsert(
             window: ax,
@@ -2584,7 +2585,8 @@ final class WorkspaceManager {
                 workspaceId: workspace,
                 monitorId: monitorId(for: workspace),
                 mode: mode,
-                source: .workspaceManager
+                source: .workspaceManager,
+                admissionContext: admissionContext
             )
         )
         invalidateWorkspaceProjection(reason: "windowAdded")

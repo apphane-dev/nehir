@@ -1144,7 +1144,10 @@ final class AXEventHandler: CGSEventDelegate {
         }
     }
 
-    private func trackPreparedCreate(_ candidate: PreparedCreate) {
+    private func trackPreparedCreate(
+        _ candidate: PreparedCreate,
+        admissionContext: WindowAdmissionContext = .windowCreate
+    ) {
         guard let controller else { return }
         cancelCreatedWindowRetry(windowId: candidate.windowId)
         discardCreatePlacementContext(windowId: candidate.windowId)
@@ -1181,7 +1184,8 @@ final class AXEventHandler: CGSEventDelegate {
             to: candidate.workspaceId,
             mode: candidate.mode,
             ruleEffects: candidate.ruleEffects,
-            managedReplacementMetadata: candidate.replacementMetadata
+            managedReplacementMetadata: candidate.replacementMetadata,
+            admissionContext: admissionContext
         )
         guard let trackedEntry = controller.workspaceManager.entry(for: trackedToken) else {
             scheduleAXContextWarmup(for: candidate.token.pid)
@@ -2253,7 +2257,7 @@ final class AXEventHandler: CGSEventDelegate {
             return true
         }
 
-        trackPreparedCreate(candidate)
+        trackPreparedCreate(candidate, admissionContext: .focusedAdmission)
         guard let entry = controller.workspaceManager.entry(for: candidate.token) else {
             return true
         }
