@@ -44,6 +44,16 @@ enum NiriWindowMoveResult {
 
     var scrollAnimationByDisplay: [CGDirectDisplayID: WorkspaceDescriptor.ID] = [:]
 
+    // Per-token bucket/frame last emitted by `spring_frame_classification`, used to
+    // dedup the diagnostic so it fires on viewport-boundary/visibility transitions
+    // instead of every animation tick. Cleared when an animation settles.
+    private struct SpringFrameSample {
+        let bucket: String
+        let frame: CGRect
+    }
+
+    private var springFrameClassificationSamples: [WindowToken: SpringFrameSample] = [:]
+
     init(controller: WMController?) {
         self.controller = controller
     }
@@ -165,6 +175,7 @@ enum NiriWindowMoveResult {
 
     private func finalizeAnimation() {
         guard let controller else { return }
+        springFrameClassificationSamples.removeAll(keepingCapacity: true)
 
         let focusedTarget = controller.currentBorderTarget()
         let preferredFrame: CGRect? = if let focusedTarget,
@@ -331,11 +342,139 @@ enum NiriWindowMoveResult {
             canRestoreHiddenWorkspaceWindows: snapshot.isActiveWorkspace
         )
 
+        emitSpringFrameClassifications(
+            workspaceId: snapshot.workspaceId,
+            windows: snapshot.windows,
+            frames: frames,
+            hiddenHandles: hiddenHandles,
+            monitor: snapshot.monitor,
+            // The on-demand path runs from the scroll-animation display-link tick,
+            // sampling the spring at the current animation time.
+            frameSource: animationTime != nil ? "currentSpring" : "springTarget"
+        )
+
         return WorkspaceLayoutPlan(
             workspaceId: snapshot.workspaceId,
             monitor: snapshot.monitor,
             sessionPatch: WorkspaceSessionPatch(workspaceId: snapshot.workspaceId),
             diff: diff
+        )
+    }
+
+    // Classifies each spring-time frame write during an active scroll animation so a
+    // capture can tell whether hidden / edge-revealed windows are being moved by the
+    // current spring sample (slide-through risk) or held at their target. Deduped per
+    // token against the previous tick and restricted to hidden-state / transition /
+    // large-boundary-crossing cases to avoid per-frame spam for normal visible windows.
+    private func emitSpringFrameClassifications(
+        workspaceId: WorkspaceDescriptor.ID,
+        windows: [LayoutWindowSnapshot],
+        frames: [WindowToken: CGRect],
+        hiddenHandles: [WindowToken: HideSide],
+        monitor: LayoutMonitorSnapshot,
+        frameSource: String
+    ) {
+        guard let controller, controller.isRuntimeTraceCaptureActive else { return }
+
+        let viewport = monitor.workingFrame
+        let display = monitor.frame
+        let largeThreshold = 0.25 * Double(display.width) * Double(display.height)
+        var liveTokens = Set<WindowToken>()
+
+        for window in windows {
+            let token = window.token
+            let previousOffscreenSide = window.hiddenState?.offscreenSide
+            let hiddenNowSide = hiddenHandles[token]
+            let hasHiddenState = window.hiddenState != nil || hiddenNowSide != nil
+            guard let frame = frames[token] else {
+                // A token with no applied frame this tick is not slide-through risk.
+                continue
+            }
+
+            let intersection = frame.intersection(viewport)
+            let bucket: String
+            if intersection.isNull || intersection.width <= 0 || intersection.height <= 0 {
+                bucket = "offscreen"
+            } else if abs(intersection.width - frame.width) < 1.0,
+                      abs(intersection.height - frame.height) < 1.0 {
+                bucket = "inside"
+            } else {
+                bucket = "crossing"
+            }
+
+            let visibilityClass: String
+            if previousOffscreenSide != nil, hiddenNowSide == nil, bucket != "offscreen" {
+                visibilityClass = "hiddenToVisible"
+            } else if previousOffscreenSide == nil, hiddenNowSide != nil {
+                visibilityClass = "visibleToHidden"
+            } else if window.hiddenState?.workspaceInactive == true {
+                visibilityClass = "workspaceInactiveHidden"
+            } else if hasHiddenState, bucket == "crossing" {
+                visibilityClass = "edgeReveal"
+            } else if hasHiddenState {
+                visibilityClass = "hidden"
+            } else {
+                visibilityClass = "visible"
+            }
+
+            let frameArea = Double(frame.width) * Double(frame.height)
+            let isLargeCrossing = bucket != "inside" && frameArea >= largeThreshold
+            // Only hidden-state tokens, visibility transitions, and large windows
+            // crossing the boundary are candidates; normal visible windows are skipped.
+            guard hasHiddenState
+                || visibilityClass == "hiddenToVisible"
+                || visibilityClass == "visibleToHidden"
+                || isLargeCrossing
+            else {
+                continue
+            }
+
+            liveTokens.insert(token)
+            let previousSample = springFrameClassificationSamples[token]
+            let isTransition = visibilityClass == "hiddenToVisible"
+                || visibilityClass == "visibleToHidden"
+            let bucketChanged = previousSample?.bucket != bucket
+            let frameMoved = previousSample.map {
+                abs($0.frame.origin.x - frame.origin.x) > 1.0
+                    || abs($0.frame.origin.y - frame.origin.y) > 1.0
+            } ?? true
+            let hiddenRevealMoved = hasHiddenState && bucket != "offscreen" && frameMoved
+            guard isTransition || bucketChanged || hiddenRevealMoved else {
+                continue
+            }
+            springFrameClassificationSamples[token] = SpringFrameSample(bucket: bucket, frame: frame)
+
+            let hiddenSide = hiddenNowSide.map { "\($0)" }
+                ?? previousOffscreenSide.map { "\($0)" }
+                ?? "nil"
+            controller.recordRuntimeViewportTrace(
+                workspaceId: workspaceId,
+                reason: "spring_frame_classification",
+                details: [
+                    "token=\(String(describing: token))",
+                    "windowId=\(token.windowId)",
+                    "frameSource=\(frameSource)",
+                    "visibilityClass=\(visibilityClass)",
+                    "bucket=\(bucket)",
+                    "hiddenSide=\(hiddenSide)",
+                    "wasHiddenState=\(window.hiddenState.map { $0.workspaceInactive ? "wsInactive" : "transient(\(String(describing: $0.offscreenSide)))" } ?? "none")",
+                    "currentFrame=\(Self.formatFrame(frame))",
+                    "viewport=\(Self.formatFrame(viewport))",
+                    "targetPinned=false"
+                ]
+            )
+        }
+
+        // Drop dedup state for tokens no longer classified this tick so a later
+        // re-entry emits a fresh transition record.
+        springFrameClassificationSamples = springFrameClassificationSamples
+            .filter { liveTokens.contains($0.key) }
+    }
+
+    private static func formatFrame(_ rect: CGRect) -> String {
+        String(
+            format: "{{%.1f,%.1f},{%.1f,%.1f}}",
+            rect.origin.x, rect.origin.y, rect.width, rect.height
         )
     }
 

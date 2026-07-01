@@ -88,6 +88,11 @@ final class MouseEventHandler {
         let modifiers: CGEventFlags
         let windowUnderPointer: Int?
         let touches: [GestureTouchSample]
+        /// Raw contact count observed on the previous multitouch frame, for the
+        /// raw MultitouchSupport source only. `nil` for NSEvent-derived snapshots.
+        /// Lets idle-admission diagnostics report whether an idle `.changed` arm
+        /// came from a contact-count increase or a mid-gesture continuation.
+        let previousRawActiveCount: Int?
 
         init(
             location: CGPoint,
@@ -95,6 +100,7 @@ final class MouseEventHandler {
             timestamp: TimeInterval = CACurrentMediaTime(),
             modifiers: CGEventFlags = [],
             windowUnderPointer: Int? = nil,
+            previousRawActiveCount: Int? = nil,
             touches: [GestureTouchSample]
         ) {
             self.location = location
@@ -102,6 +108,7 @@ final class MouseEventHandler {
             self.timestamp = timestamp
             self.modifiers = modifiers
             self.windowUnderPointer = windowUnderPointer
+            self.previousRawActiveCount = previousRawActiveCount
             self.touches = touches
         }
     }
@@ -236,6 +243,15 @@ final class MouseEventHandler {
         var gestureLastAverageX: CGFloat = 0.0
         var gestureLastAverageY: CGFloat = 0.0
         var lockedGestureContext: LockedGestureContext?
+        // Commit metrics retained from the armed→committed transition until the first
+        // committed update, so `touch_scroll_gesture_first_update` can report whether
+        // the first applied delta carried the full pre-recognition movement.
+        var pendingFirstUpdateAfterCommit = false
+        var commitCumulativeX: CGFloat = 0.0
+        var commitCumulativeY: CGFloat = 0.0
+        var commitRawDeltaX: CGFloat = 0.0
+        var commitInputPhaseName = ""
+        var commitTimestamp: TimeInterval = 0.0
         var suppressGestureUntilTouchesEnd = false
         var pendingTapEvents = PendingTapEvents()
         var debugCounters = DebugCounters()
@@ -840,6 +856,20 @@ final class MouseEventHandler {
 
     private func formatPoint(_ point: CGPoint) -> String {
         String(format: "(%.1f,%.1f)", point.x, point.y)
+    }
+
+    // Human-readable name for a raw `NSEvent.Phase` so idle-admission diagnostics
+    // can grep `inputPhaseName=changed` instead of decoding the OptionSet raw value.
+    static func gesturePhaseName(_ phase: NSEvent.Phase) -> String {
+        switch phase {
+        case .began: return "began"
+        case .stationary: return "stationary"
+        case .changed: return "changed"
+        case .ended: return "ended"
+        case .cancelled: return "cancelled"
+        case .mayBegin: return "mayBegin"
+        default: return "other(\(phase.rawValue))"
+        }
     }
 
     private func formatToken(_ token: WindowToken?) -> String {
@@ -1635,15 +1665,51 @@ final class MouseEventHandler {
             state.gestureStartY = avgY
             state.gestureLastAverageX = avgX
             state.gestureLastAverageY = avgY
+            // The switch entered on `state.gesturePhase == .idle`, so this arm is by
+            // definition an admission out of the idle phase.
             state.gesturePhase = .armed
-            let viewportState = controller.workspaceManager.niriViewportState(for: currentContext.wsId)
-            let armedTraceDetails = [
+            let inputPhaseName = Self.gesturePhaseName(phase)
+            let idleAdmissionKind: String
+            switch phase {
+            case .began: idleAdmissionKind = "began"
+            case .changed: idleAdmissionKind = "changed"
+            default: idleAdmissionKind = "other"
+            }
+            var armedTraceDetails = [
                 "input=trackpadTouches",
                 "requiredFingers=\(requiredFingers)",
                 "activeTouches=\(activeTouchCount)",
                 "phase=\(phase.rawValue)",
+                "inputPhaseRaw=\(phase.rawValue)",
+                "inputPhaseName=\(inputPhaseName)",
+                "previousGesturePhase=idle",
+                "idleAdmission=true",
+                "idleAdmissionKind=\(idleAdmissionKind)",
+                "rawActiveCount=\(activeTouchCount)",
                 String(format: "startTouch=%.3f,%.3f", avgX, avgY)
             ]
+            if let previousRawActiveCount = snapshot.previousRawActiveCount {
+                armedTraceDetails.append("previousRawActiveCount=\(previousRawActiveCount)")
+                armedTraceDetails.append("activeCountDelta=\(activeTouchCount - previousRawActiveCount)")
+            }
+            // Diagnostic-only: an idle gesture admitted from a non-begin phase is the
+            // suspected idle `.changed` admission anomaly. Emit an explicit record so a
+            // capture can grep it directly; do not skip or abort the gesture here.
+            if phase != .began {
+                controller.recordRuntimeViewportTrace(
+                    workspaceId: currentContext.wsId,
+                    reason: "touch_scroll_gesture_idle_changed_admission",
+                    details: [
+                        "input=trackpadTouches",
+                        "inputPhase=\(inputPhaseName)",
+                        "requiredFingers=\(requiredFingers)",
+                        "activeTouches=\(activeTouchCount)",
+                        "previousGesturePhase=idle",
+                        String(format: "startTouch=%.3f,%.3f", avgX, avgY)
+                    ]
+                )
+            }
+            let viewportState = controller.workspaceManager.niriViewportState(for: currentContext.wsId)
             if !viewportState.viewOffsetPixels.isGesture, viewportState.viewOffsetPixels.isAnimating {
                 controller.recordRuntimeViewportTrace(
                     workspaceId: currentContext.wsId,
@@ -1725,6 +1791,14 @@ final class MouseEventHandler {
 
                 rawDeltaX = cumulativeX
                 state.gesturePhase = .committed
+                // Retain the commit metrics so the first committed update can report
+                // how much pre-recognition movement it carried (recognition debt).
+                state.pendingFirstUpdateAfterCommit = true
+                state.commitCumulativeX = cumulativeX
+                state.commitCumulativeY = cumulativeY
+                state.commitRawDeltaX = rawDeltaX
+                state.commitInputPhaseName = Self.gesturePhaseName(phase)
+                state.commitTimestamp = snapshot.timestamp
                 controller.recordRuntimeViewportTrace(
                     workspaceId: wsId,
                     reason: "touch_scroll_gesture_committed",
@@ -1808,19 +1882,68 @@ final class MouseEventHandler {
             controller.layoutRefreshController.stopScrollAnimation(for: monitor.displayId)
         }
         if didApply {
+            let isFirstUpdateAfterCommit = state.pendingFirstUpdateAfterCommit
             if controller.settings.viewportTraceVerbosity.includesGestureFrameUpdates {
+                var updateDetails = [
+                    "input=trackpadTouches",
+                    String(format: "delta=%.3f", delta),
+                    "phase=committed"
+                ]
+                if isFirstUpdateAfterCommit {
+                    updateDetails.append("firstUpdate=true")
+                }
                 controller.recordRuntimeViewportTrace(
                     workspaceId: wsId,
                     reason: "touch_scroll_gesture_update",
-                    details: [
-                        "input=trackpadTouches",
-                        String(format: "delta=%.3f", delta),
-                        "phase=committed"
-                    ]
+                    details: updateDetails
                 )
+            }
+            if isFirstUpdateAfterCommit {
+                emitFirstUpdateDiagnostic(appliedDelta: delta, wsId: wsId)
+                state.pendingFirstUpdateAfterCommit = false
             }
             controller.layoutRefreshController.requestRefresh(reason: .interactiveGesture)
         }
+    }
+
+    // Emits `touch_scroll_gesture_first_update` linking the just-applied first
+    // committed delta back to the commit's cumulative recognition movement, so a
+    // capture can tell — without manual pairing — whether the first update carried
+    // the full pre-recognition debt and what a dead-zone implementation would apply
+    // instead. Diagnostic only; it does not alter the applied delta.
+    private func emitFirstUpdateDiagnostic(appliedDelta: CGFloat, wsId: WorkspaceDescriptor.ID) {
+        guard let controller else { return }
+        let threshold = niriTouchpadGestureRecognitionThreshold
+        let rawDeltaX = state.commitRawDeltaX
+        // The commit branch applies the full accumulated pre-recognition movement as
+        // the first delta. A dead-zone implementation would instead apply only the
+        // movement beyond the recognition threshold along the committed axis.
+        let overshootMagnitude = max(0.0, abs(rawDeltaX) - threshold)
+        let signedOvershoot = (rawDeltaX < 0 ? -1.0 : 1.0) * overshootMagnitude
+        let sensitivity = CGFloat(controller.settings.scrollSensitivity)
+        let invert = controller.settings.gestureInvertDirection
+        var wouldDeadZoneDelta = signedOvershoot * sensitivity
+        if invert { wouldDeadZoneDelta = -wouldDeadZoneDelta }
+        // On current main the first committed update applies the full accumulated
+        // pre-recognition movement (rawDeltaX == commitCumulativeX), so any nonzero
+        // first delta carries recognition debt.
+        let includesRecognitionDebt = abs(rawDeltaX) > 0
+        controller.recordRuntimeViewportTrace(
+            workspaceId: wsId,
+            reason: "touch_scroll_gesture_first_update",
+            details: [
+                "input=trackpadTouches",
+                String(format: "commitCumulativeX=%.3f", state.commitCumulativeX),
+                String(format: "commitCumulativeY=%.3f", state.commitCumulativeY),
+                String(format: "threshold=%.3f", threshold),
+                String(format: "rawDelta=%.3f", rawDeltaX),
+                String(format: "appliedDelta=%.3f", appliedDelta),
+                String(format: "wouldDeadZoneDelta=%.3f", wouldDeadZoneDelta),
+                "includesRecognitionDebt=\(includesRecognitionDebt)",
+                "commitInputPhase=\(state.commitInputPhaseName)",
+                "phase=committed"
+            ]
+        )
     }
 
     private func backingScale(for monitor: Monitor) -> CGFloat {
@@ -1974,6 +2097,35 @@ final class MouseEventHandler {
                 if let targetOffset {
                     details.append(String(format: "targetOffset=%.3f", targetOffset))
                 }
+                // Derived release-projection distances so a capture can classify a
+                // multi-column release by grep alone. `wouldClamp` reports whether the
+                // planned (not-yet-implemented) projection clamp would have changed the
+                // target; `clampScreens=nil` records that no clamp is configured on main.
+                let viewportWidth = Double(insetFrame.width)
+                let projectionDeltaFromCurrent = projectedViewStart - currentViewStart
+                let projectionScreens = viewportWidth > 0 ? projectionDeltaFromCurrent / viewportWidth : 0
+                details.append(String(format: "rawProjectedOffset=%.3f", projectedOffset))
+                details.append(String(format: "rawProjectedViewStart=%.3f", projectedViewStart))
+                details.append(String(format: "projectionDeltaFromCurrent=%.3f", projectionDeltaFromCurrent))
+                details.append(String(format: "projectionScreens=%.3f", projectionScreens))
+                details.append("projectedColumnDelta=\(Int(projectionScreens.rounded()))")
+                if let closestSnap {
+                    details.append("targetColumnDelta=\(closestSnap.columnIndex - endState.activeColumnIndex)")
+                } else {
+                    details.append("targetColumnDelta=nil")
+                }
+                let diagnosticClampScreens = 1.0
+                let clampBound = diagnosticClampScreens * viewportWidth
+                let clampedDelta = max(-clampBound, min(clampBound, projectionDeltaFromCurrent))
+                let clampedProjectedViewStart = currentViewStart + clampedDelta
+                let clampedSnap = snapToColumn
+                    ? snapContext.closest(to: CGFloat(clampedProjectedViewStart))
+                    : nil
+                details.append("wouldClamp=\(abs(projectionScreens) > diagnosticClampScreens)")
+                details.append("clampScreens=nil")
+                details.append(String(format: "diagnosticClampScreens=%.3f", diagnosticClampScreens))
+                details.append(String(format: "clampedProjectedViewStart=%.3f", clampedProjectedViewStart))
+                details.append("clampedTargetColumn=\(clampedSnap.map { String($0.columnIndex) } ?? "nil")")
                 controller.recordRuntimeViewportTrace(
                     workspaceId: wsId,
                     reason: "touch_scroll_gesture_end_candidate",
@@ -2151,6 +2303,12 @@ final class MouseEventHandler {
         state.gestureLastAverageX = 0.0
         state.gestureLastAverageY = 0.0
         state.lockedGestureContext = nil
+        state.pendingFirstUpdateAfterCommit = false
+        state.commitCumulativeX = 0.0
+        state.commitCumulativeY = 0.0
+        state.commitRawDeltaX = 0.0
+        state.commitInputPhaseName = ""
+        state.commitTimestamp = 0.0
     }
 
     private func currentSelectionNode(

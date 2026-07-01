@@ -500,7 +500,7 @@ final class AXManager {
         }
         let windowServerCounts = windowServerCountsByPid
 
-        return await withTaskGroup(
+        let snapshot = await withTaskGroup(
             of: (pid: pid_t, windows: [(AXWindowRef, pid_t, Int)], failed: Bool).self
         ) { group in
             for app in apps {
@@ -544,7 +544,54 @@ final class AXManager {
                     failedPIDs.insert(result.pid)
                 }
             }
-            return .init(windows: results, failedPIDs: failedPIDs)
+            return FullRescanEnumerationSnapshot(windows: results, failedPIDs: failedPIDs)
+        }
+
+        recordFullRescanOmissions(snapshot: snapshot, visibleWindows: visibleWindows)
+        return snapshot
+    }
+
+    // Diagnostic: after a full rescan enumerates AX windows, cross-check each pid's
+    // AX-tracked window IDs against the WindowServer level-0 visible windows. Emits a
+    // compact `full_rescan_omission` summary (plus one line per omitted candidate) only
+    // when a visible level-0 window was not tracked, so real startup admission gaps are
+    // separated from harmless `missing_ax_ref` menu/overlay surfaces. Never mutates state.
+    private func recordFullRescanOmissions(
+        snapshot: FullRescanEnumerationSnapshot,
+        visibleWindows: [WindowServerInfo]
+    ) {
+        var axIdsByPid: [pid_t: Set<Int>] = [:]
+        for (_, pid, windowId) in snapshot.windows {
+            axIdsByPid[pid, default: []].insert(windowId)
+        }
+
+        var level0ByPid: [pid_t: [WindowServerInfo]] = [:]
+        for window in visibleWindows where window.level == 0 {
+            level0ByPid[pid_t(window.pid), default: []].append(window)
+        }
+
+        for (pid, level0Windows) in level0ByPid {
+            let axIds = axIdsByPid[pid] ?? []
+            let omitted = level0Windows.filter { !axIds.contains(Int($0.id)) }
+            guard !omitted.isEmpty else { continue }
+
+            let omittedIds = omitted.map { String($0.id) }.joined(separator: ",")
+            recordFrameApplyTrace(
+                "full_rescan_omission pid=\(pid) windowServerLevel0VisibleCount=\(level0Windows.count) "
+                    + "axWindowCount=\(axIds.count) failedPID=\(snapshot.failedPIDs.contains(pid)) "
+                    + "omittedVisibleWindowIds=[\(omittedIds)]"
+            )
+            for window in omitted {
+                let axRefResolvable = AXWindowService.axWindowRef(for: window.id, pid: pid) != nil
+                recordFrameApplyTrace(
+                    "full_rescan_omission.window windowId=\(window.id) pid=\(pid) "
+                        + "parent=\(window.parentId) level=\(window.level) "
+                        + "hasDocumentTag=\(window.hasDocumentTag) hasFloatingTag=\(window.hasFloatingTag) "
+                        + "bounds=\(Self.format(frame: window.frame)) "
+                        + "axRefResolvable=\(axRefResolvable) topLevelAX=\(window.parentId == 0) "
+                        + "trackedAfterRescan=false"
+                )
+            }
         }
     }
 

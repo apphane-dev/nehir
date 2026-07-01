@@ -2688,6 +2688,89 @@ import QuartzCore
         case unavailable
     }
 
+    // Diagnostic: when a hide/parking write verifies with a mismatch, classify whether
+    // the discrepancy is a visible slide-through (observed frame overlaps the active
+    // viewport) or a coordinate-space readback artifact (e.g. an off-by-height Y flip
+    // or an offscreen X that is expected). Emitted only on mismatch, so it stays quiet
+    // when parking works.
+    private func recordParkingVerifyMismatch(
+        plan: WindowPositionPlan,
+        requestedFrame: CGRect,
+        observedFrame: CGRect?,
+        backend: String
+    ) {
+        guard let controller, controller.isRuntimeTraceCaptureActive else { return }
+        let monitor = plan.displayId.flatMap { displayId -> Monitor? in
+            controller.workspaceManager.monitors.first { $0.displayId == displayId }
+        }
+        let windowId = plan.entry.windowId
+        let requestedOrigin = LayoutTrace.point(requestedFrame.origin)
+        let widthText = String(format: "%.1f", requestedFrame.width)
+        let heightText = String(format: "%.1f", requestedFrame.height)
+
+        guard let observedFrame else {
+            let text = "parking_verify_mismatch id=\(windowId) backend=\(backend)"
+                + " requestedOrigin=\(requestedOrigin) observedOrigin=nil"
+                + " width=\(widthText) height=\(heightText)"
+                + " observedXOffscreen=nil observedYDeltaEqualsHeight=nil visibleRisk=nil"
+            controller.axManager.recordFrameApplyTrace(text)
+            return
+        }
+
+        let dx = observedFrame.origin.x - requestedFrame.origin.x
+        let dy = observedFrame.origin.y - requestedFrame.origin.y
+        let height = requestedFrame.height
+
+        var observedXOffscreen = false
+        var visibleRisk = false
+        if let monitor {
+            let displayFrame = monitor.frame
+            let offscreenLeft = observedFrame.maxX <= displayFrame.minX
+            let offscreenRight = observedFrame.minX >= displayFrame.maxX
+            observedXOffscreen = offscreenLeft || offscreenRight
+            visibleRisk = monitor.visibleFrame.intersects(observedFrame)
+        }
+        let observedYDeltaEqualsHeight = abs(abs(dy) - height) < 2.0
+
+        let dxText = String(format: "%.1f", dx)
+        let dyText = String(format: "%.1f", dy)
+        let text = "parking_verify_mismatch id=\(windowId) backend=\(backend)"
+            + " requestedOrigin=\(requestedOrigin)"
+            + " observedOrigin=\(LayoutTrace.point(observedFrame.origin))"
+            + " dx=\(dxText) dy=\(dyText) width=\(widthText) height=\(heightText)"
+            + " observedXOffscreen=\(observedXOffscreen)"
+            + " observedYDeltaEqualsHeight=\(observedYDeltaEqualsHeight)"
+            + " visibleRisk=\(visibleRisk)"
+        controller.axManager.recordFrameApplyTrace(text)
+    }
+
+    // Diagnostic: when a window is parked offscreen, its managed-replacement metadata
+    // still carries the last on-screen frame. Emit a low-volume record when that
+    // replacement frame disagrees with the parked frame, so a capture can tell whether
+    // stale replacement geometry (not the parked position) is what a later reconcile
+    // would restore. `updatedReplacementMetadata=false` records that main does not
+    // refresh the metadata here.
+    private func recordHiddenReplacementFrameMismatch(
+        plan: WindowPositionPlan,
+        parkedFrame: CGRect
+    ) {
+        guard let controller, controller.isRuntimeTraceCaptureActive else { return }
+        guard let replacementFrame = plan.entry.managedReplacementMetadata?.frame else { return }
+        let dx = replacementFrame.origin.x - parkedFrame.origin.x
+        let dy = replacementFrame.origin.y - parkedFrame.origin.y
+        guard abs(dx) > 1.0 || abs(dy) > 1.0 else { return }
+
+        let hiddenState = controller.workspaceManager.hiddenState(for: plan.entry.token)
+        let hiddenReason = hiddenState.map { "\($0.reason)" } ?? "nil"
+        let hiddenSide = hiddenState?.offscreenSide.map { "\($0)" } ?? "nil"
+        let text = "hidden_replacement_frame_mismatch token=\(String(describing: plan.entry.token))"
+            + " windowId=\(plan.entry.windowId) hiddenReason=\(hiddenReason) hiddenSide=\(hiddenSide)"
+            + " parked=\(LayoutTrace.rect(parkedFrame)) replacement=\(LayoutTrace.rect(replacementFrame))"
+            + " replacementDx=\(String(format: "%.1f", dx)) replacementDy=\(String(format: "%.1f", dy))"
+            + " updatedReplacementMetadata=false"
+        controller.axManager.recordFrameApplyTrace(text)
+    }
+
     private func positionPlanPlacementVerified(
         _ plan: WindowPositionPlan,
         requestedFrame: CGRect,
@@ -2815,6 +2898,15 @@ import QuartzCore
             controller.axManager.recordFrameApplyTrace(
                 "hidePlan.final id=\(plan.entry.windowId) requested=\(LayoutTrace.rect(requestedFrame)) observed=\(observedFrame.map(LayoutTrace.rect) ?? "nil") fallback=\(fallbackAttempted ? "YES" : "no") verified=\(verified)"
             )
+            if !verified {
+                recordParkingVerifyMismatch(
+                    plan: plan,
+                    requestedFrame: requestedFrame,
+                    observedFrame: observedFrame,
+                    backend: fallbackAttempted ? "ax" : "skylight"
+                )
+            }
+            recordHiddenReplacementFrameMismatch(plan: plan, parkedFrame: requestedFrame)
             results.append(
                 WindowPositionApplyResult(
                     token: plan.entry.token,
