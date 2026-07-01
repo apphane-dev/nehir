@@ -223,6 +223,11 @@ enum AXWindowService {
         -> AXFrameWriteResult)?
     nonisolated(unsafe) static var pinnedWindowIdProviderForTests: ((UInt32) -> CGWindowID?)?
     @MainActor static var fastFrameProviderForTests: ((AXWindowRef) -> CGRect?)?
+    /// Test override for the slow (real AX) frame read, mirroring
+    /// `fastFrameProviderForTests`. Used to exercise the stale-cached-already-hidden
+    /// re-read in `resolveHideOperation`, which deliberately bypasses the fast cache
+    /// to detect live drift. When `nil`, behavior is unchanged (real AX read).
+    nonisolated(unsafe) static var frameProviderForTests: ((AXWindowRef) throws(AXErrorWrapper) -> CGRect)?
     @MainActor static var titleLookupProviderForTests: ((UInt32) -> String?)?
     @MainActor static var timeSourceForTests: (() -> TimeInterval)?
 
@@ -353,6 +358,9 @@ enum AXWindowService {
     }
 
     static func frame(_ window: AXWindowRef) throws(AXErrorWrapper) -> CGRect {
+        if let frameProviderForTests {
+            return try frameProviderForTests(window)
+        }
         let attributes = [
             kAXPositionAttribute as CFString,
             kAXSizeAttribute as CFString
