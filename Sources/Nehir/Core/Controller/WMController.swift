@@ -4931,7 +4931,7 @@ extension WMController {
 
     func preferredKeyboardFocusFrame(for token: WindowToken) -> CGRect? {
         if let node = niriEngine?.findNode(for: token) {
-            return node.renderedFrame ?? node.frame
+            return node.preferredFrame
         }
         if let floatingState = workspaceManager.floatingState(for: token) {
             return floatingState.lastFrame

@@ -1005,7 +1005,7 @@ final class MouseEventHandler {
               Self.modifierFlagsMatch(modifiers, required: controller.settings.mouseResizeModifierKey.cgEventFlag)
         else { return false }
         guard let tiledWindow = engine.hitTestTiled(point: location, in: wsId),
-              let frame = tiledWindow.renderedFrame ?? tiledWindow.frame
+              let frame = tiledWindow.preferredFrame
         else { return false }
 
         let edges = resizeEdges(for: location, in: frame)
@@ -2170,7 +2170,7 @@ final class MouseEventHandler {
             {
                 _ = controller.renderKeyboardFocusBorder(
                     for: target,
-                    preferredFrame: selectedWindow.renderedFrame ?? selectedWindow.frame,
+                    preferredFrame: selectedWindow.preferredFrame,
                     forceOrdering: false
                 )
                 controller.suppressMouseMoveToFocusedWindow(for: selectedWindow.token)
