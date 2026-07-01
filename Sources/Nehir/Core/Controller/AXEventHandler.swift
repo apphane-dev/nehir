@@ -2443,8 +2443,18 @@ final class AXEventHandler: CGSEventDelegate {
                     state.recentFFMFocusTimestamp = nil
                 }
             }
+            // `isAnimating` stays true through a spring's cosmetic settle tail
+            // (current already converged to target, not yet flipped to
+            // `.static`). Only treat the spring as genuinely in flight when it
+            // hasn't yet converged within the same pixel tolerance used by
+            // scrollToReveal/revealForFocusActivation, so a settled spring
+            // doesn't suppress this step's own reveal in favor of the
+            // follow-up relayout.
+            let settleTolerance = 1.0 / max(engine.displayScale(in: wsId), 1.0)
+            let isSpringInFlight = state.viewOffsetPixels.isAnimating
+                && abs(state.viewOffsetPixels.current() - state.viewOffsetPixels.target()) > settleTolerance
             let preserveActiveViewport = state.viewOffsetPixels.isGesture
-                || state.viewOffsetPixels.isAnimating
+                || isSpringInFlight
                 || (wasAlreadyConfirmedFocus && source == .focusedWindowChanged)
             controller.recordRuntimeViewportTrace(
                 workspaceId: wsId,
@@ -2472,6 +2482,14 @@ final class AXEventHandler: CGSEventDelegate {
                     startAnimation: false
                 )
             )
+            // Keep activeColumnIndex synced to the newly activated node's real
+            // column unconditionally, regardless of preserveActiveViewport.
+            // This is anchor-preserving (the compensating offset delta keeps
+            // the resulting view position unchanged), so it produces no
+            // visible motion on its own; it only removes the staleness that
+            // would otherwise force the next relayout's ensureSelectionVisible
+            // to perform its own instant rebase.
+            controller.niriLayoutHandler.rebaseViewportAnchor(to: node, in: wsId, state: &state)
             controller.recordRuntimeViewportTrace(
                 workspaceId: wsId,
                 reason: "ax_focus_confirm_after_activate",

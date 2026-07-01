@@ -2005,7 +2005,11 @@ enum NiriWindowMoveResult {
         }
     }
 
-    private func rebaseViewportAnchor(
+    /// Anchor-preserving sync of `state.activeColumnIndex` to `node`'s real
+    /// column: the compensating offset delta keeps the resulting view
+    /// position unchanged, so callers can use this purely to keep the
+    /// bookkeeping current without producing any visible motion.
+    func rebaseViewportAnchor(
         to node: NiriNode,
         in workspaceId: WorkspaceDescriptor.ID,
         state: inout ViewportState

@@ -2555,6 +2555,47 @@ private func makeCenteredCrossMonitorFixture(
         }
     }
 
+    @Test func ensureSelectionVisibleNoOpRebaseWhenActiveColumnIndexAlreadyMatchesTarget() {
+        // Regression for the focus-confirm reveal plan, Phase 3 bullet 3:
+        // once activeColumnIndex is already synced to the selected node's
+        // real column (Phase 1's job at focus-confirm time), the relayout's
+        // ensureSelectionVisible must treat the rebase as a true no-op rather
+        // than re-deriving and reapplying an "instant rebase" mutation.
+        let engine = NiriLayoutEngine()
+        let wsId = UUID()
+
+        let h1 = makeTestHandle()
+        let h2 = makeTestHandle()
+        let w1 = engine.addWindow(handle: h1, to: wsId, afterSelection: nil)
+        let w2 = engine.addWindow(handle: h2, to: wsId, afterSelection: w1.id)
+
+        let workingFrame = CGRect(x: 0, y: 0, width: 500, height: 900)
+        let gap: CGFloat = 8
+        assignWidths(engine.columns(in: wsId), widths: [500, 500])
+
+        var state = ViewportState()
+        state.selectedNodeId = w2.id
+        state.activeColumnIndex = 1
+        // Viewport already positioned so column 1 (the target's real column,
+        // matching activeColumnIndex) exactly fills the working frame -
+        // nothing should move. viewStart = columnX(activeColumnIndex) +
+        // offset, so a zero offset anchored at column 1 starts the viewport
+        // exactly at column 1's origin.
+        state.viewOffsetPixels = .static(0)
+        state.isViewportMutationAuditEnabled = true
+
+        engine.ensureSelectionVisible(
+            node: w2,
+            in: wsId,
+            state: &state,
+            workingFrame: workingFrame,
+            gaps: gap
+        )
+
+        #expect(state.activeColumnIndex == 1)
+        #expect(state.lastViewportMutationReason == nil)
+    }
+
     @Test func moveWindowHorizontalRightExpelsFocusedWindowIntoNewColumn() {
         let engine = NiriLayoutEngine()
         let wsId = UUID()
