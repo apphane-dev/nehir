@@ -2312,6 +2312,351 @@ private func makeUnavailableLayoutPlanTestWindow(windowId: Int) -> AXWindowRef {
         }
     }
 
+    // MARK: - Stale-live-frame reconciliation (park issued / not undone)
+
+    @Test @MainActor func hideWorkspaceReparksAlreadyHiddenWorkspaceInactiveWindowWithDriftedLiveFrame() {
+        // Gap 1a (Fix B): a window Nehir already believes is `workspaceInactive`-hidden
+        // but whose live AX frame bled back on-screen must be re-parked, not merely
+        // logged as drift. Single monitor; workspace "2" is inactive.
+        let controller = makeLayoutPlanTestController()
+        guard let monitor = controller.workspaceManager.monitors.first,
+              let activeWorkspaceId = controller.workspaceManager.workspaceId(for: "1", createIfMissing: false),
+              let inactiveWorkspaceId = controller.workspaceManager.workspaceId(for: "2", createIfMissing: false)
+        else {
+            Issue.record("Missing monitor or workspaces for workspace-inactive reconciliation test")
+            return
+        }
+        controller.workspaceManager.setActiveWorkspace(activeWorkspaceId, on: monitor.id)
+
+        let windowId = 701
+        let token = addLayoutPlanTestWindow(on: controller, workspaceId: inactiveWorkspaceId, windowId: windowId)
+        setWorkspaceInactiveHiddenStateForLayoutPlanTests(on: controller, token: token, monitor: monitor)
+
+        // Live AX frame is fully on-screen (center of the 1920x1080 monitor) — the
+        // stale-live-frame signature: hidden metadata set, but the window is visible.
+        let driftedFrame = CGRect(x: 560, y: 180, width: 800, height: 600)
+        AXWindowService.fastFrameProviderForTests = { window in
+            window.windowId == windowId ? driftedFrame : fallbackFastFrameForTests(window)
+        }
+        defer { AXWindowService.fastFrameProviderForTests = nil }
+
+        controller.layoutRefreshController.hideInactiveWorkspacesSync()
+
+        let dump = controller.axManager.windowStateDebugDump(windowIds: [windowId])
+        // The already-hidden workspace-inactive window with a drifted live frame is
+        // re-parked (a hide plan is issued), not merely logged. This now exercises
+        // main's `isWorkspaceInactiveWindowVisiblyDrifting` repair path.
+        #expect(dump.contains("hidePlan.apply id=\(windowId)"))
+        #expect(controller.workspaceManager.hiddenState(for: token)?.workspaceInactive == true)
+    }
+
+    @Test @MainActor func hideWorkspaceDoesNotChurnAlreadyParkedWorkspaceInactiveWindow() {
+        // Regression / idempotency: a workspace-inactive window whose live frame is
+        // correctly parked offscreen (not bleeding onto the active monitor) is NOT
+        // re-moved on every visibility refresh.
+        let controller = makeLayoutPlanTestController()
+        guard let monitor = controller.workspaceManager.monitors.first,
+              let activeWorkspaceId = controller.workspaceManager.workspaceId(for: "1", createIfMissing: false),
+              let inactiveWorkspaceId = controller.workspaceManager.workspaceId(for: "2", createIfMissing: false)
+        else {
+            Issue.record("Missing monitor or workspaces for workspace-inactive no-churn test")
+            return
+        }
+        controller.workspaceManager.setActiveWorkspace(activeWorkspaceId, on: monitor.id)
+
+        let windowId = 702
+        let token = addLayoutPlanTestWindow(on: controller, workspaceId: inactiveWorkspaceId, windowId: windowId)
+        setWorkspaceInactiveHiddenStateForLayoutPlanTests(on: controller, token: token, monitor: monitor)
+
+        // Live frame parked well offscreen, not intersecting the active monitor.
+        let parkedFrame = CGRect(x: 5000, y: 180, width: 800, height: 600)
+        AXWindowService.fastFrameProviderForTests = { window in
+            window.windowId == windowId ? parkedFrame : fallbackFastFrameForTests(window)
+        }
+        defer { AXWindowService.fastFrameProviderForTests = nil }
+
+        controller.layoutRefreshController.hideInactiveWorkspacesSync()
+
+        let dump = controller.axManager.windowStateDebugDump(windowIds: [windowId])
+        #expect(!dump.contains("hidePlan.apply id=\(windowId)"))
+        #expect(!dump.contains("SkyLight.move id=\(windowId)"))
+    }
+
+    @Test @MainActor func resolveHideOperationStaleCachedGuardFiresForWorkspaceInactiveReason() {
+        // Gap 1b (Fix A): the stale-cached-already-hidden re-read must fire for
+        // `.workspaceInactive`, not only `.layoutTransient`. Setup: the cached frame
+        // is already at the computed park origin, but the live (slow) AX frame has
+        // drifted on-screen — the re-read must detect the drift and re-issue the park.
+        let controller = makeLayoutPlanTestController()
+        guard let monitor = controller.workspaceManager.monitors.first,
+              let workspaceId = controller.workspaceManager.activeWorkspaceOrFirst(on: monitor.id)?.id
+        else {
+            Issue.record("Missing monitor or active workspace for stale-cached workspace-inactive test")
+            return
+        }
+
+        let windowId = 711
+        let token = addLayoutPlanTestWindow(on: controller, workspaceId: workspaceId, windowId: windowId)
+        let frameSize = CGSize(width: 800, height: 600)
+        let parkedY: CGFloat = 180
+        guard let parkedOrigin = controller.layoutRefreshController.liveFrameHideOrigin(
+            for: CGRect(x: 0, y: parkedY, width: frameSize.width, height: frameSize.height),
+            monitor: monitor,
+            side: .right,
+            pid: getpid(),
+            reason: .workspaceInactive
+        ) else {
+            Issue.record("Expected a workspace-inactive park origin for stale-cached test")
+            return
+        }
+        // Cached frame already at the park origin; live AX frame drifted on-screen
+        // with different geometry. The repair must derive its new park origin from
+        // this live frame, not from the stale cached frame.
+        let cachedFrame = CGRect(origin: parkedOrigin, size: frameSize)
+        let driftedFrame = CGRect(x: 560, y: parkedY + 80, width: 900, height: 640)
+        guard let liveOrigin = controller.layoutRefreshController.liveFrameHideOrigin(
+            for: driftedFrame,
+            monitor: monitor,
+            side: .right,
+            pid: getpid(),
+            reason: .workspaceInactive
+        ) else {
+            Issue.record("Expected a live-frame workspace-inactive park origin for stale-cached test")
+            return
+        }
+        AXWindowService.fastFrameProviderForTests = { window in
+            window.windowId == windowId ? cachedFrame : fallbackFastFrameForTests(window)
+        }
+        // Non-throwing provider: a `(AXWindowRef) -> CGRect` converts to the
+        // `throws(AXErrorWrapper)` expected type. Only the target window's slow
+        // frame is read in this isolated test; others fall back to the test default.
+        let slowFrameProvider: (AXWindowRef) -> CGRect = { window in
+            window.windowId == windowId
+                ? driftedFrame
+                : (fallbackFastFrameForTests(window) ?? CGRect(x: 0, y: 0, width: 1, height: 1))
+        }
+        AXWindowService.frameProviderForTests = slowFrameProvider
+        defer {
+            AXWindowService.fastFrameProviderForTests = nil
+            AXWindowService.frameProviderForTests = nil
+        }
+
+        guard let entry = controller.workspaceManager.entry(for: token) else {
+            Issue.record("Missing entry for stale-cached workspace-inactive test")
+            return
+        }
+        controller.layoutRefreshController.hideWindow(
+            entry,
+            monitor: monitor,
+            side: .right,
+            reason: .workspaceInactive
+        )
+
+        let dump = controller.axManager.windowStateDebugDump(windowIds: [windowId])
+        #expect(dump.contains("hidePlan.staleCachedAlreadyHidden id=\(windowId) reason=workspaceInactive"))
+        #expect(dump.contains("requested=\(LayoutTrace.point(liveOrigin))"))
+        #expect(dump.contains("hidePlan.apply id=\(windowId)"))
+    }
+
+    @Test @MainActor func resolveHideOperationStaleCachedGuardDoesNotChurnWhenLiveFrameMatchesOrigin() {
+        // Regression / idempotency: when both the cached frame and the live frame are
+        // at the park origin, the stale-cached guard returns `.alreadyHidden` and does
+        // NOT re-issue a park move.
+        let controller = makeLayoutPlanTestController()
+        guard let monitor = controller.workspaceManager.monitors.first,
+              let workspaceId = controller.workspaceManager.activeWorkspaceOrFirst(on: monitor.id)?.id
+        else {
+            Issue.record("Missing monitor or active workspace for stale-cached no-churn test")
+            return
+        }
+
+        let windowId = 712
+        let token = addLayoutPlanTestWindow(on: controller, workspaceId: workspaceId, windowId: windowId)
+        let frameSize = CGSize(width: 800, height: 600)
+        let parkedY: CGFloat = 180
+        guard let parkedOrigin = controller.layoutRefreshController.liveFrameHideOrigin(
+            for: CGRect(x: 0, y: parkedY, width: frameSize.width, height: frameSize.height),
+            monitor: monitor,
+            side: .right,
+            pid: getpid(),
+            reason: .workspaceInactive
+        ) else {
+            Issue.record("Expected a workspace-inactive park origin for stale-cached no-churn test")
+            return
+        }
+        let parkedFrame = CGRect(origin: parkedOrigin, size: frameSize)
+        AXWindowService.fastFrameProviderForTests = { window in
+            window.windowId == windowId ? parkedFrame : fallbackFastFrameForTests(window)
+        }
+        let slowFrameProvider: (AXWindowRef) -> CGRect = { window in
+            window.windowId == windowId
+                ? parkedFrame
+                : (fallbackFastFrameForTests(window) ?? CGRect(x: 0, y: 0, width: 1, height: 1))
+        }
+        AXWindowService.frameProviderForTests = slowFrameProvider
+        defer {
+            AXWindowService.fastFrameProviderForTests = nil
+            AXWindowService.frameProviderForTests = nil
+        }
+
+        guard let entry = controller.workspaceManager.entry(for: token) else {
+            Issue.record("Missing entry for stale-cached no-churn test")
+            return
+        }
+        controller.layoutRefreshController.hideWindow(
+            entry,
+            monitor: monitor,
+            side: .right,
+            reason: .workspaceInactive
+        )
+
+        let dump = controller.axManager.windowStateDebugDump(windowIds: [windowId])
+        #expect(!dump.contains("hidePlan.staleCachedAlreadyHidden id=\(windowId)"))
+        #expect(!dump.contains("hidePlan.apply id=\(windowId)"))
+        #expect(!dump.contains("SkyLight.move id=\(windowId)"))
+    }
+
+    @Test @MainActor func executeLayoutPlanReconcilesStablyHiddenLayoutTransientColumnWithoutTransition() {
+        // Gap 2 (Fix C): a `layoutTransient` column that is already stably hidden but
+        // whose live AX drifted on-screen is re-parked without requiring a fresh
+        // `.hide` transition. The diff carries no visibility change for the window.
+        let controller = makeLayoutPlanTestController()
+        guard let monitor = controller.workspaceManager.monitors.first,
+              let workspaceId = controller.workspaceManager.activeWorkspaceOrFirst(on: monitor.id)?.id
+        else {
+            Issue.record("Missing monitor or active workspace for stably-hidden reconciliation test")
+            return
+        }
+
+        let windowId = 721
+        let token = addLayoutPlanTestWindow(on: controller, workspaceId: workspaceId, windowId: windowId)
+        controller.workspaceManager.setHiddenState(
+            .init(
+                proportionalPosition: .zero,
+                referenceMonitorId: monitor.id,
+                reason: .layoutTransient(.left)
+            ),
+            for: token
+        )
+        // Live AX drifted back on-screen while the column is stably hidden.
+        let driftedFrame = CGRect(x: 560, y: 180, width: 800, height: 600)
+        AXWindowService.fastFrameProviderForTests = { window in
+            window.windowId == windowId ? driftedFrame : fallbackFastFrameForTests(window)
+        }
+        defer { AXWindowService.fastFrameProviderForTests = nil }
+
+        // Empty diff: no `.hide`/`.show` transition for the window (stably hidden).
+        let plan = WorkspaceLayoutPlan(
+            workspaceId: workspaceId,
+            monitor: controller.layoutRefreshController.buildMonitorSnapshot(for: monitor),
+            sessionPatch: WorkspaceSessionPatch(workspaceId: workspaceId),
+            diff: WorkspaceLayoutDiff()
+        )
+        controller.layoutRefreshController.executeLayoutPlan(plan)
+
+        let dump = controller.axManager.windowStateDebugDump(windowIds: [windowId])
+        #expect(dump.contains("hidePlan.apply id=\(windowId)"))
+    }
+
+    @Test @MainActor func executeLayoutPlanDoesNotApplyFrameChangeAfterReparkingStablyHiddenColumn() {
+        // Defensive regression: if a malformed/stale diff carries a frameChange for a
+        // stably-hidden column that the reconciliation sweep re-parks, the reconciled
+        // token must be treated like other hidden entries and excluded from ordinary
+        // frame writes.
+        let controller = makeLayoutPlanTestController()
+        guard let monitor = controller.workspaceManager.monitors.first,
+              let workspaceId = controller.workspaceManager.activeWorkspaceOrFirst(on: monitor.id)?.id
+        else {
+            Issue.record("Missing monitor or active workspace for stably-hidden frame-write exclusion test")
+            return
+        }
+
+        let windowId = 723
+        let token = addLayoutPlanTestWindow(on: controller, workspaceId: workspaceId, windowId: windowId)
+        controller.workspaceManager.setHiddenState(
+            .init(
+                proportionalPosition: .zero,
+                referenceMonitorId: monitor.id,
+                reason: .layoutTransient(.left)
+            ),
+            for: token
+        )
+        let driftedFrame = CGRect(x: 560, y: 180, width: 800, height: 600)
+        AXWindowService.fastFrameProviderForTests = { window in
+            window.windowId == windowId ? driftedFrame : fallbackFastFrameForTests(window)
+        }
+        defer { AXWindowService.fastFrameProviderForTests = nil }
+
+        let visibleFrame = CGRect(x: 120, y: 120, width: 800, height: 600)
+        var diff = WorkspaceLayoutDiff()
+        diff.frameChanges = [LayoutFrameChange(token: token, frame: visibleFrame, forceApply: false)]
+        let plan = WorkspaceLayoutPlan(
+            workspaceId: workspaceId,
+            monitor: controller.layoutRefreshController.buildMonitorSnapshot(for: monitor),
+            sessionPatch: WorkspaceSessionPatch(workspaceId: workspaceId),
+            diff: diff
+        )
+        controller.layoutRefreshController.executeLayoutPlan(plan)
+
+        let dump = controller.axManager.windowStateDebugDump(windowIds: [windowId])
+        #expect(dump.contains("hidePlan.apply id=\(windowId)"))
+        #expect(controller.axManager.lastAppliedFrame(for: windowId) == nil)
+        #expect(!dump.contains("confirmed id=\(windowId)"))
+    }
+
+    @Test @MainActor func executeLayoutPlanDoesNotChurnCorrectlyParkedStablyHiddenColumn() {
+        // Regression / idempotency: a stably-hidden `layoutTransient` column whose
+        // live AX is already at the park origin is NOT re-moved by the reconciliation
+        // sweep.
+        let controller = makeLayoutPlanTestController()
+        guard let monitor = controller.workspaceManager.monitors.first,
+              let workspaceId = controller.workspaceManager.activeWorkspaceOrFirst(on: monitor.id)?.id
+        else {
+            Issue.record("Missing monitor or active workspace for stably-hidden no-churn test")
+            return
+        }
+
+        let windowId = 722
+        let token = addLayoutPlanTestWindow(on: controller, workspaceId: workspaceId, windowId: windowId)
+        let frameSize = CGSize(width: 800, height: 600)
+        let parkedY: CGFloat = 180
+        guard let parkedOrigin = controller.layoutRefreshController.liveFrameHideOrigin(
+            for: CGRect(x: 0, y: parkedY, width: frameSize.width, height: frameSize.height),
+            monitor: monitor,
+            side: .left,
+            pid: getpid(),
+            reason: .layoutTransient
+        ) else {
+            Issue.record("Expected a layout-transient park origin for stably-hidden no-churn test")
+            return
+        }
+        controller.workspaceManager.setHiddenState(
+            .init(
+                proportionalPosition: .zero,
+                referenceMonitorId: monitor.id,
+                reason: .layoutTransient(.left)
+            ),
+            for: token
+        )
+        let parkedFrame = CGRect(origin: parkedOrigin, size: frameSize)
+        AXWindowService.fastFrameProviderForTests = { window in
+            window.windowId == windowId ? parkedFrame : fallbackFastFrameForTests(window)
+        }
+        defer { AXWindowService.fastFrameProviderForTests = nil }
+
+        let plan = WorkspaceLayoutPlan(
+            workspaceId: workspaceId,
+            monitor: controller.layoutRefreshController.buildMonitorSnapshot(for: monitor),
+            sessionPatch: WorkspaceSessionPatch(workspaceId: workspaceId),
+            diff: WorkspaceLayoutDiff()
+        )
+        controller.layoutRefreshController.executeLayoutPlan(plan)
+
+        let dump = controller.axManager.windowStateDebugDump(windowIds: [windowId])
+        #expect(!dump.contains("hidePlan.apply id=\(windowId)"))
+        #expect(!dump.contains("SkyLight.move id=\(windowId)"))
+    }
+
     // MARK: - Selection revision guard
 
     @Test @MainActor func staleRelayoutPatchDoesNotOverwriteNewerSelection() {

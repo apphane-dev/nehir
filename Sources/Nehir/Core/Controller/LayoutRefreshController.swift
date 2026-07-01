@@ -2866,24 +2866,47 @@ import QuartzCore
         if abs(frame.origin.x - origin.x) < moveEpsilon,
            abs(frame.origin.y - origin.y) < moveEpsilon
         {
-            if reason == .layoutTransient,
-               let liveFrame = try? AXWindowService.frame(entry.axRef)
+            // The cached frame is already at the computed park origin. Re-read the
+            // live AX frame and, if it has drifted back on-screen (a clamp failure,
+            // an app self-move, or a restore race), re-issue the park move. This
+            // applies to every hide reason that parks at a computed origin —
+            // layoutTransient, workspaceInactive, and scratchpad — not just
+            // layoutTransient, because the stale-live-frame invariant is identical
+            // for all of them. The re-read is bounded: it only runs when the cached
+            // frame is already near the origin (i.e. the cache believes the window
+            // is parked), so it does not add a live-AX read on every refresh — only
+            // for windows suspected of being already hidden.
+            if let liveFrame = try? AXWindowService.frame(entry.axRef),
+               let liveOrigin = liveFrameHideOrigin(
+                   for: liveFrame,
+                   monitor: monitor,
+                   side: side,
+                   pid: entry.handle.pid,
+                   reason: reason,
+                   hiddenPlacementMonitors: hiddenPlacementMonitors
+               )
             {
-                let liveDx = abs(liveFrame.origin.x - origin.x)
-                let liveDy = abs(liveFrame.origin.y - origin.y)
+                let liveDx = abs(liveFrame.origin.x - liveOrigin.x)
+                let liveDy = abs(liveFrame.origin.y - liveOrigin.y)
                 if liveDx > moveEpsilon || liveDy > moveEpsilon {
                     controller.axManager
                         .recordFrameApplyTrace(
-                            "hidePlan.staleCachedAlreadyHidden id=\(entry.windowId) cached=\(LayoutTrace.rect(frame)) live=\(LayoutTrace.rect(liveFrame)) requested=\(LayoutTrace.point(origin))"
+                            "hidePlan.staleCachedAlreadyHidden id=\(entry.windowId) reason=\(reason) cached=\(LayoutTrace.rect(frame)) live=\(LayoutTrace.rect(liveFrame)) requested=\(LayoutTrace.point(liveOrigin))"
                         )
                     return .movable(
                         WindowPositionPlan(
                             entry: entry,
-                            origin: origin,
+                            origin: liveOrigin,
                             frameSize: liveFrame.size,
                             displayId: monitor.displayId
                         ),
-                        hiddenState: hiddenState
+                        hiddenState: updatedHiddenState(
+                            for: entry,
+                            frame: liveFrame,
+                            monitor: monitor,
+                            side: side,
+                            reason: reason
+                        )
                     )
                 }
             }
@@ -3968,6 +3991,17 @@ import QuartzCore
 @MainActor
 final class LayoutDiffExecutor {
     private unowned let refreshController: LayoutRefreshController
+    /// Per-workspace monotonic timestamp of the last stably-hidden-column
+    /// reconciliation sweep, used to throttle the Fix C sweep so its per-window
+    /// live-AX reads do not run on every scroll frame. A missing entry means "never
+    /// run yet". Keyed per workspace (not globally) so that in a multi-monitor
+    /// refresh — where each monitor's plan executes in the same batch — one
+    /// workspace's sweep never starves another's by resetting a shared timer.
+    private var lastStableHideReconciliationUptimeByWorkspace: [WorkspaceDescriptor.ID: TimeInterval] = [:]
+    /// Minimum interval between stably-hidden-column reconciliation sweeps for a
+    /// given workspace. The drift this sweep corrects otherwise persists indefinitely,
+    /// so a sub-second cadence is plenty while keeping the AX-read cost negligible.
+    private static let stableHideReconciliationInterval: TimeInterval = 0.5
 
     init(refreshController: LayoutRefreshController) {
         self.refreshController = refreshController
@@ -4174,6 +4208,22 @@ final class LayoutDiffExecutor {
                 }
             }
         }
+
+        // Reconcile stably-hidden `layoutTransient` columns whose live AX frame may
+        // have drifted back on-screen. The transition-based hide above only re-parks
+        // windows that emitted a `.hide` this pass; a column already stably hidden
+        // produces no transition, so without this sweep its drift is never corrected
+        // and it stays visibly parked-on-screen until the user scrolls its column
+        // back into the apply band. Time-throttled inside the helper.
+        let reconciledHiddenTokens = reconcileStablyHiddenLayoutTransientColumns(
+            controller: controller,
+            monitor: monitor,
+            workspaceId: plan.workspaceId,
+            excludedTokens: hiddenTokens
+                .union(restoreTokens)
+                .union(shownEntries.map(\.entry.token))
+        )
+        hiddenTokens.formUnion(reconciledHiddenTokens)
 
         if !restoreEntries.isEmpty {
             let restorePlans: [LayoutRefreshController.WindowPositionPlan] = restoreEntries
@@ -4395,6 +4445,119 @@ final class LayoutDiffExecutor {
         }
 
         return controller.workspaceManager.monitors.first(where: { $0.displayId == snapshot.displayId })
+    }
+
+    /// Reconciles `layoutTransient`-hidden columns that are already stably hidden
+    /// when their live AX frame drifts back on-screen. The transition-based hide in
+    /// `execute` only re-parks windows that emitted a `.hide` this pass; a column
+    /// already stably hidden produces no transition, so without this sweep its drift
+    /// is never corrected (it stays visibly parked-on-screen until the user scrolls
+    /// its column back into the viewport apply band). Folded into the layout tick
+    /// (so `resolveHideOperation`'s fastFrame cache is valid) and time-throttled so
+    /// the per-window live-AX read does not run on every scroll frame — at most once
+    /// per `stableHideReconciliationInterval`, which is plenty against a drift that
+    /// otherwise persists indefinitely. Workspace-inactive drift is reconciled
+    /// separately in `hideWorkspace`; scratchpad is user-driven.
+    ///
+    /// This re-drives the park move toward the computed origin; it does NOT defeat
+    /// the macOS offscreen clamp (a correctly-issued edge-park can still leave a
+    /// strip). See `docs/offscreen-clamp-fix.md`.
+    private func reconcileStablyHiddenLayoutTransientColumns(
+        controller: WMController,
+        monitor: Monitor,
+        workspaceId: WorkspaceDescriptor.ID,
+        excludedTokens: Set<WindowToken>
+    ) -> Set<WindowToken> {
+        let now = ProcessInfo.processInfo.systemUptime
+        let last = lastStableHideReconciliationUptimeByWorkspace[workspaceId]
+        let due = last.map {
+            now - $0 >= Self.stableHideReconciliationInterval
+        } ?? true
+        guard due else { return [] }
+        lastStableHideReconciliationUptimeByWorkspace[workspaceId] = now
+
+        let candidates = stablyHiddenLayoutTransientCandidates(
+            controller: controller,
+            workspaceId: workspaceId,
+            excludedTokens: excludedTokens
+        )
+        guard !candidates.isEmpty else { return [] }
+
+        var reconcilePlans: [LayoutRefreshController.WindowPositionPlan] = []
+        var reconcileJobs: [(pid: pid_t, windowId: Int)] = []
+        for candidate in candidates {
+            switch refreshController.resolveHideOperation(
+                for: candidate.entry,
+                monitor: monitor,
+                side: candidate.side,
+                reason: .layoutTransient
+            ) {
+            case let .movable(plan, hiddenState):
+                controller.workspaceManager.setHiddenState(hiddenState, for: candidate.entry.token)
+                reconcileJobs.append((candidate.entry.handle.pid, candidate.entry.windowId))
+                reconcilePlans.append(plan)
+            case .alreadyHidden:
+                // Correctly parked — leave untouched (idempotency / no churn).
+                continue
+            case .unavailable:
+                continue
+            }
+        }
+
+        applyReconciledHidePlans(
+            reconcilePlans,
+            jobs: reconcileJobs,
+            traceLabel: "stably-hidden drift"
+        )
+        return Set(candidates.map(\.entry.token))
+    }
+
+    /// Returns the already-hidden `layoutTransient` columns for `workspaceId` that
+    /// are not transitioning this pass, paired with their parked side. These are the
+    /// windows the transition-based hide will miss (no `.hide` event) and whose drift
+    /// the reconciliation sweep must re-check.
+    private func stablyHiddenLayoutTransientCandidates(
+        controller: WMController,
+        workspaceId: WorkspaceDescriptor.ID,
+        excludedTokens: Set<WindowToken>
+    ) -> [(entry: WindowModel.Entry, side: HideSide)] {
+        controller.workspaceManager.allEntries().compactMap { entry in
+            guard !excludedTokens.contains(entry.token),
+                  entry.workspaceId == workspaceId,
+                  entry.layoutReason != .nativeFullscreen,
+                  let side = controller.workspaceManager.hiddenState(for: entry.token)?.offscreenSide
+            else { return nil }
+            return (entry, side)
+        }
+    }
+
+    /// Shared apply path for the reconciliation sweep: cancel/suppress in-flight
+    /// frame jobs, move the windows to their recomputed park origins, order them
+    /// below, and emit a trace marker. Mirrors the transition-based hide apply.
+    private func applyReconciledHidePlans(
+        _ plans: [LayoutRefreshController.WindowPositionPlan],
+        jobs: [(pid: pid_t, windowId: Int)],
+        traceLabel: String
+    ) {
+        guard let controller = refreshController.controller else { return }
+        if !jobs.isEmpty {
+            controller.axManager.cancelPendingFrameJobs(jobs)
+            controller.axManager.suppressFrameWrites(jobs)
+        }
+        guard !plans.isEmpty else { return }
+        refreshController.applyPositionPlans(plans)
+        for plan in plans {
+            if let windowId = UInt32(exactly: plan.entry.windowId) {
+                SkyLight.shared.orderWindow(windowId, relativeTo: 0, order: .below)
+            }
+        }
+        if LayoutTrace.isEnabled {
+            for plan in plans {
+                LayoutTrace.log(
+                    "  reconcileHide id=\(plan.entry.windowId) -> origin=\(LayoutTrace.point(plan.origin)) order=below (\(traceLabel))"
+                )
+            }
+        }
     }
 }
 
