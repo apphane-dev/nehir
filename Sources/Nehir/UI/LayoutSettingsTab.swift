@@ -180,7 +180,7 @@ struct LayoutSettingsTab: View {
                         draftGapSize = newValue
                     }
                 ),
-                range: 0 ... 32,
+                range: GapLimits.sliderRange,
                 step: 1,
                 formatter: { "\(Int($0)) px" },
                 valueWidth: 64,
@@ -202,7 +202,7 @@ struct LayoutSettingsTab: View {
                         draftOuterGapLeft = newValue
                     }
                 ),
-                range: 0 ... 64,
+                range: GapLimits.sliderRange,
                 step: 1,
                 formatter: { "\(Int($0)) px" },
                 valueWidth: 64,
@@ -219,7 +219,7 @@ struct LayoutSettingsTab: View {
                         draftOuterGapRight = newValue
                     }
                 ),
-                range: 0 ... 64,
+                range: GapLimits.sliderRange,
                 step: 1,
                 formatter: { "\(Int($0)) px" },
                 valueWidth: 64,
@@ -236,7 +236,7 @@ struct LayoutSettingsTab: View {
                         draftOuterGapTop = newValue
                     }
                 ),
-                range: 0 ... 64,
+                range: GapLimits.sliderRange,
                 step: 1,
                 formatter: { "\(Int($0)) px" },
                 valueWidth: 64,
@@ -253,7 +253,7 @@ struct LayoutSettingsTab: View {
                         draftOuterGapBottom = newValue
                     }
                 ),
-                range: 0 ... 64,
+                range: GapLimits.sliderRange,
                 step: 1,
                 formatter: { "\(Int($0)) px" },
                 valueWidth: 64,
@@ -480,7 +480,7 @@ struct MonitorGapSettingsSection: View {
                 label: "Inner Gap",
                 value: ms.gapSize,
                 globalValue: settings.gapSize,
-                range: 0 ... 32,
+                range: GapLimits.sliderRange,
                 step: 1,
                 formatter: { "\(Int($0)) px" },
                 commitOnEditingEnd: true,
@@ -495,7 +495,7 @@ struct MonitorGapSettingsSection: View {
                 label: "Left",
                 value: ms.outerGapLeft,
                 globalValue: settings.outerGapLeft,
-                range: 0 ... 64,
+                range: GapLimits.sliderRange,
                 step: 1,
                 formatter: { "\(Int($0)) px" },
                 commitOnEditingEnd: true,
@@ -506,7 +506,7 @@ struct MonitorGapSettingsSection: View {
                 label: "Right",
                 value: ms.outerGapRight,
                 globalValue: settings.outerGapRight,
-                range: 0 ... 64,
+                range: GapLimits.sliderRange,
                 step: 1,
                 formatter: { "\(Int($0)) px" },
                 commitOnEditingEnd: true,
@@ -517,7 +517,7 @@ struct MonitorGapSettingsSection: View {
                 label: "Top",
                 value: ms.outerGapTop,
                 globalValue: settings.outerGapTop,
-                range: 0 ... 64,
+                range: GapLimits.sliderRange,
                 step: 1,
                 formatter: { "\(Int($0)) px" },
                 commitOnEditingEnd: true,
@@ -528,7 +528,7 @@ struct MonitorGapSettingsSection: View {
                 label: "Bottom",
                 value: ms.outerGapBottom,
                 globalValue: settings.outerGapBottom,
-                range: 0 ... 64,
+                range: GapLimits.sliderRange,
                 step: 1,
                 formatter: { "\(Int($0)) px" },
                 commitOnEditingEnd: true,

@@ -167,13 +167,13 @@ private extension String {
         export.outerGapLeft = 12
         export.outerGapRight = 14
         export.outerGapTop = 16
-        export.outerGapBottom = 18
+        export.outerGapBottom = 120
 
         let decoded = try SettingsTOMLCodec.decode(try SettingsTOMLCodec.encode(export))
         #expect(decoded.outerGapLeft == 12)
         #expect(decoded.outerGapRight == 14)
         #expect(decoded.outerGapTop == 16)
-        #expect(decoded.outerGapBottom == 18)
+        #expect(decoded.outerGapBottom == 120)
     }
 
     @Test func preservesNilColumnWidthPresetsDistinctFromEmptyArray() throws {

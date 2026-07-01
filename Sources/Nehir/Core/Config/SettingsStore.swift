@@ -861,11 +861,11 @@ final class SettingsStore {
     func resolvedGapSettings(for monitor: Monitor, connectedMonitors: [Monitor] = []) -> ResolvedGapSettings {
         let override = gapSettings(for: monitor, connectedMonitors: connectedMonitors)
         return ResolvedGapSettings(
-            gapSize: (override?.gapSize ?? gapSize).clamped(to: 0 ... 64),
-            outerGapLeft: (override?.outerGapLeft ?? outerGapLeft).clamped(to: 0 ... 64),
-            outerGapRight: (override?.outerGapRight ?? outerGapRight).clamped(to: 0 ... 64),
-            outerGapTop: (override?.outerGapTop ?? outerGapTop).clamped(to: 0 ... 64),
-            outerGapBottom: (override?.outerGapBottom ?? outerGapBottom).clamped(to: 0 ... 64)
+            gapSize: (override?.gapSize ?? gapSize).clamped(to: GapLimits.range),
+            outerGapLeft: (override?.outerGapLeft ?? outerGapLeft).clamped(to: GapLimits.range),
+            outerGapRight: (override?.outerGapRight ?? outerGapRight).clamped(to: GapLimits.range),
+            outerGapTop: (override?.outerGapTop ?? outerGapTop).clamped(to: GapLimits.range),
+            outerGapBottom: (override?.outerGapBottom ?? outerGapBottom).clamped(to: GapLimits.range)
         )
     }
 
