@@ -22,14 +22,17 @@ included so the code stays findable.
 Phases 1 and 2 are now confirmed merged to `main` (the flag-gated audit +
 provenance and the relayout attribution observer shipped across `18a3174e`,
 `4aa2c9b2`, `90a752ce`, `32ba67a1`, and `3456b5a3`). **Phase 3 — the behavioral
-fix — has not landed.** `0602387d` ("Do not recenter viewport on activation of
-fully visible windows") suppressed the recenter on the focus-confirmation path
-only; the relayout path still snap-recenters a settled, fully-visible,
-unchanged-selection viewport. Phase 3 (extending that rule into relayout-driven
-reconciliation) remains the open work, tracked by
-`discovery/20260628-relayout-path-recenters-fully-visible-unchanged-selection.md`.
+fix — now has an implementation branch for the config/parked-edge-snap case:**
+`patch/preserve-parked-edge-snap-anchor` gates relayout-driven multi-column
+`ensureSelectionVisible` and `centeredViewportCorrection` on real
+selection/layout/removal changes, preserving reachable parked snaps. It is tracked
+in `completed/20260701-preserve-parked-edge-snapped-anchor-across-config-relayout.md`
+and was pending merge to `main` when this status was updated. `0602387d` ("Do not
+recenter viewport on activation of fully visible windows") remains focus-confirmation
+only; use `discovery/20260628-relayout-path-recenters-fully-visible-unchanged-selection.md`
+for the broader non-config relayout evidence.
 
-Phases 1 and 2 have landed; Phase 3's fix site is now source-attributed and ready.
+Phases 1 and 2 have landed; Phase 3's shared fix site is source-attributed, and the config/parked-edge-snap slice has an implementation branch.
 
 - **Phase 1 — centralized audit + provenance: done.** `ViewportState.withRecordedViewportMutation`
   and the `lastViewportMutation*` fields are in tree (earlier commits on this branch).
@@ -41,7 +44,7 @@ Phases 1 and 2 have landed; Phase 3's fix site is now source-attributed and read
   This catches relayout rebases, removal shifts, focus-activation reveals, and
   restores that previously vanished. (An initial `!isAnimating` gate clause was
   removed because it suppressed the focus-activation spring-retarget case.)
-- **Phase 3 — behavioral fix: site confirmed, ready to implement.** The
+- **Phase 3 — behavioral fix: site confirmed; config/parked-edge-snap slice implemented.** The
   "viewport moves with no trackpad input" repros are confirmed by a live hook
   capture to the relayout path's selection reconciliation (`resolveSelection` →
   `ensureSelectionVisible` → `scrollToReveal` → `animateToOffset`), which
@@ -50,11 +53,13 @@ Phases 1 and 2 have landed; Phase 3's fix site is now source-attributed and read
   no-ops when fully visible) but not on the relayout path. The trigger is any
   settled-viewport relayout — typing (transient surfaces) or display topology change
   — and a confirmed repro proves the recentered value is not a geometry correction
-  (display frame and column layout unchanged). The fix extends the
-  `dad2e63a` rule into relayout-driven reconciliation. See
+  (display frame and column layout unchanged). The config/parked-edge-snap branch
+  extends the same rule into multi-column relayout reconciliation for pure
+  config/settings relayouts, preserving parked snaps that remain reachable. See
+  `completed/20260701-preserve-parked-edge-snapped-anchor-across-config-relayout.md`
+  for that implementation and
   `discovery/20260628-relayout-path-recenters-fully-visible-unchanged-selection.md`
-  for the three inlined repros and exact call sites. No additional trace capture is
-  required to implement the fix.
+  for the broader inlined repros and call sites.
 - **Residual attribution gap (separate follow-up, not blocking Phase 3):** when a
   single relayout pass applies multiple offset mutations to the planning copy, the
   single-slot audit collapses the intermediate step. See

@@ -1,11 +1,6 @@
 # Discovery: settings/config relayout reinterprets a parked/edge-snapped selection
 
-Status: root cause found and source-attributed. A config/settings mutation (app
-rules, workspace config, layout config, monitor settings, gaps) requests a refresh
-that runs the full niri layout pass, whose `resolveSelection` step recenters the
-viewport onto the canonical centered-filling snap. For a multi-column workspace whose
-viewport was deliberately parked/edge-snapped, that recenter discards the user's
-chosen anchor even though the selection, active column, and column set never changed.
+Status: resolved by `completed/20260701-preserve-parked-edge-snapped-anchor-across-config-relayout.md` (implemented on `patch/preserve-parked-edge-snap-anchor` on 2026-07-01; pending merge to `main` when this status was updated). A config/settings mutation (app rules, workspace config, layout config, monitor settings, gaps) requests a refresh that runs the full niri layout pass; before the fix, `resolveSelection` recenters the viewport onto the canonical centered-filling snap. For a multi-column workspace whose viewport was deliberately parked/edge-snapped, that recenter discarded the user's chosen anchor even though the selection, active column, and column set never changed.
 
 This is the config-triggered sibling of
 `discovery/20260628-relayout-path-recenters-fully-visible-unchanged-selection.md`
@@ -188,8 +183,7 @@ multi-column relayout path was not.
 
 ## Fix direction
 
-Extend the same preserve-the-deliberate-anchor principle into the multi-column
-relayout branch. Two complementary gates:
+Implemented by extending the same preserve-the-deliberate-anchor principle into the multi-column relayout branch. Two complementary gates:
 
 1. **Change gate on Block 1.** Only run `ensureSelectionVisible` when something that
    justifies a reveal actually changed — selected node, active column, column set, or
@@ -205,10 +199,11 @@ relayout branch. Two complementary gates:
 Because the mover is the same `resolveSelection` recenter identified in the sibling
 discovery, this fix shares Phase 3 of
 `planned/20260625-unrecorded-viewport-offset-mutation-attribution.md`. Item 9's extra
-requirement over that plan is that the fix must also cover the **edge-snapped
-(non-centered) fully-visible** case via Block 2, not only the centered-fully-visible
-case Block 1 handles — and must be validated against a config/settings trigger, not
-only typing/display-connect.
+requirement over that plan was to cover the **edge-snapped (non-centered)
+fully-visible** case via Block 2, not only the centered-fully-visible case Block 1
+handles — and to validate against a config/settings trigger, not only
+typing/display-connect. The implementation branch covers this with
+`Tests/NehirTests/ParkedViewportRelayoutTests.swift`.
 
 Preserve the legitimate recenters: genuine selection/active-column change, window
 arrival/removal that changes visibility, lone-window centering
