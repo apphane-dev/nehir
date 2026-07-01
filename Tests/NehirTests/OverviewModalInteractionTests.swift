@@ -256,7 +256,20 @@ private func activatePreparedOverviewSelection(
             activatedHandle = handle
         }
 
+        // The overview snapshot reads window frames/titles via
+        // `AXWindowService.framePreferFast`/`titlePreferFast`, which query the live
+        // WindowServer by window id. With fabricated ids these collide with whatever
+        // real windows exist on the host, so the frame-based preview sort becomes
+        // machine-dependent. Pin frames/titles to hermetic values so the fallback
+        // selection order is deterministic. Selection is computed synchronously inside
+        // `prepareOpenState()`, so the override is scoped to that call with no `await`
+        // in between and cannot leak into a suspended sibling test.
+        AXWindowService.fastFrameProviderForTests = { _ in .zero }
+        AXWindowService.titleLookupProviderForTests = { _ in nil }
         overview.prepareOpenState()
+        AXWindowService.fastFrameProviderForTests = nil
+        AXWindowService.titleLookupProviderForTests = nil
+
         await activatePreparedOverviewSelection(in: overview, expectedHandle: firstHandle)
 
         #expect(activatedHandle == firstHandle)

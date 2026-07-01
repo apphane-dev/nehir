@@ -44,6 +44,11 @@ final class AXManager {
     private var appLaunchObserver: NSObjectProtocol?
     var onAppLaunched: ((NSRunningApplication) -> Void)?
     var onAppTerminated: ((pid_t) -> Void)?
+    /// Set by the controller so full-rescan omission diagnostics — which probe
+    /// `AXWindowService.axWindowRef` — only run while a runtime trace capture is
+    /// active. Defaults to disabled so tests never trigger the AX probe (which would
+    /// otherwise pollute a globally-installed `axWindowRefProviderForTests` spy).
+    var isRuntimeTraceCaptureActive: () -> Bool = { false }
     var currentWindowsAsyncOverride: (@MainActor () async -> [(AXWindowRef, pid_t, Int)])?
     var fullRescanEnumerationOverrideForTests: (@MainActor () async -> FullRescanEnumerationSnapshot)?
     var frameApplyOverrideForTests: (([AXFrameApplicationRequest]) -> [AXFrameApplyResult])?
@@ -560,6 +565,10 @@ final class AXManager {
         snapshot: FullRescanEnumerationSnapshot,
         visibleWindows: [WindowServerInfo]
     ) {
+        // Diagnostic only; skip entirely (including the AX-ref probe below) unless a
+        // runtime trace capture is active.
+        guard isRuntimeTraceCaptureActive() else { return }
+
         var axIdsByPid: [pid_t: Set<Int>] = [:]
         for (_, pid, windowId) in snapshot.windows {
             axIdsByPid[pid, default: []].insert(windowId)
