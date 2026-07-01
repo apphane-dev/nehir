@@ -80,6 +80,9 @@ final class ServiceLifecycleManager {
         controller.axManager.onAppTerminated = { [weak self] pid in
             self?.handleAppTerminated(pid: pid)
         }
+        controller.axManager.isRuntimeTraceCaptureActive = { [weak controller] in
+            controller?.isRuntimeTraceCaptureActive == true
+        }
         AppAXContext.onWindowDestroyed = { [weak controller] pid, windowId in
             guard let controller else { return }
             controller.axEventHandler.handleRemoved(pid: pid, winId: windowId)
@@ -349,6 +352,7 @@ final class ServiceLifecycleManager {
         AppAXContext.onFocusedWindowChanged = nil
         controller.axManager.onAppLaunched = nil
         controller.axManager.onAppTerminated = nil
+        controller.axManager.isRuntimeTraceCaptureActive = { false }
         controller.workspaceManager.onGapsChanged = nil
 
         controller.layoutRefreshController.resetState()
