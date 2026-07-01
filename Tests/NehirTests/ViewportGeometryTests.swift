@@ -372,6 +372,25 @@ private func makeViewportGestureContainers(
         #expect(expectedViewPos < 2_000) // still bounded by strip
     }
 
+    @Test func trackpadProjectedViewStartClampsToOneViewport() {
+        // Assumes maxTrackpadGestureProjectionScreens is 1.0: projections clamp to one viewport.
+        #expect(clampedTrackpadGestureProjectedViewStart(
+            rawProjectedViewStart: 3_000,
+            currentViewStart: 1_000,
+            viewportWidth: 500
+        ) == 1_500)
+        #expect(clampedTrackpadGestureProjectedViewStart(
+            rawProjectedViewStart: -1_000,
+            currentViewStart: 1_000,
+            viewportWidth: 500
+        ) == 500)
+        #expect(clampedTrackpadGestureProjectedViewStart(
+            rawProjectedViewStart: 1_250,
+            currentViewStart: 1_000,
+            viewportWidth: 500
+        ) == 1_250)
+    }
+
     @Test func trackpadMomentumSnapAtStripEndNeverWrapsToFront() {
         var state = ViewportState()
         let columns = makeViewportGestureContainers(widths: [300, 300, 300, 300, 300])

@@ -148,7 +148,7 @@ final class WindowActionHandler {
     private func activateWindowFromOverview(handle: WindowHandle, workspaceId: WorkspaceDescriptor.ID) {
         guard let controller else { return }
         guard controller.workspaceManager.entry(for: handle) != nil else { return }
-        navigateToWindowInternal(token: handle.id, workspaceId: workspaceId)
+        navigateToWindowInternal(token: handle.id, workspaceId: workspaceId, source: .overview)
     }
 
     var closeWindowForTests: ((WindowHandle) -> Void)?
@@ -386,7 +386,7 @@ final class WindowActionHandler {
     func navigateToWindow(handle: WindowHandle) -> Bool {
         guard let controller else { return false }
         guard let entry = controller.workspaceManager.entry(for: handle) else { return false }
-        return navigateToWindowInternal(token: handle.id, workspaceId: entry.workspaceId)
+        return navigateToWindowInternal(token: handle.id, workspaceId: entry.workspaceId, source: .command)
     }
 
     @discardableResult
@@ -437,7 +437,7 @@ final class WindowActionHandler {
     func navigateToWindowInternal(
         token: WindowToken,
         workspaceId: WorkspaceDescriptor.ID,
-        source: NavigationSource = .command
+        source: NavigationSource = .unknown
     ) -> Bool {
         guard let controller else { return false }
         guard let engine = controller.niriEngine else { return false }

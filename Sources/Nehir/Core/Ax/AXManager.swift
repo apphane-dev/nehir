@@ -503,6 +503,7 @@ final class AXManager {
         let apps = NSWorkspace.shared.runningApplications.filter {
             shouldTrack($0) && pidsWithWindows.contains($0.processIdentifier)
         }
+        let trackedPIDs = Set(apps.map(\.processIdentifier))
         let windowServerCounts = windowServerCountsByPid
 
         let snapshot = await withTaskGroup(
@@ -552,7 +553,7 @@ final class AXManager {
             return FullRescanEnumerationSnapshot(windows: results, failedPIDs: failedPIDs)
         }
 
-        recordFullRescanOmissions(snapshot: snapshot, visibleWindows: visibleWindows)
+        recordFullRescanOmissions(snapshot: snapshot, visibleWindows: visibleWindows, trackedPIDs: trackedPIDs)
         return snapshot
     }
 
@@ -563,7 +564,8 @@ final class AXManager {
     // separated from harmless `missing_ax_ref` menu/overlay surfaces. Never mutates state.
     private func recordFullRescanOmissions(
         snapshot: FullRescanEnumerationSnapshot,
-        visibleWindows: [WindowServerInfo]
+        visibleWindows: [WindowServerInfo],
+        trackedPIDs: Set<pid_t>
     ) {
         // Diagnostic only; skip entirely (including the AX-ref probe below) unless a
         // runtime trace capture is active.
@@ -580,6 +582,7 @@ final class AXManager {
         }
 
         for (pid, level0Windows) in level0ByPid {
+            guard trackedPIDs.contains(pid) else { continue }
             let axIds = axIdsByPid[pid] ?? []
             let omitted = level0Windows.filter { !axIds.contains(Int($0.id)) }
             guard !omitted.isEmpty else { continue }

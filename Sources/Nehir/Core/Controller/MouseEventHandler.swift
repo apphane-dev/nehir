@@ -251,7 +251,6 @@ final class MouseEventHandler {
         var commitCumulativeY: CGFloat = 0.0
         var commitRawDeltaX: CGFloat = 0.0
         var commitInputPhaseName = ""
-        var commitTimestamp: TimeInterval = 0.0
         var suppressGestureUntilTouchesEnd = false
         var pendingTapEvents = PendingTapEvents()
         var debugCounters = DebugCounters()
@@ -1793,7 +1792,6 @@ final class MouseEventHandler {
                 state.commitCumulativeY = cumulativeY
                 state.commitRawDeltaX = cumulativeX
                 state.commitInputPhaseName = Self.gesturePhaseName(phase)
-                state.commitTimestamp = snapshot.timestamp
                 controller.recordRuntimeViewportTrace(
                     workspaceId: wsId,
                     reason: "touch_scroll_gesture_committed",
@@ -2321,7 +2319,6 @@ final class MouseEventHandler {
         state.commitCumulativeY = 0.0
         state.commitRawDeltaX = 0.0
         state.commitInputPhaseName = ""
-        state.commitTimestamp = 0.0
     }
 
     private func currentSelectionNode(
