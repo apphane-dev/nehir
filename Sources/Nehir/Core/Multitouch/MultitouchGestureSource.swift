@@ -106,6 +106,7 @@ final class MultitouchGestureSource {
                 phaseRawValue: NSEvent.Phase.ended.rawValue,
                 timestamp: frame.timestamp,
                 modifiers: modifiers,
+                previousRawActiveCount: previousActiveCount,
                 touches: []
             )
             return (snapshot, 0)
@@ -123,6 +124,7 @@ final class MultitouchGestureSource {
             phaseRawValue: phase.rawValue,
             timestamp: frame.timestamp,
             modifiers: modifiers,
+            previousRawActiveCount: previousActiveCount,
             touches: touches
         )
         return (snapshot, activeCount)

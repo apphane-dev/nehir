@@ -7,6 +7,19 @@
 import AppKit
 import Foundation
 
+/// Lightweight provenance for direct viewport navigation, used only by runtime
+/// diagnostics so a bar/window-click capture can classify what initiated a
+/// spring without inferring it from `animateToOffset.spring` alone.
+enum NavigationSource: String {
+    case workspaceBarWindow
+    case workspaceBarWorkspace
+    case hotkey
+    case command
+    case overview
+    case focusConfirm
+    case unknown
+}
+
 @MainActor
 final class WindowActionHandler {
     private enum RaisableSurfaceBatchKey: Hashable {
@@ -421,7 +434,11 @@ final class WindowActionHandler {
     }
 
     @discardableResult
-    func navigateToWindowInternal(token: WindowToken, workspaceId: WorkspaceDescriptor.ID) -> Bool {
+    func navigateToWindowInternal(
+        token: WindowToken,
+        workspaceId: WorkspaceDescriptor.ID,
+        source: NavigationSource = .command
+    ) -> Bool {
         guard let controller else { return false }
         guard let engine = controller.niriEngine else { return false }
 
@@ -436,12 +453,15 @@ final class WindowActionHandler {
         }
 
         var targetState = controller.workspaceManager.niriViewportState(for: workspaceId)
+        let fromActiveColumnIndex = targetState.activeColumnIndex
+        var targetColumnIndex: Int?
         if let niriWindow = engine.findNode(for: token) {
             targetState.selectedNodeId = niriWindow.id
 
-            if engine.findColumn(containing: niriWindow, in: workspaceId) != nil,
+            if let column = engine.findColumn(containing: niriWindow, in: workspaceId),
                let monitor = controller.workspaceManager.monitor(for: workspaceId)
             {
+                targetColumnIndex = engine.columnIndex(of: column, in: workspaceId)
                 engine.activateWindow(niriWindow.id)
 
                 let gap = controller.gapSize(for: monitor)
@@ -457,6 +477,20 @@ final class WindowActionHandler {
                 targetState.selectionProgress = 0
             }
         }
+
+        // Diagnostic: record the navigation source and motion policy before applying
+        // the patch, so a bar/window-click capture self-classifies. `.enabled` is the
+        // motion requested by the `ensureSelectionVisible` call above.
+        recordNavigationDiagnostic(
+            reason: "navigate.window",
+            workspaceId: workspaceId,
+            source: source,
+            targetToken: token,
+            fromColumn: fromActiveColumnIndex,
+            targetColumn: targetColumnIndex,
+            requestedMotion: "enabled",
+            directSelection: true
+        )
 
         _ = controller.workspaceManager.applySessionPatch(
             .init(
@@ -571,6 +605,16 @@ final class WindowActionHandler {
         guard let controller else { return false }
 
         let focusedToken = controller.resolveAndSetWorkspaceFocusToken(for: result.workspace.id)
+        recordNavigationDiagnostic(
+            reason: "navigate.workspace",
+            workspaceId: result.workspace.id,
+            source: .workspaceBarWorkspace,
+            targetToken: focusedToken,
+            fromColumn: nil,
+            targetColumn: nil,
+            requestedMotion: "policy",
+            directSelection: true
+        )
         if suppressMouseWarp, let focusedToken {
             controller.suppressMouseMoveToFocusedWindow(for: focusedToken)
         }
@@ -590,7 +634,50 @@ final class WindowActionHandler {
         if suppressMouseWarp {
             controller.suppressMouseMoveToFocusedWindow(for: token)
         }
-        return navigateToWindowInternal(token: token, workspaceId: entry.workspaceId)
+        return navigateToWindowInternal(
+            token: token,
+            workspaceId: entry.workspaceId,
+            source: .workspaceBarWindow
+        )
+    }
+
+    // Emits a compact `navigate.*` diagnostic before a direct navigation applies its
+    // viewport patch, so a capture can distinguish workspace-bar clicks from
+    // command/hotkey navigation and see the motion policy that will drive the spring.
+    private func recordNavigationDiagnostic(
+        reason: String,
+        workspaceId: WorkspaceDescriptor.ID,
+        source: NavigationSource,
+        targetToken: WindowToken?,
+        fromColumn: Int?,
+        targetColumn: Int?,
+        requestedMotion: String,
+        directSelection: Bool
+    ) {
+        guard let controller, controller.isRuntimeTraceCaptureActive else { return }
+        let workspaceName = controller.workspaceManager.descriptor(for: workspaceId)?.name
+            ?? workspaceId.uuidString
+        let columnDelta = (fromColumn != nil && targetColumn != nil)
+            ? String(targetColumn! - fromColumn!)
+            : "nil"
+        var details = [
+            "source=\(source.rawValue)",
+            "targetWorkspace=\(workspaceName)",
+            "fromColumn=\(fromColumn.map(String.init) ?? "nil")",
+            "targetColumn=\(targetColumn.map(String.init) ?? "nil")",
+            "columnDelta=\(columnDelta)",
+            "motionAnimationsEnabled=\(controller.motionPolicy.snapshot().animationsEnabled)",
+            "requestedMotion=\(requestedMotion)",
+            "directSelection=\(directSelection)"
+        ]
+        if let targetToken {
+            details.insert("target=\(String(describing: targetToken))", at: 1)
+        }
+        controller.recordRuntimeViewportTrace(
+            workspaceId: workspaceId,
+            reason: reason,
+            details: details
+        )
     }
 
     func runningAppsWithWindows() -> [RunningAppInfo] {
