@@ -1,5 +1,7 @@
 # Screen margins (outer gaps) are hard-capped at 64 px in both the UI and the layout resolver — Discovery
 
+**Status:** completed/resolved — implementation shipped on `main` in `8c15f374` ("Raise screen margin ceiling to 256px (#119)") on 2026-07-01. See the completed implementation record at [`20260627-nehir-119-screen-margin-capped-at-64px.md`](20260627-nehir-119-screen-margin-capped-at-64px.md).
+
 Discovery (2026-06-27). GitHub issue **apphane-dev/nehir#119** "[Question]
 More Margin": a user wants screen margins larger than 64 px (their custom dock
 does not reserve space at the screen edge, so they want Nehir's margin to stand
@@ -12,15 +14,20 @@ All code citations were verified against the main Nehir source tree at
 `9ef0ae82` on 2026-06-27 (`git log -1 --format='%h %s'` → `9ef0ae82 Add sticky
 PiP defaults and ignore app rules`). Line numbers will drift.
 
-The companion implementation plan is in
-[`../planned/20260627-nehir-119-screen-margin-capped-at-64px.md`](../planned/20260627-nehir-119-screen-margin-capped-at-64px.md).
+The completed implementation record is in
+[`20260627-nehir-119-screen-margin-capped-at-64px.md`](20260627-nehir-119-screen-margin-capped-at-64px.md).
 
 ---
 
 ## TL;DR
 
-- The 64 px ceiling is enforced at **two independent layers**; both must change
-  to raise it.
+- **Resolved on `main`.** The shipped fix splits the old single magic number into
+  `GapLimits.range = 0 ... 256` for resolver/code/TOML values and
+  `GapLimits.sliderRange = 0 ... 64` for all Settings gap sliders. Values above
+  the 64 px slider cap are still preserved and displayed at their true value;
+  the slider thumb simply pins at 64.
+- The original 64 px ceiling was enforced at **two independent layers**; both had
+  to change to raise it.
   1. **UI** — all eight screen-margin sliders (4 global + 4 per-monitor) in
      `LayoutSettingsTab` use `range: 0 ... 64`.
   2. **Runtime resolver** — `SettingsStore.resolvedGapSettings(for:)` clamps
@@ -178,37 +185,30 @@ is exactly one runtime clamp to edit.
 
 ## Fix surface (what a change touches)
 
-Introduce a single named bound, e.g. `gapValueRange` / `maxOuterGap`, and apply
-it at both layers. Concretely:
+The shipped fix uses two named bounds rather than one UI+resolver bound:
 
-1. **Resolver** — `SettingsStore.resolvedGapSettings(for:)`
-   (`SettingsStore.swift:907`): replace the literal `0 ... 64` with the named
-   range. Decide the new upper bound (see open questions).
-2. **UI** — the eight `range: 0 ... 64` literals in `LayoutSettingsTab.swift`
-   (`:118`, `:135`, `:152`, `:169`, `:258`, `:269`, `:280`, `:291`) must use the
-   same named range.
-3. **(Optional) alignment** — the inner-gap slider is `0 ... 32` (`:96`) while
-   the resolver allows `gapSize` up to `0 ... 64` (`SettingsStore.swift:910`).
-   Decide whether to align inner-gap slider max with the resolver while here.
-
-The slider `step` is already `1`, so a large upper bound is usable from the UI
-without changing stepping. A per-edge bound is possible but unnecessary for the
-reported use case.
+1. **Resolver / config ceiling** — `SettingsStore.resolvedGapSettings(for:)`
+   now clamps `gapSize` and all four outer gaps to `GapLimits.range`, whose upper
+   bound is 256. This is what makes TOML / monitor-override values above 64 take
+   effect.
+2. **Settings slider ceiling** — all ten gap sliders (global + per-monitor,
+   inner + outer) now use `GapLimits.sliderRange`, whose upper bound is 64. This
+   keeps the interactive sliders ergonomic while still rendering larger config
+   values at their true value.
+3. **Persistence remains unclamped** — TOML encode/decode still stores plain
+   `Double` values, and the added codec regression round-trips
+   `outerGapBottom = 120`.
 
 ---
 
 ## Risks and unknowns
 
-- **New upper bound is a product decision.** Guria asked the reporter for "what
-  value seems reasonable". 64 is comfortably under typical dock heights; the
-  reporter's dock case likely wants ~80–120 px. Candidates: 128, 256, or simply a
-  generous fixed value. Picking too low re-triggers the issue; too high is
-  harmless because the user drives it explicitly.
-- **Minimum working area.** A very large margin on a small/low-resolution
-  display could shrink `workingFrame` below the layout's minimum column width or
-  trigger degenerate tiling. `computeWorkingArea`/the Niri width solvers should
-  be checked for a floor before unconditionally allowing, say, 512 px on a
-  1280-wide display. Not verified here.
+- **New upper bound decision resolved.** The implementation chose 256 for the
+  resolver/config ceiling and 64 for the Settings slider ceiling.
+- **Minimum working area checked for the chosen bound.** Static review confirmed
+  `computeWorkingArea` clamps working-area width/height with `max(0, ...)`, and
+  runtime validation with 256 px side margins produced healthy non-degenerate
+  Niri columns plus frame verification with `sizeError=0 positionError=0`.
 - **Lower bound.** Currently `0` (no negative margins). The reporter only wants
   *more*, so the lower bound can stay `0`; negative outer gaps are out of scope.
 - **Smart-gaps interaction.** `planned/20260621-omniwm-373-smart-gaps-single-window.md`
@@ -219,20 +219,16 @@ reported use case.
 
 ## What is still unknown
 
-- Whether `computeWorkingArea` / Niri minimum-width logic guards against an
-  over-shrunk working frame once the cap is raised (a capture or a read of the
-  solver floors would settle it).
-- Whether anything downstream assumes outer gaps ≤ 64 (e.g. pre-park margins,
-  `niriViewportPreParkMargin` at `Sources/Nehir/Core/Layout/Niri/NiriLayout.swift:402`,
-  is independent and unrelated, but worth a glance).
-- The maintainer's chosen new maximum (blocks picking the literal).
+No blocker remains for #119. Future work could still explore a richer numeric
+input for values above the 64 px slider cap, but the shipped slider labels already
+render larger config values truthfully and the resolver honors them up to 256.
 
 ---
 
 ## Relationship to other work
 
-- Companion plan:
-  [`../planned/20260627-nehir-119-screen-margin-capped-at-64px.md`](../planned/20260627-nehir-119-screen-margin-capped-at-64px.md).
+- Completed implementation record:
+  [`20260627-nehir-119-screen-margin-capped-at-64px.md`](20260627-nehir-119-screen-margin-capped-at-64px.md).
 - `discovery/20260621-limit-float-precision-config-values.md` — adjacent
   config concern about the *serialization precision* of these same `[gaps]`
   fields. It explicitly lists `gaps.outer.*` as non-offenders (integer-slider
