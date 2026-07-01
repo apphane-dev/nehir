@@ -112,7 +112,12 @@ final class MultitouchGestureSource {
             return (snapshot, 0)
         }
 
-        let phase: NSEvent.Phase = previousActiveCount == 0 ? .began : .changed
+        // A contact-count increase (including a 1→2→3 ramp toward the configured
+        // finger count) is the start of a gesture, so emit `.began`; a same-count or
+        // decreasing frame stays `.changed`. This lets the handler require `.began`
+        // for idle admission without rejecting legitimate ramps. The active-count-0
+        // case above already emits `.ended`.
+        let phase: NSEvent.Phase = activeCount > previousActiveCount ? .began : .changed
         let touches = frame.touches.map { touch in
             MouseEventHandler.GestureTouchSample(
                 phase: .moved,

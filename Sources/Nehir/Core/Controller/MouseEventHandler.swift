@@ -1642,6 +1642,22 @@ final class MouseEventHandler {
 
         switch state.gesturePhase {
         case .idle:
+            // Only admit a new gesture from an explicit `.began` frame. A valid-count
+            // `.changed` while idle is a stale same-count frame or a continuation after
+            // a prior reset, not a genuine start — the raw source now emits `.began` on
+            // real contact-count ramps (1→2→3), so legitimate ramps still arrive here as
+            // `.began`. This guard only affects idle admission; committed gestures are
+            // handled in the `.armed`/`.committed` case and are untouched.
+            guard phase == .began else {
+                traceGestureSkip(
+                    reason: "changedWithoutBegin",
+                    location: location,
+                    requiredFingers: requiredFingers,
+                    activeTouches: activeTouchCount,
+                    phase: phase
+                )
+                return
+            }
             guard let currentContext = resolveScrollContext(at: location) else {
                 traceGestureSkip(
                     reason: "noScrollContext",
@@ -1665,16 +1681,11 @@ final class MouseEventHandler {
             state.gestureStartY = avgY
             state.gestureLastAverageX = avgX
             state.gestureLastAverageY = avgY
-            // The switch entered on `state.gesturePhase == .idle`, so this arm is by
-            // definition an admission out of the idle phase.
+            // The `.idle` case guarded `phase == .began` above, so this arm is always an
+            // explicit begin admission — kept as an `idleAdmissionKind=began` field so a
+            // validation capture can confirm the fix (no more `idleAdmissionKind=changed`).
             state.gesturePhase = .armed
             let inputPhaseName = Self.gesturePhaseName(phase)
-            let idleAdmissionKind: String
-            switch phase {
-            case .began: idleAdmissionKind = "began"
-            case .changed: idleAdmissionKind = "changed"
-            default: idleAdmissionKind = "other"
-            }
             var armedTraceDetails = [
                 "input=trackpadTouches",
                 "requiredFingers=\(requiredFingers)",
@@ -1684,30 +1695,13 @@ final class MouseEventHandler {
                 "inputPhaseName=\(inputPhaseName)",
                 "previousGesturePhase=idle",
                 "idleAdmission=true",
-                "idleAdmissionKind=\(idleAdmissionKind)",
+                "idleAdmissionKind=began",
                 "rawActiveCount=\(activeTouchCount)",
                 String(format: "startTouch=%.3f,%.3f", avgX, avgY)
             ]
             if let previousRawActiveCount = snapshot.previousRawActiveCount {
                 armedTraceDetails.append("previousRawActiveCount=\(previousRawActiveCount)")
                 armedTraceDetails.append("activeCountDelta=\(activeTouchCount - previousRawActiveCount)")
-            }
-            // Diagnostic-only: an idle gesture admitted from a non-begin phase is the
-            // suspected idle `.changed` admission anomaly. Emit an explicit record so a
-            // capture can grep it directly; do not skip or abort the gesture here.
-            if phase != .began {
-                controller.recordRuntimeViewportTrace(
-                    workspaceId: currentContext.wsId,
-                    reason: "touch_scroll_gesture_idle_changed_admission",
-                    details: [
-                        "input=trackpadTouches",
-                        "inputPhase=\(inputPhaseName)",
-                        "requiredFingers=\(requiredFingers)",
-                        "activeTouches=\(activeTouchCount)",
-                        "previousGesturePhase=idle",
-                        String(format: "startTouch=%.3f,%.3f", avgX, avgY)
-                    ]
-                )
             }
             let viewportState = controller.workspaceManager.niriViewportState(for: currentContext.wsId)
             if !viewportState.viewOffsetPixels.isGesture, viewportState.viewOffsetPixels.isAnimating {
