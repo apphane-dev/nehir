@@ -55,16 +55,6 @@ struct WindowFocusOperations {
 final class WMController {
     private static let runtimeDebugLogger = Logger(subsystem: "com.nehir", category: "runtime-debug")
 
-    struct RuntimeTraceCaptureSession {
-        let startedAt: Date
-        let startRuntimeStateDump: String
-    }
-
-    struct RuntimeTraceCaptureStatus: Equatable {
-        let isActive: Bool
-        let startedAt: Date?
-    }
-
     struct WorkspaceBarRefreshDebugState {
         var requestCount: Int = 0
         var scheduledCount: Int = 0
@@ -144,15 +134,15 @@ final class WMController {
     @ObservationIgnored
     private(set) lazy var focusBorderController = FocusBorderController(controller: self)
     @ObservationIgnored
-    private lazy var workspaceBarManager: WorkspaceBarManager = .init()
+    private(set) lazy var workspaceBarManager: WorkspaceBarManager = .init()
     @ObservationIgnored
-    private lazy var debugBarManager: DebugBarManager = .init()
+    private(set) lazy var debugBarManager: DebugBarManager = .init()
     @ObservationIgnored
     private var workspaceBarRefreshGeneration: UInt64 = 0
     @ObservationIgnored
     private var pendingWorkspaceBarRefreshGeneration: UInt64?
     @ObservationIgnored
-    private var hiddenWorkspaceBarMonitorIds: Set<Monitor.ID> = []
+    private(set) var hiddenWorkspaceBarMonitorIds: Set<Monitor.ID> = []
     @ObservationIgnored
     private lazy var commandPaletteController: CommandPaletteController = .init()
 
@@ -201,6 +191,8 @@ final class WMController {
 
     @ObservationIgnored
     private(set) lazy var serviceLifecycleManager = ServiceLifecycleManager(controller: self)
+    @ObservationIgnored
+    private(set) lazy var diagnostics = RuntimeDiagnosticsCoordinator(controller: self)
     @ObservationIgnored
     private(set) lazy var windowActionHandler = WindowActionHandler(
         controller: self,
@@ -253,71 +245,6 @@ final class WMController {
 
     @ObservationIgnored
     weak var ipcApplicationBridge: IPCApplicationBridge?
-    @ObservationIgnored
-    private var runtimeTraceCaptureSession: RuntimeTraceCaptureSession?
-    @ObservationIgnored
-    private var runtimeViewportTraceRecords: [String] = []
-    @ObservationIgnored
-    private var runtimeResizeTraceRecords: [String] = []
-    @ObservationIgnored
-    private var runtimeInsertionTraceRecords: [String] = []
-    @ObservationIgnored
-    private var runtimeMouseTraceRecords: [String] = []
-    @ObservationIgnored
-    private var backgroundTraceBuffer = BackgroundTraceBuffer()
-    @ObservationIgnored
-    private var backgroundTraceDrafts: [BackgroundTraceDraft.ID: BackgroundTraceDraft] = [:]
-    @ObservationIgnored
-    private var backgroundTraceDraftOrder: [BackgroundTraceDraft.ID] = []
-
-    var runtimeTraceCaptureStatus: RuntimeTraceCaptureStatus {
-        RuntimeTraceCaptureStatus(
-            isActive: runtimeTraceCaptureSession != nil,
-            startedAt: runtimeTraceCaptureSession?.startedAt
-        )
-    }
-
-    var isRuntimeTraceCaptureActive: Bool {
-        runtimeTraceCaptureSession != nil
-    }
-
-    var isBackgroundTraceBufferEffectivelyEnabled: Bool {
-        settings.developerModeEnabled && isRuntimeTraceCaptureActive
-    }
-
-    private var viewportTraceVerbosity: ViewportTraceVerbosity {
-        settings.viewportTraceVerbosity
-    }
-
-    private func syncViewportMutationAuditFlag() {
-        // The per-mutation audit is the expensive part of the verbose path. It runs
-        // only while trace capture is active AND verbosity is `.verbose`, so a
-        // default (`.standard`) capture pays nothing for it.
-        workspaceManager.setViewportMutationAuditEnabled(
-            isRuntimeTraceCaptureActive && viewportTraceVerbosity.includesMutationAudit
-        )
-    }
-
-    /// Re-applies the viewport trace verbosity gates after the setting changes.
-    /// Called from the Diagnostics picker / debug-bar cycle.
-    func applyViewportTraceVerbosity() {
-        syncViewportMutationAuditFlag()
-        debugBarManager.update()
-    }
-
-    var backgroundTraceBufferStatus: BackgroundTraceBufferStatus {
-        backgroundTraceBuffer.status(isEnabled: isBackgroundTraceBufferEffectivelyEnabled)
-    }
-
-    /// Test-only read access to captured mouse-focus traces. Trace capture must be active.
-    func runtimeMouseTraceRecordsForTests() -> [String] {
-        runtimeMouseTraceRecords
-    }
-
-    /// Test-only read access to captured viewport traces. Trace capture must be active.
-    func runtimeViewportTraceRecordsForTests() -> [String] {
-        runtimeViewportTraceRecords
-    }
 
     let animationClock = AnimationClock()
     let motionPolicy: MotionPolicy
@@ -361,7 +288,7 @@ final class WMController {
             )
         }
         workspaceManager.setNiriViewportOffsetMutationObserver { [weak self] workspaceId in
-            self?.recordRuntimeViewportTrace(
+            self?.diagnostics.recordRuntimeViewportTrace(
                 workspaceId: workspaceId,
                 reason: "relayout.viewportOffsetChanged",
                 details: []
@@ -435,8 +362,8 @@ final class WMController {
         // remaining live values explicitly so editor saves take effect without
         // an app relaunch.
         updateWorkspaceBarSettings()
-        updateBackgroundTraceBufferConfiguration()
-        applyViewportTraceVerbosity()
+        diagnostics.updateBackgroundTraceBufferConfiguration()
+        diagnostics.applyViewportTraceVerbosity()
         _ = syncMouseWarpPolicy()
 
         setEnabled(true)
@@ -726,18 +653,6 @@ final class WMController {
 
     func updateWorkspaceBarAppearance() {
         workspaceBarManager.updateAppearance()
-    }
-
-    func updateBackgroundTraceBufferConfiguration() {
-        backgroundTraceBuffer.configure(
-            maxBytes: settings.backgroundTraceMaxBytes,
-            retentionSeconds: settings.backgroundTraceRetentionSeconds
-        )
-        if !isRuntimeTraceCaptureActive {
-            resetBackgroundTraceBuffer()
-        }
-        syncNiriResizeTraceSink()
-        debugBarManager.setup(controller: self, settings: settings)
     }
 
     func updateMonitorOrientations() {
@@ -1696,6 +1611,10 @@ final class WMController {
         }
     }
 
+    func clearExplicitWorkspaceMoveIntents() {
+        explicitWorkspaceMoveIntentsByToken.removeAll()
+    }
+
     private func managedFocusPlacementTarget(
         _ workspaceId: WorkspaceDescriptor.ID?,
         _ monitorId: Monitor.ID?
@@ -2514,93 +2433,13 @@ final class WMController {
             manualOverride: manualOverride
         )
         if let traceContext {
-            recordWindowDecisionTrace(
+            diagnostics.recordWindowDecisionTrace(
                 evaluation,
                 context: traceContext,
                 existingMode: existingModeForTrace
             )
         }
         return evaluation
-    }
-
-    private func recordWindowDecisionTrace(
-        _ evaluation: WindowDecisionEvaluation,
-        context: String,
-        existingMode: TrackedWindowMode?
-    ) {
-        guard shouldTraceWindowDecision(evaluation, context: context) else { return }
-        let windowServer = evaluation.facts.windowServer
-        recordNiriCreateFocusTrace(
-            .windowDecision(
-                token: evaluation.token,
-                context: context,
-                existingMode: existingMode,
-                disposition: String(describing: evaluation.decision.disposition),
-                source: windowDecisionSourceDescription(evaluation.decision.source),
-                outcome: evaluation.decision.admissionOutcome.rawValue,
-                layout: evaluation.decision.layoutDecisionKind.rawValue,
-                deferred: evaluation.decision.deferredReason?.rawValue,
-                bundleId: evaluation.facts.ax.bundleId,
-                titleLength: evaluation.facts.ax.title?.count,
-                axRole: evaluation.facts.ax.role,
-                axSubrole: evaluation.facts.ax.subrole,
-                hasCloseButton: evaluation.facts.ax.hasCloseButton,
-                hasFullscreenButton: evaluation.facts.ax.hasFullscreenButton,
-                fullscreenButtonEnabled: evaluation.facts.ax.fullscreenButtonEnabled,
-                hasZoomButton: evaluation.facts.ax.hasZoomButton,
-                hasMinimizeButton: evaluation.facts.ax.hasMinimizeButton,
-                appPolicy: evaluation.facts.ax.appPolicy,
-                attributeDiagnostics: evaluation.facts.ax.attributeDiagnostics,
-                windowLevel: windowServer?.level,
-                windowTags: windowServer?.tags,
-                windowAttributes: windowServer?.attributes,
-                parentWindowId: windowServer?.parentId,
-                windowFrame: windowServer?.frame
-            )
-        )
-    }
-
-    private func shouldTraceWindowDecision(_ evaluation: WindowDecisionEvaluation, context: String) -> Bool {
-        if context == "focused_admission" {
-            return true
-        }
-        if evaluation.facts.ax.bundleId?.lowercased() == "com.mitchellh.ghostty" {
-            return true
-        }
-        if evaluation.decision.trackedMode == nil {
-            return true
-        }
-        if evaluation.facts.ax.subrole == (kAXDialogSubrole as String) {
-            return true
-        }
-        if !evaluation.facts.ax.hasCloseButton,
-           !evaluation.facts.ax.hasFullscreenButton,
-           !evaluation.facts.ax.hasZoomButton,
-           !evaluation.facts.ax.hasMinimizeButton,
-           evaluation.facts.ax.subrole != (kAXStandardWindowSubrole as String)
-        {
-            return true
-        }
-        if evaluation.decision.disposition == .unmanaged {
-            return true
-        }
-        if let level = evaluation.facts.windowServer?.level, level != 0 {
-            return true
-        }
-        return false
-    }
-
-    private func windowDecisionSourceDescription(_ source: WindowDecisionSource) -> String {
-        switch source {
-        case .manualOverride:
-            "manualOverride"
-        case let .userRule(ruleId):
-            "userRule(\(ruleId.uuidString))"
-        case let .builtInRule(name):
-            "builtInRule(\(name))"
-        case .heuristic:
-            "heuristic"
-        }
     }
 
     private func resolveWindowServerInfoForDisposition(
@@ -2629,421 +2468,6 @@ final class WMController {
             pid: pid,
             appFullscreen: appFullscreen
         ).decision
-    }
-
-    func makeWindowDecisionDebugSnapshot(
-        from evaluation: WindowDecisionEvaluation
-    ) -> WindowDecisionDebugSnapshot {
-        WindowDecisionDebugSnapshot(
-            token: evaluation.token,
-            appName: evaluation.facts.appName,
-            bundleId: evaluation.facts.ax.bundleId,
-            title: evaluation.facts.ax.title,
-            axRole: evaluation.facts.ax.role,
-            axSubrole: evaluation.facts.ax.subrole,
-            appFullscreen: evaluation.appFullscreen,
-            manualOverride: evaluation.manualOverride,
-            disposition: evaluation.decision.disposition,
-            source: evaluation.decision.source,
-            layoutDecisionKind: evaluation.decision.layoutDecisionKind,
-            deferredReason: evaluation.decision.deferredReason,
-            admissionOutcome: evaluation.decision.admissionOutcome,
-            workspaceName: evaluation.decision.workspaceName,
-            minWidth: evaluation.decision.ruleEffects.minWidth,
-            minHeight: evaluation.decision.ruleEffects.minHeight,
-            matchedRuleId: evaluation.decision.ruleEffects.matchedRuleId,
-            heuristicReasons: evaluation.decision.heuristicReasons,
-            attributeFetchSucceeded: evaluation.facts.ax.attributeFetchSucceeded
-        )
-    }
-
-    func windowDecisionDebugSnapshot(for token: WindowToken) -> WindowDecisionDebugSnapshot? {
-        let axRef = workspaceManager.entry(for: token)?.axRef
-            ?? AXWindowService.axWindowRef(for: UInt32(token.windowId), pid: token.pid)
-        guard let axRef else { return nil }
-        let evaluation = evaluateWindowDisposition(axRef: axRef, pid: token.pid)
-        return makeWindowDecisionDebugSnapshot(from: evaluation)
-    }
-
-    func focusedWindowDecisionDebugSnapshot() -> WindowDecisionDebugSnapshot? {
-        let token = focusedOrFrontmostWindowTokenForAutomation()
-        guard let token else { return nil }
-        return windowDecisionDebugSnapshot(for: token)
-    }
-
-    func copyDebugDump(_ snapshot: WindowDecisionDebugSnapshot) {
-        copyDebugTextToPasteboard(snapshot.formattedDump())
-    }
-
-    func syncNiriResizeTraceSink() {
-        guard let engine = niriEngine else { return }
-        if isRuntimeTraceCaptureActive {
-            engine.resizeTraceSink = { [weak self] message in
-                self?.recordRuntimeResizeTrace(message)
-            }
-        } else {
-            engine.resizeTraceSink = nil
-        }
-    }
-
-    func recordRuntimeResizeTrace(_ message: String) {
-        let timestamp = Date()
-        let line = timestamp.ISO8601Format() + " " + message
-        if runtimeTraceCaptureSession != nil {
-            runtimeResizeTraceRecords.append(line)
-            if runtimeResizeTraceRecords.count > 400 {
-                runtimeResizeTraceRecords.removeFirst(runtimeResizeTraceRecords.count - 400)
-            }
-        }
-        appendBackgroundTrace(category: .resize, text: line, timestamp: timestamp)
-    }
-
-    func recordRuntimeMouseTrace(_ message: String) {
-        let timestamp = Date()
-        let line = timestamp.ISO8601Format() + " " + message
-        if runtimeTraceCaptureSession != nil {
-            runtimeMouseTraceRecords.append(line)
-            if runtimeMouseTraceRecords.count > 400 {
-                runtimeMouseTraceRecords.removeFirst(runtimeMouseTraceRecords.count - 400)
-            }
-        }
-        appendBackgroundTrace(category: .mouse, text: line, timestamp: timestamp)
-    }
-
-    func recordRuntimeInsertionTrace(_ message: String) {
-        let timestamp = Date()
-        let line = timestamp.ISO8601Format() + " " + message
-        if runtimeTraceCaptureSession != nil {
-            runtimeInsertionTraceRecords.append(line)
-            if runtimeInsertionTraceRecords.count > 400 {
-                runtimeInsertionTraceRecords.removeFirst(runtimeInsertionTraceRecords.count - 400)
-            }
-        }
-        appendBackgroundTrace(category: .insertion, text: line, timestamp: timestamp)
-    }
-
-    func recordRuntimeViewportTrace(
-        workspaceId: WorkspaceDescriptor.ID,
-        reason: String,
-        details: [String] = []
-    ) {
-        guard isRuntimeTraceCaptureActive else { return }
-        guard let engine = niriEngine else { return }
-
-        let gap = workspaceManager.monitor(for: workspaceId).map { gapSize(for: $0) }
-            ?? CGFloat(workspaceManager.gaps)
-        let state = workspaceManager.niriViewportState(for: workspaceId)
-        let workspaceName = workspaceManager.descriptor(for: workspaceId)?.name ?? workspaceId.uuidString
-        let columns = engine.columns(in: workspaceId)
-        let currentViewStart = columns.isEmpty ? nil : state.viewPosPixels(columns: columns, gap: gap)
-        let targetViewStart = columns.isEmpty ? nil : state.targetViewPosPixels(columns: columns, gap: gap)
-        let selectedNode = state.selectedNodeId.map(String.init(describing:)) ?? "nil"
-        let preferredFocus = workspaceManager.preferredWorkspaceFocusToken(in: workspaceId)
-            .map(String.init(describing:)) ?? "nil"
-        let confirmedFocus = workspaceManager.confirmedManagedFocusToken.map(String.init(describing:)) ?? "nil"
-        let currentViewStartText = currentViewStart.map { String(format: "%.1f", $0) } ?? "nil"
-        let targetViewStartText = targetViewStart.map { String(format: "%.1f", $0) } ?? "nil"
-        let verbosity = viewportTraceVerbosity
-        let layoutDecisions = verbosity.includesLayoutDump
-            ? niriLayoutDecisionLine(
-                workspaceId: workspaceId,
-                state: state,
-                columns: columns,
-                gap: gap
-            )
-            : "elided"
-        let mutationAgeMs = state.lastViewportMutationTimestamp.map {
-            max(0, (Date().timeIntervalSince1970 - $0) * 1000.0)
-        }
-        let mutationAgeText = mutationAgeMs.map { String(format: "%.1f", $0) } ?? "nil"
-        let mutationBefore = state.lastViewportMutationBefore
-        let mutationAfter = state.lastViewportMutationAfter
-        let mutationBeforeCurrentOffsetText = mutationBefore.map { String(format: "%.1f", $0.currentOffset) } ?? "nil"
-        let mutationBeforeTargetOffsetText = mutationBefore.map { String(format: "%.1f", $0.targetOffset) } ?? "nil"
-        let mutationBeforeActiveColumnIndexText = mutationBefore.map { String($0.activeColumnIndex) } ?? "nil"
-        let mutationAfterCurrentOffsetText = mutationAfter.map { String(format: "%.1f", $0.currentOffset) } ?? "nil"
-        let mutationAfterTargetOffsetText = mutationAfter.map { String(format: "%.1f", $0.targetOffset) } ?? "nil"
-        let mutationAfterActiveColumnIndexText = mutationAfter.map { String($0.activeColumnIndex) } ?? "nil"
-
-        // The heavy `lastViewportMutation*` fields are only emitted on the
-        // `.verbose` path, so a default (`.standard`) trace capture stays lean.
-        let mutationTraceFields: [String] = verbosity.includesMutationAudit ? [
-            "lastViewportMutation=\(state.lastViewportMutationReason ?? "nil")",
-            "lastViewportMutationCaller=\(state.lastViewportMutationCaller ?? "nil")",
-            "lastViewportMutationAgeMs=\(mutationAgeText)",
-            "lastViewportMutationBeforeCurrentOffset=\(mutationBeforeCurrentOffsetText)",
-            "lastViewportMutationBeforeTargetOffset=\(mutationBeforeTargetOffsetText)",
-            "lastViewportMutationBeforeKind=\(mutationBefore?.offsetKind ?? "nil")",
-            "lastViewportMutationBeforeActiveColumnIndex=\(mutationBeforeActiveColumnIndexText)",
-            "lastViewportMutationAfterCurrentOffset=\(mutationAfterCurrentOffsetText)",
-            "lastViewportMutationAfterTargetOffset=\(mutationAfterTargetOffsetText)",
-            "lastViewportMutationAfterKind=\(mutationAfter?.offsetKind ?? "nil")",
-            "lastViewportMutationAfterActiveColumnIndex=\(mutationAfterActiveColumnIndexText)"
-        ] : []
-
-        let timestamp = Date()
-        let line = ([
-            timestamp.ISO8601Format(),
-            "workspace=\(workspaceName)",
-            "id=\(workspaceId.uuidString)",
-            "reason=\(reason)"
-        ] + details + [
-            "columns=\(columns.count)",
-            "activeColumnIndex=\(state.activeColumnIndex)",
-            String(format: "currentOffset=%.1f", state.viewOffsetPixels.current()),
-            String(format: "targetOffset=%.1f", state.viewOffsetPixels.target()),
-            "currentViewStart=\(currentViewStartText)",
-            "targetViewStart=\(targetViewStartText)",
-            "gesture=\(state.viewOffsetPixels.isGesture)",
-            "animating=\(state.viewOffsetPixels.isAnimating)",
-            "preserveUnsnapped=\(state.preservesUnsnappedGestureOffset)",
-            "selectedNode=\(selectedNode)",
-            "preferredFocus=\(preferredFocus)",
-            "confirmedFocus=\(confirmedFocus)",
-            "resizeCommandSeq=\(engine.resizeCommandGeneration)",
-            "layout=\(layoutDecisions)"
-        ] + mutationTraceFields)
-            .joined(separator: " ")
-
-        if runtimeTraceCaptureSession != nil {
-            runtimeViewportTraceRecords.append(line)
-            if runtimeViewportTraceRecords.count > 400 {
-                runtimeViewportTraceRecords.removeFirst(runtimeViewportTraceRecords.count - 400)
-            }
-        }
-        appendBackgroundTrace(category: .viewport, text: line, timestamp: timestamp)
-    }
-
-    private func appendBackgroundTrace(
-        category: BackgroundTraceCategory,
-        text: String,
-        timestamp: Date = Date()
-    ) {
-        guard isBackgroundTraceBufferEffectivelyEnabled else { return }
-        backgroundTraceBuffer.configure(
-            maxBytes: settings.backgroundTraceMaxBytes,
-            retentionSeconds: settings.backgroundTraceRetentionSeconds,
-            now: timestamp
-        )
-        backgroundTraceBuffer.append(category: category, text: text, timestamp: timestamp)
-    }
-
-    func resetBackgroundTraceBuffer() {
-        backgroundTraceBuffer.clear()
-        backgroundTraceDrafts.removeAll(keepingCapacity: true)
-        backgroundTraceDraftOrder.removeAll(keepingCapacity: true)
-        debugBarManager.update()
-    }
-
-    private func niriLayoutDecisionLine(
-        workspaceId: WorkspaceDescriptor.ID,
-        state: ViewportState,
-        columns: [NiriContainer],
-        gap: CGFloat
-    ) -> String {
-        guard niriEngine != nil else { return "niri-disabled" }
-        guard !columns.isEmpty else { return "no-columns" }
-
-        var currentState = state
-        currentState.viewOffsetPixels = .static(state.viewOffsetPixels.current())
-        let currentPlan = niriLayoutPlanSnapshot(workspaceId: workspaceId, state: currentState)
-
-        var targetState = state
-        targetState.viewOffsetPixels = .static(state.viewOffsetPixels.target())
-        let targetPlan = niriLayoutPlanSnapshot(workspaceId: workspaceId, state: targetState)
-
-        return columns.enumerated().map { colIdx, column in
-            let windows = column.windowNodes.map { window -> String in
-                let token = window.token
-                let current = currentPlan.frames[token].map(compactRect) ?? currentPlan.hidden[token]
-                    .map { "hide:\($0)" } ?? "nil"
-                let target = targetPlan.frames[token].map(compactRect) ?? targetPlan.hidden[token]
-                    .map { "hide:\($0)" } ?? "nil"
-                let last = axManager.lastAppliedFrame(for: token.windowId).map(compactRect) ?? "nil"
-                let entry = workspaceManager.entry(for: token)
-                let live = entry.flatMap { try? AXWindowService.frame($0.axRef) }.map(compactRect) ?? "nil"
-                let replacement = entry?.managedReplacementMetadata?.frame.map(compactRect) ?? "nil"
-                let observed = entry?.observedState.frame.map(compactRect) ?? "nil"
-                let hidden = workspaceManager.hiddenState(for: token)?.offscreenSide.map { "hidden:\($0)" } ?? "hidden:nil"
-                let selected = state.selectedNodeId == window.id ? ":selected" : ""
-                return "w\(token.windowId)\(selected){cur=\(current),target=\(target),last=\(last),live=\(live),replacement=\(replacement),observed=\(observed),\(hidden)}"
-            }.joined(separator: ",")
-            return "c\(colIdx)[\(niriColumnSizingDebug(column, index: colIdx, columns: columns, gap: gap))]{\(windows)}"
-        }.joined(separator: "|")
-    }
-
-    private func niriLayoutPlanSnapshot(
-        workspaceId: WorkspaceDescriptor.ID,
-        state: ViewportState
-    ) -> (frames: [WindowToken: CGRect], hidden: [WindowToken: HideSide]) {
-        guard let engine = niriEngine,
-              let monitorId = workspaceManager.monitorId(for: workspaceId),
-              let monitor = workspaceManager.monitor(byId: monitorId)
-        else {
-            return ([:], [:])
-        }
-
-        let gap = gapSize(for: monitor)
-        let gaps = LayoutGaps(
-            horizontal: gap,
-            vertical: gap,
-            outer: outerGaps(for: monitor)
-        )
-        let area = WorkingAreaContext(
-            workingFrame: insetWorkingFrame(for: monitor),
-            viewFrame: monitor.frame,
-            scale: NSScreen.screens.first(where: { $0.displayId == monitor.displayId })?
-                .backingScaleFactor ?? 2.0
-        )
-        let plan = engine.calculateCombinedLayoutUsingPools(
-            in: workspaceId,
-            monitor: monitor,
-            gaps: gaps,
-            state: state,
-            workingArea: area
-        )
-        return (frames: plan.frames, hidden: plan.hiddenHandles)
-    }
-
-    private func columnXForDebug(_ index: Int, columns: [NiriContainer], gap: CGFloat) -> CGFloat {
-        guard index > 0 else { return 0 }
-        return columns.prefix(index).reduce(CGFloat(0)) { $0 + $1.cachedWidth + gap }
-    }
-
-    private func niriWidthSpecDebug(_ spec: ProportionalSize) -> String {
-        switch spec {
-        case let .proportion(proportion):
-            String(format: "prop:%.4f", proportion)
-        case let .fixed(width):
-            String(format: "fix:%.1f", width)
-        }
-    }
-
-    private func niriColumnSizingDebug(
-        _ column: NiriContainer,
-        index: Int,
-        columns: [NiriContainer],
-        gap: CGFloat
-    ) -> String {
-        let now = animationClock.now()
-        let animationText: String
-        if let animation = column.widthAnimation {
-            animationText = String(
-                format: "anim=%.1f->%.1f vel=%.1f",
-                animation.value(at: now),
-                animation.target,
-                animation.velocity(at: now)
-            )
-        } else {
-            animationText = "anim=nil"
-        }
-        return [
-            String(format: "x=%.1f", columnXForDebug(index, columns: columns, gap: gap)),
-            String(format: "cached=%.1f", column.cachedWidth),
-            column.loneWindowLayoutWidthOverride.map { String(format: "override=%.1f", $0) } ?? "override=nil",
-            "spec=\(niriWidthSpecDebug(column.width))",
-            "target=\(column.targetWidth.map { String(format: "%.1f", $0) } ?? "nil")",
-            "preset=\(column.presetWidthIdx.map(String.init) ?? "nil")",
-            "full=\(column.isFullWidth)",
-            "manual=\(column.hasManualSingleWindowWidthOverride)",
-            animationText
-        ].joined(separator: ",")
-    }
-
-    private func compactRect(_ rect: CGRect) -> String {
-        String(
-            format: "%.0f,%.0f,%.0f,%.0f",
-            rect.origin.x, rect.origin.y, rect.size.width, rect.size.height
-        )
-    }
-
-    private func niriLayoutDecisionDebugDump() -> String {
-        guard let engine = niriEngine else { return "niri disabled" }
-        let workspaceIds = workspaceManager.workspaceIdsForDebug()
-        guard !workspaceIds.isEmpty else { return "no-workspaces" }
-
-        return workspaceIds.map { workspaceId in
-            let state = workspaceManager.niriViewportState(for: workspaceId)
-            let workspaceName = workspaceManager.descriptor(for: workspaceId)?.name ?? workspaceId.uuidString
-            let columns = engine.columns(in: workspaceId)
-            let gap = workspaceManager.monitor(for: workspaceId).map { gapSize(for: $0) }
-                ?? CGFloat(workspaceManager.gaps)
-            return "workspace=\(workspaceName) id=\(workspaceId.uuidString) \(niriLayoutDecisionLine(workspaceId: workspaceId, state: state, columns: columns, gap: gap))"
-        }.joined(separator: "\n")
-    }
-
-    private func niriViewportDebugDump() -> String {
-        guard let engine = niriEngine else { return "niri disabled" }
-
-        let workspaceIds = workspaceManager.workspaceIdsForDebug()
-        guard !workspaceIds.isEmpty else { return "no-workspaces" }
-
-        return workspaceIds.map { workspaceId in
-            let state = workspaceManager.niriViewportState(for: workspaceId)
-            let workspaceName = workspaceManager.descriptor(for: workspaceId)?.name ?? workspaceId.uuidString
-            let columns = engine.columns(in: workspaceId)
-            let gap = workspaceManager.monitor(for: workspaceId).map { gapSize(for: $0) }
-                ?? CGFloat(workspaceManager.gaps)
-            let currentViewStart = columns.isEmpty ? nil : state.viewPosPixels(columns: columns, gap: gap)
-            let targetViewStart = columns.isEmpty ? nil : state.targetViewPosPixels(columns: columns, gap: gap)
-            let selectedNode = state.selectedNodeId.map(String.init(describing:)) ?? "nil"
-            let preferredFocus = workspaceManager.preferredWorkspaceFocusToken(in: workspaceId)
-                .map(String.init(describing:)) ?? "nil"
-            let visible = workspaceManager.visibleWorkspaceIds().contains(workspaceId)
-            let currentOffset = String(format: "%.1f", state.viewOffsetPixels.current())
-            let targetOffset = String(format: "%.1f", state.viewOffsetPixels.target())
-            let currentViewStartText = currentViewStart.map { String(format: "%.1f", $0) } ?? "nil"
-            let targetViewStartText = targetViewStart.map { String(format: "%.1f", $0) } ?? "nil"
-            let restoreText = state.viewOffsetToRestore.map { String(format: "%.1f", $0) } ?? "nil"
-            let activatePrevText = state.activatePrevColumnOnRemoval.map { String(format: "%.1f", $0) } ?? "nil"
-
-            return [
-                "workspace=\(workspaceName)",
-                "id=\(workspaceId.uuidString)",
-                "visible=\(visible)",
-                "columns=\(columns.count)",
-                "activeColumnIndex=\(state.activeColumnIndex)",
-                "currentOffset=\(currentOffset)",
-                "targetOffset=\(targetOffset)",
-                "currentViewStart=\(currentViewStartText)",
-                "targetViewStart=\(targetViewStartText)",
-                "gesture=\(state.viewOffsetPixels.isGesture)",
-                "animating=\(state.viewOffsetPixels.isAnimating)",
-                "selectedNode=\(selectedNode)",
-                "preferredFocus=\(preferredFocus)",
-                "restore=\(restoreText)",
-                "activatePrev=\(activatePrevText)"
-            ]
-            .joined(separator: " ")
-        }
-        .joined(separator: "\n")
-    }
-
-    private func focusTargetDebugDump() -> String {
-        let interactionWorkspaceId = interactionWorkspace()?.id
-        let selectedToken: WindowToken? = if let workspaceId = interactionWorkspaceId,
-                                             let engine = niriEngine,
-                                             let selectedNodeId = workspaceManager.niriViewportState(for: workspaceId)
-                                             .selectedNodeId,
-                                             let selectedWindow = engine.findNode(by: selectedNodeId) as? NiriWindow
-        {
-            selectedWindow.token
-        } else {
-            nil
-        }
-        let borderToken = currentBorderTarget()?.token
-        let commandTarget = managedCommandTarget()
-        return [
-            "interactionWorkspace=\(interactionWorkspaceId.map { $0.uuidString } ?? "nil")",
-            "wmCommandTarget=\(commandTarget.map { String(describing: $0.token) } ?? "nil")",
-            "wmCommandTargetSource=\(commandTarget.map { String(describing: $0.source) } ?? "nil")",
-            "layoutSelection=\(selectedToken.map(String.init(describing:)) ?? "nil")",
-            "observedManagedFocus=\(workspaceManager.confirmedManagedFocusToken.map(String.init(describing:)) ?? "nil")",
-            "focusRequest=\(workspaceManager.activeFocusRequestToken.map(String.init(describing:)) ?? "nil")",
-            "borderTarget=\(borderToken.map(String.init(describing:)) ?? "nil")",
-            "interactionMonitor=\(workspaceManager.interactionMonitorId.map(String.init(describing:)) ?? "nil")",
-            "nonManaged=\(workspaceManager.isNonManagedFocusActive)"
-        ].joined(separator: " ")
     }
 
     static func visibleUnmanagedWindowServerFrames(
@@ -3287,505 +2711,6 @@ final class WMController {
         return false
     }
 
-    private func visibleUnmanagedWindowServerDebugDump() -> String {
-        guard let windows = CGWindowListCopyWindowInfo(.optionAll, kCGNullWindowID) as? [[String: Any]] else {
-            return "unavailable"
-        }
-
-        let trackedWindowIds = Set(workspaceManager.trackedWindowIdsForDebug())
-        let visibleCandidates = windows.compactMap { info -> String? in
-            let windowId = (info[kCGWindowNumber as String] as? NSNumber)?.uint32Value
-            guard let windowId, !trackedWindowIds.contains(Int(windowId)) else { return nil }
-
-            let layer = (info[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0
-            guard layer == 0 else { return nil }
-
-            let isOnscreen = (info[kCGWindowIsOnscreen as String] as? NSNumber)?.boolValue ?? false
-            guard isOnscreen else { return nil }
-
-            guard let bounds = info[kCGWindowBounds as String] as? [String: Any],
-                  let x = (bounds["X"] as? NSNumber)?.doubleValue,
-                  let y = (bounds["Y"] as? NSNumber)?.doubleValue,
-                  let width = (bounds["Width"] as? NSNumber)?.doubleValue,
-                  let height = (bounds["Height"] as? NSNumber)?.doubleValue,
-                  width >= 80,
-                  height >= 80
-            else { return nil }
-
-            let pid = (info[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value ?? 0
-            let ownerName = info[kCGWindowOwnerName as String] as? String ?? "nil"
-            let title = info[kCGWindowName as String] as? String ?? "nil"
-            let runningApp = NSRunningApplication(processIdentifier: pid)
-            let bundleId = runningApp?.bundleIdentifier ?? "nil"
-            let activationPolicy = runningApp.map { String(describing: $0.activationPolicy) } ?? "nil"
-            let axSummary = visibleUnmanagedWindowAXDebugSummary(pid: pid, windowId: windowId)
-            return "windowId=\(windowId) pid=\(pid) owner=\(ownerName) bundleId=\(bundleId) title=\(title) frame={{\(x), \(y)}, {\(width), \(height)}} activationPolicy=\(activationPolicy) \(axSummary)"
-        }
-
-        return visibleCandidates.isEmpty ? "none" : visibleCandidates.joined(separator: "\n")
-    }
-
-    private func visibleUnmanagedWindowAXDebugSummary(pid: pid_t, windowId: UInt32) -> String {
-        let appElement = AXUIElementCreateApplication(pid)
-
-        var attributeNames: CFArray?
-        let namesResult = AXUIElementCopyAttributeNames(appElement, &attributeNames)
-
-        var windowsValue: CFTypeRef?
-        let windowsResult = AXUIElementCopyAttributeValue(
-            appElement,
-            kAXWindowsAttribute as CFString,
-            &windowsValue
-        )
-
-        let axWindowIds: [Int]
-        if windowsResult == .success, let elements = windowsValue as? [AXUIElement] {
-            axWindowIds = elements.compactMap { element in
-                var axWindowId: CGWindowID = 0
-                guard _AXUIElementGetWindow(element, &axWindowId) == .success else { return nil }
-                return Int(axWindowId)
-            }
-        } else {
-            axWindowIds = []
-        }
-
-        let axContainsWindow = axWindowIds.contains(Int(windowId))
-        let axAttributeCount = (attributeNames as? [Any])?.count ?? 0
-        return "axAppAttributeNamesResult=\(namesResult.rawValue) axAppAttributeCount=\(axAttributeCount) axWindowsResult=\(windowsResult.rawValue) axWindowsCount=\(axWindowIds.count) axContainsWindow=\(axContainsWindow)"
-    }
-
-    func runtimeStateDebugDump(
-        traceLimit: Int = 50,
-        traceCaptureStatusOverride: RuntimeTraceCaptureStatus? = nil
-    ) -> String {
-        let axSnapshot = axManager.windowStateDebugSnapshot()
-        let refreshSnapshot = layoutRefreshController.refreshDebugSnapshot()
-        let mouseTapSnapshot = mouseEventHandler.mouseTapDebugSnapshot()
-        let mouseWarpSnapshot = mouseWarpHandler.mouseWarpDebugSnapshot()
-        let axEventSnapshot = axEventHandler.debugCounters
-        let cgsSnapshot = CGSEventObserver.shared.cgsDebugSnapshot()
-        let traceCaptureStatus = traceCaptureStatusOverride ?? runtimeTraceCaptureStatus
-        let backgroundTraceEffectiveEnabled = settings.developerModeEnabled && traceCaptureStatus.isActive
-
-        var lines: [String] = [
-            "WMController runtime state",
-            "enabled=\(isEnabled) desiredEnabled=\(desiredEnabled) hotkeysEnabled=\(hotkeysEnabled) desiredHotkeysEnabled=\(desiredHotkeysEnabled)",
-            "accessibilityGranted=\(accessibilityPermissionGranted) lockScreenActive=\(isLockScreenActive) overviewOpen=\(isOverviewOpen()) startedServices=\(hasStartedServices)",
-            "focusFollowsMouse=\(focusFollowsMouseEnabled) moveMouseToFocusedWindow=\(moveMouseToFocusedWindowEnabled) mouseWarpEnabled=\(settings.mouseWarpEnabled) mouseWarpPolicyEnabled=\(isMouseWarpPolicyEnabled)",
-            "displaySpacesMode=\(SkyLight.shared.displaySpacesMode().rawValue)",
-            "isTransferringWindow=\(isTransferringWindow) hiddenAppPIDs=\(hiddenAppPIDs.count) workspaceBarHiddenMonitors=\(hiddenWorkspaceBarMonitorIds.count)",
-            "runtimeTraceCaptureActive=\(traceCaptureStatus.isActive) runtimeTraceStartedAt=\(traceCaptureStatus.startedAt?.ISO8601Format() ?? "nil") viewportTraceRecords=\(runtimeViewportTraceRecords.count) resizeTraceRecords=\(runtimeResizeTraceRecords.count) insertionTraceRecords=\(runtimeInsertionTraceRecords.count) mouseTraceRecords=\(runtimeMouseTraceRecords.count) backgroundTraceEnabled=\(backgroundTraceEffectiveEnabled) backgroundTraceEvents=\(backgroundTraceBufferStatus.eventCount) backgroundTraceBytes=\(backgroundTraceBufferStatus.estimatedBytes) backgroundTraceMaxBytes=\(backgroundTraceBufferStatus.maxBytes) backgroundTraceRetentionSeconds=\(String(format: "%.0f", backgroundTraceBufferStatus.retentionSeconds))",
-            "workspaceBarRefreshDebugState requestCount=\(workspaceBarRefreshDebugState.requestCount) scheduledCount=\(workspaceBarRefreshDebugState.scheduledCount) executionCount=\(workspaceBarRefreshDebugState.executionCount) isQueued=\(workspaceBarRefreshDebugState.isQueued)",
-            "-- Focus Targets --",
-            focusTargetDebugDump(),
-            "-- Monitor Topology --",
-            workspaceManager.monitorTopologyDebugDump(),
-            "-- SpaceTopology --",
-            layoutRefreshController.spaceTopologyDebugDump(),
-            "-- WorkspaceManager --",
-            workspaceManager.runtimeStateDebugSummary(),
-            "-- AXManager --",
-            "lastAppliedFrames=\(axSnapshot.lastAppliedFrameCount) pendingFrameWrites=\(axSnapshot.pendingFrameWriteCount) recentFailures=\(axSnapshot.recentFrameWriteFailureCount) retryBudget=\(axSnapshot.retryBudgetCount) forceApply=\(axSnapshot.forceApplyWindowIdCount) pendingObservers=\(axSnapshot.pendingFrameObserverCount) observerRequests=\(axSnapshot.observerRequestIdCount) rekeyedWindowIds=\(axSnapshot.rekeyedWindowIdCount) inactiveWorkspaceWindowIds=\(axSnapshot.inactiveWorkspaceWindowIdCount)",
-            "-- Managed Windows --",
-            workspaceManager.runtimeWindowDebugDump(),
-            "-- Visible Unmanaged WindowServer Windows --",
-            visibleUnmanagedWindowServerDebugDump(),
-            "-- AX Window State --",
-            axManager.windowStateDebugDump(windowIds: workspaceManager.trackedWindowIdsForDebug()),
-            "-- Workspace-Inactive Visible Drift Scan --",
-            layoutRefreshController.workspaceInactiveVisibleDriftDebugDump(),
-            "-- Niri Viewports --",
-            niriViewportDebugDump(),
-            "-- Niri Layout Decisions --",
-            niriLayoutDecisionDebugDump(),
-            "-- AXEventHandler --",
-            "geometryRelayoutRequests=\(axEventSnapshot.geometryRelayoutRequests) scopedGeometryRelayoutRequests=\(axEventSnapshot.scopedGeometryRelayoutRequests) suppressedDuringGesture=\(axEventSnapshot.geometryRelayoutsSuppressedDuringGesture) suppressedForOwnFrameWrites=\(axEventSnapshot.geometryRelayoutsSuppressedForOwnFrameWrites)",
-            "-- Create Placement Contexts --",
-            axEventHandler.createPlacementContextDebugDump(),
-            "-- LayoutRefreshController --",
-            "fullRescan=\(refreshSnapshot.fullRescanExecutions) relayout=\(refreshSnapshot.relayoutExecutions) immediateRelayout=\(refreshSnapshot.immediateRelayoutExecutions) visibility=\(refreshSnapshot.visibilityExecutions) windowRemoval=\(refreshSnapshot.windowRemovalExecutions)",
-            "requestedByReason=\(String(describing: refreshSnapshot.requestedByReason))",
-            "executedByReason=\(String(describing: refreshSnapshot.executedByReason))",
-            "lastAffectedWorkspaceIdsByReason=\(String(describing: refreshSnapshot.lastAffectedWorkspaceIdsByReason))",
-            "-- MouseEventHandler --",
-            String(describing: mouseTapSnapshot),
-            "-- MouseWarpHandler --",
-            String(describing: mouseWarpSnapshot),
-            "-- CGSEventObserver --",
-            String(describing: cgsSnapshot),
-            "-- Workspace Bar Floating Projection Trace --",
-            workspaceManager.floatingBarProjectionTraceDump(),
-            "-- Workspace Bar Frame Trace --",
-            workspaceBarManager.runtimeFrameTraceDebugDump(),
-            "-- Workspace Bar --",
-            workspaceBarManager.runtimeStateDebugDump(
-                monitors: workspaceManager.monitors,
-                resolvedProvider: { [weak self] monitor in
-                    self?.settings.resolvedBarSettings(for: monitor) ?? ResolvedBarSettings.defaults
-                },
-                visibilityProvider: { [weak self] monitor, resolved in
-                    self?.isWorkspaceBarVisible(on: monitor, resolved: resolved) ?? false
-                }
-            ),
-            "-- Reconcile Snapshot --",
-            workspaceManager.reconcileSnapshotDump()
-        ]
-        if traceLimit > 0 {
-            lines.append(contentsOf: [
-                "-- Reconcile Trace --",
-                workspaceManager.reconcileTraceDump(limit: traceLimit)
-            ])
-        }
-
-        return lines.joined(separator: "\n")
-    }
-
-    func dumpRuntimeState(traceLimit: Int = 50) {
-        let dump = runtimeStateDebugDump(traceLimit: traceLimit)
-        copyDebugTextToPasteboard(dump)
-        Self.runtimeDebugLogger.info("\(dump, privacy: .public)")
-    }
-
-    func resetRuntimeState() {
-        if runtimeTraceCaptureSession != nil {
-            runtimeTraceCaptureSession = nil
-            runtimeViewportTraceRecords.removeAll(keepingCapacity: true)
-            runtimeResizeTraceRecords.removeAll(keepingCapacity: true)
-            runtimeInsertionTraceRecords.removeAll(keepingCapacity: true)
-            runtimeMouseTraceRecords.removeAll(keepingCapacity: true)
-            backgroundTraceBuffer.clear()
-            backgroundTraceDrafts.removeAll(keepingCapacity: true)
-            backgroundTraceDraftOrder.removeAll(keepingCapacity: true)
-            syncNiriResizeTraceSink()
-            syncViewportMutationAuditFlag()
-            workspaceBarManager.update()
-            debugBarManager.update()
-        }
-        mouseEventHandler.handleInputSuppressionBegan()
-        mouseEventHandler.resetDebugStateForTests()
-        mouseWarpHandler.resetDebugStateForTests()
-        axEventHandler.resetDebugStateForTests()
-        CGSEventObserver.shared.resetDebugStateForTests()
-        axManager.resetRuntimeState()
-        layoutRefreshController.resetState()
-        layoutRefreshController.resetDebugState()
-        focusBridge.reset()
-        resetWorkspaceBarRefreshDebugStateForTests()
-        tabbedOverlayManager.removeAll()
-        nativeFullscreenPlaceholderManager.removeAll()
-        focusBorderController.cleanup()
-        workspaceManager.resetRuntimeStateForDebug()
-        explicitWorkspaceMoveIntentsByToken.removeAll()
-        hiddenAppPIDs.removeAll()
-        isTransferringWindow = false
-
-        if niriEngine != nil {
-            enableNiriLayout(revealPartial: settings.revealPartial)
-            updateNiriConfig(
-                balancedColumnCount: settings.niriBalancedColumnCount,
-                infiniteLoop: settings.niriInfiniteLoop,
-                revealPartial: settings.revealPartial,
-                loneWindowPolicy: settings.loneWindowPolicy,
-                columnWidthPresets: settings.niriColumnWidthPresets,
-                defaultColumnWidth: settings.niriDefaultColumnWidth
-            )
-        }
-
-        layoutRefreshController.requestRefresh(reason: .startup)
-    }
-
-    func restartAppClearingRuntimeState(enableTracing: Bool = false) {
-        resetRuntimeState()
-        workspaceManager.prepareForRestartClearingRuntimeState()
-
-        guard relaunchCurrentApplication(extraArguments: enableTracing ? [Self.traceLaunchArgument] : []) else {
-            Self.runtimeDebugLogger.error("Failed to schedule relaunch after runtime reset")
-            return
-        }
-
-        NSApp.terminate(nil)
-    }
-
-    @discardableResult
-    func toggleRuntimeTraceCapture(desiredState: IPCTraceDesiredState? = nil) -> ExternalCommandResult {
-        switch desiredState {
-        case .active:
-            return isRuntimeTraceCaptureActive ? .executed : startRuntimeTraceCapture()
-        case .inactive:
-            return isRuntimeTraceCaptureActive ? stopRuntimeTraceCapture() : .executed
-        case nil:
-            return isRuntimeTraceCaptureActive ? stopRuntimeTraceCapture() : startRuntimeTraceCapture()
-        }
-    }
-
-    @discardableResult
-    func captureRecentBackgroundTrace(
-        marker: Date = Date(),
-        lookback: TimeInterval = 120,
-        tail: TimeInterval = 0,
-        note: String? = nil
-    ) -> ExternalCommandResult {
-        guard let draft = makeBackgroundTraceDraft(marker: marker) else {
-            Self.runtimeDebugLogger.error("Capture recent trace requested with no background trace draft available")
-            return settings.developerModeEnabled ? .invalidState : .requiresDeveloperMode
-        }
-
-        do {
-            _ = try exportBackgroundTraceClip(
-                draftID: draft.id,
-                marker: marker,
-                lookback: lookback,
-                tail: tail,
-                note: note
-            )
-            return .executed
-        } catch {
-            Self.runtimeDebugLogger
-                .error("Failed to write background trace clip: \(error.localizedDescription, privacy: .public)")
-            return .internalError
-        }
-    }
-
-    func makeBackgroundTraceDraft(marker: Date = Date()) -> BackgroundTraceDraft? {
-        guard isBackgroundTraceBufferEffectivelyEnabled else { return nil }
-        cleanupBackgroundTraceDrafts(now: marker)
-        guard let draft = backgroundTraceBuffer.makeDraft(now: marker) else { return nil }
-        backgroundTraceDrafts[draft.id] = draft
-        backgroundTraceDraftOrder.append(draft.id)
-        cleanupBackgroundTraceDrafts(now: marker)
-        return draft
-    }
-
-    @discardableResult
-    func exportBackgroundTraceClip(
-        draftID: BackgroundTraceDraft.ID,
-        marker: Date,
-        lookback: TimeInterval,
-        tail: TimeInterval,
-        note: String?
-    ) throws -> URL {
-        guard let draft = backgroundTraceDrafts[draftID] else {
-            throw NSError(
-                domain: "NehirBackgroundTrace",
-                code: 1,
-                userInfo: [NSLocalizedDescriptionKey: "Background trace draft is no longer available."]
-            )
-        }
-        let endedAt = Date()
-        let clip = BackgroundTraceBuffer.selectClip(from: draft, marker: marker, lookback: lookback, tail: tail)
-        let fileURL = backgroundTraceClipFileURL(
-            startedAt: clip.selectedStart,
-            endedAt: clip.selectedEnd,
-            exportedAt: endedAt
-        )
-        let runtimeStateDump = runtimeStateDebugDump(traceLimit: 0)
-        let eventDump = clip.events.isEmpty
-            ? "background trace clip empty"
-            : clip.events.map { event in
-                "[\(event.category.rawValue)] \(event.text)"
-            }.joined(separator: "\n")
-        let categoryCounts = BackgroundTraceCategory.allCases.map { category in
-            "\(category.rawValue)=\(clip.categoryCounts[category] ?? 0)"
-        }.joined(separator: " ")
-        let noteLine = (note?.isEmpty == false) ? note! : ""
-        let retainedRange = "\(draft.retainedStart?.ISO8601Format() ?? "nil")..\(draft.retainedEnd?.ISO8601Format() ?? "nil")"
-        let selectedRange = "\(clip.selectedStart.ISO8601Format())..\(clip.selectedEnd.ISO8601Format())"
-        let body = [
-            "# Nehir runtime trace clip",
-            "captureKind=background-clip",
-            "backgroundBufferEnabled=\(isBackgroundTraceBufferEffectivelyEnabled)",
-            "retainedRange=\(retainedRange)",
-            "selectedRange=\(selectedRange)",
-            "bugMarker=\(marker.ISO8601Format())",
-            String(format: "requestedLookback=%.0fs", clip.requestedLookback),
-            String(format: "requestedTail=%.0fs", clip.requestedTail),
-            "truncatedByTimeRetention=\(clip.truncatedByTimeRetention)",
-            "truncatedByByteCap=\(clip.truncatedByByteCap)",
-            String(format: "backgroundRetentionSeconds=%.0f", settings.backgroundTraceRetentionSeconds),
-            "backgroundMaxBytes=\(settings.backgroundTraceMaxBytes)",
-            "eventCount=\(clip.events.count)",
-            "estimatedBytes=\(clip.estimatedBytes)",
-            "categoryCounts=\(categoryCounts)",
-            "userNote=\(noteLine)",
-            "exportedAt=\(endedAt.ISO8601Format())",
-            "",
-            "## Runtime state at export",
-            runtimeStateDump,
-            "",
-            "## Background trace events",
-            eventDump,
-            ""
-        ].joined(separator: "\n")
-
-        try FileManager.default.createDirectory(
-            at: fileURL.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
-        try body.write(to: fileURL, atomically: true, encoding: .utf8)
-        copyTraceExportToPasteboard(fileURL)
-        Self.runtimeDebugLogger.info("Wrote background trace clip to \(fileURL.path, privacy: .public)")
-        return fileURL
-    }
-
-    private func cleanupBackgroundTraceDrafts(now: Date = Date()) {
-        let expiration: TimeInterval = 30 * 60
-        backgroundTraceDraftOrder.removeAll { id in
-            guard let draft = backgroundTraceDrafts[id] else { return true }
-            if now.timeIntervalSince(draft.createdAt) > expiration {
-                backgroundTraceDrafts[id] = nil
-                return true
-            }
-            return false
-        }
-        while backgroundTraceDraftOrder.count > 2 {
-            let id = backgroundTraceDraftOrder.removeFirst()
-            backgroundTraceDrafts[id] = nil
-        }
-    }
-
-    @discardableResult
-    private func startRuntimeTraceCapture() -> ExternalCommandResult {
-        guard runtimeTraceCaptureSession == nil else {
-            Self.runtimeDebugLogger.error("Start runtime trace capture requested while a capture is already active")
-            return .invalidState
-        }
-
-        runtimeViewportTraceRecords.removeAll(keepingCapacity: true)
-        runtimeResizeTraceRecords.removeAll(keepingCapacity: true)
-        runtimeInsertionTraceRecords.removeAll(keepingCapacity: true)
-        runtimeMouseTraceRecords.removeAll(keepingCapacity: true)
-        backgroundTraceBuffer.clear()
-        backgroundTraceDrafts.removeAll(keepingCapacity: true)
-        backgroundTraceDraftOrder.removeAll(keepingCapacity: true)
-        let startedAt = Date()
-        let startRuntimeStateDump = runtimeStateDebugDump(
-            traceLimit: 0,
-            traceCaptureStatusOverride: RuntimeTraceCaptureStatus(isActive: true, startedAt: startedAt)
-        )
-        runtimeTraceCaptureSession = RuntimeTraceCaptureSession(
-            startedAt: startedAt,
-            startRuntimeStateDump: startRuntimeStateDump
-        )
-        syncNiriResizeTraceSink()
-        syncViewportMutationAuditFlag()
-        workspaceManager.resetReconcileTraceForDebug()
-        workspaceManager.resetInteractionMonitorWriteTraceForDebug()
-        workspaceManager.resetFloatingBarProjectionTraceForDebug()
-        AppAXContext.resetRawAXNotificationTraceForDebug()
-        AppAXContext.resetAXWindowsQueryTraceForDebug()
-        workspaceBarManager.update()
-        debugBarManager.update()
-        return .executed
-    }
-
-    @discardableResult
-    private func stopRuntimeTraceCapture() -> ExternalCommandResult {
-        guard let session = runtimeTraceCaptureSession else {
-            Self.runtimeDebugLogger.error("Stop runtime trace capture requested without an active session")
-            return .invalidState
-        }
-
-        let endedAt = Date()
-        let endRuntimeStateDump = runtimeStateDebugDump(
-            traceLimit: 0,
-            traceCaptureStatusOverride: RuntimeTraceCaptureStatus(isActive: false, startedAt: nil)
-        )
-        let traceDump = workspaceManager.reconcileTraceDump(limit: nil)
-        let duration = endedAt.timeIntervalSince(session.startedAt)
-        let fileURL = runtimeTraceCaptureFileURL(startedAt: session.startedAt, endedAt: endedAt)
-        let viewportTraceDump = runtimeViewportTraceRecords.isEmpty
-            ? "viewport trace empty"
-            : runtimeViewportTraceRecords.joined(separator: "\n")
-        let resizeTraceDump = runtimeResizeTraceRecords.isEmpty
-            ? "resize trace empty"
-            : runtimeResizeTraceRecords.joined(separator: "\n")
-        let insertionTraceDump = runtimeInsertionTraceRecords.isEmpty
-            ? "insertion trace empty"
-            : runtimeInsertionTraceRecords.joined(separator: "\n")
-        let mouseTraceDump = runtimeMouseTraceRecords.isEmpty
-            ? "mouse trace empty"
-            : runtimeMouseTraceRecords.joined(separator: "\n")
-        let createFocusTraceEvents = axEventHandler.createFocusTraceSnapshot()
-        let createFocusTraceDump = createFocusTraceEvents.isEmpty
-            ? "create focus trace empty"
-            : createFocusTraceEvents.map(\.description).joined(separator: "\n")
-        let rawAXNotificationDump = AppAXContext.rawAXNotificationTraceDump()
-        let axWindowsQueryDump = AppAXContext.axWindowsQueryTraceDump()
-        let interactionMonitorWriteDump = workspaceManager.interactionMonitorWriteTraceDump()
-        let floatingBarProjectionDump = workspaceManager.floatingBarProjectionTraceDump()
-        let body = [
-            "Nehir runtime trace capture",
-            "startedAt=\(session.startedAt.ISO8601Format())",
-            "endedAt=\(endedAt.ISO8601Format())",
-            String(format: "durationSeconds=%.3f", duration),
-            "",
-            "## Runtime state at start",
-            session.startRuntimeStateDump,
-            "",
-            "## Tracing logs",
-            traceDump,
-            "",
-            "## Niri viewport trace",
-            viewportTraceDump,
-            "",
-            "## Niri resize trace",
-            resizeTraceDump,
-            "",
-            "## Niri insertion trace",
-            insertionTraceDump,
-            "",
-            "## Niri create focus trace",
-            createFocusTraceDump,
-            "",
-            "## AX notification trace",
-            rawAXNotificationDump,
-            "",
-            "## AX windows query trace",
-            axWindowsQueryDump,
-            "",
-            "## Interaction monitor writes",
-            interactionMonitorWriteDump,
-            "",
-            "## Floating bar projection trace",
-            floatingBarProjectionDump,
-            "",
-            "## Mouse focus trace",
-            mouseTraceDump,
-            "",
-            "## Runtime state at end",
-            endRuntimeStateDump,
-            ""
-        ].joined(separator: "\n")
-
-        do {
-            try FileManager.default.createDirectory(
-                at: fileURL.deletingLastPathComponent(),
-                withIntermediateDirectories: true
-            )
-            try body.write(to: fileURL, atomically: true, encoding: .utf8)
-            copyTraceExportToPasteboard(fileURL)
-            Self.runtimeDebugLogger.info("Wrote runtime trace capture to \(fileURL.path, privacy: .public)")
-        } catch {
-            Self.runtimeDebugLogger
-                .error("Failed to write runtime trace capture: \(error.localizedDescription, privacy: .public)")
-            return .internalError
-        }
-
-        runtimeTraceCaptureSession = nil
-        runtimeViewportTraceRecords.removeAll(keepingCapacity: true)
-        runtimeResizeTraceRecords.removeAll(keepingCapacity: true)
-        runtimeInsertionTraceRecords.removeAll(keepingCapacity: true)
-        runtimeMouseTraceRecords.removeAll(keepingCapacity: true)
-        backgroundTraceBuffer.clear()
-        backgroundTraceDrafts.removeAll(keepingCapacity: true)
-        backgroundTraceDraftOrder.removeAll(keepingCapacity: true)
-        syncNiriResizeTraceSink()
-        syncViewportMutationAuditFlag()
-        workspaceBarManager.update()
-        debugBarManager.update()
-        return .executed
-    }
-
     func clearManualWindowOverride(for token: WindowToken) {
         workspaceManager.setManualLayoutOverride(nil, for: token)
     }
@@ -3796,39 +2721,7 @@ final class WMController {
             ?? AXWindowService.axWindowRef(for: UInt32(token.windowId), pid: token.pid)
     }
 
-    private func copyDebugTextToPasteboard(_ text: String) {
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(text, forType: .string)
-    }
-
-    private func copyTraceExportToPasteboard(_ fileURL: URL) {
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        if settings.debugTraceExportCopiesFile {
-            pasteboard.writeObjects([fileURL as NSURL])
-        } else {
-            pasteboard.setString(fileURL.path, forType: .string)
-        }
-    }
-
-    /// Directory where exported runtime trace captures are written. Exposed so
-    /// the Diagnostics settings tab can list recent captures from the same path
-    /// the capture writer uses.
-    static let traceCaptureDirectory: URL = NehirStoragePaths.live.stateDirectory
-        .appendingPathComponent("traces", isDirectory: true)
-
-    private func runtimeTraceCaptureFileURL(startedAt: Date, endedAt: Date) -> URL {
-        let filename = "runtime-trace-\(Int(startedAt.timeIntervalSince1970 * 1000))-\(Int(endedAt.timeIntervalSince1970 * 1000)).log"
-        return Self.traceCaptureDirectory.appendingPathComponent(filename, isDirectory: false)
-    }
-
-    private func backgroundTraceClipFileURL(startedAt: Date, endedAt: Date, exportedAt: Date) -> URL {
-        let filename = "runtime-trace-background-clip-\(Int(startedAt.timeIntervalSince1970 * 1000))-\(Int(endedAt.timeIntervalSince1970 * 1000))-\(Int(exportedAt.timeIntervalSince1970 * 1000)).log"
-        return Self.traceCaptureDirectory.appendingPathComponent(filename, isDirectory: false)
-    }
-
-    private func relaunchCurrentApplication(extraArguments: [String] = []) -> Bool {
+    func relaunchCurrentApplication(extraArguments: [String] = []) -> Bool {
         let executablePath = (Bundle.main.executableURL?.path).flatMap { $0.isEmpty ? nil : $0 }
             ?? ProcessInfo.processInfo.arguments.first
         guard let executablePath else { return false }
@@ -4692,12 +3585,13 @@ final class WMController {
 
     func moveMouseToWindow(_ token: WindowToken, preferredFrame: CGRect? = nil, reason: String = "unspecified") {
         guard let entry = workspaceManager.entry(for: token) else {
-            recordRuntimeMouseTrace("moveMouseToFocused.skip reason=noEntry source=\(reason) token=\(token)")
+            diagnostics
+                .recordRuntimeMouseTrace("moveMouseToFocused.skip reason=noEntry source=\(reason) token=\(token)")
             return
         }
         let frameSource = preferredFrame == nil ? "ax" : "preferred"
         guard let frame = preferredFrame ?? AXWindowService.framePreferFast(entry.axRef) else {
-            recordRuntimeMouseTrace(
+            diagnostics.recordRuntimeMouseTrace(
                 "moveMouseToFocused.skip reason=noFrame source=\(reason) token=\(token) frameSource=\(frameSource)"
             )
             return
@@ -4706,24 +3600,24 @@ final class WMController {
         let center = frame.center
         let pressedButtons = NSEvent.pressedMouseButtons
         let centerOnScreen = NSScreen.screens.contains(where: { $0.frame.contains(center) })
-        if isRuntimeTraceCaptureActive {
+        if diagnostics.isRuntimeTraceCaptureActive {
             let current = NSEvent.mouseLocation
-            recordRuntimeMouseTrace(
+            diagnostics.recordRuntimeMouseTrace(
                 "moveMouseToFocused.request source=\(reason) token=\(token) frame=\(formatTraceRect(frame)) frameSource=\(frameSource) current=\(formatTracePoint(current)) dest=\(formatTracePoint(center)) pressedButtons=\(pressedButtons) centerOnScreen=\(centerOnScreen)"
             )
         }
 
         guard centerOnScreen else {
-            if isRuntimeTraceCaptureActive {
-                recordRuntimeMouseTrace(
+            if diagnostics.isRuntimeTraceCaptureActive {
+                diagnostics.recordRuntimeMouseTrace(
                     "moveMouseToFocused.skip reason=centerOffscreen source=\(reason) token=\(token) dest=\(formatTracePoint(center))"
                 )
             }
             return
         }
         guard pressedButtons == 0 else {
-            if isRuntimeTraceCaptureActive {
-                recordRuntimeMouseTrace(
+            if diagnostics.isRuntimeTraceCaptureActive {
+                diagnostics.recordRuntimeMouseTrace(
                     "moveMouseToFocused.skip reason=mouseButtonPressed source=\(reason) token=\(token) pressedButtons=\(pressedButtons) dest=\(formatTracePoint(center))"
                 )
             }
@@ -4732,8 +3626,8 @@ final class WMController {
 
         let windowServerCenter = ScreenCoordinateSpace.toWindowServer(point: center)
         warpMouseCursorPosition(windowServerCenter)
-        if isRuntimeTraceCaptureActive {
-            recordRuntimeMouseTrace(
+        if diagnostics.isRuntimeTraceCaptureActive {
+            diagnostics.recordRuntimeMouseTrace(
                 "moveMouseToFocused.perform source=\(reason) token=\(token) dest=\(formatTracePoint(center)) windowServerDest=\(formatTracePoint(windowServerCenter)) pressedButtons=\(pressedButtons)"
             )
         }
@@ -4743,12 +3637,12 @@ final class WMController {
         let center = monitor.visibleFrame.center
         let pressedButtons = NSEvent.pressedMouseButtons
         guard pressedButtons == 0 else {
-            recordRuntimeMouseTrace(
+            diagnostics.recordRuntimeMouseTrace(
                 "moveMouseToMonitor.skip reason=mouseButtonPressed monitor=\(monitor.displayId) dest=\(formatTracePoint(center)) pressedButtons=\(pressedButtons)"
             )
             return
         }
-        recordRuntimeMouseTrace(
+        diagnostics.recordRuntimeMouseTrace(
             "moveMouseToMonitor.perform monitor=\(monitor.displayId) frame=\(formatTraceRect(monitor.visibleFrame)) dest=\(formatTracePoint(center)) pressedButtons=\(pressedButtons)"
         )
         warpMouseCursorPosition(
@@ -4865,7 +3759,7 @@ extension WMController {
             token: token,
             workspaceId: entry.workspaceId
         )
-        recordNiriCreateFocusTrace(
+        diagnostics.recordNiriCreateFocusTrace(
             .pendingFocusStarted(
                 requestId: request.requestId,
                 token: token,
@@ -4996,7 +3890,7 @@ extension WMController {
         forceOrdering: Bool = false
     ) -> Bool {
         guard currentBorderTarget()?.token == token else { return false }
-        recordNiriCreateFocusTrace(.borderReapplied(token: token, phase: phase))
+        diagnostics.recordNiriCreateFocusTrace(.borderReapplied(token: token, phase: phase))
         if let preferredFrame {
             return focusBorderController.updateFrameHint(
                 for: token,
@@ -5015,10 +3909,6 @@ extension WMController {
         focusBorderController.clear(matching: token, pid: pid)
         guard restoreCurrentBorder else { return }
         _ = focusBorderController.refresh(forceOrdering: true)
-    }
-
-    func recordNiriCreateFocusTrace(_ kind: NiriCreateFocusTraceEvent.Kind) {
-        axEventHandler.recordNiriCreateFocusTrace(.init(kind: kind))
     }
 
     var isDiscoveryInProgress: Bool {

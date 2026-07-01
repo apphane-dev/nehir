@@ -655,8 +655,8 @@ final class MouseWarpHandler: NSObject {
     }
 
     private func traceMouseWarp(_ message: @autoclosure () -> String) {
-        guard controller?.isRuntimeTraceCaptureActive == true else { return }
-        controller?.recordRuntimeMouseTrace(message())
+        guard controller?.diagnostics.isRuntimeTraceCaptureActive == true else { return }
+        controller?.diagnostics.recordRuntimeMouseTrace(message())
     }
 
     private func formatPoint(_ point: CGPoint) -> String {

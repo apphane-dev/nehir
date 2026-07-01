@@ -249,7 +249,7 @@ final class WorkspaceBarManager {
                 },
                 onCreateAppRuleForWindow: { [weak controller, weak settings] token in
                     guard let controller, let settings,
-                          let snapshot = controller.windowDecisionDebugSnapshot(for: token),
+                          let snapshot = controller.diagnostics.windowDecisionDebugSnapshot(for: token),
                           let draft = AppRuleDraft.guided(from: snapshot)
                     else { return }
                     SettingsWindowController.shared.show(

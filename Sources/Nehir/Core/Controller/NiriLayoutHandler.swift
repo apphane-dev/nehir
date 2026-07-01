@@ -371,7 +371,7 @@ enum NiriWindowMoveResult {
         monitor: LayoutMonitorSnapshot,
         frameSource: String
     ) {
-        guard let controller, controller.isRuntimeTraceCaptureActive else { return }
+        guard let controller, controller.diagnostics.isRuntimeTraceCaptureActive else { return }
 
         let viewport = monitor.workingFrame
         let display = monitor.frame
@@ -445,7 +445,7 @@ enum NiriWindowMoveResult {
             let hiddenSide = hiddenNowSide.map { "\($0)" }
                 ?? previousOffscreenSide.map { "\($0)" }
                 ?? "nil"
-            controller.recordRuntimeViewportTrace(
+            controller.diagnostics.recordRuntimeViewportTrace(
                 workspaceId: workspaceId,
                 reason: "spring_frame_classification",
                 details: [
@@ -645,7 +645,7 @@ enum NiriWindowMoveResult {
             let column = node.flatMap { pass.engine.column(of: $0) }
             let columnIndex = column.flatMap { pass.engine.columnIndex(of: $0, in: pass.wsId) }
             let columnTokens = column?.windowNodes.map { String(describing: $0.token) }.joined(separator: ",") ?? "nil"
-            controller?.recordRuntimeInsertionTrace([
+            controller?.diagnostics.recordRuntimeInsertionTrace([
                 "workspace=\(pass.wsId.uuidString)",
                 "token=\(newToken)",
                 "beforeColumns=\(columnsBeforeSync.count)",
@@ -2030,7 +2030,7 @@ enum NiriWindowMoveResult {
         engine.renderStyle.tabIndicatorWidth = TabbedColumnOverlayManager.tabIndicatorWidth
         engine.animationClock = controller.animationClock
         controller.setNiriEngine(engine)
-        controller.syncNiriResizeTraceSink()
+        controller.diagnostics.syncNiriResizeTraceSink()
 
         syncMonitorsToNiriEngine()
 

@@ -584,7 +584,7 @@ final class WorkspaceNavigationHandler {
                     targetFocusedToken: nil
                 )
                 if engineSourceWsId != sourceWsId {
-                    controller.recordRuntimeViewportTrace(
+                    controller.diagnostics.recordRuntimeViewportTrace(
                         workspaceId: sourceWsId,
                         reason: "window_transfer_source_repaired",
                         details: [
@@ -597,7 +597,7 @@ final class WorkspaceNavigationHandler {
                 }
                 movedWithNiri = true
             } else {
-                controller.recordRuntimeViewportTrace(
+                controller.diagnostics.recordRuntimeViewportTrace(
                     workspaceId: sourceWsId,
                     reason: "window_transfer_niri_move_failed",
                     details: [
@@ -655,7 +655,7 @@ final class WorkspaceNavigationHandler {
         }
 
         if !succeeded, let sourceWsId {
-            controller.recordRuntimeViewportTrace(
+            controller.diagnostics.recordRuntimeViewportTrace(
                 workspaceId: sourceWsId,
                 reason: "window_transfer_rejected",
                 details: [
@@ -1033,7 +1033,7 @@ final class WorkspaceNavigationHandler {
         else { return }
         let assignedTargetMonitorId = controller.workspaceManager.monitorId(for: targetWsId)
         guard assignedTargetMonitorId == targetMonitor.id else {
-            controller.recordRuntimeViewportTrace(
+            controller.diagnostics.recordRuntimeViewportTrace(
                 workspaceId: currentWorkspaceId,
                 reason: "window_transfer_rejected_workspace_monitor_mismatch",
                 details: [

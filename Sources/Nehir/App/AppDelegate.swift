@@ -102,7 +102,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             controller.setOnboardingActive(true)
         }
         if enableTracing {
-            _ = controller.toggleRuntimeTraceCapture(desiredState: .active)
+            _ = controller.diagnostics.toggleRuntimeTraceCapture(desiredState: .active)
         }
         controller.applyPersistedSettings(settings)
         let cliManager = AppCLIManager()

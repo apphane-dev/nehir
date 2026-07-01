@@ -256,7 +256,7 @@ final class IPCQueryRouter {
     }
 
     func focusedWindowDecisionResult() -> IPCFocusedWindowDecisionQueryResult {
-        guard let snapshot = controller.focusedWindowDecisionDebugSnapshot() else {
+        guard let snapshot = controller.diagnostics.focusedWindowDecisionDebugSnapshot() else {
             return IPCFocusedWindowDecisionQueryResult(window: nil)
         }
 

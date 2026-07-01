@@ -201,10 +201,10 @@ final class IPCCommandRouter {
             return controller.commandHandler.performCommand(.debugRestartClearingRuntimeState)
         case .debugToggleTraceCapture(let desiredState):
             guard controller.settings.developerModeEnabled else { return .requiresDeveloperMode }
-            return controller.toggleRuntimeTraceCapture(desiredState: desiredState)
+            return controller.diagnostics.toggleRuntimeTraceCapture(desiredState: desiredState)
         case .debugCaptureRecentTrace:
             guard controller.settings.developerModeEnabled else { return .requiresDeveloperMode }
-            return controller.captureRecentBackgroundTrace()
+            return controller.diagnostics.captureRecentBackgroundTrace()
         case .toggleFocusFollowsMouse:
             return controller.commandHandler.performCommand(.toggleFocusFollowsMouse)
         case .toggleFocusFollowsWindowToMonitor:

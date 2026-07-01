@@ -832,8 +832,8 @@ final class MouseEventHandler {
     }
 
     private func traceMouseFocus(_ message: @autoclosure () -> String) {
-        guard controller?.isRuntimeTraceCaptureActive == true else { return }
-        controller?.recordRuntimeMouseTrace(message())
+        guard controller?.diagnostics.isRuntimeTraceCaptureActive == true else { return }
+        controller?.diagnostics.recordRuntimeMouseTrace(message())
     }
 
     // Emits a `gesture.skip reason=...` mouse-trace record at every point where a trackpad
@@ -1704,13 +1704,13 @@ final class MouseEventHandler {
             }
             let viewportState = controller.workspaceManager.niriViewportState(for: currentContext.wsId)
             if !viewportState.viewOffsetPixels.isGesture, viewportState.viewOffsetPixels.isAnimating {
-                controller.recordRuntimeViewportTrace(
+                controller.diagnostics.recordRuntimeViewportTrace(
                     workspaceId: currentContext.wsId,
                     reason: "touch_scroll_gesture_armed_with_preexisting_animation",
                     details: armedTraceDetails
                 )
             }
-            controller.recordRuntimeViewportTrace(
+            controller.diagnostics.recordRuntimeViewportTrace(
                 workspaceId: currentContext.wsId,
                 reason: "touch_scroll_gesture_armed",
                 details: armedTraceDetails
@@ -1792,7 +1792,7 @@ final class MouseEventHandler {
                 state.commitCumulativeY = cumulativeY
                 state.commitRawDeltaX = cumulativeX
                 state.commitInputPhaseName = Self.gesturePhaseName(phase)
-                controller.recordRuntimeViewportTrace(
+                controller.diagnostics.recordRuntimeViewportTrace(
                     workspaceId: wsId,
                     reason: "touch_scroll_gesture_committed",
                     details: [
@@ -1885,7 +1885,7 @@ final class MouseEventHandler {
                 if isFirstUpdateAfterCommit {
                     updateDetails.append("firstUpdate=true")
                 }
-                controller.recordRuntimeViewportTrace(
+                controller.diagnostics.recordRuntimeViewportTrace(
                     workspaceId: wsId,
                     reason: "touch_scroll_gesture_update",
                     details: updateDetails
@@ -1916,7 +1916,7 @@ final class MouseEventHandler {
         var wouldDeadZoneDelta = signedOvershoot * sensitivity
         if invert { wouldDeadZoneDelta = -wouldDeadZoneDelta }
         let includesRecognitionDebt = abs(appliedDelta - wouldDeadZoneDelta) > 0.001
-        controller.recordRuntimeViewportTrace(
+        controller.diagnostics.recordRuntimeViewportTrace(
             workspaceId: wsId,
             reason: "touch_scroll_gesture_first_update",
             details: [
@@ -1995,7 +1995,7 @@ final class MouseEventHandler {
         }
 
         if didApply {
-            controller.recordRuntimeViewportTrace(workspaceId: wsId, reason: "wheel_tick")
+            controller.diagnostics.recordRuntimeViewportTrace(workspaceId: wsId, reason: "wheel_tick")
             controller.layoutRefreshController.requestRefresh(reason: .interactiveGesture)
             if shouldStartAnimation {
                 controller.layoutRefreshController.startScrollAnimation(for: wsId)
@@ -2137,7 +2137,7 @@ final class MouseEventHandler {
                 details.append(String(format: "diagnosticClampScreens=%.3f", maxTrackpadGestureProjectionScreens))
                 details.append(String(format: "clampedProjectedViewStart=%.3f", projectedViewStart))
                 details.append("clampedTargetColumn=\(closestSnap.map { String($0.columnIndex) } ?? "nil")")
-                controller.recordRuntimeViewportTrace(
+                controller.diagnostics.recordRuntimeViewportTrace(
                     workspaceId: wsId,
                     reason: "touch_scroll_gesture_end_candidate",
                     details: details
@@ -2190,7 +2190,7 @@ final class MouseEventHandler {
         } else {
             focusSelectionDisposition = "skippedNoManagedTarget"
         }
-        controller.recordRuntimeViewportTrace(
+        controller.diagnostics.recordRuntimeViewportTrace(
             workspaceId: wsId,
             reason: "touch_scroll_gesture_end",
             details: [
@@ -2249,7 +2249,7 @@ final class MouseEventHandler {
             didCancel = true
         }
         if didCancel {
-            controller.recordRuntimeViewportTrace(workspaceId: wsId, reason: "gesture_cancel")
+            controller.diagnostics.recordRuntimeViewportTrace(workspaceId: wsId, reason: "gesture_cancel")
             controller.layoutRefreshController.requestRefresh(reason: .interactiveGesture)
         }
     }
@@ -2261,7 +2261,7 @@ final class MouseEventHandler {
             // trace stream alongside the armed/committed/end records so an "eaten" swipe
             // (#53) is visible. Purely additive: a no-op unless trace capture is active.
             if let wsId = state.lockedGestureContext?.workspaceId, let controller {
-                controller.recordRuntimeViewportTrace(
+                controller.diagnostics.recordRuntimeViewportTrace(
                     workspaceId: wsId,
                     reason: "touch_scroll_gesture_abort",
                     details: [
@@ -2487,7 +2487,7 @@ final class MouseEventHandler {
         resolved: Int?,
         location: CGPoint
     ) {
-        guard controller?.isRuntimeTraceCaptureActive == true else { return }
+        guard controller?.diagnostics.isRuntimeTraceCaptureActive == true else { return }
         traceMouseFocus(
             "tap.mouseMoved direct=\(direct) canHandle=\(canHandle) resolved=\(resolved.map(String.init) ?? "nil") loc=\(formatPoint(location))"
         )

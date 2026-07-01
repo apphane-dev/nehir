@@ -1383,7 +1383,7 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
             overlayProbeCount += 1
             return true
         }
-        controller.toggleRuntimeTraceCapture(desiredState: .active)
+        controller.diagnostics.toggleRuntimeTraceCapture(desiredState: .active)
 
         handler.receiveTapGestureEvent(
             .init(
@@ -1402,8 +1402,8 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
             )
         )
 
-        let mouseTraces = controller.runtimeMouseTraceRecordsForTests()
-        let viewportTraces = controller.runtimeViewportTraceRecordsForTests()
+        let mouseTraces = controller.diagnostics.runtimeMouseTraceRecordsForTests()
+        let viewportTraces = controller.diagnostics.runtimeViewportTraceRecordsForTests()
         #expect(overlayProbeCount == 0)
         #expect(mouseTraces.contains { $0.contains("gesture.skip reason=unmanagedOverlay") } == false)
         #expect(mouseTraces.contains { $0.contains("gesture.skip reason=suppressed") } == false)
@@ -1424,7 +1424,7 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
             snapshotCalls += 1
             return []
         }
-        controller.toggleRuntimeTraceCapture(desiredState: .active)
+        controller.diagnostics.toggleRuntimeTraceCapture(desiredState: .active)
 
         handler.receiveTapGestureEvent(
             .init(
@@ -1445,7 +1445,7 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
             )
         )
 
-        let mouseTraces = controller.runtimeMouseTraceRecordsForTests()
+        let mouseTraces = controller.diagnostics.runtimeMouseTraceRecordsForTests()
         #expect(snapshotCalls == 0)
         #expect(mouseTraces.contains {
             $0.contains("gesture.skip reason=unmanagedOverlay")
@@ -3176,7 +3176,7 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
         let controller = fixture.controller
         let handler = fixture.handler
 
-        controller.toggleRuntimeTraceCapture(desiredState: .active)
+        controller.diagnostics.toggleRuntimeTraceCapture(desiredState: .active)
 
         // 4 active touches vs requiredFingers 3 → matcher returns nil → overCount skip.
         handler.receiveTapGestureEvent(
@@ -3188,7 +3188,7 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
             )
         )
 
-        let mouseTraces = controller.runtimeMouseTraceRecordsForTests()
+        let mouseTraces = controller.diagnostics.runtimeMouseTraceRecordsForTests()
         #expect(mouseTraces.contains { $0.contains("gesture.skip reason=overCount") })
     }
 
@@ -3198,7 +3198,7 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
         let handler = fixture.handler
         let baseTime = CACurrentMediaTime()
 
-        controller.toggleRuntimeTraceCapture(desiredState: .active)
+        controller.diagnostics.toggleRuntimeTraceCapture(desiredState: .active)
 
         // Arm with a horizontal 3-finger began.
         handler.receiveTapGestureEvent(
@@ -3221,10 +3221,10 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
             )
         )
 
-        let mouseTraces = controller.runtimeMouseTraceRecordsForTests()
+        let mouseTraces = controller.diagnostics.runtimeMouseTraceRecordsForTests()
         #expect(mouseTraces.contains { $0.contains("gesture.skip reason=nonHorizontal") })
 
-        let viewportTraces = controller.runtimeViewportTraceRecordsForTests()
+        let viewportTraces = controller.diagnostics.runtimeViewportTraceRecordsForTests()
         #expect(viewportTraces.contains { $0.contains("reason=touch_scroll_gesture_abort") })
     }
 

@@ -284,7 +284,7 @@ import QuartzCore
         }
 
         guard let displayLink = getOrCreateDisplayLink(for: targetDisplayId) else {
-            controller.recordRuntimeViewportTrace(
+            controller.diagnostics.recordRuntimeViewportTrace(
                 workspaceId: workspaceId,
                 reason: "scroll_animation_start_failed",
                 details: [
@@ -295,7 +295,7 @@ import QuartzCore
             return
         }
         let didRegister = niriHandler.registerScrollAnimation(workspaceId, on: targetDisplayId)
-        controller.recordRuntimeViewportTrace(
+        controller.diagnostics.recordRuntimeViewportTrace(
             workspaceId: workspaceId,
             reason: didRegister ? "scroll_animation_start" : "scroll_animation_start_skipped",
             details: [
@@ -312,7 +312,7 @@ import QuartzCore
     func stopScrollAnimation(for displayId: CGDirectDisplayID) {
         let workspaceId = niriHandler.scrollAnimationByDisplay.removeValue(forKey: displayId)
         if let workspaceId, let controller {
-            controller.recordRuntimeViewportTrace(
+            controller.diagnostics.recordRuntimeViewportTrace(
                 workspaceId: workspaceId,
                 reason: "scroll_animation_stop",
                 details: ["displayId=\(displayId)"]
@@ -665,7 +665,7 @@ import QuartzCore
                       !controller.workspaceManager.hasPendingNativeFullscreenTransition
                 else { continue }
                 if let workspaceId = controller.workspaceManager.workspace(for: token) {
-                    controller.recordNiriCreateFocusTrace(
+                    controller.diagnostics.recordNiriCreateFocusTrace(
                         .relayoutActivatedWindow(
                             token: token,
                             workspaceId: workspaceId
@@ -1544,7 +1544,7 @@ import QuartzCore
                 else { continue }
                 seenKeys.insert(.init(pid: entry.handle.pid, windowId: entry.windowId))
                 inactiveSpaceExemptions += 1
-                controller.recordRuntimeInsertionTrace(
+                controller.diagnostics.recordRuntimeInsertionTrace(
                     "spaceTopology.exempt windowId=\(entry.windowId) pid=\(entry.handle.pid) mode=\(spaceTopology.mode.rawValue)"
                 )
             }
@@ -2512,7 +2512,7 @@ import QuartzCore
         hiddenPlacementMonitors: [HiddenPlacementMonitorContext]? = nil,
         trigger: String
     ) {
-        guard let controller, controller.isRuntimeTraceCaptureActive else { return }
+        guard let controller, controller.diagnostics.isRuntimeTraceCaptureActive else { return }
         guard let line = workspaceInactiveVisibleDriftLine(
             entry,
             monitor: monitor,
@@ -2523,7 +2523,7 @@ import QuartzCore
         ) else { return }
 
         controller.axManager.recordFrameApplyTrace(line)
-        controller.recordRuntimeViewportTrace(
+        controller.diagnostics.recordRuntimeViewportTrace(
             workspaceId: entry.workspaceId,
             reason: "workspaceInactiveVisibleDrift",
             details: [line]
@@ -2603,7 +2603,7 @@ import QuartzCore
     ) -> String? {
         guard let controller else { return nil }
         if requireTraceCapture {
-            guard controller.isRuntimeTraceCaptureActive else { return nil }
+            guard controller.diagnostics.isRuntimeTraceCaptureActive else { return nil }
         }
         // A global (all-Spaces) window is deliberately left visible across workspace
         // switches; it must never be accused as inactive-while-visible bleed.
@@ -2699,7 +2699,7 @@ import QuartzCore
         observedFrame: CGRect?,
         backend: String
     ) {
-        guard let controller, controller.isRuntimeTraceCaptureActive else { return }
+        guard let controller, controller.diagnostics.isRuntimeTraceCaptureActive else { return }
         let monitor = plan.displayId.flatMap { displayId -> Monitor? in
             controller.workspaceManager.monitors.first { $0.displayId == displayId }
         }
@@ -2754,7 +2754,7 @@ import QuartzCore
         plan: WindowPositionPlan,
         parkedFrame: CGRect
     ) {
-        guard let controller, controller.isRuntimeTraceCaptureActive else { return }
+        guard let controller, controller.diagnostics.isRuntimeTraceCaptureActive else { return }
         guard let replacementFrame = plan.entry.managedReplacementMetadata?.frame else { return }
         let dx = replacementFrame.origin.x - parkedFrame.origin.x
         let dy = replacementFrame.origin.y - parkedFrame.origin.y
