@@ -7,6 +7,19 @@
 import CoreGraphics
 import Foundation
 
+enum GapLimits {
+    /// Inclusive range enforced for resolved inner and outer gaps, in points.
+    /// Values set in `settings.toml` or monitor overrides up to this ceiling are
+    /// honored by the layout resolver.
+    static let range: ClosedRange<Double> = 0 ... 256
+
+    /// Interactive range exposed by the Settings sliders. Deliberately narrower
+    /// than `range` to keep the control ergonomic: values above this still apply
+    /// (from `settings.toml` or monitor overrides) and render at their true value,
+    /// with the slider thumb pinned at the upper bound.
+    static let sliderRange: ClosedRange<Double> = 0 ... 64
+}
+
 struct MonitorGapSettings: MonitorSettingsType {
     let id: UUID
     var monitorName: String

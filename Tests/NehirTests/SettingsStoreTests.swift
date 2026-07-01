@@ -268,6 +268,48 @@ struct MonitorSettingsStoreTests {
     }
 }
 
+@MainActor struct GapSettingsResolutionTests {
+    @Test func resolvedGapSettingsHonorNamedRange() {
+        let settings = SettingsStore(defaults: makeTestDefaults())
+        let monitor = makeSettingsTestMonitor(displayId: 119, name: "Gap Display")
+
+        settings.outerGapBottom = 400
+        var resolved = settings.resolvedGapSettings(for: monitor)
+        #expect(resolved.outerGapBottom == GapLimits.range.upperBound)
+
+        settings.outerGapBottom = GapLimits.range.upperBound
+        resolved = settings.resolvedGapSettings(for: monitor)
+        #expect(resolved.outerGapBottom == GapLimits.range.upperBound)
+
+        settings.outerGapBottom = 64
+        resolved = settings.resolvedGapSettings(for: monitor)
+        #expect(resolved.outerGapBottom == 64)
+    }
+
+    @Test func resolvedGapSettingsClampMonitorOverrides() {
+        let settings = SettingsStore(defaults: makeTestDefaults())
+        let monitor = makeSettingsTestMonitor(displayId: 120, name: "Override Display")
+        settings.updateGapSettings(
+            MonitorGapSettings(
+                monitorName: monitor.name,
+                monitorDisplayId: monitor.displayId,
+                outerGapTop: 400
+            )
+        )
+
+        let resolved = settings.resolvedGapSettings(for: monitor)
+        #expect(resolved.outerGapTop == GapLimits.range.upperBound)
+    }
+
+    @Test func sliderRangeIsNarrowerThanResolverRange() {
+        // UI sliders cap below the resolver ceiling to stay ergonomic; values above
+        // the slider cap still apply from settings.toml / monitor overrides and are
+        // rendered at their true value with the thumb pinned at the upper bound.
+        #expect(GapLimits.sliderRange.upperBound < GapLimits.range.upperBound)
+        #expect(GapLimits.sliderRange.lowerBound == GapLimits.range.lowerBound)
+    }
+}
+
 @MainActor struct PersistedWindowRestoreCatalogSettingsTests {
     @Test func persistedRestoreCatalogRoundTripsThroughRuntimeStateStore() {
         let defaults = makeTestDefaults()
