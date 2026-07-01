@@ -2,7 +2,14 @@
 
 ## Status
 
-Planned.
+Completed — shipped on `main` as `4120e545` ("Keep inactive monitor overrides
+visible"; changeset "Keep disconnected monitor overrides inactive and visible in
+Niri settings") on 2026-06-30. Both halves landed: identity matching was rewritten
+to resolve by name and anchor first and to disambiguate reused `displayId` handles
+(`Sources/Nehir/Core/Config/MonitorSettingsType.swift`,
+`Tests/NehirTests/MonitorIdentityMatchingTests.swift`), and the settings UI now
+keeps disconnected/inactive overrides visible instead of hiding them. Moved from
+`planned/` to `completed/` on 2026-07-01.
 
 ## Problem
 
