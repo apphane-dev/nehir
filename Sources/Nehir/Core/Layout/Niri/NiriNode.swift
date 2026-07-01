@@ -254,6 +254,12 @@ class NiriNode {
     var frame: CGRect?
     var renderedFrame: CGRect?
 
+    /// Where this node is on screen right now: the in-flight rendered frame
+    /// when an animation owns it, otherwise the committed layout frame.
+    var preferredFrame: CGRect? {
+        renderedFrame ?? frame
+    }
+
     init() {
         id = NodeId()
     }

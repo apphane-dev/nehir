@@ -15,19 +15,20 @@ import Foundation
 /// `WMController`, which forwards to `niriEngine`.
 ///
 /// The member set is the interactive-cancel surface (the two ops
-/// `MouseEventHandler` pokes the engine with) plus the focus-fullscreen read
-/// consumed by focus-dependent UI (`FocusBorderController`). Broader engine
-/// reads — whole-layout snapshots, refresh-pipeline relayout, lifecycle /
-/// topology sync, rendered-frame lookups — are assessed in Phase 4 and
-/// deliberately stay off this protocol; they are infrastructure, not the
-/// interactive-mode boundary.
+/// `MouseEventHandler` pokes the engine with) plus the focus-dependent reads
+/// consumed by focus UI (`FocusBorderController`, keyboard-focus border
+/// rendering): the fullscreen check and the on-screen frame query. Broader
+/// engine reads — whole-layout snapshots, refresh-pipeline relayout,
+/// lifecycle / topology sync — deliberately stay off this protocol; they are
+/// infrastructure, not the interactive-mode boundary.
 @MainActor protocol FocusCoordinator: AnyObject {
     /// Cancel an in-flight interactive move (mouse drag).
     func interactiveMoveCancel()
     /// Tear down any active interactive resize session.
     func clearInteractiveResize()
-    /// Read-only focus query: the layout node backing a window token, if any.
-    func focusedNode(for token: WindowToken) -> NiriNode?
+    /// Where the window backing `token` is on screen right now: the in-flight
+    /// rendered frame during animation, else the committed layout frame.
+    func preferredFrame(for token: WindowToken) -> CGRect?
     /// Whether the window backing `token` is currently laid out fullscreen.
     func isFocusedWindowFullscreen(_ token: WindowToken) -> Bool
 }
@@ -44,10 +45,8 @@ extension WMController: FocusCoordinator {
         niriEngine?.clearInteractiveResize()
     }
 
-    // `NiriLayoutEngine.findNode(for:)` returns `NiriWindow?`; returning it as
-    // `NiriNode?` is a covariant upcast (`NiriWindow: NiriNode`).
-    func focusedNode(for token: WindowToken) -> NiriNode? {
-        niriEngine?.findNode(for: token)
+    func preferredFrame(for token: WindowToken) -> CGRect? {
+        niriEngine?.findNode(for: token)?.preferredFrame
     }
 
     func isFocusedWindowFullscreen(_ token: WindowToken) -> Bool {

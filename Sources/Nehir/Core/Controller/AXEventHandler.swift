@@ -2417,7 +2417,7 @@ final class AXEventHandler: CGSEventDelegate {
            let node = engine.findNode(for: entry.handle),
            let _ = controller.workspaceManager.monitor(for: wsId)
         {
-            let preferredFrame = node.renderedFrame ?? node.frame
+            let preferredFrame = node.preferredFrame
             preferredMouseFrame = preferredFrame
             var state = controller.workspaceManager.niriViewportState(for: wsId)
             let now = Date()
@@ -4070,7 +4070,7 @@ final class AXEventHandler: CGSEventDelegate {
         guard let controller else { return }
         guard controller.currentBorderTarget()?.token == entry.token else { return }
 
-        let preferredFrame = controller.niriEngine?.findNode(for: entry.token).flatMap { $0.renderedFrame ?? $0.frame }
+        let preferredFrame = controller.focusCoordinator.preferredFrame(for: entry.token)
             ?? frameProvider?(entry.axRef)
         if let preferredFrame {
             _ = controller.focusBorderController.updateFrameHint(for: entry.token, frame: preferredFrame)

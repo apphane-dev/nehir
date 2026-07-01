@@ -178,11 +178,8 @@ enum NiriWindowMoveResult {
         springFrameClassificationSamples.removeAll(keepingCapacity: true)
 
         let focusedTarget = controller.currentBorderTarget()
-        let preferredFrame: CGRect? = if let focusedTarget,
-                                         focusedTarget.isManaged,
-                                         let node = controller.niriEngine?.findNode(for: focusedTarget.token)
-        {
-            node.renderedFrame ?? node.frame
+        let preferredFrame: CGRect? = if let focusedTarget, focusedTarget.isManaged {
+            controller.focusCoordinator.preferredFrame(for: focusedTarget.token)
         } else {
             nil
         }
@@ -1279,7 +1276,7 @@ enum NiriWindowMoveResult {
         guard let controller else { return [] }
         var infos: [TabbedColumnOverlayInfo] = []
         for column in engine.columns(in: workspaceId) where column.isEffectivelyTabbed {
-            guard let frame = column.renderedFrame ?? column.frame else { continue }
+            guard let frame = column.preferredFrame else { continue }
             let visibleColumnFrame = frame.intersection(monitor.visibleFrame)
             guard TabbedColumnOverlayManager.shouldShowOverlay(
                 columnFrame: frame,
@@ -2143,7 +2140,7 @@ enum NiriWindowMoveResult {
             {
                 _ = controller.renderKeyboardFocusBorder(
                     for: target,
-                    preferredFrame: windowNode.renderedFrame ?? windowNode.frame,
+                    preferredFrame: windowNode.preferredFrame,
                     forceOrdering: false
                 )
             }
