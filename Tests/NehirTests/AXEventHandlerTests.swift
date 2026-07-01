@@ -9,6 +9,7 @@ import ApplicationServices
 import CoreGraphics
 import Foundation
 @testable import Nehir
+import QuartzCore
 import Testing
 
 private func makeAXEventTestDefaults() -> UserDefaults {
@@ -1023,6 +1024,13 @@ private func waitUntilAXEventTest(
         }
 
         let springTarget = CGFloat(-700)
+        // Anchor the spring's startTime at "now" so it is genuinely mid-flight
+        // (current != target) when activation runs immediately after, rather
+        // than already converged by real wall-clock time - this is what
+        // preserveActiveViewport's isGesture/isAnimating clause is meant to
+        // protect (a settled-but-still-`.spring` offset is covered by the
+        // settled-spring tests instead).
+        let springStart = CACurrentMediaTime()
         controller.workspaceManager.withNiriViewportState(for: workspaceId) { state in
             state.selectedNodeId = oldNode.id
             state.activeColumnIndex = 0
@@ -1031,7 +1039,7 @@ private func waitUntilAXEventTest(
                     from: -900,
                     to: Double(springTarget),
                     initialVelocity: 9_000,
-                    startTime: 0,
+                    startTime: springStart,
                     config: .snappy
                 )
             )
@@ -1046,10 +1054,266 @@ private func waitUntilAXEventTest(
 
         let updatedState = controller.workspaceManager.niriViewportState(for: workspaceId)
         #expect(updatedState.selectedNodeId == newNode.id)
-        #expect(updatedState.activeColumnIndex == 0)
+        // The genuinely in-flight spring still blocks the focus-confirm step's
+        // own reveal (preserveActiveViewport stays true), but Phase 1 keeps
+        // activeColumnIndex synced to the activated node's real column
+        // regardless - anchor-preserving, so the spring's target shifts by
+        // exactly the old/new anchor's position delta and the visual
+        // trajectory is unchanged.
+        #expect(updatedState.activeColumnIndex == 1)
         #expect(updatedState.viewOffsetPixels.isAnimating)
-        #expect(updatedState.viewOffsetPixels.target() == springTarget)
+        let columns = engine.columns(in: workspaceId)
+        let gap = controller.gapSize(for: monitor)
+        let expectedTarget = springTarget
+            + updatedState.columnX(at: 0, columns: columns, gap: gap)
+            - updatedState.columnX(at: 1, columns: columns, gap: gap)
+        #expect(abs(updatedState.viewOffsetPixels.target() - expectedTarget) < 0.5)
         #expect(controller.workspaceManager.confirmedManagedFocusToken == newToken)
+    }
+
+    // MARK: - Focus-confirm reveal vs. follow-up relayout (settled-spring / clipped-column repros)
+
+    private struct ClippedColumnFocusFixture {
+        let controller: WMController
+        let workspaceId: WorkspaceDescriptor.ID
+        let engine: NiriLayoutEngine
+        let clippedNode: NiriWindow
+        let clippedEntry: WindowModel.Entry
+        let gap: CGFloat
+        let workingFrame: CGRect
+    }
+
+    @MainActor
+    private func makeClippedColumnFocusFixture(initialOffset: ViewOffset) async -> ClippedColumnFocusFixture? {
+        let controller = makeAXEventTestController()
+        guard let monitor = controller.workspaceManager.monitors.first,
+              let workspaceId = controller.workspaceManager.activeWorkspaceOrFirst(on: monitor.id)?.id
+        else {
+            Issue.record("Missing monitor or workspace for clipped-column focus fixture")
+            return nil
+        }
+
+        controller.enableNiriLayout()
+        controller.updateNiriConfig(balancedColumnCount: 1)
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+        controller.syncMonitorsToNiriEngine()
+        guard let engine = controller.niriEngine else {
+            Issue.record("Missing Niri engine for clipped-column focus fixture")
+            return nil
+        }
+
+        let appPid: pid_t = 9_900
+        let activeToken = controller.workspaceManager.addWindow(
+            AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: 9_901),
+            pid: appPid,
+            windowId: 9_901,
+            to: workspaceId
+        )
+        let clippedToken = controller.workspaceManager.addWindow(
+            AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: 9_902),
+            pid: appPid,
+            windowId: 9_902,
+            to: workspaceId
+        )
+        guard let clippedEntry = controller.workspaceManager.entry(for: clippedToken) else {
+            Issue.record("Missing entry for clipped-column focus fixture")
+            return nil
+        }
+
+        let activeNode = engine.addWindow(
+            token: activeToken,
+            to: workspaceId,
+            afterSelection: nil,
+            focusedToken: activeToken
+        )
+        let clippedNode = engine.addWindow(
+            token: clippedToken,
+            to: workspaceId,
+            afterSelection: activeNode.id,
+            focusedToken: activeToken
+        )
+
+        let workingFrame = controller.insetWorkingFrame(for: monitor)
+        let gap = controller.gapSize(for: monitor)
+        // Each column is wide enough that the second one straddles the
+        // working frame's trailing edge when the viewport is anchored at the
+        // first column with zero offset - i.e. clipped, not fully visible
+        // and not parked.
+        let columnWidth = workingFrame.width * 0.7
+        for column in engine.columns(in: workspaceId) {
+            column.cachedWidth = columnWidth
+            column.cachedHeight = workingFrame.height
+        }
+
+        _ = controller.workspaceManager.setManagedFocus(activeToken, in: workspaceId, onMonitor: monitor.id)
+        controller.workspaceManager.withNiriViewportState(for: workspaceId) { state in
+            state.selectedNodeId = activeNode.id
+            state.activeColumnIndex = 0
+            state.viewOffsetPixels = initialOffset
+        }
+
+        return ClippedColumnFocusFixture(
+            controller: controller,
+            workspaceId: workspaceId,
+            engine: engine,
+            clippedNode: clippedNode,
+            clippedEntry: clippedEntry,
+            gap: gap,
+            workingFrame: workingFrame
+        )
+    }
+
+    @Test @MainActor func focusConfirmationRevealsClippedColumnWhenPriorSpringHasSettled() async {
+        // Repro 1: a prior relayout's spring has visually converged
+        // (current == target) but is still represented as `.spring`, so
+        // `isAnimating` reads true. Phase 2 must not let that settle-tail
+        // suppress this step's own reveal of a different, clipped column.
+        let convergedSpring = ViewOffset.spring(
+            SpringAnimation(from: 0, to: 0, initialVelocity: 0, startTime: 0, config: .snappy)
+        )
+        guard let fixture = await makeClippedColumnFocusFixture(initialOffset: convergedSpring) else {
+            return
+        }
+
+        let columns = fixture.engine.columns(in: fixture.workspaceId)
+        let preState = fixture.controller.workspaceManager.niriViewportState(for: fixture.workspaceId)
+        #expect(preState.viewOffsetPixels.isAnimating)
+        #expect(abs(preState.viewOffsetPixels.current() - preState.viewOffsetPixels.target()) < 0.01)
+
+        let preContext = fixture.engine.makeViewportSnapContext(
+            columns: columns,
+            state: preState,
+            workingFrame: fixture.workingFrame,
+            gaps: fixture.gap,
+            intentionallyDoesNotFillViewport: false
+        )
+        let preViewStart = preContext.currentViewStart(in: preState)
+        guard case .clipped = preContext.visibility(of: 1, viewportOffset: preViewStart, in: preState) else {
+            Issue.record("Expected target column to be clipped before activation")
+            return
+        }
+
+        fixture.controller.axEventHandler.handleManagedAppActivation(
+            entry: fixture.clippedEntry,
+            isWorkspaceActive: true,
+            appFullscreen: false,
+            source: .focusedWindowChanged
+        )
+
+        let confirmedState = fixture.controller.workspaceManager.niriViewportState(for: fixture.workspaceId)
+        #expect(confirmedState.activeColumnIndex == 1)
+        #expect(confirmedState.selectedNodeId == fixture.clippedNode.id)
+        // The focus-confirm step's own reveal must have moved the viewport,
+        // not left it parked at the stale spring's converged target.
+        #expect(abs(confirmedState.viewOffsetPixels.target() - 0) > 0.5)
+
+        let confirmedContext = fixture.engine.makeViewportSnapContext(
+            columns: columns,
+            state: confirmedState,
+            workingFrame: fixture.workingFrame,
+            gaps: fixture.gap,
+            intentionallyDoesNotFillViewport: false
+        )
+        let confirmedViewStart = confirmedContext.currentViewStart(in: confirmedState)
+        #expect(
+            confirmedContext.visibility(of: 1, viewportOffset: confirmedViewStart, in: confirmedState)
+                == .fullyVisible
+        )
+
+        let targetAfterConfirm = confirmedState.viewOffsetPixels.target()
+        await fixture.controller.layoutRefreshController.waitForRefreshWorkForTests()
+
+        let settledState = fixture.controller.workspaceManager.niriViewportState(for: fixture.workspaceId)
+        // The relayout the focus-confirm step unconditionally requests must
+        // not perform a second, independent move (an instant rebase plus a
+        // separate centering spring) on top of the one just produced.
+        #expect(settledState.activeColumnIndex == 1)
+        #expect(abs(settledState.viewOffsetPixels.target() - targetAfterConfirm) < 0.5)
+    }
+
+    @Test @MainActor func focusConfirmationHonorsRevealPartialPolicyIdenticallyForSettledSpringAndStatic() async {
+        // Mirrors the existing fully-visible no-op coverage (0602387d), but
+        // for a clipped target column: a converged-but-still-`.spring`
+        // offset must produce exactly the same reveal as a `.static` offset
+        // at the same value, proving Phase 2 doesn't change reveal policy,
+        // only which code path applies it.
+        guard let staticFixture = await makeClippedColumnFocusFixture(initialOffset: .static(0)) else {
+            return
+        }
+        let convergedSpring = ViewOffset.spring(
+            SpringAnimation(from: 0, to: 0, initialVelocity: 0, startTime: 0, config: .snappy)
+        )
+        guard let springFixture = await makeClippedColumnFocusFixture(initialOffset: convergedSpring) else {
+            return
+        }
+
+        staticFixture.controller.axEventHandler.handleManagedAppActivation(
+            entry: staticFixture.clippedEntry,
+            isWorkspaceActive: true,
+            appFullscreen: false,
+            source: .focusedWindowChanged
+        )
+        springFixture.controller.axEventHandler.handleManagedAppActivation(
+            entry: springFixture.clippedEntry,
+            isWorkspaceActive: true,
+            appFullscreen: false,
+            source: .focusedWindowChanged
+        )
+
+        let staticState = staticFixture.controller.workspaceManager.niriViewportState(for: staticFixture.workspaceId)
+        let springState = springFixture.controller.workspaceManager.niriViewportState(for: springFixture.workspaceId)
+
+        #expect(staticState.activeColumnIndex == springState.activeColumnIndex)
+        #expect(abs(staticState.viewOffsetPixels.target() - springState.viewOffsetPixels.target()) < 0.5)
+    }
+
+    @Test @MainActor func focusConfirmationOnClippedColumnIsNotRedoneByFollowUpRelayout() async {
+        // Repro 2 shape: no gesture, no animation (preserveActiveViewport is
+        // false from the start), so the focus-confirm reveal runs and
+        // succeeds immediately. Phase 1 must keep the follow-up relayout
+        // from re-deriving and re-applying its own move on top of it.
+        guard let fixture = await makeClippedColumnFocusFixture(initialOffset: .static(0)) else {
+            return
+        }
+
+        let columns = fixture.engine.columns(in: fixture.workspaceId)
+        let preState = fixture.controller.workspaceManager.niriViewportState(for: fixture.workspaceId)
+        #expect(!preState.viewOffsetPixels.isGesture)
+        #expect(!preState.viewOffsetPixels.isAnimating)
+
+        fixture.controller.axEventHandler.handleManagedAppActivation(
+            entry: fixture.clippedEntry,
+            isWorkspaceActive: true,
+            appFullscreen: false,
+            source: .focusedWindowChanged
+        )
+
+        let confirmedState = fixture.controller.workspaceManager.niriViewportState(for: fixture.workspaceId)
+        #expect(confirmedState.activeColumnIndex == 1)
+        #expect(confirmedState.selectedNodeId == fixture.clippedNode.id)
+
+        let confirmedContext = fixture.engine.makeViewportSnapContext(
+            columns: columns,
+            state: confirmedState,
+            workingFrame: fixture.workingFrame,
+            gaps: fixture.gap,
+            intentionallyDoesNotFillViewport: false
+        )
+        let confirmedViewStart = confirmedContext.currentViewStart(in: confirmedState)
+        #expect(
+            confirmedContext.visibility(of: 1, viewportOffset: confirmedViewStart, in: confirmedState)
+                == .fullyVisible
+        )
+
+        let targetAfterConfirm = confirmedState.viewOffsetPixels.target()
+        await fixture.controller.layoutRefreshController.waitForRefreshWorkForTests()
+
+        let settledState = fixture.controller.workspaceManager.niriViewportState(for: fixture.workspaceId)
+        // Phase 1: activeColumnIndex was already synced by the focus-confirm
+        // step, so the follow-up relayout's ensureSelectionVisible rebase is
+        // a true no-op and this is the only viewport motion observed.
+        #expect(settledState.activeColumnIndex == 1)
+        #expect(abs(settledState.viewOffsetPixels.target() - targetAfterConfirm) < 0.5)
     }
 
     @Test @MainActor func newAppActivationWaitsForFocusedWindowBeforeLeavingManagedFocus() async throws {
@@ -1585,6 +1849,15 @@ private func waitUntilAXEventTest(
             state.viewOffsetPixels = .static(-parkedOffset)
         }
 
+        let columns = engine.columns(in: workspaceId)
+        let gap = controller.gapSize(for: monitor)
+        let preActivationState = controller.workspaceManager.niriViewportState(for: workspaceId)
+        let preActivationViewStart = preActivationState.columnX(
+            at: preActivationState.activeColumnIndex,
+            columns: columns,
+            gap: gap
+        ) + preActivationState.viewOffsetPixels.target()
+
         controller.axEventHandler.handleManagedAppActivation(
             entry: focusedEntry,
             isWorkspaceActive: true,
@@ -1593,9 +1866,18 @@ private func waitUntilAXEventTest(
         )
 
         let updatedState = controller.workspaceManager.niriViewportState(for: workspaceId)
+        let updatedViewStart = updatedState.columnX(
+            at: updatedState.activeColumnIndex,
+            columns: columns,
+            gap: gap
+        ) + updatedState.viewOffsetPixels.target()
         // Re-confirmation of an already-confirmed token via focusedWindowChanged
-        // must not scroll the viewport back to the parked column.
-        #expect(abs(updatedState.viewOffsetPixels.target() - (-parkedOffset)) < 0.5)
+        // must not scroll the viewport back to the parked column. activeColumnIndex
+        // is now also kept synced to the reconfirmed token's real column (Phase 1),
+        // but that resync is anchor-preserving, so the visual position must be
+        // unchanged.
+        #expect(abs(updatedViewStart - preActivationViewStart) < 0.5)
+        #expect(updatedState.activeColumnIndex == 0)
         #expect(controller.workspaceManager.confirmedManagedFocusToken == focusedToken)
         #expect(updatedState.selectedNodeId == focusedNode.id)
     }
