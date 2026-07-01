@@ -396,7 +396,8 @@ enum NiriWindowMoveResult {
             if intersection.isNull || intersection.width <= 0 || intersection.height <= 0 {
                 bucket = "offscreen"
             } else if abs(intersection.width - frame.width) < 1.0,
-                      abs(intersection.height - frame.height) < 1.0 {
+                      abs(intersection.height - frame.height) < 1.0
+            {
                 bucket = "inside"
             } else {
                 bucket = "crossing"

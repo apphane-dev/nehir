@@ -1643,7 +1643,7 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
         #expect(updatedState.viewOffsetPixels.isGesture == false)
     }
 
-    @Test @MainActor func trackpadGestureCommitAppliesCumulativeArmedDelta() async {
+    @Test @MainActor func trackpadGestureCommitAppliesOnlyDeadZoneOvershoot() async {
         let fixture = await prepareMouseWheelScrollFixture()
         let controller = fixture.controller
         controller.settings.gestureInvertDirection = false
@@ -1685,13 +1685,14 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
             Issue.record("Expected in-flight viewport gesture after crossing threshold")
             return
         }
-        let expectedAppliedDelta = CGFloat((0.235 - 0.20) * 500.0) * viewportWidth / 1200.0
+        let cumulativeDelta = CGFloat((0.235 - 0.20) * 500.0)
+        let expectedAppliedDelta = (cumulativeDelta - 16.0) * viewportWidth / 1200.0
         let actualAppliedDelta = CGFloat(gesture.currentViewOffset - gesture.stationaryViewOffset)
         #expect(handler.state.gesturePhase == .committed)
         #expect(abs(actualAppliedDelta - expectedAppliedDelta) < 0.1)
     }
 
-    @Test @MainActor func trackpadGestureCommitDoesNotReverseOnThresholdJitter() async {
+    @Test @MainActor func trackpadGestureCommitDeadZoneDoesNotReverseOnThresholdJitter() async {
         let fixture = await prepareMouseWheelScrollFixture()
         let controller = fixture.controller
         controller.settings.gestureInvertDirection = false
@@ -1734,7 +1735,7 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
         }
         let actualAppliedDelta = CGFloat(gesture.currentViewOffset - gesture.stationaryViewOffset)
         #expect(handler.state.gesturePhase == .committed)
-        #expect(actualAppliedDelta > 0)
+        #expect(actualAppliedDelta >= 0)
     }
 
     @Test @MainActor func committedTrackpadGestureKeepsSubPixelDeltasForVelocity() async {
