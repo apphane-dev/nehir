@@ -245,7 +245,7 @@ final class MouseEventHandler {
         var lockedGestureContext: LockedGestureContext?
         // Commit metrics retained from the armed→committed transition until the first
         // committed update, so `touch_scroll_gesture_first_update` can report whether
-        // the first applied delta carried the full pre-recognition movement.
+        // the first applied delta honored the recognition dead zone.
         var pendingFirstUpdateAfterCommit = false
         var commitCumulativeX: CGFloat = 0.0
         var commitCumulativeY: CGFloat = 0.0
@@ -1783,14 +1783,15 @@ final class MouseEventHandler {
                     return
                 }
 
-                rawDeltaX = cumulativeX
+                let overshootMagnitude = max(0.0, abs(cumulativeX) - niriTouchpadGestureRecognitionThreshold)
+                rawDeltaX = (cumulativeX < 0 ? -1.0 : 1.0) * overshootMagnitude
                 state.gesturePhase = .committed
                 // Retain the commit metrics so the first committed update can report
-                // how much pre-recognition movement it carried (recognition debt).
+                // how much pre-recognition movement was discarded by the dead zone.
                 state.pendingFirstUpdateAfterCommit = true
                 state.commitCumulativeX = cumulativeX
                 state.commitCumulativeY = cumulativeY
-                state.commitRawDeltaX = rawDeltaX
+                state.commitRawDeltaX = cumulativeX
                 state.commitInputPhaseName = Self.gesturePhaseName(phase)
                 state.commitTimestamp = snapshot.timestamp
                 controller.recordRuntimeViewportTrace(
@@ -1902,26 +1903,21 @@ final class MouseEventHandler {
 
     // Emits `touch_scroll_gesture_first_update` linking the just-applied first
     // committed delta back to the commit's cumulative recognition movement, so a
-    // capture can tell — without manual pairing — whether the first update carried
-    // the full pre-recognition debt and what a dead-zone implementation would apply
-    // instead. Diagnostic only; it does not alter the applied delta.
+    // capture can tell — without manual pairing — whether the first update was
+    // reduced to only the movement beyond the recognition dead zone.
     private func emitFirstUpdateDiagnostic(appliedDelta: CGFloat, wsId: WorkspaceDescriptor.ID) {
         guard let controller else { return }
         let threshold = niriTouchpadGestureRecognitionThreshold
         let rawDeltaX = state.commitRawDeltaX
-        // The commit branch applies the full accumulated pre-recognition movement as
-        // the first delta. A dead-zone implementation would instead apply only the
-        // movement beyond the recognition threshold along the committed axis.
+        // The first committed update should apply only the movement beyond the
+        // recognition threshold along the committed axis.
         let overshootMagnitude = max(0.0, abs(rawDeltaX) - threshold)
         let signedOvershoot = (rawDeltaX < 0 ? -1.0 : 1.0) * overshootMagnitude
         let sensitivity = CGFloat(controller.settings.scrollSensitivity)
         let invert = controller.settings.gestureInvertDirection
         var wouldDeadZoneDelta = signedOvershoot * sensitivity
         if invert { wouldDeadZoneDelta = -wouldDeadZoneDelta }
-        // On current main the first committed update applies the full accumulated
-        // pre-recognition movement (rawDeltaX == commitCumulativeX), so any nonzero
-        // first delta carries recognition debt.
-        let includesRecognitionDebt = abs(rawDeltaX) > 0
+        let includesRecognitionDebt = abs(appliedDelta - wouldDeadZoneDelta) > 0.001
         controller.recordRuntimeViewportTrace(
             workspaceId: wsId,
             reason: "touch_scroll_gesture_first_update",
@@ -2051,15 +2047,26 @@ final class MouseEventHandler {
                 ))
                 let currentOffset = gesture.current()
                 let velocity = gesture.tracker.velocity() * normFactor
-                let projectedOffset = gesture.tracker.projectedEndPosition() * normFactor
+                let rawProjectedOffset = gesture.tracker.projectedEndPosition() * normFactor
                     + gesture.deltaFromTracker
                 let currentViewStart = activeColumnX + currentOffset
-                let projectedViewStart = activeColumnX + projectedOffset
+                let rawProjectedViewStart = activeColumnX + rawProjectedOffset
+                let projectedViewStart = gesture.isTrackpad
+                    ? clampedTrackpadGestureProjectedViewStart(
+                        rawProjectedViewStart: rawProjectedViewStart,
+                        currentViewStart: currentViewStart,
+                        viewportWidth: insetFrame.width
+                    )
+                    : rawProjectedViewStart
+                let projectedOffset = projectedViewStart - activeColumnX
                 let snapContext = endState.snapContext(
                     columns: columns,
                     gap: gap,
                     viewportWidth: insetFrame.width
                 )
+                let rawClosestSnap = snapToColumn
+                    ? snapContext.closest(to: CGFloat(rawProjectedViewStart))
+                    : nil
                 let closestSnap = snapToColumn
                     ? snapContext.closest(to: CGFloat(projectedViewStart))
                     : nil
@@ -2088,18 +2095,32 @@ final class MouseEventHandler {
                 } else {
                     details.append("closestSnap=nil")
                 }
+                if let rawClosestSnap {
+                    details.append(String(format: "rawClosestSnap=%.3f", rawClosestSnap.offset))
+                    details.append("rawClosestSnapColumn=\(rawClosestSnap.columnIndex)")
+                    details.append("rawClosestSnapKind=\(rawClosestSnap.kind)")
+                    details.append(String(
+                        format: "rawClosestSnapDistance=%.3f",
+                        abs(Double(rawClosestSnap.offset) - rawProjectedViewStart)
+                    ))
+                } else {
+                    details.append("rawClosestSnap=nil")
+                }
                 if let targetOffset {
                     details.append(String(format: "targetOffset=%.3f", targetOffset))
                 }
                 // Derived release-projection distances so a capture can classify a
                 // multi-column release by grep alone. `wouldClamp` reports whether the
-                // planned (not-yet-implemented) projection clamp would have changed the
-                // target; `clampScreens=nil` records that no clamp is configured on main.
+                // configured projection clamp changed the raw projected release point.
                 let viewportWidth = Double(insetFrame.width)
+                let rawProjectionDeltaFromCurrent = rawProjectedViewStart - currentViewStart
+                let rawProjectionScreens = viewportWidth > 0 ? rawProjectionDeltaFromCurrent / viewportWidth : 0
                 let projectionDeltaFromCurrent = projectedViewStart - currentViewStart
                 let projectionScreens = viewportWidth > 0 ? projectionDeltaFromCurrent / viewportWidth : 0
-                details.append(String(format: "rawProjectedOffset=%.3f", projectedOffset))
-                details.append(String(format: "rawProjectedViewStart=%.3f", projectedViewStart))
+                details.append(String(format: "rawProjectedOffset=%.3f", rawProjectedOffset))
+                details.append(String(format: "rawProjectedViewStart=%.3f", rawProjectedViewStart))
+                details.append(String(format: "rawProjectionDeltaFromCurrent=%.3f", rawProjectionDeltaFromCurrent))
+                details.append(String(format: "rawProjectionScreens=%.3f", rawProjectionScreens))
                 details.append(String(format: "projectionDeltaFromCurrent=%.3f", projectionDeltaFromCurrent))
                 details.append(String(format: "projectionScreens=%.3f", projectionScreens))
                 details.append("projectedColumnDelta=\(Int(projectionScreens.rounded()))")
@@ -2108,18 +2129,16 @@ final class MouseEventHandler {
                 } else {
                     details.append("targetColumnDelta=nil")
                 }
-                let diagnosticClampScreens = 1.0
-                let clampBound = diagnosticClampScreens * viewportWidth
-                let clampedDelta = max(-clampBound, min(clampBound, projectionDeltaFromCurrent))
-                let clampedProjectedViewStart = currentViewStart + clampedDelta
-                let clampedSnap = snapToColumn
-                    ? snapContext.closest(to: CGFloat(clampedProjectedViewStart))
-                    : nil
-                details.append("wouldClamp=\(abs(projectionScreens) > diagnosticClampScreens)")
-                details.append("clampScreens=nil")
-                details.append(String(format: "diagnosticClampScreens=%.3f", diagnosticClampScreens))
-                details.append(String(format: "clampedProjectedViewStart=%.3f", clampedProjectedViewStart))
-                details.append("clampedTargetColumn=\(clampedSnap.map { String($0.columnIndex) } ?? "nil")")
+                if let rawClosestSnap {
+                    details.append("rawTargetColumnDelta=\(rawClosestSnap.columnIndex - endState.activeColumnIndex)")
+                } else {
+                    details.append("rawTargetColumnDelta=nil")
+                }
+                details.append("wouldClamp=\(abs(rawProjectedViewStart - projectedViewStart) > 0.001)")
+                details.append(String(format: "clampScreens=%.3f", maxTrackpadGestureProjectionScreens))
+                details.append(String(format: "diagnosticClampScreens=%.3f", maxTrackpadGestureProjectionScreens))
+                details.append(String(format: "clampedProjectedViewStart=%.3f", projectedViewStart))
+                details.append("clampedTargetColumn=\(closestSnap.map { String($0.columnIndex) } ?? "nil")")
                 controller.recordRuntimeViewportTrace(
                     workspaceId: wsId,
                     reason: "touch_scroll_gesture_end_candidate",

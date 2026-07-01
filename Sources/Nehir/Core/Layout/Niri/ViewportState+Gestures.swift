@@ -8,6 +8,28 @@ import AppKit
 import Foundation
 
 let VIEW_GESTURE_WORKING_AREA_MOVEMENT: Double = 1200.0
+let maxTrackpadGestureProjectionScreens: Double = 1.0
+
+func clampedTrackpadGestureProjectedViewStart(
+    rawProjectedViewStart: Double,
+    currentViewStart: Double,
+    viewportWidth: CGFloat
+) -> Double {
+    let viewportWidth = Double(viewportWidth)
+    guard maxTrackpadGestureProjectionScreens.isFinite,
+          maxTrackpadGestureProjectionScreens > 0,
+          viewportWidth.isFinite,
+          viewportWidth > 0,
+          rawProjectedViewStart.isFinite,
+          currentViewStart.isFinite
+    else {
+        return rawProjectedViewStart
+    }
+
+    let clampBound = maxTrackpadGestureProjectionScreens * viewportWidth
+    let projectionDeltaFromCurrent = rawProjectedViewStart - currentViewStart
+    return currentViewStart + projectionDeltaFromCurrent.clamped(to: -clampBound ... clampBound)
+}
 
 extension ViewportState {
     @discardableResult
@@ -111,7 +133,15 @@ extension ViewportState {
         let projectedOffset = projectedTrackerPos + gesture.deltaFromTracker
 
         let activeColX = columnX(at: activeColumnIndex, columns: columns, gap: gap)
-        let projectedViewPos = Double(activeColX) + projectedOffset
+        let rawProjectedViewPos = Double(activeColX) + projectedOffset
+        let currentViewPos = Double(activeColX) + currentOffset
+        let projectedViewPos = gesture.isTrackpad
+            ? clampedTrackpadGestureProjectedViewStart(
+                rawProjectedViewStart: rawProjectedViewPos,
+                currentViewStart: currentViewPos,
+                viewportWidth: viewportWidth
+            )
+            : rawProjectedViewPos
         let areas = normalizedFittingAreas(
             viewportSpan: viewportWidth,
             workingArea: workingArea,
