@@ -26,6 +26,12 @@ struct WorkspaceBarProjection: Equatable {
     let sticky: WorkspaceBarStickyItem?
     let scratchpad: WorkspaceBarScratchpadItem?
     let isViewportScrollLocked: Bool
+
+    /// Every workspace shown across all monitors — the full target set for the
+    /// window-icon *Move to Workspace ▸* submenu. Unlike `items` (scoped to this
+    /// monitor), this includes workspaces on other displays so a window can be
+    /// moved between monitors.
+    let moveTargets: [WorkspaceBarWindowMoveTarget]
 }
 
 struct WorkspaceBarWindowItem: Identifiable, Equatable {
@@ -98,6 +104,10 @@ struct WorkspaceBarSnapshot: Equatable {
 
     var scratchpad: WorkspaceBarScratchpadItem? {
         projection.scratchpad
+    }
+
+    var moveTargets: [WorkspaceBarWindowMoveTarget] {
+        projection.moveTargets
     }
 }
 
@@ -178,7 +188,7 @@ struct WorkspaceBarMeasurementView: View {
 }
 
 /// A target workspace offered by a window icon's *Move to Workspace ▸*
-/// submenu (the other workspaces visible on this monitor).
+/// submenu (all realized workspaces across monitors).
 struct WorkspaceBarWindowMoveTarget: Identifiable, Hashable {
     let id: WorkspaceDescriptor.ID
     let name: String
@@ -263,9 +273,10 @@ private struct WorkspaceBarContentView: View {
         RoundedRectangle(cornerRadius: 8, style: .continuous)
     }
 
-    /// Workspaces on this monitor offered by the *Move to Workspace ▸* submenu.
+    /// Workspaces across all monitors offered by the *Move to Workspace ▸*
+    /// submenu (the window's own workspace is excluded per icon later).
     private var windowMoveTargets: [WorkspaceBarWindowMoveTarget] {
-        snapshot.items.map { WorkspaceBarWindowMoveTarget(id: $0.id, name: $0.name) }
+        snapshot.moveTargets
     }
 
     /// True when the single scratchpad slot is held, so the window-icon
