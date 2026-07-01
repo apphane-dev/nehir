@@ -1,6 +1,15 @@
 # Fix target window for toggle floating / scratchpad commands
 
-**Status:** planned
+**Status:** planned (core symptom partially addressed on `main`). Update
+2026-07-01: `faa45c37` ("Prefer layout selection over same-pid floating sibling
+for commands") shipped a narrow reorder of `managedCommandTarget()` so a concrete
+layout selection now wins over an *unfocused* same-pid floating sibling — this
+fixes the headline symptom (a move/focus command hitting a visible PiP-style
+floating sibling instead of the tiled window). It is **not** this plan's proposed
+change: the frontmost-floating branch, the `focusedManagedTokenForCommand()` alias
+collapse, the documented `commandTarget()` contract, and the ARCHITECTURE.md /
+IPC-CLI.md contract notes are all still un-done. Re-verify the remaining scope
+below against the reordered cascade before implementing.
 **Source discovery:** `discovery/20260621-fix-target-window-toggle-floating-scratchpad.md`
 **Upstream reference:** Nehir backlog brainstorm idea **#8** ("Fix target window
 for commands like toggle floating / scratchpad, etc."); sibling idea **#7**
