@@ -43,36 +43,60 @@ extension AXWindowsQueryRecord: CustomStringConvertible {
 
 /// Bounded ring of AX windows-query trace records, mirroring
 /// `RawAXNotificationRecorder`.
+///
+/// `queryResult` entries are logged on every `getWindowsAsync()` call and can
+/// be frequent (e.g. during a `pid_reevaluation`/focus-driven churn burst),
+/// while `countMismatch` entries are rare and are the more actionable signal.
+/// The two kinds are kept in independently-capped buffers so a burst of
+/// query-result logging can never evict a mismatch record.
 @MainActor
 final class AXWindowsQueryRecorder {
     private static let defaultLimit = 256
 
-    private let limit: Int
+    private let queryResultLimit: Int
+    private let countMismatchLimit: Int
     private var nextSequence: UInt64 = 1
-    private var records: [AXWindowsQueryRecord] = []
+    private var queryResults: [AXWindowsQueryRecord] = []
+    private var countMismatches: [AXWindowsQueryRecord] = []
 
-    init(limit: Int = defaultLimit) {
-        self.limit = max(1, limit)
+    init(queryResultLimit: Int = defaultLimit, countMismatchLimit: Int = defaultLimit) {
+        self.queryResultLimit = max(1, queryResultLimit)
+        self.countMismatchLimit = max(1, countMismatchLimit)
     }
 
     func append(_ kind: AXWindowsQueryRecord.Kind, timestamp: Date = Date()) {
         let record = AXWindowsQueryRecord(sequence: nextSequence, timestamp: timestamp, kind: kind)
         nextSequence += 1
+        switch kind {
+        case .queryResult:
+            Self.appendBounded(record, to: &queryResults, limit: queryResultLimit)
+        case .countMismatch:
+            Self.appendBounded(record, to: &countMismatches, limit: countMismatchLimit)
+        }
+    }
+
+    func dump() -> String {
+        let combined = (queryResults + countMismatches).sorted { $0.sequence < $1.sequence }
+        if combined.isEmpty {
+            return "ax windows query trace empty"
+        }
+        return combined.map { "\($0.timestamp.ISO8601Format()) \($0.description)" }.joined(separator: "\n")
+    }
+
+    func reset() {
+        queryResults.removeAll(keepingCapacity: true)
+        countMismatches.removeAll(keepingCapacity: true)
+        nextSequence = 1
+    }
+
+    private static func appendBounded(
+        _ record: AXWindowsQueryRecord,
+        to records: inout [AXWindowsQueryRecord],
+        limit: Int
+    ) {
         if records.count == limit {
             records.removeFirst()
         }
         records.append(record)
-    }
-
-    func dump() -> String {
-        if records.isEmpty {
-            return "ax windows query trace empty"
-        }
-        return records.map { "\($0.timestamp.ISO8601Format()) \($0.description)" }.joined(separator: "\n")
-    }
-
-    func reset() {
-        records.removeAll(keepingCapacity: true)
-        nextSequence = 1
     }
 }

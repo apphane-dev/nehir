@@ -19,6 +19,7 @@
     {
       "name": "Nehir-original files (no prior existence in OmniWM; provenance audit)",
       "paths": [
+        "Sources/Nehir/Core/Ax/AXWindowsQueryTrace.swift",
         "Sources/Nehir/Core/Ax/RawAXNotificationTrace.swift",
         "Sources/Nehir/Core/Config/AppRuleFileStore.swift",
         "Sources/Nehir/Core/Config/ConfigAssistancePrompt.swift",

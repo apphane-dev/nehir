@@ -108,9 +108,9 @@ final class AppAXContext {
     private let axObserver: ThreadGuardedValue<AXObserver?>
     private let focusedWindowObserver: ThreadGuardedValue<AXObserver?>
     private let subscribedWindows: ThreadGuardedValue<[Int: AXUIElement]>
-    /// Diagnostic only: true until the first `getWindowsAsync()` call against
-    /// this context completes — i.e. while the context is still "newly
-    /// created" for tracing purposes.
+    /// Diagnostic only: `false` until the first `getWindowsAsync()` call
+    /// against this context completes — i.e. while the context is still
+    /// "newly created" for tracing purposes.
     private var hasCompletedFirstWindowsQuery = false
 
     @MainActor static var onWindowDestroyed: ((pid_t, Int) -> Void)?

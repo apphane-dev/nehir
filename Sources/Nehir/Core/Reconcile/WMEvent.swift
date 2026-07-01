@@ -44,7 +44,7 @@ enum WindowAdmissionContext: String, Equatable {
     case axContextConfirmation = "ax_context_confirmation"
     /// Call sites (mostly tests) that have not been threaded with a specific
     /// admission context.
-    case unspecified
+    case unspecified = "unspecified"
 }
 
 enum WMEvent: Equatable {

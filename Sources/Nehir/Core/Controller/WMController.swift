@@ -3930,6 +3930,12 @@ final class WMController {
         var relayoutNeeded = false
         var evaluatedAnyWindow = false
         var affectedWorkspaceIds: Set<WorkspaceDescriptor.ID> = []
+        // See the matching comment in LayoutRefreshController's full-rescan
+        // loop: tokens admitted earlier in this reevaluation pass must not be
+        // eligible structural-replacement match targets for later candidates
+        // in the same pass (e.g. a `.pid` target's fresh AX query returning
+        // several distinct, never-before-tracked windows at once).
+        var structuralReplacementAdmittedThisPass: Set<WindowToken> = []
 
         for token in tokensToReevaluate.sorted(by: {
             if $0.pid == $1.pid {
@@ -3995,7 +4001,8 @@ final class WMController {
                     token: token,
                     bundleId: evaluation.facts.ax.bundleId,
                     mode: effectiveTrackedMode,
-                    facts: evaluation.facts
+                    facts: evaluation.facts,
+                    admittedThisPass: structuralReplacementAdmittedThisPass
                 )
                 : nil
             let workspaceId = resolvedWorkspaceId(
@@ -4017,12 +4024,18 @@ final class WMController {
                    axRef: axRef,
                    bundleId: evaluation.facts.ax.bundleId,
                    mode: effectiveTrackedMode,
-                   facts: evaluation.facts
+                   facts: evaluation.facts,
+                   admittedThisPass: structuralReplacementAdmittedThisPass
                )
             {
+                structuralReplacementAdmittedThisPass.insert(token)
                 affectedWorkspaceIds.insert(workspaceId)
                 relayoutNeeded = true
                 continue
+            }
+
+            if existingEntry == nil {
+                structuralReplacementAdmittedThisPass.insert(token)
             }
 
             _ = workspaceManager.addWindow(

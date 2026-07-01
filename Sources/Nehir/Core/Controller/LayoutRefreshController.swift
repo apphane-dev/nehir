@@ -1221,6 +1221,13 @@ import QuartzCore
         try Task.checkCancellation()
         var seenKeys: Set<WindowModel.WindowKey> = []
         var decisionBasedRemovals: [WindowToken] = []
+        // Tokens admitted (fresh or via structural rekey) earlier in this
+        // rescan pass are excluded as structural-replacement match targets
+        // for later candidates in the same pass: several distinct windows of
+        // the same app can share an identical pre-layout default frame at
+        // rescan time, which would otherwise let them get merged into one
+        // managed entry via a spurious "replacement".
+        var structuralReplacementAdmittedThisPass: Set<WindowToken> = []
         let focusedWorkspaceId = controller.interactionWorkspace()?.id
 
         for (ax, pid, winId) in windows {
@@ -1340,7 +1347,8 @@ import QuartzCore
                     token: token,
                     bundleId: bundleId ?? evaluation.facts.ax.bundleId,
                     mode: trackedMode,
-                    facts: evaluation.facts
+                    facts: evaluation.facts,
+                    admittedThisPass: structuralReplacementAdmittedThisPass
                 )
                 : nil
             if existingEntry == nil,
@@ -1351,10 +1359,12 @@ import QuartzCore
                    axRef: ax,
                    bundleId: bundleId ?? evaluation.facts.ax.bundleId,
                    mode: trackedMode,
-                   facts: evaluation.facts
+                   facts: evaluation.facts,
+                   admittedThisPass: structuralReplacementAdmittedThisPass
                )
             {
                 seenKeys.insert(token)
+                structuralReplacementAdmittedThisPass.insert(token)
                 controller.axEventHandler.discardCreatePlacementContext(for: winId)
                 continue
             }
@@ -1446,6 +1456,7 @@ import QuartzCore
                 admissionContext: .startupFullRescan
             )
             if existingEntry == nil {
+                structuralReplacementAdmittedThisPass.insert(token)
                 controller.axEventHandler.discardCreatePlacementContext(for: winId)
             }
 
