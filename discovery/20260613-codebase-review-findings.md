@@ -4,8 +4,8 @@ Multi-agent review (2026-06-13) covering architecture, risk hotspots, testing, a
 
 ## Quick Wins
 
-### 1. IPC protocol version drift in docs
-`docs/IPC-CLI.md` states protocol version 3; `Sources/NehirIPC/IPCModels.swift` implements version 6. One-line doc fix, but it breaks external client authors following the docs.
+### 1. IPC protocol version drift in docs. Done — docs updated 2026-07-01.
+`docs/IPC-CLI.md` stated protocol version 3; `Sources/NehirIPC/IPCModels.swift` implements version 6. Fixed in the main tree on 2026-07-01 (`docs/IPC-CLI.md` now says 6, including the wire-format examples). Watch for recurrence: nothing ties the doc to `IPCProtocol.version`, so the number can drift again on the next protocol bump.
 
 ### 2. App-rule TOML parser silently swallows malformed lines
 `Sources/Nehir/Core/Config/AppRuleFileStore.swift` (hand-rolled line parser, ~lines 107–152) `continue`s past anything it can't parse with no log or user-facing diagnostic. Same theme in the codec layer: semantic config errors (e.g., invalid `layout` value) quietly fall back to defaults. The rest of the config story is strong (live reload via inode fingerprinting, corrupt files moved aside) — a warning log on skipped lines / fallback-to-default closes the gap cheaply.

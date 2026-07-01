@@ -8,9 +8,9 @@ each idea lands in `discovery/20260621-<slug>.md`.
 
 ## UI / UX
 
-- **#1** Better visual feedback on record traces
+- **#1** Better visual feedback on record traces *(shipped — commit `f160254d` added the trace clip buffer and DebugBar overlay; see `completed/20260624-recent-trace-clip-buffer.md` and `completed/20260621-better-record-trace-visual-feedback-superseded.md`.)*
 - **#15** Drawers? *(open question — what is a "drawer" in Nehir?)*
-- **#18** Right-click actions in the action bar
+- **#18** Right-click actions in the action bar *(shipped — commit `d0cf6368` implements workspace-bar right-click context menus; see `completed/20260621-right-click-actions-action-bar.md`.)*
 - **#19** Challenge window width vs column width (and other column-vs-window semantics)
 - **#27** Separate scrolling layer for floating windows
 - **#28** Per-window floating action panel
@@ -26,7 +26,7 @@ each idea lands in `discovery/20260621-<slug>.md`.
 
 ## Workspaces / window management
 
-- **#2** Modifier + click on a workspace number to move the active window/column
+- **#2** Modifier + click on a workspace number to move the active window/column *(window variant shipped — commit `f4adb75f` adds shift+click on a workspace pill; column variant deferred; see `completed/20260621-workspace-number-modifier-click-move-window.md`.)*
 - **#7** Multiple scratchpad window assignments
 - **#8** Fix target window for commands like toggle floating / scratchpad, etc.
 - **#16** Move workspace between displays *(related: `planned/20260619-nehir-62-move-workspace-to-monitor.md`, `discovery/20260619-nehir-62-move-workspace-to-next-monitor.md`)*

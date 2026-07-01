@@ -7,7 +7,7 @@ labels). Maintainer (@Guria, OWNER) has acknowledged but not investigated:
 further and see what's going on."
 
 All code references are against the main Nehir worktree
-(`/Users/Aleksei_Gurianov/ghq/github.com/guria/nehir`, branch `main`). Re-verify
+(the main Nehir source tree, branch `main`). Re-verify
 line numbers before implementing; they drift.
 
 ---

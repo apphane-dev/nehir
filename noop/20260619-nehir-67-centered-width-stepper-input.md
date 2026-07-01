@@ -7,7 +7,7 @@ shipped in **`v0.5.2-rc.1`** (the exact release the maintainer asked the reporte
 test in the issue comments). Also contained in `v0.5.2-rc.2` and `v0.6.0-rc.1`.
 
 All claims below are grounded in current source at the main worktree
-`/Users/Aleksei_Gurianov/ghq/github.com/guria/nehir`. Line numbers are re-verified
+the main Nehir source tree. Line numbers are re-verified
 against the working tree on 2026-06-19; they drift over time, re-check before acting.
 
 This document is self-contained — it does not depend on any trace log or local file.

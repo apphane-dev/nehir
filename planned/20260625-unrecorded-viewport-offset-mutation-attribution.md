@@ -27,12 +27,13 @@ fix — now has an implementation branch for the config/parked-edge-snap case:**
 `ensureSelectionVisible` and `centeredViewportCorrection` on real
 selection/layout/removal changes, preserving reachable parked snaps. It is tracked
 in `completed/20260701-preserve-parked-edge-snapped-anchor-across-config-relayout.md`
-and was pending merge to `main` when this status was updated. `0602387d` ("Do not
+and has since merged to `main` as `9dd0f777` ("Keep a parked viewport put when only
+config or settings change"). `0602387d` ("Do not
 recenter viewport on activation of fully visible windows") remains focus-confirmation
 only; use `discovery/20260628-relayout-path-recenters-fully-visible-unchanged-selection.md`
 for the broader non-config relayout evidence.
 
-Phases 1 and 2 have landed; Phase 3's shared fix site is source-attributed, and the config/parked-edge-snap slice has an implementation branch.
+Phases 1 and 2 have landed; Phase 3's shared fix site is source-attributed, and the config/parked-edge-snap slice has shipped (`9dd0f777`). Remaining Phase 3 scope: the non-config relayout recenter cases.
 
 - **Phase 1 — centralized audit + provenance: done.** `ViewportState.withRecordedViewportMutation`
   and the `lastViewportMutation*` fields are in tree (earlier commits on this branch).

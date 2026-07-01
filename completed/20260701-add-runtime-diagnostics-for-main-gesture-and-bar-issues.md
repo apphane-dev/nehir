@@ -1,5 +1,10 @@
 # Add runtime diagnostics for main gesture and bar-click issues — Plan
 
+**Status:** completed — shipped on `main` in `6a9a5528` ("Add runtime diagnostics for
+gesture, navigation, and frame issues") with review follow-up `705831f9` ("Address
+diagnostic and gesture review feedback"). Moved from `planned/` to `completed/` on
+2026-07-01.
+
 Verified against `main` on 2026-07-01 at `07ce4168 Reconcile stale hidden-window live frames`.
 This is a **diagnostics-only** plan: add trace fields and compact diagnostic records so
 isolated repros can prove or dismiss the remaining main-branch issues before behavioral
@@ -458,3 +463,89 @@ fix candidates are:
 - pin hidden/edge-revealed frames to spring targets;
 - supplement full rescans from visible WindowServer level-0 document windows;
 - refresh hidden replacement metadata to parked frames.
+
+---
+
+## Implementation notes (2026-07-01)
+
+Implemented on branch `gesture-traces` in commit `a67afc14` (follow-up test-isolation
+fix in `58b5789b`). All 8 diagnostic categories landed; build clean, full suite green.
+
+### What shipped, by category
+
+1. **Idle admission** — `MultitouchGestureSource` snapshot gained an optional
+   `previousRawActiveCount`; `touch_scroll_gesture_armed` gained `inputPhaseRaw/Name`,
+   `previousGesturePhase`, `idleAdmission`, `idleAdmissionKind`, `rawActiveCount`,
+   `previousRawActiveCount`/`activeCountDelta`. Added
+   `touch_scroll_gesture_idle_changed_admission` (later retired by the fix plan — see
+   below). Added a reusable `Self.gesturePhaseName(_:)`.
+2. **First update** — commit metrics persisted in gesture `State`
+   (`pendingFirstUpdateAfterCommit`, `commitCumulativeX/Y`, `commitRawDeltaX`,
+   `commitInputPhaseName`, `commitTimestamp`), emitted as `touch_scroll_gesture_first_update`
+   from `applyTrackpadViewportScrollDelta` on the first post-commit apply, plus
+   `firstUpdate=true` on the first update record.
+3. **Release projection** — extended `touch_scroll_gesture_end_candidate` with
+   `rawProjected*`, `projectionDeltaFromCurrent`, `projectionScreens`,
+   `projected/targetColumnDelta`, `wouldClamp`, `clampScreens=nil`,
+   `diagnosticClampScreens`, `clampedProjectedViewStart`, `clampedTargetColumn`.
+4. **Navigation source** — new file-scope `NavigationSource` enum; `navigate.window` /
+   `navigate.workspace` records emitted before the viewport patch in
+   `WindowActionHandler` with `source`, column delta, `motionAnimationsEnabled`,
+   `requestedMotion`, `directSelection`. Threaded a `source:` param into
+   `navigateToWindowInternal` (default `.command`, `.workspaceBarWindow` from the bar).
+5. **Spring-frame classification** — `spring_frame_classification` emitted from the
+   scroll-animation tick path (`buildOnDemandLayoutPlan`), deduped per token via a
+   `SpringFrameSample` map cleared on `finalizeAnimation`.
+6. **Full-rescan omission** — `full_rescan_omission` summary + per-window lines from
+   `AXManager.fullRescanEnumerationSnapshot`, comparing WindowServer level-0 IDs against
+   AX-tracked IDs.
+7. **Parking verify** — `parking_verify_mismatch` from `applyPositionPlans` on verify
+   failure, classifying backend / offscreen-X / off-by-height-Y / visible-risk.
+8. **Replacement metadata** — `hidden_replacement_frame_mismatch` when a parked frame
+   disagrees with `managedReplacementMetadata.frame`.
+
+### Decisions made
+
+- **Reused the existing trace sinks rather than adding new plumbing.** Gesture/nav/frame
+  records go through `recordRuntimeViewportTrace` (which auto-appends `columns=`,
+  `activeColumnIndex=`, offsets, etc. after the `details` array, so those fields must not
+  be duplicated). Parking / omission / replacement records go through
+  `AXManager.recordFrameApplyTrace` (a small always-on ring buffer) alongside the
+  existing `hidePlan.*` records — no `recordRuntimeTrace(category:)` helper exists.
+- **`wouldDeadZoneDelta` / `wouldClamp` are modeled, documented approximations.** The
+  dead-zone overshoot subtracts the scalar recognition threshold from `|rawDeltaX|`; the
+  clamp uses a fixed `diagnosticClampScreens = 1.0`. Both are labelled diagnostic-only and
+  `clampScreens=nil` records that no clamp is configured on main.
+- **First-update emission lives in `applyTrackpadViewportScrollDelta`, not the commit
+  branch.** Commit and first apply happen in the same call today, but gating on the
+  persisted `pendingFirstUpdateAfterCommit` flag is robust if `beginGesture` ever fails to
+  apply (no spurious record).
+- **Frame classification is deliberately low-volume.** Only hidden-state tokens,
+  visibility transitions, and large windows crossing the viewport boundary are candidates;
+  dedup is keyed on a coarse bucket (`inside`/`crossing`/`offscreen`) plus origin delta, so
+  normal visible windows sliding during a spring do not spam per tick.
+- **`NavigationSource.focusConfirm` is defined but not yet wired.** Direct bar clicks emit
+  `navigate.window`; focus-confirm reveals go through a different (AX) path and currently
+  emit no positive record, so they are distinguishable by absence. A positive
+  focus-confirm record was left as a follow-up to avoid widening scope.
+- **Did not thread `navigationSource` into `lastViewportMutation` provenance.** The plan
+  hedged "where practical"; the `navigate.*` records already satisfy the acceptance
+  criteria, so the deeper threading through `ViewportState.recordMutation` was skipped as
+  over-engineering.
+
+### Lessons learned
+
+- **Diagnostics that probe AX are not free in tests.** `full_rescan_omission` calls
+  `AXWindowService.axWindowRef`, which consults the global `axWindowRefProviderForTests`
+  spy. During parallel test runs a real rescan polluted an unrelated suite's spy
+  (`AppAXContextTests`), flaking it. Fix (`58b5789b`): gate the whole omission diagnostic —
+  including the AX probe — behind an `AXManager.isRuntimeTraceCaptureActive` closure wired
+  from the controller (defaults off, so tests never trigger it). **Rule for future
+  diagnostics: anything that reads live AX/WindowServer or a global test seam must be gated
+  on trace-capture-active.**
+- **Breaking a `return await withTaskGroup { … }` into a `let` requires an explicit
+  closure return type** — `.init(...)` stops inferring and needs the full type name.
+- **Long interpolated trace strings hit "unable to type-check in reasonable time."** Build
+  them from pre-computed `let` fragments, not one giant `+`-chain.
+- The pre-existing `prepareOpenStateFallsBackToFirstMatchingWindowWithoutManagedFocus`
+  failure is unrelated to this work (fails on the pristine base) — see the fix plan's notes.

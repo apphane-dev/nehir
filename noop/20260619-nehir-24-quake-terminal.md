@@ -119,7 +119,7 @@ If a companion project is ever started, the planning entry point would be a fres
 ## Codebase check (main app worktree)
 
 A read-only scan of the main app worktree
-(`/Users/Aleksei_Gurianov/ghq/github.com/guria/nehir`) confirms Nehir core has **no**
+(the main Nehir source tree) confirms Nehir core has **no**
 quake / quick-terminal implementation today:
 
 - `grep -rInE "quake|quickTerminal|quick_terminal|QuakeTerminal" Sources/Nehir --include="*.swift"`

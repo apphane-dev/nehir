@@ -5,7 +5,7 @@
 **GitHub issue:** #68
 
 All file/line references re-verified against
-`/Users/Aleksei_Gurianov/ghq/github.com/guria/nehir` on 2026-06-19. Re-verify
+the main Nehir source tree on 2026-06-19. Re-verify
 before editing; line numbers drift.
 
 ## TL;DR

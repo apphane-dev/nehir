@@ -21,7 +21,7 @@ Verdict: **actionable** — investigation concludes a genuine capability gap; pr
 existing workspace-assignment primitives. No engine rework required.
 
 All file references below were re-verified on the main worktree
-(`/Users/Aleksei_Gurianov/ghq/github.com/guria/nehir`) on 2026-06-19; line
+(the main Nehir source tree) on 2026-06-19; line
 numbers drift over time.
 
 ---

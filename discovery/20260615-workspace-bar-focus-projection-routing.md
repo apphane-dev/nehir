@@ -4,7 +4,8 @@ Symptom: the workspace bar sometimes does not update the selected window/app ico
 highlight after focus changes. The reporter observed this with
 focus-follows-mouse activation and with direct click activation.
 
-Trace evidence: `/Users/Aleksei_Gurianov/.local/state/nehir/traces/runtime-trace-1781557052918-1781557057118.log`
+Trace evidence: captured from a live repro on 2026-06-15; the relevant events and
+fields are quoted inline below.
 
 **Corrected verdict:** **Conditional refresh gap, not an absolute failure.** The
 workspace bar is not refreshed by the focus invalidation itself. It updates only
