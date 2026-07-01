@@ -2456,7 +2456,7 @@ final class AXEventHandler: CGSEventDelegate {
             let preserveActiveViewport = state.viewOffsetPixels.isGesture
                 || isSpringInFlight
                 || (wasAlreadyConfirmedFocus && source == .focusedWindowChanged)
-            controller.recordRuntimeViewportTrace(
+            controller.diagnostics.recordRuntimeViewportTrace(
                 workspaceId: wsId,
                 reason: "ax_focus_confirm_before_activate",
                 details: [
@@ -2490,7 +2490,7 @@ final class AXEventHandler: CGSEventDelegate {
             // would otherwise force the next relayout's ensureSelectionVisible
             // to perform its own instant rebase.
             controller.niriLayoutHandler.rebaseViewportAnchor(to: node, in: wsId, state: &state)
-            controller.recordRuntimeViewportTrace(
+            controller.diagnostics.recordRuntimeViewportTrace(
                 workspaceId: wsId,
                 reason: "ax_focus_confirm_after_activate",
                 details: [
@@ -2520,7 +2520,7 @@ final class AXEventHandler: CGSEventDelegate {
                 let columnSnaps = context.snapCandidates(for: columnIndex, in: state)
                 let closestSnap = columnSnaps.closest(to: viewStart)
                 let centerSnap = columnSnaps.first { $0.kind == .center }
-                controller.recordRuntimeViewportTrace(
+                controller.diagnostics.recordRuntimeViewportTrace(
                     workspaceId: wsId,
                     reason: "ax_focus_confirm_reveal_candidate",
                     details: [
@@ -2544,7 +2544,7 @@ final class AXEventHandler: CGSEventDelegate {
                     motion: controller.motionPolicy.snapshot(),
                     scale: engine.displayScale(in: wsId)
                 )
-                controller.recordRuntimeViewportTrace(
+                controller.diagnostics.recordRuntimeViewportTrace(
                     workspaceId: wsId,
                     reason: "ax_focus_confirm_reveal_result",
                     details: [
@@ -2555,7 +2555,7 @@ final class AXEventHandler: CGSEventDelegate {
                     ]
                 )
             } else {
-                controller.recordRuntimeViewportTrace(
+                controller.diagnostics.recordRuntimeViewportTrace(
                     workspaceId: wsId,
                     reason: "ax_focus_confirm_reveal_skipped",
                     details: [
@@ -2573,7 +2573,7 @@ final class AXEventHandler: CGSEventDelegate {
                 )
             )
             if isWorkspaceActive, !isFFM {
-                controller.recordRuntimeViewportTrace(
+                controller.diagnostics.recordRuntimeViewportTrace(
                     workspaceId: wsId,
                     reason: "ax_focus_confirm_request_relayout",
                     details: ["token=\(entry.token)", "isFFM=\(isFFM)"]
@@ -2583,7 +2583,7 @@ final class AXEventHandler: CGSEventDelegate {
                     controller.layoutRefreshController.startScrollAnimation(for: wsId)
                 }
             } else {
-                controller.recordRuntimeViewportTrace(
+                controller.diagnostics.recordRuntimeViewportTrace(
                     workspaceId: wsId,
                     reason: "ax_focus_confirm_skip_relayout",
                     details: [

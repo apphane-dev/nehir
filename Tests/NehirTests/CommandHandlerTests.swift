@@ -16,30 +16,30 @@ import Testing
     @Test func debugTraceToggleIsStateful() {
         let controller = makeLayoutPlanTestController()
         defer {
-            if controller.isRuntimeTraceCaptureActive {
-                _ = controller.toggleRuntimeTraceCapture(desiredState: .inactive)
+            if controller.diagnostics.isRuntimeTraceCaptureActive {
+                _ = controller.diagnostics.toggleRuntimeTraceCapture(desiredState: .inactive)
             }
             resetSharedControllerStateForTests()
         }
 
         // toggle with no desiredState flips state
-        #expect(!controller.isRuntimeTraceCaptureActive)
-        #expect(controller.toggleRuntimeTraceCapture() == .executed)
-        #expect(controller.isRuntimeTraceCaptureActive)
-        #expect(controller.toggleRuntimeTraceCapture() == .executed)
-        #expect(!controller.isRuntimeTraceCaptureActive)
+        #expect(!controller.diagnostics.isRuntimeTraceCaptureActive)
+        #expect(controller.diagnostics.toggleRuntimeTraceCapture() == .executed)
+        #expect(controller.diagnostics.isRuntimeTraceCaptureActive)
+        #expect(controller.diagnostics.toggleRuntimeTraceCapture() == .executed)
+        #expect(!controller.diagnostics.isRuntimeTraceCaptureActive)
 
         // desiredState .active is idempotent
-        #expect(controller.toggleRuntimeTraceCapture(desiredState: .active) == .executed)
-        #expect(controller.isRuntimeTraceCaptureActive)
-        #expect(controller.toggleRuntimeTraceCapture(desiredState: .active) == .executed)
-        #expect(controller.isRuntimeTraceCaptureActive)
+        #expect(controller.diagnostics.toggleRuntimeTraceCapture(desiredState: .active) == .executed)
+        #expect(controller.diagnostics.isRuntimeTraceCaptureActive)
+        #expect(controller.diagnostics.toggleRuntimeTraceCapture(desiredState: .active) == .executed)
+        #expect(controller.diagnostics.isRuntimeTraceCaptureActive)
 
         // desiredState .inactive is idempotent
-        #expect(controller.toggleRuntimeTraceCapture(desiredState: .inactive) == .executed)
-        #expect(!controller.isRuntimeTraceCaptureActive)
-        #expect(controller.toggleRuntimeTraceCapture(desiredState: .inactive) == .executed)
-        #expect(!controller.isRuntimeTraceCaptureActive)
+        #expect(controller.diagnostics.toggleRuntimeTraceCapture(desiredState: .inactive) == .executed)
+        #expect(!controller.diagnostics.isRuntimeTraceCaptureActive)
+        #expect(controller.diagnostics.toggleRuntimeTraceCapture(desiredState: .inactive) == .executed)
+        #expect(!controller.diagnostics.isRuntimeTraceCaptureActive)
     }
 
     @Test func overviewIgnoresNonOverviewHotkeys() {

@@ -81,7 +81,7 @@ final class ServiceLifecycleManager {
             self?.handleAppTerminated(pid: pid)
         }
         controller.axManager.isRuntimeTraceCaptureActive = { [weak controller] in
-            controller?.isRuntimeTraceCaptureActive == true
+            controller?.diagnostics.isRuntimeTraceCaptureActive == true
         }
         AppAXContext.onWindowDestroyed = { [weak controller] pid, windowId in
             guard let controller else { return }

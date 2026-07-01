@@ -7,7 +7,7 @@ import AppKit
 import SwiftUI
 
 struct DebugBarSnapshot: Equatable {
-    var traceCaptureStatus: WMController.RuntimeTraceCaptureStatus
+    var traceCaptureStatus: RuntimeTraceCaptureStatus
     var backgroundTraceStatus: BackgroundTraceBufferStatus
     var retentionSeconds: TimeInterval
     var exportCopiesFile: Bool
@@ -37,8 +37,8 @@ final class DebugBarManager {
         }
 
         let snapshot = DebugBarSnapshot(
-            traceCaptureStatus: controller.runtimeTraceCaptureStatus,
-            backgroundTraceStatus: controller.backgroundTraceBufferStatus,
+            traceCaptureStatus: controller.diagnostics.runtimeTraceCaptureStatus,
+            backgroundTraceStatus: controller.diagnostics.backgroundTraceBufferStatus,
             retentionSeconds: settings.backgroundTraceRetentionSeconds,
             exportCopiesFile: settings.debugTraceExportCopiesFile,
             viewportTraceVerbosity: settings.viewportTraceVerbosity
@@ -46,18 +46,18 @@ final class DebugBarManager {
         let view = DebugBarView(
             snapshot: snapshot,
             onToggleTraceCapture: { [weak controller, weak self] in
-                _ = controller?.toggleRuntimeTraceCapture()
+                _ = controller?.diagnostics.toggleRuntimeTraceCapture()
                 self?.update()
             },
             onResetBuffer: { [weak controller, weak self] in
-                controller?.resetBackgroundTraceBuffer()
+                controller?.diagnostics.resetBackgroundTraceBuffer()
                 self?.update()
             },
             onCycleRetention: { [weak controller, weak settings, weak self] in
                 guard let controller, let settings else { return }
                 settings.backgroundTraceRetentionSeconds = Self
                     .nextRetention(after: settings.backgroundTraceRetentionSeconds)
-                controller.updateBackgroundTraceBufferConfiguration()
+                controller.diagnostics.updateBackgroundTraceBufferConfiguration()
                 self?.update()
             },
             onToggleCopyMode: { [weak settings, weak self] in
@@ -69,7 +69,7 @@ final class DebugBarManager {
                 guard let settings else { return }
                 settings.viewportTraceVerbosity = Self
                     .nextViewportVerbosity(after: settings.viewportTraceVerbosity)
-                controller?.applyViewportTraceVerbosity()
+                controller?.diagnostics.applyViewportTraceVerbosity()
                 self?.update()
             }
         )

@@ -778,7 +778,7 @@ struct FocusedWindowInspectorView: View {
                         .disabled(AppRuleDraft.guided(from: snapshot) == nil)
 
                         Button("Copy Debug Dump") {
-                            controller.copyDebugDump(snapshot)
+                            controller.diagnostics.copyDebugDump(snapshot)
                         }
                         .buttonStyle(.bordered)
                     }
@@ -796,7 +796,7 @@ struct FocusedWindowInspectorView: View {
     }
 
     private func refreshSnapshot() {
-        snapshot = controller.focusedWindowDecisionDebugSnapshot()
+        snapshot = controller.diagnostics.focusedWindowDecisionDebugSnapshot()
     }
 }
 

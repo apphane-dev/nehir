@@ -654,7 +654,7 @@ final class WindowActionHandler {
         requestedMotion: String,
         directSelection: Bool
     ) {
-        guard let controller, controller.isRuntimeTraceCaptureActive else { return }
+        guard let controller, controller.diagnostics.isRuntimeTraceCaptureActive else { return }
         let workspaceName = controller.workspaceManager.descriptor(for: workspaceId)?.name
             ?? workspaceId.uuidString
         let columnDelta = (fromColumn != nil && targetColumn != nil)
@@ -673,7 +673,7 @@ final class WindowActionHandler {
         if let targetToken {
             details.insert("target=\(String(describing: targetToken))", at: 1)
         }
-        controller.recordRuntimeViewportTrace(
+        controller.diagnostics.recordRuntimeViewportTrace(
             workspaceId: workspaceId,
             reason: reason,
             details: details

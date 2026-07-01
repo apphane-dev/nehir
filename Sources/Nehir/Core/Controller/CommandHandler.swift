@@ -39,7 +39,7 @@ final class CommandHandler {
     @discardableResult
     func performRestartClearingRuntimeState(enableTracing: Bool = false) -> ExternalCommandResult {
         guard let controller else { return .notFound }
-        controller.restartAppClearingRuntimeState(enableTracing: enableTracing)
+        controller.diagnostics.restartAppClearingRuntimeState(enableTracing: enableTracing)
         return .executed
     }
 
@@ -196,7 +196,7 @@ final class CommandHandler {
         case .openSettings:
             SettingsWindowController.shared.show(settings: controller.settings, controller: controller)
         case .createAppRuleForFocusedWindow:
-            let snapshot = controller.focusedWindowDecisionDebugSnapshot()
+            let snapshot = controller.diagnostics.focusedWindowDecisionDebugSnapshot()
             guard let draft = snapshot.flatMap(AppRuleDraft.guided(from:)) else {
                 return .notFound
             }
@@ -207,13 +207,13 @@ final class CommandHandler {
                 pendingAppRuleDraft: draft
             )
         case .debugDumpRuntimeState:
-            controller.dumpRuntimeState()
+            controller.diagnostics.dumpRuntimeState()
         case .debugResetRuntimeState:
-            controller.resetRuntimeState()
+            controller.diagnostics.resetRuntimeState()
         case .debugRestartClearingRuntimeState:
-            controller.restartAppClearingRuntimeState()
+            controller.diagnostics.restartAppClearingRuntimeState()
         case .debugToggleTraceCapture:
-            return controller.toggleRuntimeTraceCapture()
+            return controller.diagnostics.toggleRuntimeTraceCapture()
         case .toggleWorkspaceBarVisibility:
             controller.toggleWorkspaceBarVisibility()
         case .toggleOverview:

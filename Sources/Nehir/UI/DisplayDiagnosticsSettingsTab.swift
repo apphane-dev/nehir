@@ -22,7 +22,7 @@ struct DisplayDiagnosticsSettingsTab: View {
     @State private var unknownKeysError: String?
     @State private var appRuleFileConfirmations: [String: String] = [:]
     @State private var appRuleFileErrors: [String: String] = [:]
-    @State private var traceCaptureStatus: WMController.RuntimeTraceCaptureStatus = .init(
+    @State private var traceCaptureStatus: RuntimeTraceCaptureStatus = .init(
         isActive: false,
         startedAt: nil
     )
@@ -231,7 +231,7 @@ struct DisplayDiagnosticsSettingsTab: View {
                 }
                 .onChange(of: settings.developerModeEnabled) { _, _ in
                     controller.updateWorkspaceBarSettings()
-                    controller.updateBackgroundTraceBufferConfiguration()
+                    controller.diagnostics.updateBackgroundTraceBufferConfiguration()
                     refresh()
                 }
                 SettingsCaption(
@@ -278,7 +278,7 @@ struct DisplayDiagnosticsSettingsTab: View {
                 Text("2 min").tag(TimeInterval(120))
             }
             .onChange(of: settings.backgroundTraceRetentionSeconds) { _, _ in
-                controller.updateBackgroundTraceBufferConfiguration()
+                controller.diagnostics.updateBackgroundTraceBufferConfiguration()
                 refresh()
             }
 
@@ -288,7 +288,7 @@ struct DisplayDiagnosticsSettingsTab: View {
                 Text("128 MB").tag(128 * 1024 * 1024)
             }
             .onChange(of: settings.backgroundTraceMaxBytes) { _, _ in
-                controller.updateBackgroundTraceBufferConfiguration()
+                controller.diagnostics.updateBackgroundTraceBufferConfiguration()
                 refresh()
             }
 
@@ -311,7 +311,7 @@ struct DisplayDiagnosticsSettingsTab: View {
                 hotkey: hotkey(for: "debug.dumpRuntimeState"),
                 buttonTitle: "Copy State",
                 run: {
-                    controller.dumpRuntimeState()
+                    controller.diagnostics.dumpRuntimeState()
                     runtimeActionStatus = "Runtime state copied to clipboard."
                     traceCopyStatus = nil
                 }
@@ -322,7 +322,7 @@ struct DisplayDiagnosticsSettingsTab: View {
                 hotkey: hotkey(for: "debug.toggleTraceCapture"),
                 buttonTitle: traceCaptureStatus.isActive ? "Stop" : "Start",
                 run: {
-                    _ = controller.toggleRuntimeTraceCapture()
+                    _ = controller.diagnostics.toggleRuntimeTraceCapture()
                     runtimeActionStatus = nil
                     traceCopyStatus = nil
                     refresh()
@@ -335,7 +335,7 @@ struct DisplayDiagnosticsSettingsTab: View {
                 }
             }
             .onChange(of: settings.viewportTraceVerbosity) { _, _ in
-                controller.applyViewportTraceVerbosity()
+                controller.diagnostics.applyViewportTraceVerbosity()
             }
             SettingsCaption(
                 "Controls how much viewport trace captures record. "
@@ -423,7 +423,8 @@ struct DisplayDiagnosticsSettingsTab: View {
                     refresh()
                 }
                 Button("Reveal Traces Folder") {
-                    NSWorkspace.shared.activateFileViewerSelecting([WMController.traceCaptureDirectory])
+                    NSWorkspace.shared
+                        .activateFileViewerSelecting([RuntimeDiagnosticsCoordinator.traceCaptureDirectory])
                 }
             }
 
@@ -517,7 +518,7 @@ struct DisplayDiagnosticsSettingsTab: View {
     private func loadRecentTraces() -> [TraceFile] {
         let keys: Set<URLResourceKey> = [.contentModificationDateKey, .fileSizeKey]
         guard let contents = try? FileManager.default.contentsOfDirectory(
-            at: WMController.traceCaptureDirectory,
+            at: RuntimeDiagnosticsCoordinator.traceCaptureDirectory,
             includingPropertiesForKeys: Array(keys),
             options: [.skipsHiddenFiles, .skipsSubdirectoryDescendants]
         ) else {
@@ -565,16 +566,16 @@ struct DisplayDiagnosticsSettingsTab: View {
     }
 
     private func refreshTraceState() {
-        traceCaptureStatus = controller.runtimeTraceCaptureStatus
-        backgroundTraceStatus = controller.backgroundTraceBufferStatus
+        traceCaptureStatus = controller.diagnostics.runtimeTraceCaptureStatus
+        backgroundTraceStatus = controller.diagnostics.backgroundTraceBufferStatus
         recentTraces = loadRecentTraces()
     }
 
     /// Lightweight status-only refresh used by the 1s timer; avoids scanning
     /// the traces directory on every tick.
     private func refreshTraceStatusOnly() {
-        traceCaptureStatus = controller.runtimeTraceCaptureStatus
-        backgroundTraceStatus = controller.backgroundTraceBufferStatus
+        traceCaptureStatus = controller.diagnostics.runtimeTraceCaptureStatus
+        backgroundTraceStatus = controller.diagnostics.backgroundTraceBufferStatus
     }
 
     private func refreshSettingsIssues() {
