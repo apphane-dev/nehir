@@ -1,6 +1,6 @@
 # Preserve a parked/edge-snapped viewport anchor across config/settings relayouts — Plan
 
-**Status:** implemented on `patch/preserve-parked-edge-snap-anchor` on 2026-07-01; pending merge to `main` at the time this plans-branch update was written. The fix captures pre-pass column identity, gates multi-column `ensureSelectionVisible` / `centeredViewportCorrection` on real selection/active-column/column-set/removal changes, and preserves a parked view start when it is still a reachable snap. Regression coverage lives in `Tests/NehirTests/ParkedViewportRelayoutTests.swift`. Moved from `planned/` to `completed/` on 2026-07-01.
+**Status:** completed — merged to `main` as `9dd0f777` ("Keep a parked viewport put when only config or settings change"). Implemented on `patch/preserve-parked-edge-snap-anchor` on 2026-07-01. The fix captures pre-pass column identity, gates multi-column `ensureSelectionVisible` / `centeredViewportCorrection` on real selection/active-column/column-set/removal changes, and preserves a parked view start when it is still a reachable snap. Regression coverage lives in `Tests/NehirTests/ParkedViewportRelayoutTests.swift`. Moved from `planned/` to `completed/` on 2026-07-01.
 
 Promotes `completed/20260701-config-relayout-reinterprets-parked-edge-snapped-selection.md`.
 That discovery source-attributed item 9: changing app rules / workspace config /

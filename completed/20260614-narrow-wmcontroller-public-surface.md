@@ -330,11 +330,29 @@ partially after Phase 1.
 
 ---
 
-## Outcome (completed 2026-06-19)
+## Outcome (completed 2026-06-19; corrected 2026-07-02)
 
-Shipped on branch `patch/narrow-wmcontroller-public-surface` as three independently-shippable,
-no-behavior-change commits. Reviewer verdict: **all four success criteria PASS** with file:line
-evidence; no plan risk materialized; all non-goals honored; `swift build` clean.
+> **Correction (2026-07-02).** This section was originally written when the work sat
+> unmerged on `patch/narrow-wmcontroller-public-surface`, and it recorded that
+> branch's *pre-squash* state. What actually landed on `main` is a **single squashed
+> commit `776b9559`** ("Narrow WMController layout/focus surface behind coordinator
+> protocols", 2026-06-19) that also includes a post-review rework beyond the three
+> phases below: the combined-navigation, focus-previous, column-movement, and
+> tabbed-column command logic was folded into `NiriLayoutHandler` behind named
+> protocol methods, and the `withNiriOperationContext` / `withNiriWorkspaceContext` /
+> `activateNode` escape hatches were **removed from `LayoutCoordinator`** entirely.
+> Real merged diffstat: **533 insertions / 406 deletions across 8 files** (including
+> `CommandHandler.swift` −456/+ and `NiriLayoutHandler.swift` +334), not the
+> 167/43-across-7 recorded below. The three phase commits listed in the table are
+> pre-squash history and are not reachable from `main`. Verification of the merged
+> state is in
+> [`discovery/20260702-mega-file-growth-and-narrow-wmcontroller-revisit.md`](../discovery/20260702-mega-file-growth-and-narrow-wmcontroller-revisit.md).
+
+Shipped to `main` as squashed commit `776b9559`. Originally developed on branch
+`patch/narrow-wmcontroller-public-surface` as three independently-shippable,
+no-behavior-change commits (pre-squash history below). Reviewer verdict at the time:
+**all four success criteria PASS** with file:line evidence; no plan risk
+materialized; all non-goals honored; `swift build` clean.
 
 | Phase | Commit | Summary |
 |---|---|---|
@@ -343,9 +361,9 @@ evidence; no plan risk materialized; all non-goals honored; `swift build` clean.
 | 3 — `FocusCoordinator` | `41902e64` | New `FocusCoordinator` protocol (4 members) + `WMController` adaptor forwarding to `niriEngine`; `MouseEventHandler`'s two interactive-cancel calls and `FocusBorderController`'s fullscreen read migrated off direct `niriEngine`. |
 | 4 — audit | (doc only) | Surviving-reads table below; no source changed, nothing committed. |
 
-**Total diff vs `main`:** 167 insertions / 43 deletions across 7 files
-(`FocusCoordinator.swift`, `LayoutCoordinator.swift` new; `WMController.swift`, `CommandHandler.swift`,
-`NiriLayoutHandler.swift`, `MouseEventHandler.swift`, `FocusBorderController.swift` changed).
+**Total diff vs `main` (pre-squash, superseded — see correction above):** 167
+insertions / 43 deletions across 7 files. The merged `776b9559` is 533/406 across
+8 files (adds a changeset fragment and the escape-hatch-removal rework).
 
 **Validation:** baseline `swift test` = 1251 tests / 101 suites / 0 failures on `main`; identical
 1251/0 after each of Phases 1–3. No behavior change — the protocols are pure type-level
@@ -371,9 +389,11 @@ concrete methods:
   over-extraction threshold (4 members across 2 consumers — `MouseEventHandler` +
   `FocusBorderController`), so the named-method fallback did not apply. Flagged so it is not
   mistaken for dead code in a later audit.
-- `NiriLayoutHandler` method bodies are unchanged on this branch — the only edit to that file is
-  the single line at `:1532` (the `setNiriEngine` call). Its `weak controller` back-reference is
-  untouched.
+- ~~`NiriLayoutHandler` method bodies are unchanged on this branch — the only edit to that file is
+  the single line at `:1532` (the `setNiriEngine` call).~~ **No longer true of the merged
+  version:** `776b9559` grew `NiriLayoutHandler.swift` by +334 lines, folding the combined-navigation
+  and column/tabbed command logic behind named protocol methods (see correction above). Its
+  `weak controller` back-reference remains untouched.
 
 ## Phase 4 — surviving `.niriEngine` reads (the audit deliverable)
 
@@ -438,3 +458,12 @@ read seam, or just a `private renderedFrame(for:)` helper in `AXEventHandler`.
 
 Discovery doc: [`discovery/20260613-codebase-review-findings.md`](../discovery/20260613-codebase-review-findings.md)
 — §7 "Narrow WMController's public surface".
+
+**Revisited 2026-07-02:**
+[`discovery/20260702-mega-file-growth-and-narrow-wmcontroller-revisit.md`](../discovery/20260702-mega-file-growth-and-narrow-wmcontroller-revisit.md)
+verified the boundaries held under two weeks of feature traffic (write funnel
+intact, `CommandHandler` fully on `LayoutCoordinator`, escape hatches removed on
+merge), found the deferred `renderedFrame ?? frame` query grew from 3 to 8
+controller-layer sites (extraction now justified), and confirmed the work shipped
+to `main` as `776b9559` — the branch `patch/narrow-wmcontroller-public-surface`
+is patch-identical and safe to delete.
