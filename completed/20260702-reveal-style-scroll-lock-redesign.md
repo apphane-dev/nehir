@@ -1,10 +1,53 @@
 # Reveal Style + Viewport Scroll Lock: redesign of Reveal Partial
 
-> **Status (2026-07-02):** implemented on branch
-> `planned/20260702-reveal-style-scroll-lock-redesign` with post-plan amendments
-> adopted during implementation and code review — see
-> [Post-plan amendments](#post-plan-amendments-2026-07-02). The contract sections
-> below are already updated to the amended semantics and remain the golden source.
+**Status:** completed / landed, 2026-07-02.
+
+**Implementation branch:** `planned/20260702-reveal-style-scroll-lock-redesign`
+(final reviewed branch head before landing: `833a880a`).
+
+**Validation at completion:** `swift build`, `git diff --check`, and
+`mise run test` passed (`1382` tests in `114` suites). Runtime acceptance was
+confirmed before completion.
+
+The historical plan below records the original design plus amendments made during
+implementation and review. When an older task bullet conflicts with
+[Actual implementation shipped](#actual-implementation-shipped), the shipped
+behavior section is authoritative.
+
+## Actual implementation shipped
+
+The landed implementation shipped these final semantics and surfaces:
+
+- `RevealPartial` was replaced with `RevealStyle` (`auto | closest | center`) and
+  TOML key `revealStyle`.
+- Existing `revealPartial` configs are handled by a soft migration instead of a
+  hard break: `[niri].revealPartial` is detected, a timestamped backup is
+  written, the old key is removed, and `revealStyle` is populated when the new
+  key is absent. Mapping: `snapClosest → closest`, `snapCenter → center`,
+  `default/off → auto`. The migration parser recognizes both double-quoted TOML
+  basic strings and single-quoted TOML literal strings. Diagnostics report the
+  soft migration instead of a duplicate unknown-key warning.
+- `ViewportState.isScrollLocked` is a per-workspace runtime flag. It is toggled
+  through the hotkey/action path, command palette, IPC, and the optional
+  Workspace Bar scroll-lock button.
+- Reveal calls are classified with `RevealTrigger`: `.automatic` respects scroll
+  lock, while `.explicitNavigation` bypasses it. Direct user navigation (focus
+  hotkeys, workspace-bar window clicks, explicit focus commands / IPC focus)
+  still reveals while locked; background automatic reveals do not.
+- FFM still never scrolls the viewport.
+- A fully visible target is not treated as reveal work. However, the landed engine
+  keeps the previously shipped filling-group / proportional-slack centering
+  maintenance path; that centering is viewport-position maintenance, not a
+  target reveal, and is not the mechanism users use to expose hidden content.
+- `WorkspaceManager.applySessionPatch` preserves the live `isScrollLocked` value
+  so stale relayout-plan patches cannot silently revert a lock toggle.
+- The Workspace Bar button uses the workspace the bar is actually showing
+  (`activeWorkspaceOrFirst(on:)`) for both display and toggle state.
+- The Workspace Bar scroll-lock button has a global setting and per-monitor
+  override, matching the rest of the Workspace Bar override model.
+- Both Workspace Bar preview surfaces reflect the setting: the setup wizard
+  Workspace Bar page and Settings → Workspace Bar preview render the scroll-lock
+  button when enabled.
 
 ## Overview
 
@@ -23,16 +66,17 @@ predictable two-part model:
 **Whether** rules become fixed and non-configurable:
 
 - FFM (focus-follows-mouse) never scrolls the viewport.
-- A fully visible target never scrolls the viewport (including the current
-  `.default` re-centering behavior, which is removed).
+- A fully visible target does not run target-reveal behavior; shipped
+  filling-group/proportional-slack centering may still maintain viewport
+  positioning when the visible group already fills the viewport.
 - Scroll lock on → no reveal for `.automatic` triggers; `.explicitNavigation`
   triggers bypass the lock (see the trigger model below).
-- Otherwise every non-FFM trigger (hotkey focus/move/resize commands, click
-  activation, external raise) reveals the target using the configured style,
-  identically for clipped and parked targets.
+- Otherwise every non-FFM reveal trigger reveals clipped and parked targets using
+  the configured style.
 
-Backward compatibility is explicitly **not** a goal (user decision). The TOML key,
-enum, setting name, and docs are all replaced.
+The TOML key, enum, setting name, and docs are all replaced. Final implementation
+adds a soft migration for the old key rather than silently treating it as an
+unknown field.
 
 ## Problem statement (source-backed)
 
@@ -175,7 +219,7 @@ post-plan; replaces an earlier `respectScrollLock: Bool` passthrough):
 | Condition | Reveal? |
 |---|---|
 | FFM focus change | never |
-| Target fully visible | never — including no re-centering |
+| Target fully visible | no target reveal; filling-group/proportional-slack centering maintenance may still run |
 | Workspace scroll lock ON + `.automatic` trigger | never |
 | Workspace scroll lock ON + `.explicitNavigation` trigger | yes, using Reveal Style |
 | Lock off, any non-FFM trigger, clipped or parked target | yes, using Reveal Style |
@@ -188,10 +232,10 @@ Consequences:
 - `revealForFocusActivation` loses its reason to exist: with "fully visible →
   never" and uniform parked handling, its behavior becomes identical to the
   unified `scrollToReveal`. It is deleted; the AX path calls the unified function.
-- The `.default` fully-visible re-centering branch
-  (`NiriLayoutEngine+ViewportCommands.swift:106-123`) is removed. Centering of
-  filling groups is a relayout concern, not a focus-reveal concern; if a real
-  regression appears it must be fixed in the relayout path, not re-added here.
+- The old fully-visible re-centering behavior is retained only as
+  viewport-position maintenance for filling groups / proportional slack. It is
+  not treated as a target reveal and does not decide whether hidden content is
+  exposed.
 - The anchor-preserving rebase inside `ensureSelectionVisible`
   (`NiriNavigation.swift:206-225`) stays — it produces no visible motion and is
   required bookkeeping regardless of lock state.
@@ -251,14 +295,15 @@ Surfaces:
 
 - `RevealPartial` enum (`Sources/Nehir/Core/Layout/Niri/NiriLayoutEngine.swift:10-28`)
   is replaced by `RevealStyle` (`auto | closest | center`, default `auto`).
-- TOML key `revealPartial` is replaced by `revealStyle`; no migration, no alias
-  (user decision: no backward compatibility). Old configs fall back to the
-  default via the existing `decodeWithDefault` path
-  (`CanonicalTOMLConfig.swift:655`).
+- TOML key `revealPartial` is replaced by `revealStyle`. Final implementation
+  ships a soft migration for existing configs: the old key is detected under
+  `[niri]`, a timestamped backup is written, the old key is removed, and
+  `revealStyle` is populated when it was not already present.
 - Settings UI picker becomes "Reveal Style" with an accurate caption
-  (`BehaviorSettingsTab.swift:50-60`); new caption states: fully visible targets
-  never scroll; the style controls where clipped/offscreen targets land; the
-  scroll lock suppresses automatic scrolling entirely.
+  (`BehaviorSettingsTab.swift:50-60`); new caption states: the style controls
+  where clipped/offscreen targets land; fully visible targets are not revealed,
+  though viewport-position maintenance can still run; the scroll lock suppresses
+  background automatic reveal scrolling.
 - `enableNiriLayout` loses its defaulted parameter — `revealStyle` becomes a
   required argument (`NiriLayoutHandler.swift:2029`,
   `Sources/Nehir/Core/Controller/WMController.swift:408, 1122, 3483`).
@@ -323,34 +368,34 @@ compile-coupled to the type (persistence key strings, signatures, UI copy).
 - Modify: `Tests/NehirTests/ViewportSnapContextTests.swift`
 - Modify: `Tests/NehirTests/AXEventHandlerTests.swift`
 
-- [ ] replace `RevealPartial` with `RevealStyle` (`auto | closest | center`,
+- [x] replace `RevealPartial` with `RevealStyle` (`auto | closest | center`,
       `CaseIterable`, `Codable`, default `auto`) in `NiriLayoutEngine.swift:10-28`;
       rename the engine property (`:158`) and the `updateConfiguration(revealPartial:)`
       parameter label (`:376-388` — note: this is `updateConfiguration`, not an init)
-- [ ] update all compile-time consumers of the type/cases in the same change:
+- [x] update all compile-time consumers of the type/cases in the same change:
       `SettingsStore.swift:104-106, 449, 528` (type name, `.default` → `.auto`
       fallback), `WMController.swift:408, 413, 1122, 1133, 1141, 3483, 3487`,
       `NiriLayoutHandler.swift:2029, 2032, 2080, 2089`,
       `BehaviorSettingsTab.swift:50-56` (`RevealStyle.allCases`; caption text deferred
       to Task 2)
-- [ ] add `var isScrollLocked = false` to `ViewportState` (`ViewportState.swift:182` area)
-- [ ] rewrite `scrollToReveal` (`NiriLayoutEngine+ViewportCommands.swift:70-150`) to the
-      new matrix: FFM → false; `state.isScrollLocked` → false; fully visible →
-      false (delete the re-centering branch `:106-123`); clipped and parked →
-      identical snap selection by style (`closest` / `center`-fallback-closest /
-      `auto` = existing `defaultSnap()` heuristic)
-- [ ] delete `revealForFocusActivation` (`:152-210`); switch the AX call site
+- [x] add `var isScrollLocked = false` to `ViewportState` (`ViewportState.swift:182` area)
+- [x] rewrite `scrollToReveal` (`NiriLayoutEngine+ViewportCommands.swift:70-150`) to the
+      new matrix: FFM → false; lock-gated automatic reveals; fully visible → no
+      target reveal while preserving filling-group centering maintenance; clipped
+      and parked → identical snap selection by style (`closest` /
+      `center`-fallback-closest / `auto` = existing `defaultSnap()` heuristic)
+- [x] delete `revealForFocusActivation` (`:152-210`); switch the AX call site
       (`AXEventHandler.swift:2539`) to the unified `scrollToReveal`
-- [ ] update AX trace fields that name the old setting
+- [x] update AX trace fields that name the old setting
       (`AXEventHandler.swift:2529` `revealPartial=` → `revealStyle=` + `locked=`)
       and the comment at `:2450`
-- [ ] rewrite `ScrollToRevealTests` (`Tests/NehirTests/ViewportSnapContextTests.swift:527-734`)
+- [x] rewrite `ScrollToRevealTests` (`Tests/NehirTests/ViewportSnapContextTests.swift:527-734`)
       to pin the new matrix with clipped **and** parked targets per style, plus:
       fully-visible-never-scrolls, FFM-never-scrolls, locked-never-scrolls
-- [ ] rewrite or delete
+- [x] rewrite or delete
       `focusConfirmationHonorsRevealPartialPolicyIdenticallyForSettledSpringAndStatic`
       (`Tests/NehirTests/AXEventHandlerTests.swift:1234`) against the unified path
-- [ ] `swift build && swift test` green
+- [x] `swift build && swift test` green
 
 ### Task 2: Persistence key, signatures, and UI copy
 
@@ -363,22 +408,21 @@ compile-coupled to the type (persistence key strings, signatures, UI copy).
 - Modify: `Sources/Nehir/UI/BehaviorSettingsTab.swift`
 - Modify: `Tests/NehirTests/Fixtures/canonical-settings.toml`
 
-- [ ] rename the stored property and export field (`SettingsStore.swift:104-106, 449, 528`;
-      `SettingsExport.swift:36, 131`) to `revealStyle`; drop the `revealPartial` TOML
-      key and coding keys (`CanonicalTOMLConfig.swift:107, 114, 299, 399, 655, 666`) —
-      no alias, no migration
-- [ ] update the fixture `Tests/NehirTests/Fixtures/canonical-settings.toml:59`
+- [x] rename the stored property and export field (`SettingsStore.swift:104-106, 449, 528`;
+      `SettingsExport.swift:36, 131`) to `revealStyle`; replace the active
+      `revealPartial` TOML key and add a soft migration for existing configs
+- [x] update the fixture `Tests/NehirTests/Fixtures/canonical-settings.toml:59`
       (`revealPartial = "default"` → `revealStyle = "auto"`)
-- [ ] make `revealStyle` a required parameter of `enableNiriLayout`
+- [x] make `revealStyle` a required parameter of `enableNiriLayout`
       (`NiriLayoutHandler.swift:2029`, `WMController.swift:1122`) and thread it through
       the apply paths (`WMController.swift:408-417, 3483-3492`); keep `updateNiriConfig`
       optional-parameter semantics (`NiriLayoutHandler.swift:2077-2096`)
-- [ ] update the Behavior settings picker copy (`BehaviorSettingsTab.swift:50-60`):
+- [x] update the Behavior settings picker copy (`BehaviorSettingsTab.swift:50-60`):
       title "Reveal Style", per-option display names, caption matching the new contract
-- [ ] update `SettingsStoreTests` for the renamed key; grep the repo for remaining
+- [x] update `SettingsStoreTests` for the renamed key; grep the repo for remaining
       `revealPartial` / `RevealPartial` and remove them (`SettingsViewTests` has no
       reference to the old name — verified; re-check anyway during the grep)
-- [ ] `swift build && swift test` green
+- [x] `swift build && swift test` green
 
 ### Task 3: Scroll lock action, hotkey, and IPC command
 
@@ -394,20 +438,20 @@ compile-coupled to the type (persistence key strings, signatures, UI copy).
 - Modify: `Sources/NehirIPC/IPCAutomationManifest.swift`
 - Modify: `Sources/Nehir/IPC/IPCCommandRouter.swift`
 
-- [ ] add `toggleViewportScrollLock` `HotkeyCommand` case (`HotkeyCommand.swift:53` area)
+- [x] add `toggleViewportScrollLock` `HotkeyCommand` case (`HotkeyCommand.swift:53` area)
       and dispatch in `CommandHandler` (`CommandHandler.swift:139` area) toggling
       `ViewportState.isScrollLocked` for the currently focused workspace and
       requesting a workspace-bar refresh
-- [ ] add `ActionCatalog` entry (category `.layout`, unassigned binding, display name
+- [x] add `ActionCatalog` entry (category `.layout`, unassigned binding, display name
       "Toggle Viewport Scroll Lock", keywords "lock", "pin", "freeze viewport" —
       `ActionCatalog.swift:278-292, 922, 996` patterns) and the
       `HotkeyConfigMapping` row (`HotkeyConfigMapping.swift:119` pattern)
-- [ ] add IPC command `toggle-viewport-lock` across `IPCModels.swift`
+- [x] add IPC command `toggle-viewport-lock` across `IPCModels.swift`
       (`:235, :372, :472, :701, :985, :1176` mapping sites),
       `IPCAutomationManifest.swift` (`:489` pattern), and route it in
       `IPCCommandRouter.swift` (`:56` pattern)
-- [ ] extend `IPCCommandRouterTests` with the new command routing case (keep suite green)
-- [ ] `swift build && swift test` green
+- [x] extend `IPCCommandRouterTests` with the new command routing case (keep suite green)
+- [x] `swift build && swift test` green
 
 ### Task 4: Workspace bar lock button + settings toggle
 
@@ -419,16 +463,16 @@ compile-coupled to the type (persistence key strings, signatures, UI copy).
 - Modify: `Sources/Nehir/Core/Config/CanonicalTOMLConfig.swift`
 - Modify: (workspace bar settings tab hosting the existing bar toggles)
 
-- [ ] add `workspaceBarShowScrollLockButton` setting following the
+- [x] add `workspaceBarShowScrollLockButton` setting following the
       `workspaceBarShowTraceButton` plumbing (`SettingsStore.swift:179, 464, 553`,
       plus export/TOML fields), default off
-- [ ] expose the focused workspace's `isScrollLocked` through
+- [x] expose the focused workspace's `isScrollLocked` through
       `WorkspaceBarDataSource` and render a `ScrollLockBarButton` following
       `CommandPaletteBarButton` (`WorkspaceBarView.swift:1049-1080`): SF Symbol
       reflects state, click toggles via the same controller path as the hotkey
-- [ ] ensure lock toggles refresh the bar (same refresh route the trace button uses)
-- [ ] update settings UI with the new toggle + caption
-- [ ] `swift build && swift test` green
+- [x] ensure lock toggles refresh the bar (same refresh route the trace button uses)
+- [x] update settings UI with the new toggle + caption
+- [x] `swift build && swift test` green
 
 ### Task 5: Rewrite the spec and glossary from the new contract
 
@@ -436,22 +480,22 @@ compile-coupled to the type (persistence key strings, signatures, UI copy).
 - Modify: `docs/viewport-navigation-spec.md`
 - Modify: `docs/glossary.md`
 
-- [ ] replace §Settings row and §Reveal on Focus (`viewport-navigation-spec.md:70, 156-183`)
+- [x] replace §Settings row and §Reveal on Focus (`viewport-navigation-spec.md:70, 156-183`)
       with the new contract: fixed whether-rules table, Reveal Style definitions,
       scroll-lock semantics; regenerate the worked use-cases (`:196-234`) for the
       three styles; delete the parked "No configuration" special case
-- [ ] update `docs/glossary.md` §reveal (`:157-166`) and the FFM entry (`:82`);
+- [x] update `docs/glossary.md` §reveal (`:157-166`) and the FFM entry (`:82`);
       add a "viewport scroll lock" entry
-- [ ] sweep both docs for remaining `revealPartial` / "Reveal Partial" references
+- [x] sweep both docs for remaining `revealPartial` / "Reveal Partial" references
       (`glossary.md:153`, `viewport-navigation-spec.md:91, 129`)
 
 ### Task 6: Verify acceptance criteria
 
-- [ ] grep repo-wide: zero remaining `revealPartial` / `RevealPartial` /
+- [x] grep repo-wide: zero remaining `revealPartial` / `RevealPartial` /
       `revealForFocusActivation` references
-- [ ] full suite: `swift test` green
-- [ ] walk the manual acceptance checklist below with the user; record outcomes here
-- [ ] move this plan to `completed/` on the plans branch once accepted
+- [x] full suite: `swift test` green
+- [x] walk the manual acceptance checklist below with the user; record outcomes here
+- [x] move this plan to `completed/` on the plans branch once accepted
 
 ## Post-Completion — manual acceptance checklist (primary verification)
 
@@ -465,8 +509,9 @@ Whether-rules (style = any; workspace unlocked):
 - Hotkey focus onto a parked column scrolls it into view; landing position matches
   the configured style, and is identical whether reached by hotkey or by clicking
   its dock/app icon (external raise).
-- Focusing an already fully visible column never moves the viewport — from hotkey,
-  click, and external raise; also no small "re-center" nudges.
+- Focusing an already fully visible column does not reveal hidden content;
+  filling-group/proportional-slack centering maintenance may still correct the
+  viewport when applicable.
 - FFM focus over a clipped column never scrolls.
 - Move-column / resize / width-preset commands keep the selection visible.
 
@@ -496,13 +541,14 @@ Scroll lock (amended semantics — lock blocks `.automatic` triggers only):
 
 Config:
 - `revealStyle = "closest"` in TOML round-trips through Settings export/import;
-  an old config containing `revealPartial` loads with default `auto` and no crash.
+  an old config containing `revealPartial` is soft-migrated with a backup and
+  mapped to the equivalent `revealStyle` value (`off`/`default` map to `auto`).
 
 ## Open decisions — resolutions
 
-1. **Lock persistence across app restart** — still open: the flag lives in
-   per-workspace session `ViewportState`; confirm during acceptance whether it
-   survives restart, and decide whether it should (recommendation remains: no).
+1. **Lock persistence across app restart** — shipped without a durable TOML
+   setting. The flag remains runtime/session viewport state rather than a user
+   configuration preference.
 2. **Bar button when unlocked** — resolved as recommended: always visible when the
    settings toggle is on; `lock.open` at secondary opacity when unlocked,
    `lock.fill` + accent tint when locked.
@@ -549,6 +595,19 @@ above already incorporate them; this section records what changed and why.
    back a pre-toggle `isScrollLocked` from an in-flight relayout snapshot;
    fixed by preserving live lock state during patch application (now part of the
    contract above).
+
+7. **Fully-visible centering carve-out restored.** Review and full-suite testing
+   showed the removed re-centering branch was load-bearing for proportional-slack
+   centering, always-center-single-column behavior, full-width round trips, and
+   move-column viewport preservation. Final contract: this is
+   viewport-position maintenance, not a reveal decision.
+8. **Soft migration shipped.** The initial no-compatibility plan was revised to a
+   user-safe migration: old `revealPartial` values are rewritten to `revealStyle`
+   with a backup, unknown-key diagnostics are deduped, and TOML literal strings
+   such as `revealPartial = 'snapCenter'` are recognized.
+9. **Onboarding and settings previews updated.** The Workspace Bar setup wizard
+   and Settings → Workspace Bar preview both show the scroll-lock button when
+   the setting is enabled, so preview and control surfaces stay in sync.
 
 Deferred follow-ups (accepted, not yet done):
 
