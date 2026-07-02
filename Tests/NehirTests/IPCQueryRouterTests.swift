@@ -527,7 +527,8 @@ private func prepareIPCQueryRouterNiriState(
             options: WorkspaceBarProjectionOptions(
                 deduplicateAppIcons: false,
                 hideEmptyWorkspaces: false,
-                showFloatingWindows: false
+                showFloatingWindows: false,
+                showWorkspacesFromOtherDisplays: false
             ),
             workspaceManager: controller.workspaceManager,
             appInfoCache: controller.appInfoCache,

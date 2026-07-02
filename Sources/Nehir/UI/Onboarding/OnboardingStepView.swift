@@ -41,8 +41,8 @@ struct OnboardingStepView<Animation: View, Control: View>: View {
             .padding(.bottom, 24)
 
             animation()
-                .frame(height: step.animationHeight)
-                .frame(maxWidth: .infinity)
+                .frame(height: step.animationHeight, alignment: .center)
+                .frame(maxWidth: .infinity, alignment: .center)
 
             Spacer(minLength: 16)
 

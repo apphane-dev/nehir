@@ -15,6 +15,41 @@ struct WorkspaceBarItem: Identifiable, Equatable {
     let isFocused: Bool
     let tiledWindows: [WorkspaceBarWindowItem]
     let floatingWindows: [WorkspaceBarWindowItem]
+    /// True when this workspace lives on a different display than the bar it is
+    /// rendered on. Foreign pills are appended after the local workspaces behind
+    /// a divider and grouped under a display icon. Plain-click switches their
+    /// home display; shift-click moves the focused window there.
+    let isForeign: Bool
+    let homeMonitorName: String?
+    let homeMonitorLabel: String?
+    /// Whether this workspace is the active one on its home display. Distinct
+    /// from `isFocused` (active *on this monitor*): a foreign workspace can be
+    /// active over there without being this display's focused workspace.
+    let isActiveOnHomeDisplay: Bool
+
+    init(
+        id: WorkspaceDescriptor.ID,
+        name: String,
+        rawName: String,
+        isFocused: Bool,
+        tiledWindows: [WorkspaceBarWindowItem],
+        floatingWindows: [WorkspaceBarWindowItem],
+        isForeign: Bool = false,
+        homeMonitorName: String? = nil,
+        homeMonitorLabel: String? = nil,
+        isActiveOnHomeDisplay: Bool = false
+    ) {
+        self.id = id
+        self.name = name
+        self.rawName = rawName
+        self.isFocused = isFocused
+        self.tiledWindows = tiledWindows
+        self.floatingWindows = floatingWindows
+        self.isForeign = isForeign
+        self.homeMonitorName = homeMonitorName
+        self.homeMonitorLabel = homeMonitorLabel
+        self.isActiveOnHomeDisplay = isActiveOnHomeDisplay
+    }
 
     var windows: [WorkspaceBarWindowItem] {
         tiledWindows + floatingWindows
@@ -194,6 +229,11 @@ struct WorkspaceBarWindowMoveTarget: Identifiable, Hashable {
     let name: String
 }
 
+private struct ForeignWorkspaceItemGroup: Identifiable {
+    let id: String
+    let items: [WorkspaceBarItem]
+}
+
 /// Bundle of right-click actions threaded from the controller through the bar
 /// to each window icon. Bundling keeps `WindowIconView` a value type without a
 /// long parameter list.
@@ -245,6 +285,35 @@ private struct WorkspaceBarContentView: View {
 
     private var iconSize: CGFloat {
         max(12, itemHeight - 6)
+    }
+
+    /// Workspaces on this display, rendered as full pills with window icons.
+    private var localItems: [WorkspaceBarItem] {
+        snapshot.items.filter { !$0.isForeign }
+    }
+
+    /// Workspaces from other displays, rendered as compact navigation pills
+    /// behind a divider. Empty when the per-display toggle is off.
+    private var foreignItems: [WorkspaceBarItem] {
+        snapshot.items.filter { $0.isForeign }
+    }
+
+    /// Foreign workspaces grouped by display so the display icon appears once per
+    /// group instead of repeating a display label in every pill.
+    private var foreignItemGroups: [ForeignWorkspaceItemGroup] {
+        var order: [String] = []
+        var grouped: [String: [WorkspaceBarItem]] = [:]
+        for item in foreignItems {
+            let key = item.homeMonitorLabel ?? item.homeMonitorName ?? "Display"
+            if grouped[key] == nil {
+                order.append(key)
+                grouped[key] = []
+            }
+            grouped[key]?.append(item)
+        }
+        return order.compactMap { key in
+            grouped[key].map { ForeignWorkspaceItemGroup(id: key, items: $0) }
+        }
     }
 
     private let workspaceSpacing: CGFloat = 8
@@ -300,7 +369,7 @@ private struct WorkspaceBarContentView: View {
 
     var body: some View {
         HStack(spacing: workspaceSpacing) {
-            ForEach(snapshot.items, id: \.id) { item in
+            ForEach(localItems, id: \.id) { item in
                 WorkspaceItemView(
                     item: item,
                     iconSize: iconSize,
@@ -316,6 +385,27 @@ private struct WorkspaceBarContentView: View {
                     onFocusWindow: onFocusWindow,
                     windowActions: windowActions
                 )
+            }
+
+            if !foreignItemGroups.isEmpty {
+                Divider()
+                    .frame(height: itemHeight)
+                    .opacity(0.4)
+                    .accessibilityHidden(true)
+
+                ForEach(foreignItemGroups) { group in
+                    ForeignWorkspaceGroupView(
+                        group: group,
+                        iconSize: iconSize,
+                        itemHeight: itemHeight,
+                        cornerRadius: cornerRadius,
+                        animationsEnabled: effectiveAnimationsEnabled,
+                        accentColor: accentColor,
+                        textColor: textColor,
+                        onFocusWorkspace: onFocusWorkspace,
+                        onMoveFocusedWindowToWorkspace: onMoveFocusedWindowToWorkspace
+                    )
+                }
             }
 
             if let sticky = snapshot.sticky {
@@ -579,6 +669,130 @@ private struct WorkspaceLabelButton: View {
         .accessibilityValue(item.isFocused ? "Focused" : "")
         .help(
             "Focus workspace \(item.name). Shift-click or right-click to move the focused window here."
+        )
+    }
+}
+
+@MainActor
+private struct ForeignWorkspaceGroupView: View {
+    let group: ForeignWorkspaceItemGroup
+    let iconSize: CGFloat
+    let itemHeight: CGFloat
+    let cornerRadius: CGFloat
+    let animationsEnabled: Bool
+    let accentColor: Color?
+    let textColor: Color?
+    let onFocusWorkspace: (WorkspaceBarItem) -> Void
+    let onMoveFocusedWindowToWorkspace: (WorkspaceBarItem) -> Void
+
+    private var resolvedSecondaryTextColor: Color {
+        textColor ?? .secondary
+    }
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "display")
+                .font(.system(size: max(9, iconSize * 0.58), weight: .medium))
+                .foregroundColor(resolvedSecondaryTextColor.opacity(0.75))
+                .accessibilityHidden(true)
+
+            ForEach(group.items, id: \.id) { item in
+                ForeignWorkspaceItemView(
+                    item: item,
+                    iconSize: iconSize,
+                    itemHeight: itemHeight,
+                    cornerRadius: cornerRadius,
+                    animationsEnabled: animationsEnabled,
+                    accentColor: accentColor,
+                    textColor: textColor,
+                    onFocusWorkspace: { onFocusWorkspace(item) },
+                    onMoveFocusedWindowToWorkspace: { onMoveFocusedWindowToWorkspace(item) }
+                )
+            }
+        }
+    }
+}
+
+@MainActor
+private struct ForeignWorkspaceItemView: View {
+    let item: WorkspaceBarItem
+    let iconSize: CGFloat
+    let itemHeight: CGFloat
+    let cornerRadius: CGFloat
+    let animationsEnabled: Bool
+    let accentColor: Color?
+    let textColor: Color?
+    let onFocusWorkspace: () -> Void
+    let onMoveFocusedWindowToWorkspace: () -> Void
+
+    @State private var isHovered = false
+
+    private var resolvedAccentColor: Color {
+        accentColor ?? .accentColor
+    }
+
+    private var accessibilityLabel: String {
+        var label = "Workspace \(item.name)"
+        if let home = item.homeMonitorName {
+            label += " on \(home)"
+        }
+        return label
+    }
+
+    var body: some View {
+        Button(action: onFocusWorkspace) {
+            HStack(spacing: 4) {
+                if item.isActiveOnHomeDisplay {
+                    Circle()
+                        .fill(resolvedAccentColor)
+                        .frame(width: max(4, iconSize * 0.28), height: max(4, iconSize * 0.28))
+                        .accessibilityHidden(true)
+                }
+                Text(item.name)
+                    .font(.system(.caption, design: .monospaced).weight(.medium))
+                    .foregroundColor(textColor ?? .primary)
+                    .frame(minWidth: 16)
+            }
+            .padding(.horizontal, 6)
+            .frame(height: itemHeight)
+            .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .scaleEffect(isHovered ? 1.02 : 1.0)
+        .animation(animationsEnabled ? .easeInOut(duration: 0.12) : nil, value: isHovered)
+        .background {
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .fill(Color.secondary.opacity(isHovered ? 0.16 : 0.07))
+                .overlay {
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .strokeBorder(Color.secondary.opacity(0.24), lineWidth: 0.6)
+                }
+        }
+        .onHover { hovering in
+            isHovered = hovering
+        }
+        // Right-click mirrors the local workspace pill: *Focus* equals left-click
+        // (and honors shift to move the focused window); *Move Focused Window
+        // Here* is the explicit shift-click shortcut.
+        .contextMenu {
+            Button {
+                onFocusWorkspace()
+            } label: {
+                Label("Focus Workspace \(item.name)", systemImage: "arrow.right.square")
+            }
+            Button {
+                onMoveFocusedWindowToWorkspace()
+            } label: {
+                Label("Move Focused Window Here", systemImage: "arrowshape.turn.up.right")
+            }
+            Divider()
+            Text("Shift-click also moves one window here.")
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityValue(item.isActiveOnHomeDisplay ? "Active on home display" : "")
+        .help(
+            "Workspace \(item.name) on \(item.homeMonitorName ?? "another display"). Click to switch that display; shift-click to move the focused window there."
         )
     }
 }

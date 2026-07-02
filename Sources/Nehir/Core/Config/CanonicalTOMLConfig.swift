@@ -164,6 +164,7 @@ struct CanonicalTOMLConfig: Codable, Equatable {
         var notchAware: Bool
         var deduplicateAppIcons: Bool
         var hideEmptyWorkspaces: Bool
+        var showWorkspacesFromOtherDisplays: Bool
         var reserveLayoutSpace: Bool
         var height: Double
         var backgroundOpacity: Double
@@ -177,7 +178,8 @@ struct CanonicalTOMLConfig: Codable, Equatable {
         enum CodingKeys: String, CodingKey, CaseIterable {
             case enabled, showLabels, showFloatingWindows, showTraceButton, showScrollLockButton, windowLevel, position,
                  notchAware,
-                 deduplicateAppIcons, hideEmptyWorkspaces, reserveLayoutSpace, height, backgroundOpacity, xOffset,
+                 deduplicateAppIcons, hideEmptyWorkspaces, showWorkspacesFromOtherDisplays, reserveLayoutSpace, height,
+                 backgroundOpacity, xOffset,
                  yOffset, labelFontSize, accentColor, textColor
         }
 
@@ -327,6 +329,7 @@ extension CanonicalTOMLConfig {
             notchAware: export.workspaceBarNotchAware,
             deduplicateAppIcons: export.workspaceBarDeduplicateAppIcons,
             hideEmptyWorkspaces: export.workspaceBarHideEmptyWorkspaces,
+            showWorkspacesFromOtherDisplays: export.workspaceBarShowWorkspacesFromOtherDisplays,
             reserveLayoutSpace: export.workspaceBarReserveLayoutSpace,
             height: export.workspaceBarHeight,
             backgroundOpacity: export.workspaceBarBackgroundOpacity,
@@ -421,6 +424,7 @@ extension CanonicalTOMLConfig {
             workspaceBarNotchAware: workspaceBar.notchAware,
             workspaceBarDeduplicateAppIcons: workspaceBar.deduplicateAppIcons,
             workspaceBarHideEmptyWorkspaces: workspaceBar.hideEmptyWorkspaces,
+            workspaceBarShowWorkspacesFromOtherDisplays: workspaceBar.showWorkspacesFromOtherDisplays,
             workspaceBarReserveLayoutSpace: workspaceBar.reserveLayoutSpace,
             workspaceBarHeight: workspaceBar.height,
             workspaceBarBackgroundOpacity: workspaceBar.backgroundOpacity,
@@ -749,6 +753,11 @@ extension CanonicalTOMLConfig.WorkspaceBar {
             forKey: .hideEmptyWorkspaces,
             default: d.hideEmptyWorkspaces
         )
+        showWorkspacesFromOtherDisplays = try container.decodeWithDefault(
+            Bool.self,
+            forKey: .showWorkspacesFromOtherDisplays,
+            default: d.showWorkspacesFromOtherDisplays
+        )
         reserveLayoutSpace = try container.decodeWithDefault(
             Bool.self,
             forKey: .reserveLayoutSpace,
@@ -780,6 +789,7 @@ extension CanonicalTOMLConfig.WorkspaceBar {
         try container.encode(notchAware, forKey: "notchAware")
         try container.encode(deduplicateAppIcons, forKey: "deduplicateAppIcons")
         try container.encode(hideEmptyWorkspaces, forKey: "hideEmptyWorkspaces")
+        try container.encode(showWorkspacesFromOtherDisplays, forKey: "showWorkspacesFromOtherDisplays")
         try container.encode(reserveLayoutSpace, forKey: "reserveLayoutSpace")
         try container.encode(height, forKey: "height")
         try container.encode(backgroundOpacity, forKey: "backgroundOpacity")

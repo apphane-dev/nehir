@@ -100,6 +100,41 @@ enum WorkspaceBarDataSource {
         viewportSelectedToken: WindowToken?,
         settings: SettingsStore
     ) -> [WorkspaceBarItem] {
+        var items = localWorkspaceItems(
+            for: monitor,
+            options: options,
+            workspaceManager: workspaceManager,
+            appInfoCache: appInfoCache,
+            niriEngine: niriEngine,
+            focusedToken: focusedToken,
+            viewportSelectedToken: viewportSelectedToken,
+            settings: settings
+        )
+
+        if options.showWorkspacesFromOtherDisplays {
+            items.append(
+                contentsOf: foreignWorkspaceItems(
+                    for: monitor,
+                    options: options,
+                    workspaceManager: workspaceManager,
+                    settings: settings
+                )
+            )
+        }
+
+        return items
+    }
+
+    private static func localWorkspaceItems(
+        for monitor: Monitor,
+        options: WorkspaceBarProjectionOptions,
+        workspaceManager: WorkspaceManager,
+        appInfoCache: AppInfoCache,
+        niriEngine: NiriLayoutEngine?,
+        focusedToken: WindowToken?,
+        viewportSelectedToken: WindowToken?,
+        settings: SettingsStore
+    ) -> [WorkspaceBarItem] {
         var workspaces = workspaceManager.workspaces(on: monitor.id).map { workspace in
             let projectedEntries = workspaceManager.barVisibleEntries(
                 in: workspace.id,
@@ -157,6 +192,57 @@ enum WorkspaceBarDataSource {
                 floatingWindows: floatingWindows
             )
         }
+    }
+
+    /// Workspaces realized on other displays, projected as compact foreign pills
+    /// after the local workspaces. Only monitor-assigned workspaces are included
+    /// (matching `moveTargetItems`), so disconnected workspaces never appear.
+    /// Foreign pills carry no window icons (a navigation aid, not a duplicate of
+    /// the home bar); `hideEmptyWorkspaces` is still respected based on real
+    /// workspace occupancy.
+    private static func foreignWorkspaceItems(
+        for monitor: Monitor,
+        options: WorkspaceBarProjectionOptions,
+        workspaceManager: WorkspaceManager,
+        settings: SettingsStore
+    ) -> [WorkspaceBarItem] {
+        var seen = Set(workspaceManager.workspaces(on: monitor.id).map(\.id))
+        var items: [WorkspaceBarItem] = []
+
+        for (monitorIndex, otherMonitor) in workspaceManager.monitors.enumerated() where otherMonitor.id != monitor.id {
+            let activeOnOther = workspaceManager.activeWorkspace(on: otherMonitor.id)?.id
+            let monitorLabel = compactForeignMonitorLabel(for: otherMonitor, index: monitorIndex)
+            for workspace in workspaceManager.workspaces(on: otherMonitor.id) {
+                guard seen.insert(workspace.id).inserted else { continue }
+                let projectedEntries = workspaceManager.barVisibleEntries(
+                    in: workspace.id,
+                    showFloatingWindows: options.showFloatingWindows
+                ).filter { !workspaceManager.isStickyWindow($0.token) }
+                if options.hideEmptyWorkspaces, projectedEntries.isEmpty { continue }
+                items.append(
+                    WorkspaceBarItem(
+                        id: workspace.id,
+                        name: settings.displayName(for: workspace.name),
+                        rawName: workspace.name,
+                        isFocused: false,
+                        tiledWindows: [],
+                        floatingWindows: [],
+                        isForeign: true,
+                        homeMonitorName: otherMonitor.name,
+                        homeMonitorLabel: monitorLabel,
+                        isActiveOnHomeDisplay: workspace.id == activeOnOther
+                    )
+                )
+            }
+        }
+        return items
+    }
+
+    private static func compactForeignMonitorLabel(for _: Monitor, index: Int) -> String {
+        // Full display names are often verbose and repeated across multiple
+        // workspace pills. Use a stable compact visual tag in the bar; keep the
+        // full name in accessibility/help text via `homeMonitorName`.
+        "D\(index + 1)"
     }
 
     private static func stickyItem(
