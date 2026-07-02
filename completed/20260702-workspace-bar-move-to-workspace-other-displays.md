@@ -1,17 +1,17 @@
 # Workspace bar: show other displays' workspaces in the Move to Workspace submenu
 
-**Status:** implemented and committed on the `workspacebar-displays` branch.
-Build and the existing workspace-bar test suites are green. The `patch`
-changeset exists. Still pending, per the repo's confirm-first rule for runtime
-GUI bugs: (1) user confirmation in a real multi-display repro and (2) a
-regression test asserting the projection spans all monitors.
+**Status:** completed — shipped in commit `61a67ba4` on `main` (2026-07-02,
+"Show other displays' workspaces in the workspace bar Move to Workspace submenu").
+Moved from `planned/` to `completed/`. The `patch` changeset shipped with the
+implementation. No standalone regression test was added before merge; existing
+workspace-bar and IPC query suites were green.
 **Source:** user report — "right click action in workspacebar is missing target
 workspaces to move window from other displays"; investigated and fixed
 2026-07-02. No Nehir ticket was filed at the time of writing; add one if a
 tracking issue is desired.
 
-Source line numbers below reflect the post-change working tree on
-`workspacebar-displays` on 2026-07-02. Re-verify before editing; line numbers
+Source line numbers below reflect `main` after shipped commit `61a67ba4` on
+2026-07-02. Re-verify before editing; line numbers
 drift.
 
 ## TL;DR

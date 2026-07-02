@@ -3,7 +3,7 @@
 **Status:** planned. Design discussed 2026-07-02; not started. Depends on nothing
 — the controller-side focus/move plumbing it relies on already exists and is
 monitor-aware (see Key findings). Sibling to
-`planned/20260702-workspace-bar-move-to-workspace-other-displays.md`, which
+`completed/20260702-workspace-bar-move-to-workspace-other-displays.md`, which
 addresses the same "move a window to another display" goal via the right-click
 submenu; this plan addresses it via always-visible pills + the existing
 shift+click pill action.
