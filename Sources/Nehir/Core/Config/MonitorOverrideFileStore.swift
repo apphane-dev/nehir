@@ -132,6 +132,7 @@ enum MonitorOverrideFileStore {
             if let v = bar.showFloatingWindows { lines.append("showFloatingWindows = \(v)") }
             if let v = bar.deduplicateAppIcons { lines.append("deduplicateAppIcons = \(v)") }
             if let v = bar.hideEmptyWorkspaces { lines.append("hideEmptyWorkspaces = \(v)") }
+            if let v = bar.showWorkspacesFromOtherDisplays { lines.append("showWorkspacesFromOtherDisplays = \(v)") }
             if let v = bar.reserveLayoutSpace { lines.append("reserveLayoutSpace = \(v)") }
             if let v = bar.notchAware { lines.append("notchAware = \(v)") }
             if let v = bar.position { lines.append("position = \(quoted(v.rawValue))") }
@@ -217,6 +218,7 @@ enum MonitorOverrideFileStore {
                 showFloatingWindows: bar["showFloatingWindows"].flatMap(extractBool),
                 deduplicateAppIcons: bar["deduplicateAppIcons"].flatMap(extractBool),
                 hideEmptyWorkspaces: bar["hideEmptyWorkspaces"].flatMap(extractBool),
+                showWorkspacesFromOtherDisplays: bar["showWorkspacesFromOtherDisplays"].flatMap(extractBool),
                 reserveLayoutSpace: bar["reserveLayoutSpace"].flatMap(extractBool),
                 notchAware: bar["notchAware"].flatMap(extractBool),
                 position: bar["position"].flatMap(extractString).flatMap(WorkspaceBarPosition.init(rawValue:)),

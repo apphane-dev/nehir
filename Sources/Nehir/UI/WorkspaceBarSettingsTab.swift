@@ -92,6 +92,7 @@ struct WorkspaceBarSettingsTab: View {
                 showScrollLockButton: settings.workspaceBarShowScrollLockButton,
                 deduplicateAppIcons: settings.workspaceBarDeduplicateAppIcons,
                 hideEmptyWorkspaces: settings.workspaceBarHideEmptyWorkspaces,
+                showWorkspacesFromOtherDisplays: settings.workspaceBarShowWorkspacesFromOtherDisplays,
                 scopeDescription: "Preview reflects the global workspace bar defaults."
             )
         case let .connected(monitorId):
@@ -214,6 +215,7 @@ private struct WorkspaceBarPreviewConfiguration {
     let showScrollLockButton: Bool
     let deduplicateAppIcons: Bool
     let hideEmptyWorkspaces: Bool
+    let showWorkspacesFromOtherDisplays: Bool
     let scopeDescription: String
 
     init(
@@ -223,6 +225,7 @@ private struct WorkspaceBarPreviewConfiguration {
         showScrollLockButton: Bool,
         deduplicateAppIcons: Bool,
         hideEmptyWorkspaces: Bool,
+        showWorkspacesFromOtherDisplays: Bool,
         scopeDescription: String
     ) {
         self.isEnabled = isEnabled
@@ -231,6 +234,7 @@ private struct WorkspaceBarPreviewConfiguration {
         self.showScrollLockButton = showScrollLockButton
         self.deduplicateAppIcons = deduplicateAppIcons
         self.hideEmptyWorkspaces = hideEmptyWorkspaces
+        self.showWorkspacesFromOtherDisplays = showWorkspacesFromOtherDisplays
         self.scopeDescription = scopeDescription
     }
 
@@ -242,6 +246,7 @@ private struct WorkspaceBarPreviewConfiguration {
             showScrollLockButton: resolved.showScrollLockButton,
             deduplicateAppIcons: resolved.deduplicateAppIcons,
             hideEmptyWorkspaces: resolved.hideEmptyWorkspaces,
+            showWorkspacesFromOtherDisplays: resolved.showWorkspacesFromOtherDisplays,
             scopeDescription: scopeDescription
         )
     }
@@ -254,6 +259,8 @@ private struct WorkspaceBarPreviewConfiguration {
             showScrollLockButton: override.showScrollLockButton ?? settings.workspaceBarShowScrollLockButton,
             deduplicateAppIcons: override.deduplicateAppIcons ?? settings.workspaceBarDeduplicateAppIcons,
             hideEmptyWorkspaces: override.hideEmptyWorkspaces ?? settings.workspaceBarHideEmptyWorkspaces,
+            showWorkspacesFromOtherDisplays: override.showWorkspacesFromOtherDisplays ??
+                settings.workspaceBarShowWorkspacesFromOtherDisplays,
             scopeDescription: scopeDescription
         )
     }
@@ -266,6 +273,7 @@ private struct WorkspaceBarPreviewConfiguration {
             showScrollLockButton: settings.workspaceBarShowScrollLockButton,
             deduplicateAppIcons: settings.workspaceBarDeduplicateAppIcons,
             hideEmptyWorkspaces: settings.workspaceBarHideEmptyWorkspaces,
+            showWorkspacesFromOtherDisplays: settings.workspaceBarShowWorkspacesFromOtherDisplays,
             scopeDescription: "Preview reflects the global workspace bar defaults."
         )
     }
@@ -294,7 +302,8 @@ private struct WorkspaceBarPreviewSection: View {
                     showFloatingWindows: configuration.showFloatingWindows,
                     showScrollLockButton: configuration.showScrollLockButton,
                     deduplicateAppIcons: configuration.deduplicateAppIcons,
-                    hideEmptyWorkspaces: configuration.hideEmptyWorkspaces
+                    hideEmptyWorkspaces: configuration.hideEmptyWorkspaces,
+                    showWorkspacesFromOtherDisplays: configuration.showWorkspacesFromOtherDisplays
                 )
                 .frame(maxWidth: 360)
                 .opacity(configuration.isEnabled ? 1 : 0.35)
@@ -330,6 +339,11 @@ private struct WorkspaceBarPreviewSection: View {
                 icon: "arrowshape.turn.up.right",
                 title: "Shift-click a workspace",
                 text: "Moves the focused window to that workspace as a quick shortcut."
+            )
+            behaviorRow(
+                icon: "rectangle.connected.to.line.below",
+                title: "Other displays' workspaces (optional)",
+                text: "When enabled, other displays' workspaces appear after a display icon. Click one to switch its display; shift-click to move the focused window there."
             )
             behaviorRow(
                 icon: "square.stack.3d.down.right",
@@ -393,6 +407,17 @@ private struct GlobalBarSettingsSection: View {
                     .onChange(of: settings.workspaceBarHideEmptyWorkspaces) { _, _ in
                         controller.updateWorkspaceBarSettings()
                     }
+
+                Toggle(
+                    "Show Other Displays' Workspaces",
+                    isOn: $settings.workspaceBarShowWorkspacesFromOtherDisplays
+                )
+                .onChange(of: settings.workspaceBarShowWorkspacesFromOtherDisplays) { _, _ in
+                    controller.updateWorkspaceBarSettings()
+                }
+                SettingsCaption(
+                    "Also shows other displays' workspaces after a display icon. Click one to switch its display; shift-click to move the focused window there."
+                )
 
                 Toggle("Show Scroll Lock Button", isOn: $settings.workspaceBarShowScrollLockButton)
                     .onChange(of: settings.workspaceBarShowScrollLockButton) { _, _ in
@@ -613,6 +638,10 @@ private struct SavedMonitorBarOverrideSection: View {
             savedValue("Show Floating Windows", override.showFloatingWindows.map { $0 ? "On" : "Off" })
             savedValue("Group Windows by App", override.deduplicateAppIcons.map { $0 ? "On" : "Off" })
             savedValue("Hide Empty Workspaces", override.hideEmptyWorkspaces.map { $0 ? "On" : "Off" })
+            savedValue(
+                "Show Other Displays' Workspaces",
+                override.showWorkspacesFromOtherDisplays.map { $0 ? "On" : "Off" }
+            )
             savedValue("Show Trace Capture Button", override.showTraceButton.map { $0 ? "On" : "Off" })
             savedValue("Show Scroll Lock Button", override.showScrollLockButton.map { $0 ? "On" : "Off" })
             savedValue("Position", override.position?.displayName)
@@ -708,6 +737,19 @@ private struct MonitorBarSettingsSection: View {
                 globalValue: settings.workspaceBarHideEmptyWorkspaces,
                 onChange: { newValue in updateSetting { $0.hideEmptyWorkspaces = newValue } },
                 onReset: { updateSetting { $0.hideEmptyWorkspaces = nil } }
+            )
+
+            OverridableToggle(
+                label: "Show Other Displays' Workspaces",
+                value: ms.showWorkspacesFromOtherDisplays,
+                globalValue: settings.workspaceBarShowWorkspacesFromOtherDisplays,
+                onChange: { newValue in
+                    updateSetting { $0.showWorkspacesFromOtherDisplays = newValue }
+                },
+                onReset: { updateSetting { $0.showWorkspacesFromOtherDisplays = nil } }
+            )
+            .help(
+                "Also show other displays' workspaces after a display icon."
             )
 
             OverridableToggle(

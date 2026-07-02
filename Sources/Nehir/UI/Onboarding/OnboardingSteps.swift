@@ -58,7 +58,7 @@ enum OnboardingStep: String, CaseIterable, Identifiable {
              .navigation:
             200
         case .workspaceBar:
-            100
+            130
         case .experimental,
              .done:
             80

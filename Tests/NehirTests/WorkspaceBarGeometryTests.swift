@@ -49,6 +49,7 @@ struct WorkspaceBarGeometryTests {
             showScrollLockButton: false,
             deduplicateAppIcons: false,
             hideEmptyWorkspaces: false,
+            showWorkspacesFromOtherDisplays: false,
             reserveLayoutSpace: reserveLayoutSpace,
             notchAware: true,
             position: position,

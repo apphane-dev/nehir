@@ -59,6 +59,7 @@ struct SettingsExport: Equatable, Sendable {
     var workspaceBarNotchAware: Bool
     var workspaceBarDeduplicateAppIcons: Bool
     var workspaceBarHideEmptyWorkspaces: Bool
+    var workspaceBarShowWorkspacesFromOtherDisplays: Bool
     var workspaceBarReserveLayoutSpace: Bool
     var workspaceBarHeight: Double
     var workspaceBarBackgroundOpacity: Double
@@ -151,6 +152,7 @@ extension SettingsExport {
             workspaceBarNotchAware: true,
             workspaceBarDeduplicateAppIcons: false,
             workspaceBarHideEmptyWorkspaces: false,
+            workspaceBarShowWorkspacesFromOtherDisplays: false,
             workspaceBarReserveLayoutSpace: false,
             workspaceBarHeight: 24.0,
             workspaceBarBackgroundOpacity: 0.1,

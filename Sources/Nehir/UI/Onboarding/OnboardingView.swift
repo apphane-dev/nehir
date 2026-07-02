@@ -35,7 +35,7 @@ struct OnboardingView: View {
         // previous size, and rebuilding via `.id(currentStep)` lost keyboard focus.
         // Instant swap keeps the button's identity stable (focus preserved) and lets
         // the focus ring redraw at the correct size.
-        .frame(width: 480, height: 640)
+        .frame(width: 560, height: 700)
         .background(.thickMaterial)
         .onAppear { isAccessibilityGranted = AccessibilityPermissionMonitor.shared.isGranted }
         .task(id: "accessibility") {
@@ -63,7 +63,8 @@ struct OnboardingView: View {
                 showFloatingWindows: settings.workspaceBarShowFloatingWindows,
                 showScrollLockButton: settings.workspaceBarShowScrollLockButton,
                 deduplicateAppIcons: settings.workspaceBarDeduplicateAppIcons,
-                hideEmptyWorkspaces: settings.workspaceBarHideEmptyWorkspaces
+                hideEmptyWorkspaces: settings.workspaceBarHideEmptyWorkspaces,
+                showWorkspacesFromOtherDisplays: settings.workspaceBarShowWorkspacesFromOtherDisplays
             )
         default:
             StaticStepIcon(step: step)

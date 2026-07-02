@@ -10,20 +10,23 @@ import SwiftUI
 /// workspaces so the user sees "this bar tracks active workspaces".
 ///
 /// Reflects the live content settings (`showLabels`, `showFloatingWindows`,
-/// `showScrollLockButton`, `deduplicateAppIcons`, `hideEmptyWorkspaces`) so the onboarding toggles preview changes
-/// in real time. Floating windows are rendered inside their owning workspace pill, matching the
-/// real bar. The focus tour only visits non-empty workspaces so toggling "Hide Empty" can never
-/// strand the highlight on a pill that just vanished.
+/// `showScrollLockButton`, `deduplicateAppIcons`, `hideEmptyWorkspaces`,
+/// `showWorkspacesFromOtherDisplays`) so the onboarding toggles preview changes in real time.
+/// Floating windows are rendered inside their owning workspace pill, matching the real bar. The
+/// focus tour only visits non-empty workspaces so toggling "Hide Empty" can never strand the
+/// highlight on a pill that just vanished.
 struct WorkspaceBarAnimation: View {
     let showLabels: Bool
     let showFloatingWindows: Bool
     let showScrollLockButton: Bool
     let deduplicateAppIcons: Bool
     let hideEmptyWorkspaces: Bool
+    let showWorkspacesFromOtherDisplays: Bool
 
     @State private var isAnimating = false
     @State private var focusedWorkspace = 0
     @State private var animationTask: Task<Void, Never>?
+    @State private var measuredBarSize: CGSize = .zero
 
     private struct MockWindow: Identifiable {
         let id = UUID()
@@ -33,8 +36,23 @@ struct WorkspaceBarAnimation: View {
     private struct MockWorkspace: Identifiable {
         let id: Int
         let label: String
+        let isActiveOnForeignDisplay: Bool
         let tiledWindows: [MockWindow]
         let floatingWindows: [MockWindow]
+
+        init(
+            id: Int,
+            label: String,
+            isActiveOnForeignDisplay: Bool = false,
+            tiledWindows: [MockWindow],
+            floatingWindows: [MockWindow]
+        ) {
+            self.id = id
+            self.label = label
+            self.isActiveOnForeignDisplay = isActiveOnForeignDisplay
+            self.tiledWindows = tiledWindows
+            self.floatingWindows = floatingWindows
+        }
     }
 
     // Workspace 4 is floating-only so "Show Floating Windows" demonstrates the same ownership
@@ -85,10 +103,29 @@ struct WorkspaceBarAnimation: View {
             floatingWindows: []
         )
     ]
+    private let foreignWorkspaces: [MockWorkspace] = [
+        MockWorkspace(
+            id: 10,
+            label: "6",
+            isActiveOnForeignDisplay: true,
+            tiledWindows: [MockWindow(symbol: "terminal")],
+            floatingWindows: []
+        ),
+        MockWorkspace(
+            id: 11,
+            label: "7",
+            tiledWindows: [],
+            floatingWindows: []
+        )
+    ]
+
     private let iconSize: CGFloat = 11
     private let pillHeight: CGFloat = 26
     private let cornerRadius: CGFloat = 6
     private let workspaceSpacing: CGFloat = 8
+    private let barHorizontalPadding: CGFloat = 10
+    private let barVerticalPadding: CGFloat = 8
+    private let workspacePillHorizontalPadding: CGFloat = 8
 
     /// Workspaces shown in the bar. A truly empty workspace drops out when "Hide Empty" is on;
     /// a floating-only workspace also drops out when floating windows are hidden, matching
@@ -99,13 +136,19 @@ struct WorkspaceBarAnimation: View {
             : workspaces
     }
 
+    private var visibleForeignWorkspaces: [MockWorkspace] {
+        hideEmptyWorkspaces
+            ? foreignWorkspaces.filter(hasBarVisibleOccupancy)
+            : foreignWorkspaces
+    }
+
     private func hasBarVisibleOccupancy(_ workspace: MockWorkspace) -> Bool {
         !workspace.tiledWindows.isEmpty || (showFloatingWindows && !workspace.floatingWindows.isEmpty)
     }
 
     var body: some View {
         VStack(spacing: 18) {
-            bar
+            fittedBar
             // Screen-edge cue: the bar sits at the top of the screen.
             RoundedRectangle(cornerRadius: 2, style: .continuous)
                 .fill(Color.secondary.opacity(0.18))
@@ -118,11 +161,40 @@ struct WorkspaceBarAnimation: View {
         .onChange(of: hideEmptyWorkspaces) { _, _ in
             restartLoopIfAnimating()
         }
+        .onChange(of: showWorkspacesFromOtherDisplays) { _, _ in
+            restartLoopIfAnimating()
+        }
         .onDisappear {
             animationTask?.cancel()
             animationTask = nil
             isAnimating = false
         }
+    }
+
+    private var fittedBar: some View {
+        GeometryReader { proxy in
+            let availableWidth = max(1, proxy.size.width - 32)
+            let intrinsicWidth = measuredBarSize.width > 0 ? measuredBarSize.width : availableWidth
+            let intrinsicHeight = measuredBarSize.height > 0 ? measuredBarSize.height : 44
+            let scale = min(1, availableWidth / intrinsicWidth)
+
+            bar
+                .fixedSize(horizontal: true, vertical: false)
+                .background {
+                    GeometryReader { barProxy in
+                        Color.clear
+                            .onAppear { measuredBarSize = barProxy.size }
+                            .onChange(of: barProxy.size) { _, newSize in
+                                measuredBarSize = newSize
+                            }
+                    }
+                }
+                .scaleEffect(scale, anchor: .center)
+                .frame(width: intrinsicWidth * scale, height: intrinsicHeight * scale)
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .center)
+                .clipped()
+        }
+        .frame(height: 58)
     }
 
     private var bar: some View {
@@ -131,12 +203,21 @@ struct WorkspaceBarAnimation: View {
                 workspacePill(ws)
             }
 
+            if showWorkspacesFromOtherDisplays, !visibleForeignWorkspaces.isEmpty {
+                Divider()
+                    .frame(height: pillHeight)
+                    .opacity(0.4)
+                    .accessibilityHidden(true)
+
+                foreignWorkspaceGroup(visibleForeignWorkspaces)
+            }
+
             if showScrollLockButton {
                 scrollLockButton
             }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
+        .padding(.horizontal, barHorizontalPadding)
+        .padding(.vertical, barVerticalPadding)
         .background {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .fill(.thinMaterial)
@@ -149,6 +230,7 @@ struct WorkspaceBarAnimation: View {
         .animation(.easeInOut(duration: 0.2), value: hideEmptyWorkspaces)
         .animation(.easeInOut(duration: 0.2), value: showFloatingWindows)
         .animation(.easeInOut(duration: 0.2), value: showScrollLockButton)
+        .animation(.easeInOut(duration: 0.2), value: showWorkspacesFromOtherDisplays)
     }
 
     private var scrollLockButton: some View {
@@ -183,7 +265,7 @@ struct WorkspaceBarAnimation: View {
                 floatingWindowGroup(ws.floatingWindows, isFocused: isFocused)
             }
         }
-        .padding(.horizontal, 8)
+        .padding(.horizontal, workspacePillHorizontalPadding)
         .frame(height: pillHeight)
         .background {
             if isFocused {
@@ -196,6 +278,44 @@ struct WorkspaceBarAnimation: View {
             }
         }
         .contentShape(Rectangle())
+    }
+
+    private func foreignWorkspaceGroup(_ workspaces: [MockWorkspace]) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: "display")
+                .font(.system(size: max(9, iconSize * 0.58), weight: .medium))
+                .foregroundStyle(Color.secondary)
+                .accessibilityHidden(true)
+
+            ForEach(workspaces) { ws in
+                foreignWorkspacePill(ws)
+            }
+        }
+    }
+
+    private func foreignWorkspacePill(_ ws: MockWorkspace) -> some View {
+        HStack(spacing: 4) {
+            if ws.isActiveOnForeignDisplay {
+                Circle()
+                    .fill(Color.accentColor)
+                    .frame(width: 4, height: 4)
+                    .accessibilityHidden(true)
+            }
+            Text(ws.label)
+                .font(.system(.caption2, design: .monospaced).weight(.semibold))
+                .foregroundStyle(Color.primary)
+                .frame(minWidth: 10)
+        }
+        .padding(.horizontal, 7)
+        .frame(height: pillHeight)
+        .background {
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .fill(Color.secondary.opacity(0.08))
+                .overlay {
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .strokeBorder(Color.secondary.opacity(0.24), lineWidth: 0.75)
+                }
+        }
     }
 
     /// Collapses duplicate app icons into a single icon with a count badge when
@@ -264,7 +384,7 @@ struct WorkspaceBarAnimation: View {
             while isAnimating && !Task.isCancelled {
                 // Only tour non-empty workspaces; the empty pill is illustrative, not a focus
                 // target, so toggling "Hide Empty" can't leave the highlight stranded.
-                for ws in workspaces where hasBarVisibleOccupancy(ws) {
+                for ws in visibleWorkspaces where hasBarVisibleOccupancy(ws) {
                     guard isAnimating, !Task.isCancelled else { return }
                     withAnimation(.easeInOut(duration: 0.3)) {
                         focusedWorkspace = ws.id

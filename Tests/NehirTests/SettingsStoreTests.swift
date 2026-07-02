@@ -495,6 +495,70 @@ struct SettingsExportTests {
         #expect(resolved.accentColor == nil)
         #expect(resolved.textColor == nil)
     }
+
+    @Test func showWorkspacesFromOtherDisplaysDefaultsOffAndOverridablePerMonitor() {
+        let settings = SettingsStore(defaults: makeTestDefaults())
+        let monitor = makeLayoutPlanTestMonitor(name: "Other Displays Test")
+
+        // Global default is off.
+        #expect(settings.workspaceBarShowWorkspacesFromOtherDisplays == false)
+        #expect(settings.resolvedBarSettings(for: monitor).showWorkspacesFromOtherDisplays == false)
+
+        // Per-monitor override wins over the global default.
+        settings.updateBarSettings(
+            MonitorBarSettings(
+                monitorName: monitor.name,
+                monitorDisplayId: monitor.displayId,
+                showWorkspacesFromOtherDisplays: true
+            )
+        )
+        #expect(settings.resolvedBarSettings(for: monitor).showWorkspacesFromOtherDisplays == true)
+    }
+
+    @Test func showWorkspacesFromOtherDisplaysRoundTripsThroughExport() {
+        let settings = SettingsStore(defaults: makeTestDefaults())
+        let monitor = makeLayoutPlanTestMonitor(name: "Other Displays Round Trip")
+        settings.updateBarSettings(
+            MonitorBarSettings(
+                monitorName: monitor.name,
+                monitorDisplayId: monitor.displayId,
+                showWorkspacesFromOtherDisplays: true
+            )
+        )
+
+        let export = settings.toExport()
+        let reloaded = SettingsStore(defaults: makeTestDefaults())
+        reloaded.applyExport(export, monitors: [monitor])
+
+        #expect(reloaded.resolvedBarSettings(for: monitor).showWorkspacesFromOtherDisplays == true)
+    }
+}
+
+@MainActor struct WorkspaceBarMonitorOverrideFileStoreTests {
+    @Test func monitorBarOverrideRoundTripsShowWorkspacesFromOtherDisplays() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("nehir-other-displays-override-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let monitor = makeLayoutPlanTestMonitor(name: "Override TOML Test")
+        let original = MonitorBarSettings(
+            monitorName: monitor.name,
+            monitorDisplayId: monitor.displayId,
+            monitorAnchorPoint: monitor.workspaceAnchorPoint,
+            showWorkspacesFromOtherDisplays: true
+        )
+
+        try MonitorOverrideFileStore.write(
+            bar: [original],
+            gaps: [],
+            orientation: [],
+            niri: [],
+            to: directory
+        )
+        let restored = try #require(MonitorOverrideFileStore.read(from: directory).bar.first)
+        #expect(restored.showWorkspacesFromOtherDisplays == true)
+    }
 }
 
 struct KeyBindingCodecTests {

@@ -208,6 +208,12 @@ final class SettingsStore {
         didSet { scheduleSave() }
     }
 
+    var workspaceBarShowWorkspacesFromOtherDisplays = SettingsStore.defaultExport
+        .workspaceBarShowWorkspacesFromOtherDisplays
+    {
+        didSet { scheduleSave() }
+    }
+
     var workspaceBarReserveLayoutSpace = SettingsStore.defaultExport.workspaceBarReserveLayoutSpace {
         didSet { scheduleSave() }
     }
@@ -472,6 +478,7 @@ final class SettingsStore {
             workspaceBarNotchAware: workspaceBarNotchAware,
             workspaceBarDeduplicateAppIcons: workspaceBarDeduplicateAppIcons,
             workspaceBarHideEmptyWorkspaces: workspaceBarHideEmptyWorkspaces,
+            workspaceBarShowWorkspacesFromOtherDisplays: workspaceBarShowWorkspacesFromOtherDisplays,
             workspaceBarReserveLayoutSpace: workspaceBarReserveLayoutSpace,
             workspaceBarHeight: workspaceBarHeight,
             workspaceBarBackgroundOpacity: workspaceBarBackgroundOpacity,
@@ -562,6 +569,7 @@ final class SettingsStore {
         workspaceBarNotchAware = export.workspaceBarNotchAware
         workspaceBarDeduplicateAppIcons = export.workspaceBarDeduplicateAppIcons
         workspaceBarHideEmptyWorkspaces = export.workspaceBarHideEmptyWorkspaces
+        workspaceBarShowWorkspacesFromOtherDisplays = export.workspaceBarShowWorkspacesFromOtherDisplays
         workspaceBarReserveLayoutSpace = export.workspaceBarReserveLayoutSpace
         workspaceBarHeight = export.workspaceBarHeight
         workspaceBarBackgroundOpacity = export.workspaceBarBackgroundOpacity
@@ -816,6 +824,8 @@ final class SettingsStore {
             showScrollLockButton: override?.showScrollLockButton ?? workspaceBarShowScrollLockButton,
             deduplicateAppIcons: override?.deduplicateAppIcons ?? workspaceBarDeduplicateAppIcons,
             hideEmptyWorkspaces: override?.hideEmptyWorkspaces ?? workspaceBarHideEmptyWorkspaces,
+            showWorkspacesFromOtherDisplays: override?.showWorkspacesFromOtherDisplays ??
+                workspaceBarShowWorkspacesFromOtherDisplays,
             reserveLayoutSpace: override?.reserveLayoutSpace ?? workspaceBarReserveLayoutSpace,
             notchAware: override?.notchAware ?? workspaceBarNotchAware,
             position: override?.position ?? workspaceBarPosition,
