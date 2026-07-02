@@ -388,7 +388,10 @@ concrete methods:
   all four members) but has **zero consumers today**. The protocol as a whole clears the
   over-extraction threshold (4 members across 2 consumers — `MouseEventHandler` +
   `FocusBorderController`), so the named-method fallback did not apply. Flagged so it is not
-  mistaken for dead code in a later audit.
+  mistaken for dead code in a later audit. **Still dead as of 2026-07-02** (verified
+  against `main`): the preferred-frame query seam (`e87bade3`) added
+  `preferredFrame(for:)` as a sibling rather than reusing `focusedNode(for:)`, so it
+  remains unconsumed — a candidate for removal at the next cleanup.
 - ~~`NiriLayoutHandler` method bodies are unchanged on this branch — the only edit to that file is
   the single line at `:1532` (the `setNiriEngine` call).~~ **No longer true of the merged
   version:** `776b9559` grew `NiriLayoutHandler.swift` by +334 lines, folding the combined-navigation
@@ -441,6 +444,17 @@ direct `niriEngine` reads (Phase 3 moved it fully behind `FocusCoordinator`).
   engine-presence guards gating every layout op.
 
 ### `LayoutStateQuery` decision (the plan's `>1-consumer` rule)
+
+> **Resolved (2026-07-02, verified against `main`).** Shipped as `e87bade3`
+> ("Add preferred-frame query seam for controller-layer node lookups"). The
+> implementer chose the `FocusCoordinator`-member option (not a separate
+> `LayoutStateQuery` protocol): `preferredFrame(for token:) -> CGRect?` at
+> `Sources/Nehir/Core/Controller/FocusCoordinator.swift:31`. The raw
+> `renderedFrame ?? frame` reach-through is gone from the controller layer (0 sites
+> remain); surviving lookups call `controller.focusCoordinator.preferredFrame(for:)`
+> (`AXEventHandler.swift:4073`, `NiriLayoutHandler.swift:182`). The 3-site count
+> below had since grown to 8 across 4 files (see the 2026-07-02 revisit) before
+> this seam collapsed it.
 
 The pattern `niriEngine?.findNode(for: token).flatMap { $0.renderedFrame ?? $0.frame }` appears at
 **3 sites / 2 files**: `AXEventHandler.swift:2191`, `AXEventHandler.swift:3613`,

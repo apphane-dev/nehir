@@ -13,6 +13,36 @@ included so code stays findable.
 
 ---
 
+## Status — two follow-ups shipped (verified against `main` on 2026-07-02)
+
+Two of the actions proposed below have now landed on `main`:
+
+- **Part 3 candidate #1 — WMController diagnostics/trace → `RuntimeDiagnosticsCoordinator`: DONE.**
+  Shipped as `d1505910` ("Extract WMController diagnostics and trace surface into
+  RuntimeDiagnosticsCoordinator"). `Sources/Nehir/Core/Controller/WMController.swift`
+  dropped **5,031 → 3,921 LOC (−1,110)**; the extracted surface now lives in
+  `Sources/Nehir/Core/Controller/RuntimeDiagnosticsCoordinator.swift` (1,173 LOC). A
+  privacy follow-up in that file also redacted the runtime-debug dump and the
+  trace-export file paths in its `logger.info` sites (dump contents and export paths
+  are now `privacy: .private`; the pasteboard/file-export flow is unchanged).
+- **Part 4 follow-up #2 — `preferredFrame(for:)` query seam: DONE.** Shipped as
+  `e87bade3` ("Add preferred-frame query seam for controller-layer node lookups").
+  The implementer chose the `FocusCoordinator`-member option (not a separate
+  `LayoutStateQuery` protocol): `preferredFrame(for token:) -> CGRect?` at
+  `Sources/Nehir/Core/Controller/FocusCoordinator.swift:31`. The raw
+  `renderedFrame ?? frame` reach-through is now gone from the controller layer
+  (0 sites remain); surviving lookups go through
+  `controller.focusCoordinator.preferredFrame(for:)`
+  (`AXEventHandler.swift:4073`, `NiriLayoutHandler.swift:182`).
+- **Still open:** `FocusCoordinator.focusedNode(for:)` still has **zero consumers** —
+  the seam added `preferredFrame(for:)` as a sibling rather than reusing it, so the
+  dead-member flag still stands (see
+  [`completed/20260614-narrow-wmcontroller-public-surface.md`](../completed/20260614-narrow-wmcontroller-public-surface.md)).
+  Candidates #2–#5 below remain unactioned.
+
+The body below was verified against `main` at `705831f9`, i.e. *before* these two
+commits; its measurements and line numbers are the pre-merge baseline.
+
 ## TL;DR
 
 - The five biggest controller-layer files grew **21–79% since the initial import**
