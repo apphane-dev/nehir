@@ -7,8 +7,8 @@ Multi-agent review (2026-06-13) covering architecture, risk hotspots, testing, a
 ### 1. IPC protocol version drift in docs. Done — docs updated 2026-07-01.
 `docs/IPC-CLI.md` stated protocol version 3; `Sources/NehirIPC/IPCModels.swift` implements version 6. Fixed in the main tree on 2026-07-01 (`docs/IPC-CLI.md` now says 6, including the wire-format examples). Watch for recurrence: nothing ties the doc to `IPCProtocol.version`, so the number can drift again on the next protocol bump.
 
-### 2. App-rule TOML parser silently swallows malformed lines
-`Sources/Nehir/Core/Config/AppRuleFileStore.swift` (hand-rolled line parser, ~lines 107–152) `continue`s past anything it can't parse with no log or user-facing diagnostic. Same theme in the codec layer: semantic config errors (e.g., invalid `layout` value) quietly fall back to defaults. The rest of the config story is strong (live reload via inode fingerprinting, corrupt files moved aside) — a warning log on skipped lines / fallback-to-default closes the gap cheaply.
+### 2. App-rule TOML parser silently swallows malformed lines. Done — merged 2026-07-02.
+`Sources/Nehir/Core/Config/AppRuleFileStore.swift` now emits app-rule diagnostics for ignored/malformed lines and invalid semantic values, surfaces them in Settings Diagnostics/status surfaces, and offers a safe cleanup action for cleanable files with a timestamped backup. The parser path was also tightened for CRLF input, inline comments, and section-header detection so diagnostics do not reject or rewrite valid app-rule lines accidentally. Fixed in the main tree at `a2055ff8`.
 
 ### 3. Workspace→monitor lookup has no reverse index. Done — PR #40.
 `Sources/Nehir/Core/Layout/Niri/NiriLayoutEngine+Monitors.swift` has two near-identical O(n) monitor scans (`monitorContaining(workspace:)` / `monitorForWorkspace(_:)`). A `workspaceId → monitorId` reverse index removes the duplication and the scan.
@@ -84,6 +84,7 @@ These are load-bearing decisions — future changes should not erode them:
 
 **Closed by PR (findings marked Done):**
 
+- #2 app-rule TOML parse diagnostics — merged 2026-07-02 (`a2055ff8`).
 - #3 reverse index + #4 monitor-ID validation — PR #40 (`ef6cd44`).
 - #5 `WindowVisibility` enum — PR #41 (`ec615dc`).
 - #6 centralized `RefreshReason` routing — PR #43 (`984c536`).
