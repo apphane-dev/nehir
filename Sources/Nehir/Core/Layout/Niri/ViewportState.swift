@@ -189,6 +189,8 @@ struct ViewportState {
 
     var viewOffsetToRestore: CGFloat?
 
+    var isScrollLocked = false
+
     var preservesUnsnappedGestureOffset = false
 
     var activatePrevColumnOnRemoval: CGFloat?

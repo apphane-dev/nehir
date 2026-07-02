@@ -104,14 +104,14 @@ struct CanonicalTOMLConfig: Codable, Equatable {
     struct Niri: Codable, Equatable {
         var balancedColumnCount: Int
         var infiniteLoop: Bool
-        var revealPartial: String
+        var revealStyle: String
         var loneWindowMaxWidth: Double?
         var columnWidthPresets: [Double]?
         var defaultColumnWidth: Double?
         var unknownFields: [String: SettingsTOMLUnknownValue] = [:]
 
         enum CodingKeys: String, CodingKey, CaseIterable {
-            case balancedColumnCount, infiniteLoop, revealPartial, loneWindowMaxWidth, columnWidthPresets,
+            case balancedColumnCount, infiniteLoop, revealStyle, loneWindowMaxWidth, columnWidthPresets,
                  defaultColumnWidth
         }
     }
@@ -158,6 +158,7 @@ struct CanonicalTOMLConfig: Codable, Equatable {
         var showLabels: Bool
         var showFloatingWindows: Bool
         var showTraceButton: Bool
+        var showScrollLockButton: Bool
         var windowLevel: String
         var position: String
         var notchAware: Bool
@@ -174,7 +175,8 @@ struct CanonicalTOMLConfig: Codable, Equatable {
         var unknownFields: [String: SettingsTOMLUnknownValue] = [:]
 
         enum CodingKeys: String, CodingKey, CaseIterable {
-            case enabled, showLabels, showFloatingWindows, showTraceButton, windowLevel, position, notchAware,
+            case enabled, showLabels, showFloatingWindows, showTraceButton, showScrollLockButton, windowLevel, position,
+                 notchAware,
                  deduplicateAppIcons, hideEmptyWorkspaces, reserveLayoutSpace, height, backgroundOpacity, xOffset,
                  yOffset, labelFontSize, accentColor, textColor
         }
@@ -296,7 +298,7 @@ extension CanonicalTOMLConfig {
         niri = Niri(
             balancedColumnCount: export.niriBalancedColumnCount,
             infiniteLoop: export.niriInfiniteLoop,
-            revealPartial: export.revealPartial,
+            revealStyle: export.revealStyle,
             loneWindowMaxWidth: export.niriLoneWindowMaxWidth,
             columnWidthPresets: export.niriColumnWidthPresets,
             defaultColumnWidth: export.niriDefaultColumnWidth,
@@ -319,6 +321,7 @@ extension CanonicalTOMLConfig {
             showLabels: export.workspaceBarShowLabels,
             showFloatingWindows: export.workspaceBarShowFloatingWindows,
             showTraceButton: export.workspaceBarShowTraceButton,
+            showScrollLockButton: export.workspaceBarShowScrollLockButton,
             windowLevel: export.workspaceBarWindowLevel,
             position: export.workspaceBarPosition,
             notchAware: export.workspaceBarNotchAware,
@@ -396,7 +399,7 @@ extension CanonicalTOMLConfig {
             outerGapBottom: gaps.outer.bottom,
             niriBalancedColumnCount: niri.balancedColumnCount,
             niriInfiniteLoop: niri.infiniteLoop,
-            revealPartial: niri.revealPartial,
+            revealStyle: niri.revealStyle,
             niriLoneWindowMaxWidth: niri.loneWindowMaxWidth,
             niriColumnWidthPresets: niri.columnWidthPresets,
             niriDefaultColumnWidth: niri.defaultColumnWidth,
@@ -412,6 +415,7 @@ extension CanonicalTOMLConfig {
             workspaceBarShowLabels: workspaceBar.showLabels,
             workspaceBarShowFloatingWindows: workspaceBar.showFloatingWindows,
             workspaceBarShowTraceButton: workspaceBar.showTraceButton,
+            workspaceBarShowScrollLockButton: workspaceBar.showScrollLockButton,
             workspaceBarWindowLevel: workspaceBar.windowLevel,
             workspaceBarPosition: workspaceBar.position,
             workspaceBarNotchAware: workspaceBar.notchAware,
@@ -652,7 +656,7 @@ extension CanonicalTOMLConfig.Niri {
             default: d.balancedColumnCount
         )
         infiniteLoop = try container.decodeWithDefault(Bool.self, forKey: .infiniteLoop, default: d.infiniteLoop)
-        revealPartial = try container.decodeWithDefault(String.self, forKey: .revealPartial, default: d.revealPartial)
+        revealStyle = try container.decodeWithDefault(String.self, forKey: .revealStyle, default: d.revealStyle)
         loneWindowMaxWidth = try container.decodeIfPresent(Double.self, forKey: .loneWindowMaxWidth)
         columnWidthPresets = try container.decodeIfPresent([Double].self, forKey: .columnWidthPresets)
         defaultColumnWidth = try container.decodeIfPresent(Double.self, forKey: .defaultColumnWidth)
@@ -663,7 +667,7 @@ extension CanonicalTOMLConfig.Niri {
         var container = encoder.container(keyedBy: SettingsTOMLDynamicKey.self)
         try container.encode(balancedColumnCount, forKey: "balancedColumnCount")
         try container.encode(infiniteLoop, forKey: "infiniteLoop")
-        try container.encode(revealPartial, forKey: "revealPartial")
+        try container.encode(revealStyle, forKey: "revealStyle")
         try container.encodeIfPresent(loneWindowMaxWidth, forKey: "loneWindowMaxWidth")
         try container.encodeIfPresent(columnWidthPresets, forKey: "columnWidthPresets")
         try container.encodeIfPresent(defaultColumnWidth, forKey: "defaultColumnWidth")
@@ -727,6 +731,11 @@ extension CanonicalTOMLConfig.WorkspaceBar {
             forKey: .showTraceButton,
             default: d.showTraceButton
         )
+        showScrollLockButton = try container.decodeWithDefault(
+            Bool.self,
+            forKey: .showScrollLockButton,
+            default: d.showScrollLockButton
+        )
         windowLevel = try container.decodeWithDefault(String.self, forKey: .windowLevel, default: d.windowLevel)
         position = try container.decodeWithDefault(String.self, forKey: .position, default: d.position)
         notchAware = try container.decodeWithDefault(Bool.self, forKey: .notchAware, default: d.notchAware)
@@ -765,6 +774,7 @@ extension CanonicalTOMLConfig.WorkspaceBar {
         try container.encode(showLabels, forKey: "showLabels")
         try container.encode(showFloatingWindows, forKey: "showFloatingWindows")
         try container.encode(showTraceButton, forKey: "showTraceButton")
+        try container.encode(showScrollLockButton, forKey: "showScrollLockButton")
         try container.encode(windowLevel, forKey: "windowLevel")
         try container.encode(position, forKey: "position")
         try container.encode(notchAware, forKey: "notchAware")

@@ -288,6 +288,13 @@ enum ActionCatalog {
                 category: .layout,
                 binding: KeyBinding(keyCode: UInt32(kVK_ANSI_RightBracket), modifiers: UInt32(optionKey | cmdKey)),
                 keywords: ["viewport right", "snap right"]
+            ),
+            action(
+                id: "toggleViewportScrollLock",
+                command: .toggleViewportScrollLock,
+                category: .layout,
+                binding: .unassigned,
+                keywords: ["lock", "pin", "freeze viewport"]
             )
         ])
 
@@ -921,6 +928,7 @@ enum ActionCatalog {
         case let .focusColumn(idx): "Focus Column \(idx + 1)"
         case .scrollViewportLeft: "Scroll Viewport Left"
         case .scrollViewportRight: "Scroll Viewport Right"
+        case .toggleViewportScrollLock: "Toggle Viewport Scroll Lock"
         case .cycleColumnWidthForward: "Cycle Column Width Forward"
         case .cycleColumnWidthBackward: "Cycle Column Width Backward"
         case .cycleWindowWidthForward: "Cycle Window Width Forward"
@@ -997,6 +1005,8 @@ enum ActionCatalog {
             .scrollViewportLeft
         case .scrollViewportRight:
             .scrollViewportRight
+        case .toggleViewportScrollLock:
+            .toggleViewportScrollLock
         case .move:
             .move
         case .moveWindowDown:

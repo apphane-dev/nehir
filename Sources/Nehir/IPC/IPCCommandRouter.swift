@@ -57,6 +57,8 @@ final class IPCCommandRouter {
             return controller.commandHandler.performCommand(.scrollViewportLeft)
         case .scrollViewportRight:
             return controller.commandHandler.performCommand(.scrollViewportRight)
+        case .toggleViewportScrollLock:
+            return controller.commandHandler.performCommand(.toggleViewportScrollLock)
         case let .move(ipcDirection):
             return controller.commandHandler.performCommand(.move(direction(for: ipcDirection)))
         case .moveWindowDown:

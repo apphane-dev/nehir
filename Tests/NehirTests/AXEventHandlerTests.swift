@@ -828,7 +828,7 @@ private func waitUntilAXEventTest(
 
         controller.hasStartedServices = true
         controller.setBordersEnabled(true)
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         controller.updateNiriConfig(balancedColumnCount: 1)
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
         controller.syncMonitorsToNiriEngine()
@@ -979,7 +979,7 @@ private func waitUntilAXEventTest(
             return
         }
 
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         controller.updateNiriConfig(balancedColumnCount: 1)
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
         controller.syncMonitorsToNiriEngine()
@@ -1093,7 +1093,7 @@ private func waitUntilAXEventTest(
             return nil
         }
 
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         controller.updateNiriConfig(balancedColumnCount: 1)
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
         controller.syncMonitorsToNiriEngine()
@@ -1231,7 +1231,7 @@ private func waitUntilAXEventTest(
         #expect(abs(settledState.viewOffsetPixels.target() - targetAfterConfirm) < 0.5)
     }
 
-    @Test @MainActor func focusConfirmationHonorsRevealPartialPolicyIdenticallyForSettledSpringAndStatic() async {
+    @Test @MainActor func focusConfirmationHonorsRevealStylePolicyIdenticallyForSettledSpringAndStatic() async {
         // Mirrors the existing fully-visible no-op coverage (0602387d), but
         // for a clipped target column: a converged-but-still-`.spring`
         // offset must produce exactly the same reveal as a `.static` offset
@@ -1335,7 +1335,7 @@ private func waitUntilAXEventTest(
 
         controller.hasStartedServices = true
         controller.setBordersEnabled(true)
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         controller.updateNiriConfig(balancedColumnCount: 1)
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
         controller.syncMonitorsToNiriEngine()
@@ -1789,7 +1789,7 @@ private func waitUntilAXEventTest(
             return
         }
 
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         controller.updateNiriConfig(balancedColumnCount: 1)
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
         controller.syncMonitorsToNiriEngine()
@@ -1893,7 +1893,7 @@ private func waitUntilAXEventTest(
             return
         }
 
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         controller.updateNiriConfig(balancedColumnCount: 1)
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
         controller.syncMonitorsToNiriEngine()
@@ -2444,7 +2444,7 @@ private func waitUntilAXEventTest(
 
         controller.hasStartedServices = true
         controller.setBordersEnabled(true)
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         controller.updateNiriConfig(balancedColumnCount: 1)
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
         controller.syncMonitorsToNiriEngine()
@@ -2516,7 +2516,7 @@ private func waitUntilAXEventTest(
 
         controller.hasStartedServices = true
         controller.setBordersEnabled(true)
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         controller.updateNiriConfig(balancedColumnCount: 1)
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
         controller.syncMonitorsToNiriEngine()
@@ -3210,7 +3210,7 @@ private func waitUntilAXEventTest(
             return
         }
 
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         guard let engine = controller.niriEngine else {
             Issue.record("Missing Niri engine")
             return
@@ -3473,7 +3473,7 @@ private func waitUntilAXEventTest(
             return
         }
 
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
         guard let engine = controller.niriEngine else {
             Issue.record("Missing Niri engine")
@@ -3679,7 +3679,7 @@ private func waitUntilAXEventTest(
             return
         }
 
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
         controller.syncMonitorsToNiriEngine()
 
@@ -5976,7 +5976,7 @@ private func waitUntilAXEventTest(
             return
         }
 
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
         guard let engine = controller.niriEngine else {
             Issue.record("Missing Niri engine")
@@ -6149,7 +6149,7 @@ private func waitUntilAXEventTest(
             return
         }
 
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
         guard let engine = controller.niriEngine else {
             Issue.record("Missing Niri engine")
@@ -6267,7 +6267,7 @@ private func waitUntilAXEventTest(
             return
         }
 
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
         guard let engine = controller.niriEngine else {
             Issue.record("Missing Niri engine")
@@ -6356,7 +6356,7 @@ private func waitUntilAXEventTest(
             return
         }
 
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
         guard let engine = controller.niriEngine else {
             Issue.record("Missing Niri engine")
@@ -6452,7 +6452,7 @@ private func waitUntilAXEventTest(
             return
         }
 
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
         guard let engine = controller.niriEngine else {
             Issue.record("Missing Niri engine")
@@ -7654,7 +7654,7 @@ private func waitUntilAXEventTest(
 
             #expect(controller.workspaceManager.setActiveWorkspace(primaryWorkspaceId, on: primaryMonitor.id))
             #expect(controller.workspaceManager.setActiveWorkspace(secondaryWorkspaceId, on: secondaryMonitor.id))
-            controller.enableNiriLayout()
+            controller.enableNiriLayout(revealStyle: .auto)
             await controller.layoutRefreshController.waitForRefreshWorkForTests()
             controller.syncMonitorsToNiriEngine()
 
@@ -8028,7 +8028,7 @@ private func waitUntilAXEventTest(
             return
         }
 
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
         guard let engine = controller.niriEngine else {
             Issue.record("Missing Niri engine")
@@ -9495,7 +9495,7 @@ private func waitUntilAXEventTest(
             assignToWorkspace: "2"
         )
         controller.windowRuleEngine.rebuild(rules: [rule])
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
         guard let engine = controller.niriEngine else {
             Issue.record("Missing Niri engine")

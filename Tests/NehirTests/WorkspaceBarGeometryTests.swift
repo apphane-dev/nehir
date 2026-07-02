@@ -46,6 +46,7 @@ struct WorkspaceBarGeometryTests {
             showLabels: true,
             showFloatingWindows: false,
             showTraceButton: false,
+            showScrollLockButton: false,
             deduplicateAppIcons: false,
             hideEmptyWorkspaces: false,
             reserveLayoutSpace: reserveLayoutSpace,

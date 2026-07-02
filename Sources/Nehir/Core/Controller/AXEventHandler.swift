@@ -2447,7 +2447,7 @@ final class AXEventHandler: CGSEventDelegate {
             // (current already converged to target, not yet flipped to
             // `.static`). Only treat the spring as genuinely in flight when it
             // hasn't yet converged within the same pixel tolerance used by
-            // scrollToReveal/revealForFocusActivation, so a settled spring
+            // scrollToReveal, so a settled spring
             // doesn't suppress this step's own reveal in favor of the
             // follow-up relayout.
             let settleTolerance = 1.0 / max(engine.displayScale(in: wsId), 1.0)
@@ -2526,7 +2526,8 @@ final class AXEventHandler: CGSEventDelegate {
                     details: [
                         "token=\(entry.token)",
                         "columnIndex=\(columnIndex)",
-                        "revealPartial=\(engine.revealPartial.rawValue)",
+                        "revealStyle=\(engine.revealStyle.rawValue)",
+                        "locked=\(state.isScrollLocked)",
                         "visibility=\(visibility)",
                         String(format: "viewStart=%.1f", viewStart),
                         "closest=\(closestSnap.map { String(format: "%.1f:%@", $0.offset, String(describing: $0.kind)) } ?? "nil")",
@@ -2536,7 +2537,7 @@ final class AXEventHandler: CGSEventDelegate {
                         "snapCount=\(columnSnaps.count)"
                     ]
                 )
-                let didReveal = engine.revealForFocusActivation(
+                let didReveal = engine.scrollToReveal(
                     columnIndex: columnIndex,
                     isFFM: isFFM,
                     state: &state,

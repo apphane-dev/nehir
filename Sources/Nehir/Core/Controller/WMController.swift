@@ -332,12 +332,12 @@ final class WMController {
         )
 
         if niriEngine == nil {
-            enableNiriLayout(revealPartial: settings.revealPartial)
+            enableNiriLayout(revealStyle: settings.revealStyle)
         }
         updateNiriConfig(
             balancedColumnCount: settings.niriBalancedColumnCount,
             infiniteLoop: settings.niriInfiniteLoop,
-            revealPartial: settings.revealPartial,
+            revealStyle: settings.revealStyle,
             loneWindowPolicy: settings.loneWindowPolicy,
             columnWidthPresets: settings.niriColumnWidthPresets,
             defaultColumnWidth: settings.niriDefaultColumnWidth
@@ -702,6 +702,15 @@ final class WMController {
         )
     }
 
+    func toggleViewportScrollLock(on monitorId: Monitor.ID? = nil) {
+        guard let monitorId else {
+            niriLayoutHandler.toggleViewportScrollLock()
+            return
+        }
+        guard let workspaceId = workspaceManager.activeWorkspaceOrFirst(on: monitorId)?.id else { return }
+        niriLayoutHandler.toggleViewportScrollLock(in: workspaceId)
+    }
+
     /// Resolves the window the viewport is parked on for the monitor's active
     /// workspace, so the workspace bar can highlight the viewport column even
     /// when managed-focus confirmation is suppressed (a non-managed app holds
@@ -1034,8 +1043,8 @@ final class WMController {
         workspaceBarManager.screenProvider = { _ in nil }
     }
 
-    func enableNiriLayout(revealPartial: RevealPartial = .default) {
-        niriLayoutHandler.enableNiriLayout(revealPartial: revealPartial)
+    func enableNiriLayout(revealStyle: RevealStyle) {
+        niriLayoutHandler.enableNiriLayout(revealStyle: revealStyle)
     }
 
     func syncMonitorsToNiriEngine() {
@@ -1045,7 +1054,7 @@ final class WMController {
     func updateNiriConfig(
         balancedColumnCount: Int? = nil,
         infiniteLoop: Bool? = nil,
-        revealPartial: RevealPartial? = nil,
+        revealStyle: RevealStyle? = nil,
         loneWindowPolicy: LoneWindowPolicy? = nil,
         columnWidthPresets: [Double]? = nil,
         defaultColumnWidth: Double?? = nil
@@ -1053,7 +1062,7 @@ final class WMController {
         niriLayoutHandler.updateNiriConfig(
             balancedColumnCount: balancedColumnCount,
             infiniteLoop: infiniteLoop,
-            revealPartial: revealPartial,
+            revealStyle: revealStyle,
             loneWindowPolicy: loneWindowPolicy,
             columnWidthPresets: columnWidthPresets,
             defaultColumnWidth: defaultColumnWidth

@@ -140,6 +140,8 @@ final class CommandHandler {
             controller.layoutCoordinator.scrollViewport(direction: .left)
         case .scrollViewportRight:
             controller.layoutCoordinator.scrollViewport(direction: .right)
+        case .toggleViewportScrollLock:
+            controller.layoutCoordinator.toggleViewportScrollLock()
         case .cycleColumnWidthForward:
             controller.layoutCoordinator.cycleSize(forward: true)
         case .cycleColumnWidthBackward:

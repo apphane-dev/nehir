@@ -118,6 +118,7 @@ enum HotkeyConfigMapping {
         ("layout", "balanceSizes", "balanceSizes"),
         ("layout", "scrollViewportLeft", "scrollViewport.left"),
         ("layout", "scrollViewportRight", "scrollViewport.right"),
+        ("layout", "toggleViewportScrollLock", "toggleViewportScrollLock"),
         ("layout", "toggleFocusedFloating", "toggleFocusedWindowFloating"),
         ("layout", "toggleFocusedSticky", "toggleFocusedWindowSticky"),
         ("layout", "assignScratchpad", "assignFocusedWindowToScratchpad"),

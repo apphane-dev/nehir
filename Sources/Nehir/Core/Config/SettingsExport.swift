@@ -33,7 +33,7 @@ struct SettingsExport: Equatable, Sendable {
 
     var niriBalancedColumnCount: Int
     var niriInfiniteLoop: Bool
-    var revealPartial: String
+    var revealStyle: String
     var niriLoneWindowMaxWidth: Double?
     var niriColumnWidthPresets: [Double]?
     var niriDefaultColumnWidth: Double?
@@ -53,6 +53,7 @@ struct SettingsExport: Equatable, Sendable {
     var workspaceBarShowLabels: Bool
     var workspaceBarShowFloatingWindows: Bool
     var workspaceBarShowTraceButton: Bool
+    var workspaceBarShowScrollLockButton: Bool
     var workspaceBarWindowLevel: String
     var workspaceBarPosition: String
     var workspaceBarNotchAware: Bool
@@ -128,7 +129,7 @@ extension SettingsExport {
             outerGapBottom: 0,
             niriBalancedColumnCount: 2,
             niriInfiniteLoop: false,
-            revealPartial: RevealPartial.default.rawValue,
+            revealStyle: RevealStyle.auto.rawValue,
             niriLoneWindowMaxWidth: nil,
             niriColumnWidthPresets: BuiltInSettingsDefaults.niriColumnWidthPresets,
             niriDefaultColumnWidth: nil,
@@ -144,6 +145,7 @@ extension SettingsExport {
             workspaceBarShowLabels: true,
             workspaceBarShowFloatingWindows: false,
             workspaceBarShowTraceButton: false,
+            workspaceBarShowScrollLockButton: false,
             workspaceBarWindowLevel: WorkspaceBarWindowLevel.popup.rawValue,
             workspaceBarPosition: WorkspaceBarPosition.overlappingMenuBar.rawValue,
             workspaceBarNotchAware: true,

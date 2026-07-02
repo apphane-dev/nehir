@@ -58,6 +58,7 @@ import Foundation
 
     // Viewport
     func scrollViewport(direction: Direction)
+    func toggleViewportScrollLock()
 }
 
 // Conformance is free: `NiriLayoutHandler` already implements every requirement

@@ -600,6 +600,10 @@ struct DisplayDiagnosticsSettingsTab: View {
                 let backupURL = try WorkspacesConfigMigration.migrate(fileURL: migration.fileURL)
                 try migrationStateStore.clearPostpone(migrationID: migration.id)
                 migrationConfirmation = "Migrated workspaces.toml. Backup: \(backupURL.lastPathComponent)"
+            case SettingsMigrationRegistry.revealPartialToRevealStyle.id:
+                let backupURL = try RevealPartialSettingsMigration.migrate(fileURL: migration.fileURL)
+                try migrationStateStore.clearPostpone(migrationID: migration.id)
+                migrationConfirmation = "Migrated settings.toml. Backup: \(backupURL.lastPathComponent)"
             default:
                 migrationError = "No migration action is registered for \(migration.id)."
             }

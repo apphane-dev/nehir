@@ -67,7 +67,7 @@ Rules:
 
 | Setting | Type | Default | Behavior |
 |---|---|---|---|
-| Reveal Partial | `.default` / `.off` / `.snapClosest` / `.snapCenter` | `.default` | Controls what happens when focus moves to a [clipped](glossary.md#clipped-column) column from any non-FFM source. |
+| Reveal Style | `.auto` / `.closest` / `.center` | `.auto` | Controls where automatic reveals place clipped or parked targets. It never decides whether a reveal happens. |
 | Mouse Modifier | Key binding or `none` | User setting | Hold during a scroll gesture to bypass snap for that gesture. `none` disables snap bypass. |
 | Lone Window | `Fill` / `Centered(width)` with per-monitor `Use Global` / `Fill` / `Centered(width)` | `Fill` | Controls the default viewport geometry for a one-window workspace. |
 
@@ -88,7 +88,7 @@ Consequences:
 - `25% + 35% + 40%` follows the same rule and is also considered a viewport-fitting group.
 - Users should not adjust percentages to account for gaps; gaps are part of the layout model.
 
-Reveal `.default` uses this same rule indirectly: a closest snap is treated as viewport-fitting only when the candidate viewport contains a contiguous group of fully visible columns whose combined span is within `2 * gap` of the viewport width. This rejects oversized combinations such as `65% + 50%` while accepting intended `100%` groups.
+Reveal Style `.auto` uses this same rule indirectly: a closest snap is treated as viewport-fitting only when the candidate viewport contains a contiguous group of fully visible columns whose combined span is within `2 * gap` of the viewport width. This rejects oversized combinations such as `65% + 50%` while accepting intended `100%` groups.
 
 Implementation contract: route proportional pixel conversion through `ProportionalSize.resolveProportionalSpan(...)`; do not duplicate the formula at call sites. Do not change this primary-axis formula to adjust secondary-axis edge padding; stacked/tiled secondary-axis spacing is owned by `NiriAxisSolver` and related layout helpers, where inner gaps mean only gaps between adjacent tiles.
 
@@ -126,7 +126,7 @@ On gesture release, the viewport snaps to the nearest snap point. The focused co
 
 Hold the **Mouse Modifier** key during a gesture to bypass snapping — the viewport settles at the decelerated natural position.
 
-Implementation contract: `computeSnapGrid(...)`, `viewportStartBounds(...)`, and `ViewportSnapContext` in `ViewportState+Geometry.swift` are the source of truth for snap points and bounds. Gesture release, viewport scroll commands, Reveal Partial, resize adjustment, column transitions, and lone-window scroll/snap handling must consume this shared geometry instead of constructing local snap/edge formulas.
+Implementation contract: `computeSnapGrid(...)`, `viewportStartBounds(...)`, and `ViewportSnapContext` in `ViewportState+Geometry.swift` are the source of truth for snap points and bounds. Gesture release, viewport scroll commands, Reveal Style, resize adjustment, column transitions, and lone-window scroll/snap handling must consume this shared geometry instead of constructing local snap/edge formulas.
 
 ---
 
@@ -155,31 +155,33 @@ A single tiled window is the selected column and participates in far overscroll.
 
 ## Reveal on Focus
 
-"Reveal" means the viewport scrolls to bring a newly focused column into view. The decision is based on the column's **visibility state before focus changes** and the focus source. FFM never reveals or scrolls the viewport.
+"Reveal" means an automatic viewport scroll that brings a focused column into view. Reveal has fixed whether-rules and one style setting for placement.
 
-| Target visibility | Source | Behavior |
-|---|---|---|
-| Fully visible | Any | No scroll |
-| [Parked](glossary.md#parked-window) | Any | Scroll to closest snap that reveals the column |
-| [Clipped](glossary.md#clipped-column) | FFM | No scroll — cursor is already in the visible portion |
-| [Clipped](glossary.md#clipped-column) | Keyboard / click / external | Controlled by **Reveal Partial** setting |
+| Condition | Automatic scroll? |
+|---|---|
+| Focus follows mouse (FFM) focus change | Never |
+| Target already fully visible | Never |
+| Viewport Scroll Lock enabled on the workspace and the trigger is background/automatic | Never |
+| Explicit user navigation with a clipped or parked target | Yes, using Reveal Style |
+| Any other non-FFM trigger with a clipped or parked target | Yes, using Reveal Style |
 
-### Reveal Partial
+The same rules apply to keyboard commands, click activation, external raises, and layout commands that keep the selection visible.
 
-`revealPartial: .default | .off | .snapClosest | .snapCenter`
+### Reveal Style
 
-Applies when focus moves to a [clipped](glossary.md#clipped-column) column from any non-FFM source:
+`revealStyle: .auto | .closest | .center`
 
-- **`.default`** — use the closest target-column snap only when that candidate viewport contains a contiguous group of fully visible columns whose proportional span fits the viewport under Nehir's gap accounting; otherwise use `.snapCenter`. This treats groups such as `50% + 50%` and `25% + 35% + 40%` as fitting without requiring users to compensate for gaps, while rejecting oversized groups such as `65% + 50%`.
-- **`.off`** — no scroll; the column is already partially visible and the user can reposition the viewport manually with `scrollViewport` commands
-- **`.snapClosest`** — scroll to the snap point of the target column nearest to the current viewport position (minimal scroll)
-- **`.snapCenter`** — scroll to center the target column
+Applies uniformly to [clipped](glossary.md#clipped-column) and [parked](glossary.md#parked-window) targets after the whether-rules allow a reveal:
 
-### Parked columns
+- **`.auto`** — use the closest target-column snap only when that candidate viewport contains a contiguous group of fully visible columns whose proportional span fits the viewport under Nehir's gap accounting; otherwise use `.center`. This treats groups such as `50% + 50%` and `25% + 35% + 40%` as fitting while rejecting oversized groups such as `65% + 50%`.
+- **`.closest`** — scroll to the target column's snap point nearest to the current viewport position (minimal scroll).
+- **`.center`** — scroll to the target column's center snap; falls back to `.closest` when no center snap exists.
 
-When the target is [parked](glossary.md#parked-window), the viewport always scrolls to the **closest snap** that brings the column into view — the edge snap nearest to the current viewport position. No configuration.
+If the target column is already at the selected target offset (within pixel tolerance), no scroll occurs.
 
-If the target column is already at a valid snap position (within pixel tolerance), no scroll occurs.
+### Viewport Scroll Lock
+
+Viewport Scroll Lock is a per-workspace runtime toggle. When enabled, it suppresses background automatic reveals only. Explicit user navigation (workspace-bar window clicks and focus commands) and explicit viewport manipulation — `scrollViewport(.left/.right)`, trackpad scroll gestures, and interactive drags — keep working and do not unlock the workspace.
 
 ---
 
@@ -215,19 +217,18 @@ Target is fully visible — no reveal triggered. Snap point is not re-evaluated;
 ```
 User focuses col3 with keyboard or click.
 
-`revealPartial = .off`:
+`revealStyle = .auto` chooses the same closest snap here because the resulting viewport is filled:
 ```text
-[|30 30 *.40].20 50
+.20[.10 30 *60|] 50
 ```
-No scroll — col3 is already partially visible.
 
-`revealPartial = .snapClosest`:
+`revealStyle = .closest`:
 ```text
 .20[.10 30 *60|] 50
 ```
 Minimal scroll: col3's right-edge aligns with viewport right.
 
-`revealPartial = .snapCenter`:
+`revealStyle = .center`:
 ```text
 30 .10[.20 *|30.30| .20].30
 ```
@@ -250,9 +251,9 @@ Focus transfers to col3, viewport does not scroll.
 ```text
 [|*30 30 .40].20 50    col4 (50) is parked right
 ```
-User navigates to col4 with any source (keyboard, click, external).
+User navigates to col4 with any non-FFM source.
 
-Parked target always scrolls to the closest snap — the edge snap nearest to the current viewport position. Col4 is parked right; closest snap is its right-edge snap:
+The target is parked, so the viewport reveals it using the configured Reveal Style. With `.closest`, col4's nearest edge snap is selected:
 
 ```text
 30 30 .10[.50 *50|]

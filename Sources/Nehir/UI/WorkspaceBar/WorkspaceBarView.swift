@@ -25,6 +25,7 @@ struct WorkspaceBarProjection: Equatable {
     let items: [WorkspaceBarItem]
     let sticky: WorkspaceBarStickyItem?
     let scratchpad: WorkspaceBarScratchpadItem?
+    let isViewportScrollLocked: Bool
 }
 
 struct WorkspaceBarWindowItem: Identifiable, Equatable {
@@ -83,6 +84,7 @@ struct WorkspaceBarSnapshot: Equatable {
     let backgroundOpacity: Double
     let barHeight: CGFloat
     let hasDisplayDiagnosticsWarning: Bool
+    let showScrollLockButton: Bool
     let accentColor: SettingsColor?
     let textColor: SettingsColor?
 
@@ -116,6 +118,7 @@ struct WorkspaceBarView: View {
     let onFocusWindow: (WindowToken) -> Void
     let onActivateScratchpad: () -> Void
     let onOpenCommandPalette: () -> Void
+    let onToggleViewportScrollLock: () -> Void
     let onOpenDiagnostics: () -> Void
     let onCreateAppRuleForWindow: (WindowToken) -> Void
     let onToggleWindowFloating: (WindowToken) -> Void
@@ -134,6 +137,7 @@ struct WorkspaceBarView: View {
             onFocusWindow: onFocusWindow,
             onActivateScratchpad: onActivateScratchpad,
             onOpenCommandPalette: onOpenCommandPalette,
+            onToggleViewportScrollLock: onToggleViewportScrollLock,
             onOpenDiagnostics: onOpenDiagnostics,
             onCreateAppRuleForWindow: onCreateAppRuleForWindow,
             onToggleWindowFloating: onToggleWindowFloating,
@@ -159,6 +163,7 @@ struct WorkspaceBarMeasurementView: View {
             onFocusWindow: { _ in },
             onActivateScratchpad: {},
             onOpenCommandPalette: {},
+            onToggleViewportScrollLock: {},
             onOpenDiagnostics: {},
             onCreateAppRuleForWindow: { _ in },
             onToggleWindowFloating: { _ in },
@@ -209,6 +214,7 @@ private struct WorkspaceBarContentView: View {
     let onFocusWindow: (WindowToken) -> Void
     let onActivateScratchpad: () -> Void
     let onOpenCommandPalette: () -> Void
+    let onToggleViewportScrollLock: () -> Void
     let onOpenDiagnostics: () -> Void
     let onCreateAppRuleForWindow: (WindowToken) -> Void
     let onToggleWindowFloating: (WindowToken) -> Void
@@ -325,6 +331,17 @@ private struct WorkspaceBarContentView: View {
                     onActivateScratchpad: onActivateScratchpad,
                     onToggleScratchpadVisible: onToggleScratchpadVisible,
                     onUnassignScratchpad: { onToggleScratchpadAssignment(scratchpad.window.id) }
+                )
+            }
+
+            if snapshot.showScrollLockButton {
+                ScrollLockBarButton(
+                    isLocked: snapshot.projection.isViewportScrollLocked,
+                    iconSize: iconSize,
+                    itemHeight: itemHeight,
+                    accentColor: accentColor,
+                    textColor: textColor,
+                    onToggle: onToggleViewportScrollLock
                 )
             }
 
@@ -1042,6 +1059,51 @@ private struct DisplayDiagnosticsBarButton: View {
         }
         .accessibilityLabel("Display Diagnostics Warning")
         .help("Open Display and Dock Diagnostics")
+    }
+}
+
+@MainActor
+private struct ScrollLockBarButton: View {
+    let isLocked: Bool
+    let iconSize: CGFloat
+    let itemHeight: CGFloat
+    let accentColor: Color?
+    let textColor: Color?
+    let onToggle: () -> Void
+
+    @State private var isHovered = false
+
+    private var resolvedAccentColor: Color {
+        accentColor ?? .accentColor
+    }
+
+    private var resolvedSecondaryTextColor: Color {
+        textColor ?? .secondary
+    }
+
+    var body: some View {
+        Button(action: onToggle) {
+            Image(systemName: isLocked ? "lock.fill" : "lock.open")
+                .font(.system(size: max(10, iconSize * 0.7), weight: .medium))
+                .foregroundStyle(isLocked ? resolvedAccentColor : resolvedSecondaryTextColor.opacity(0.75))
+                .frame(width: itemHeight, height: itemHeight)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .scaleEffect(isHovered ? 1.03 : 1.0)
+        .background {
+            if isHovered || isLocked {
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(isLocked ? resolvedAccentColor.opacity(0.16) : Color.primary.opacity(0.08))
+            }
+        }
+        .onHover { hovering in
+            isHovered = hovering
+        }
+        .accessibilityLabel(isLocked ? "Viewport Scroll Lock On" : "Viewport Scroll Lock Off")
+        .help(isLocked ?
+            "Background automatic reveals are locked. Direct navigation and manual scrolling still work — click to unlock." :
+            "Lock background automatic reveal scrolling. Direct navigation and manual scrolling keep working while locked.")
     }
 }
 

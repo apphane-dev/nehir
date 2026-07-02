@@ -383,19 +383,16 @@ private func makeContext(
     }
 }
 
-// MARK: - RevealPartial
+// MARK: - RevealStyle
 
-@Suite struct RevealPartialTests {
-    @Test func allCasesIncludeDefault() {
-        #expect(RevealPartial.allCases.contains(.default))
-        #expect(RevealPartial.allCases.contains(.off))
-        #expect(RevealPartial.allCases.contains(.snapClosest))
-        #expect(RevealPartial.allCases.contains(.snapCenter))
+@Suite struct RevealStyleTests {
+    @Test func allCasesIncludeConfiguredStyles() {
+        #expect(RevealStyle.allCases == [.auto, .closest, .center])
     }
 
     @Test func roundTripsThroughRawValue() {
-        for mode in RevealPartial.allCases {
-            #expect(RevealPartial(rawValue: mode.rawValue) == mode)
+        for mode in RevealStyle.allCases {
+            #expect(RevealStyle(rawValue: mode.rawValue) == mode)
         }
     }
 }
@@ -526,122 +523,133 @@ private func makeContext(
 
 @Suite struct ScrollToRevealTests {
     @Test func scrollToRevealSkipsFFM() {
-        let engine = NiriLayoutEngine()
-        engine.animationClock = AnimationClock()
-        let wsId = UUID()
+        var fixture = makeRevealFixture(viewportWidth: 800)
+        let originalTarget = fixture.state.viewOffsetPixels.target()
 
-        let window = engine.addWindow(handle: makeTestHandle(pid: 501), to: wsId, afterSelection: nil)
-        let columns = engine.columns(in: wsId)
-        assignWidths(columns, widths: [400])
-
-        let workingFrame = CGRect(x: 0, y: 0, width: 800, height: 600)
-        var state = ViewportState()
-        state.animationClock = engine.animationClock
-        state.activeColumnIndex = 0
-        state.viewOffsetPixels = .static(0)
-
-        let context = state.snapContext(
-            columns: columns,
-            gap: 8,
-            viewportWidth: workingFrame.width
-        )
-
-        let revealed = engine.scrollToReveal(
-            columnIndex: 0,
+        let revealed = fixture.engine.scrollToReveal(
+            columnIndex: 2,
             isFFM: true,
-            state: &state,
-            context: context,
+            state: &fixture.state,
+            context: fixture.context,
             motion: .disabled
         )
 
         #expect(!revealed)
+        #expect(fixture.state.viewOffsetPixels.target() == originalTarget)
     }
 
-    @Test func scrollToRevealDoesNotMoveFullyVisibleWithDefaultWhenViewportFills() {
-        let engine = NiriLayoutEngine()
-        engine.revealPartial = .default
-        engine.animationClock = AnimationClock()
-        let wsId = UUID()
+    @Test func scrollToRevealSkipsWhenLocked() {
+        var fixture = makeRevealFixture(viewportWidth: 800)
+        fixture.state.isScrollLocked = true
+        let originalTarget = fixture.state.viewOffsetPixels.target()
 
-        let first = engine.addWindow(handle: makeTestHandle(pid: 511), to: wsId, afterSelection: nil)
-        let second = engine.addWindow(handle: makeTestHandle(pid: 512), to: wsId, afterSelection: first.id)
-
-        let columns = engine.columns(in: wsId)
-        assignWidths(columns, widths: [400, 400])
-
-        let workingFrame = CGRect(x: 0, y: 0, width: 808, height: 600) // exact fit: 400+8+400
-        var state = ViewportState()
-        state.animationClock = engine.animationClock
-        state.activeColumnIndex = 0
-        state.viewOffsetPixels = .static(0)
-
-        let context = state.snapContext(
-            columns: columns,
-            gap: 8,
-            viewportWidth: workingFrame.width
-        )
-
-        // Column 1 is fully visible and fills viewport
-        let revealed = engine.scrollToReveal(
-            columnIndex: 1,
-            isFFM: false,
-            state: &state,
-            context: context,
-            motion: .disabled
-        )
-
-        #expect(!revealed)
-    }
-
-    @Test func scrollToRevealOffModeDoesNotScroll() {
-        let engine = NiriLayoutEngine()
-        engine.revealPartial = .off
-        engine.animationClock = AnimationClock()
-        let wsId = UUID()
-
-        let first = engine.addWindow(handle: makeTestHandle(pid: 521), to: wsId, afterSelection: nil)
-        let second = engine.addWindow(handle: makeTestHandle(pid: 522), to: wsId, afterSelection: first.id)
-        _ = engine.addWindow(handle: makeTestHandle(pid: 523), to: wsId, afterSelection: second.id)
-
-        let columns = engine.columns(in: wsId)
-        assignWidths(columns, widths: [400, 400, 400])
-
-        let workingFrame = CGRect(x: 0, y: 0, width: 800, height: 600)
-        var state = ViewportState()
-        state.animationClock = engine.animationClock
-        state.activeColumnIndex = 0
-        state.viewOffsetPixels = .static(0)
-
-        let context = state.snapContext(
-            columns: columns,
-            gap: 8,
-            viewportWidth: workingFrame.width
-        )
-
-        // Column 2 is parked right, with .off mode it should still not scroll for clipped
-        // But parked columns with .off get a default snap. Check the actual behavior.
-        let revealed = engine.scrollToReveal(
+        let revealed = fixture.engine.scrollToReveal(
             columnIndex: 2,
             isFFM: false,
-            state: &state,
-            context: context,
+            state: &fixture.state,
+            context: fixture.context,
             motion: .disabled
         )
 
-        // .off mode: parked columns still get revealed via default snap selection
-        // The key behavior is that .off doesn't scroll for clipped columns
-        // Verify column is now visible if revealed
-        if revealed {
-            let viewStart = state.columnX(at: state.activeColumnIndex, columns: columns, gap: 8)
-                + state.viewOffsetPixels.target()
-            let col2Start = state.columnX(at: 2, columns: columns, gap: 8)
-            #expect(col2Start < viewStart + workingFrame.width)
+        #expect(!revealed)
+        #expect(fixture.state.viewOffsetPixels.target() == originalTarget)
+    }
+
+    @Test func scrollToRevealDoesNotMoveFullyVisibleTarget() {
+        var fixture = makeRevealFixture(viewportWidth: 808)
+        let originalTarget = fixture.state.viewOffsetPixels.target()
+
+        let revealed = fixture.engine.scrollToReveal(
+            columnIndex: 1,
+            isFFM: false,
+            state: &fixture.state,
+            context: fixture.context,
+            motion: .disabled
+        )
+
+        #expect(!revealed)
+        #expect(fixture.state.viewOffsetPixels.target() == originalTarget)
+    }
+
+    @Test func scrollToRevealUsesClosestStyleForParkedTargets() {
+        var fixture = makeRevealFixture(style: .closest, viewportWidth: 800)
+        let expected = expectedRevealTargetOffset(style: .closest, columnIndex: 2, fixture: fixture)
+
+        let revealed = fixture.engine.scrollToReveal(
+            columnIndex: 2,
+            isFFM: false,
+            state: &fixture.state,
+            context: fixture.context,
+            motion: .disabled
+        )
+
+        #expect(revealed)
+        #expect(fixture.state.viewOffsetPixels.target() == expected)
+    }
+
+    @Test func scrollToRevealUsesCenterStyleForParkedTargets() {
+        var fixture = makeRevealFixture(style: .center, viewportWidth: 800)
+        let expected = expectedRevealTargetOffset(style: .center, columnIndex: 2, fixture: fixture)
+
+        let revealed = fixture.engine.scrollToReveal(
+            columnIndex: 2,
+            isFFM: false,
+            state: &fixture.state,
+            context: fixture.context,
+            motion: .disabled
+        )
+
+        #expect(revealed)
+        #expect(fixture.state.viewOffsetPixels.target() == expected)
+    }
+
+    @Test func scrollToRevealUsesAutoStyleForParkedTargets() {
+        var fixture = makeRevealFixture(style: .auto, viewportWidth: 800)
+        let expected = expectedRevealTargetOffset(style: .auto, columnIndex: 2, fixture: fixture)
+
+        let revealed = fixture.engine.scrollToReveal(
+            columnIndex: 2,
+            isFFM: false,
+            state: &fixture.state,
+            context: fixture.context,
+            motion: .disabled
+        )
+
+        #expect(revealed)
+        #expect(fixture.state.viewOffsetPixels.target() == expected)
+    }
+
+    @Test func scrollToRevealUsesSameStyleMatrixForClippedTargets() {
+        for style in RevealStyle.allCases {
+            var fixture = makeRevealFixture(style: style, viewportWidth: 500, initialViewStart: 250)
+            let expected = expectedRevealTargetOffset(style: style, columnIndex: 1, fixture: fixture)
+
+            let revealed = fixture.engine.scrollToReveal(
+                columnIndex: 1,
+                isFFM: false,
+                state: &fixture.state,
+                context: fixture.context,
+                motion: .disabled
+            )
+
+            #expect(revealed)
+            #expect(fixture.state.viewOffsetPixels.target() == expected)
         }
     }
 
-    @Test func scrollToRevealSnapClosestScrollsToClosestSnap() {
+    private struct RevealFixture {
+        let engine: NiriLayoutEngine
+        let context: ViewportSnapContext
+        var state: ViewportState
+    }
+
+    private func makeRevealFixture(
+        style: RevealStyle = .auto,
+        viewportWidth: CGFloat,
+        initialViewStart: CGFloat = 0
+    ) -> RevealFixture {
         let engine = NiriLayoutEngine()
-        engine.revealPartial = .snapClosest
+        engine.revealStyle = style
         engine.animationClock = AnimationClock()
         let wsId = UUID()
 
@@ -652,77 +660,41 @@ private func makeContext(
         let columns = engine.columns(in: wsId)
         assignWidths(columns, widths: [400, 400, 400])
 
-        let workingFrame = CGRect(x: 0, y: 0, width: 800, height: 600)
         var state = ViewportState()
         state.animationClock = engine.animationClock
         state.activeColumnIndex = 0
-        state.viewOffsetPixels = .static(0)
+        state.viewOffsetPixels = .static(initialViewStart)
 
         let context = state.snapContext(
             columns: columns,
             gap: 8,
-            viewportWidth: workingFrame.width
+            viewportWidth: viewportWidth
         )
-
-        // Column 2 is parked right
-        let revealed = engine.scrollToReveal(
-            columnIndex: 2,
-            isFFM: false,
-            state: &state,
-            context: context,
-            motion: .disabled
-        )
-
-        #expect(revealed)
-        // Viewport should have moved to show column 2
-        let viewStart = state.columnX(at: state.activeColumnIndex, columns: columns, gap: 8)
-            + state.viewOffsetPixels.target()
-        let col2Start = state.columnX(at: 2, columns: columns, gap: 8)
-        #expect(col2Start < viewStart + workingFrame.width)
+        return RevealFixture(engine: engine, context: context, state: state)
     }
 
-    @Test func scrollToRevealSnapCenterCentersColumn() {
-        let engine = NiriLayoutEngine()
-        engine.revealPartial = .snapCenter
-        engine.animationClock = AnimationClock()
-        let wsId = UUID()
-
-        let first = engine.addWindow(handle: makeTestHandle(pid: 541), to: wsId, afterSelection: nil)
-        let second = engine.addWindow(handle: makeTestHandle(pid: 542), to: wsId, afterSelection: first.id)
-        _ = engine.addWindow(handle: makeTestHandle(pid: 543), to: wsId, afterSelection: second.id)
-
-        let columns = engine.columns(in: wsId)
-        assignWidths(columns, widths: [400, 400, 400])
-
-        let workingFrame = CGRect(x: 0, y: 0, width: 800, height: 600)
-        var state = ViewportState()
-        state.animationClock = engine.animationClock
-        state.activeColumnIndex = 0
-        state.viewOffsetPixels = .static(0)
-
-        let context = state.snapContext(
-            columns: columns,
-            gap: 8,
-            viewportWidth: workingFrame.width
-        )
-
-        let revealed = engine.scrollToReveal(
-            columnIndex: 2,
-            isFFM: false,
-            state: &state,
-            context: context,
-            motion: .disabled
-        )
-
-        #expect(revealed)
-        // With snapCenter, the column should be roughly centered
-        let viewStart = state.columnX(at: state.activeColumnIndex, columns: columns, gap: 8)
-            + state.viewOffsetPixels.target()
-        let col2Start = state.columnX(at: 2, columns: columns, gap: 8)
-        let col2Center = col2Start + 200
-        let viewCenter = viewStart + 400
-        // Column center should be reasonably placed in viewport
-        #expect(abs(col2Center - viewCenter) < 300)
+    private func expectedRevealTargetOffset(
+        style: RevealStyle,
+        columnIndex: Int,
+        fixture: RevealFixture
+    ) -> CGFloat? {
+        let viewStart = fixture.context.currentViewStart(in: fixture.state)
+        let targetSnaps = fixture.context.snapCandidates(for: columnIndex, in: fixture.state)
+        let closest = targetSnaps.closest(to: viewStart)
+        let center = targetSnaps.first { $0.kind == .center }
+        let snap: SnapPoint? = switch style {
+        case .auto:
+            if let closest, fixture.context.fillsViewport(at: closest.offset, in: fixture.state) {
+                closest
+            } else {
+                center ?? closest
+            }
+        case .closest:
+            closest
+        case .center:
+            center ?? closest
+        }
+        return snap.map { fixture.context.targetOffset(for: $0, in: fixture.state) }
     }
 }
 

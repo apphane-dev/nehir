@@ -72,8 +72,20 @@ enum WorkspaceBarDataSource {
                 focusedToken: focusedToken,
                 viewportSelectedToken: viewportSelectedToken,
                 settings: settings
+            ),
+            isViewportScrollLocked: activeWorkspaceScrollLockState(
+                for: monitor,
+                workspaceManager: workspaceManager
             )
         )
+    }
+
+    private static func activeWorkspaceScrollLockState(
+        for monitor: Monitor,
+        workspaceManager: WorkspaceManager
+    ) -> Bool {
+        guard let workspaceId = workspaceManager.activeWorkspaceOrFirst(on: monitor.id)?.id else { return false }
+        return workspaceManager.niriViewportState(for: workspaceId).isScrollLocked
     }
 
     private static func workspaceItems(

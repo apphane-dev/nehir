@@ -74,7 +74,8 @@ extension NiriLayoutEngine {
         context: ViewportSnapContext,
         motion: MotionSnapshot,
         scale: CGFloat = 2.0,
-        animationConfig: SpringConfig? = nil
+        animationConfig: SpringConfig? = nil,
+        trigger: RevealTrigger = .automatic
     ) -> Bool {
         guard !isFFM else { return false }
         guard context.columns.indices.contains(columnIndex), !context.snapPoints.isEmpty else { return false }
@@ -83,61 +84,53 @@ extension NiriLayoutEngine {
         let visibility = context.visibility(of: columnIndex, viewportOffset: viewStart, in: state)
         let pixel = 1.0 / max(scale, 1.0)
 
-        func targetColumnSnapCandidates() -> [SnapPoint] {
-            context.snapCandidates(for: columnIndex, in: state)
-        }
+        let targetSnaps = context.snapCandidates(for: columnIndex, in: state)
+        let closest = targetSnaps.closest(to: viewStart)
+        let center = targetSnaps.first { $0.kind == .center }
 
-        func defaultSnap() -> SnapPoint? {
-            let targetSnaps = targetColumnSnapCandidates()
-            let closest = targetSnaps.closest(to: viewStart)
+        func autoSnap() -> SnapPoint? {
             if let closest, context.fillsViewport(at: closest.offset, in: state) {
                 return closest
             }
-            return targetSnaps.first { $0.kind == .center }
-                ?? closest
+            return center ?? closest
         }
 
         let targetSnap: SnapPoint?
         switch visibility {
         case .fullyVisible:
-            if revealPartial != .default {
-                return false
-            }
+            // Re-centering a fully visible filling group is viewport-position maintenance,
+            // not a reveal. Keep the proportional slack / lone-column centering contract
+            // even when no hidden content needs to be revealed.
             if context.fillsViewport(at: viewStart, in: state) {
-                if let centeredStart = context.centeredFillingViewportStart(
+                guard let centeredStart = context.centeredFillingViewportStart(
                     at: viewStart,
                     in: state,
                     pixelTolerance: pixel
                 ),
                     abs(centeredStart - viewStart) > pixel
-                {
-                    let targetOffset = context.targetOffset(
-                        forViewportStart: centeredStart,
-                        activeColumnIndex: state.activeColumnIndex,
-                        in: state
-                    )
-                    state.animateToOffset(targetOffset, motion: motion, config: animationConfig, scale: scale)
-                    return true
+                else {
+                    return false
                 }
-                return false
+                let targetOffset = context.targetOffset(
+                    forViewportStart: centeredStart,
+                    activeColumnIndex: state.activeColumnIndex,
+                    in: state
+                )
+                state.animateToOffset(targetOffset, motion: motion, config: animationConfig, scale: scale)
+                return true
             }
-            targetSnap = defaultSnap()
-        case .parked:
-            targetSnap = revealPartial == .default
-                ? defaultSnap()
-                : targetColumnSnapCandidates().closest(to: viewStart)
-        case .clipped:
-            switch revealPartial {
-            case .default:
-                targetSnap = defaultSnap()
-            case .off:
-                return false
-            case .snapClosest:
-                targetSnap = targetColumnSnapCandidates().closest(to: viewStart)
-            case .snapCenter:
-                let targetSnaps = targetColumnSnapCandidates()
-                targetSnap = targetSnaps.first { $0.kind == .center }
-                    ?? targetSnaps.closest(to: viewStart)
+            guard revealStyle == .auto else { return false }
+            targetSnap = autoSnap()
+        case .parked,
+             .clipped:
+            guard !trigger.respectsScrollLock || !state.isScrollLocked else { return false }
+            targetSnap = switch revealStyle {
+            case .auto:
+                autoSnap()
+            case .closest:
+                closest
+            case .center:
+                center ?? closest
             }
         }
 
@@ -147,66 +140,6 @@ extension NiriLayoutEngine {
 
         state.animateToOffset(targetOffset, motion: motion, config: animationConfig, scale: scale)
         return true
-    }
-
-    /// Reveals a column in response to a focus activation (e.g. clicking or
-    /// focusing a window). Unlike the layout-driven `scrollToReveal`:
-    /// - Activating an already fully visible column never moves the viewport.
-    /// - Parked (fully hidden) columns are revealed with the fixed default snap,
-    ///   independent of `revealPartial`; that policy is for clipped/partially
-    ///   visible content only.
-    /// - Clipped columns delegate to `scrollToReveal`, where `revealPartial` applies.
-    @discardableResult
-    func revealForFocusActivation(
-        columnIndex: Int,
-        isFFM: Bool,
-        state: inout ViewportState,
-        context: ViewportSnapContext,
-        motion: MotionSnapshot,
-        scale: CGFloat = 2.0,
-        animationConfig: SpringConfig? = nil
-    ) -> Bool {
-        guard !isFFM else { return false }
-        guard context.columns.indices.contains(columnIndex), !context.snapPoints.isEmpty else { return false }
-
-        let viewStart = context.currentViewStart(in: state)
-        let visibility = context.visibility(of: columnIndex, viewportOffset: viewStart, in: state)
-        switch visibility {
-        case .fullyVisible:
-            return false
-        case .parked:
-            // Parked columns are fully hidden offscreen; reveal them with the
-            // fixed default snap, independent of `revealPartial` (a policy for
-            // clipped content). Mirrors `defaultSnap()` in `scrollToReveal`:
-            // closest snap when it fills the viewport, otherwise the center snap.
-            let targetSnaps = context.snapCandidates(for: columnIndex, in: state)
-            let closest = targetSnaps.closest(to: viewStart)
-            let fixedSnap: SnapPoint
-            if let closest, context.fillsViewport(at: closest.offset, in: state) {
-                fixedSnap = closest
-            } else if let center = targetSnaps.first(where: { $0.kind == .center }) {
-                fixedSnap = center
-            } else if let closest {
-                fixedSnap = closest
-            } else {
-                return false
-            }
-            let pixel = 1.0 / max(scale, 1.0)
-            let targetOffset = context.targetOffset(for: fixedSnap, in: state)
-            guard abs(targetOffset - state.viewOffsetPixels.target()) > pixel else { return false }
-            state.animateToOffset(targetOffset, motion: motion, config: animationConfig, scale: scale)
-            return true
-        case .clipped:
-            return scrollToReveal(
-                columnIndex: columnIndex,
-                isFFM: isFFM,
-                state: &state,
-                context: context,
-                motion: motion,
-                scale: scale,
-                animationConfig: animationConfig
-            )
-        }
     }
 
     func syncViewportSelectionToActiveColumn(columns: [NiriContainer], state: inout ViewportState) -> NiriWindow? {

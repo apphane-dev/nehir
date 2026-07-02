@@ -191,7 +191,7 @@ private func waitUntilServiceLifecycleTest(
         let controller = WMController(settings: settings)
         let lifecycleManager = ServiceLifecycleManager(controller: controller)
         controller.workspaceManager.applyMonitorConfigurationChange([monitor])
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
 
         #expect(controller.niriEngine?.monitor(for: monitor.id)?.orientation == .horizontal)
@@ -230,7 +230,7 @@ private func waitUntilServiceLifecycleTest(
         let controller = WMController(settings: settings)
         let lifecycleManager = ServiceLifecycleManager(controller: controller)
         controller.workspaceManager.applyMonitorConfigurationChange([landscapeMonitor])
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
 
         #expect(controller.niriEngine?.monitor(for: landscapeMonitor.id)?.orientation == .horizontal)

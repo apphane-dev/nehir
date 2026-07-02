@@ -164,7 +164,7 @@ private func prepareMouseResizeFixture(
     location: CGPoint
 ) {
     let controller = makeMouseEventTestController(ownedWindowRegistry: ownedWindowRegistry)
-    controller.enableNiriLayout()
+    controller.enableNiriLayout(revealStyle: .auto)
     await controller.layoutRefreshController.waitForRefreshWorkForTests()
     controller.syncMonitorsToNiriEngine()
 
@@ -223,7 +223,7 @@ private func prepareCommittedTrackpadGestureFixture() async -> (
 ) {
     let controller = makeMouseEventTestController()
     controller.settings.scrollGestureEnabled = true
-    controller.enableNiriLayout()
+    controller.enableNiriLayout(revealStyle: .auto)
     await controller.layoutRefreshController.waitForRefreshWorkForTests()
     controller.syncMonitorsToNiriEngine()
 
@@ -329,7 +329,7 @@ private func prepareMouseWheelScrollFixture(
         name: "Main"
     )
     controller.workspaceManager.applyMonitorConfigurationChange([monitor])
-    controller.enableNiriLayout()
+    controller.enableNiriLayout(revealStyle: .auto)
     await controller.layoutRefreshController.waitForRefreshWorkForTests()
     controller.syncMonitorsToNiriEngine()
 
@@ -619,7 +619,7 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
 
     @Test @MainActor func focusFollowsMouseRefreshesAfterScrollAnimationSettles() async {
         let controller = makeMouseEventTestController()
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
         controller.syncMonitorsToNiriEngine()
         controller.setFocusFollowsMouse(true)
@@ -1268,7 +1268,7 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
         let controller = makeMouseEventTestController()
         controller.settings.scrollGestureEnabled = true
         controller.settings.gestureInvertDirection = false
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
         controller.syncMonitorsToNiriEngine()
 
@@ -1603,7 +1603,7 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
     @Test @MainActor func trackpadGestureWaitsForNiriRecognitionThreshold() async {
         let controller = makeMouseEventTestController()
         controller.settings.scrollGestureEnabled = true
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
         controller.syncMonitorsToNiriEngine()
 
@@ -1792,7 +1792,7 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
     @Test @MainActor func verticalDominantThreeFingerGestureDoesNotScrollViewport() async {
         let controller = makeMouseEventTestController()
         controller.settings.scrollGestureEnabled = true
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
         controller.syncMonitorsToNiriEngine()
 
@@ -1839,7 +1839,7 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
         let controller = makeMouseEventTestController()
         controller.settings.scrollGestureEnabled = true
         controller.settings.gestureInvertDirection = false
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
         controller.syncMonitorsToNiriEngine()
 
@@ -2209,7 +2209,7 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
 
     @Test @MainActor func queuedFocusFollowsMouseUsesCurrentPointerForStaleMouseMove() async {
         let controller = makeMouseEventTestController()
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
         controller.syncMonitorsToNiriEngine()
         controller.setFocusFollowsMouse(true)
@@ -2255,7 +2255,7 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
 
     @Test @MainActor func focusFollowsMouseReassertsConfirmedWindowWhenPointerReturnsBeforePendingFocusConfirms() async {
         let controller = makeMouseEventTestController()
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
         controller.syncMonitorsToNiriEngine()
         controller.setFocusFollowsMouse(true)
@@ -2300,7 +2300,7 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
 
     @Test @MainActor func focusFollowsMouseAllowsRapidTargetChangeInsideDebounceWindow() async {
         let controller = makeMouseEventTestController()
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
         controller.syncMonitorsToNiriEngine()
         controller.setFocusFollowsMouse(true)
@@ -2344,7 +2344,7 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
 
     @Test @MainActor func focusFollowsMouseIgnoresCoveredTileBehindManagedFullscreen() async {
         let controller = makeMouseEventTestController()
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
         controller.syncMonitorsToNiriEngine()
         controller.setFocusFollowsMouse(true)
@@ -2414,7 +2414,7 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
 
     @Test @MainActor func focusFollowsMouseDoesNotActivateTiledWindowBehindFloatingWindow() async {
         let controller = makeMouseEventTestController()
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
         controller.syncMonitorsToNiriEngine()
         controller.setFocusFollowsMouse(true)
@@ -2492,7 +2492,7 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
 
     @Test @MainActor func focusFollowsMouseDoesNotActivateTiledWindowBehindUnmanagedWindow() async {
         let controller = makeMouseEventTestController()
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
         controller.syncMonitorsToNiriEngine()
         controller.setFocusFollowsMouse(true)
@@ -2574,7 +2574,7 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
 
     @Test @MainActor func focusFollowsMouseSuppressesViaEventWindowUnderPointerWithoutSnapshot() async {
         let controller = makeMouseEventTestController()
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
         controller.syncMonitorsToNiriEngine()
         controller.setFocusFollowsMouse(true)
@@ -2642,7 +2642,7 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
 
     @Test @MainActor func focusFollowsMouseDoesNotActivateTiledWindowWhileFloatingWindowIsVisible() async {
         let controller = makeMouseEventTestController()
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
         controller.syncMonitorsToNiriEngine()
         controller.setFocusFollowsMouse(true)
@@ -2722,7 +2722,7 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
 
     @Test @MainActor func focusFollowsMouseActivatesTiledWindowWhenFloatingWindowIsBehindActiveTile() async {
         let controller = makeMouseEventTestController()
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
         controller.syncMonitorsToNiriEngine()
         controller.setFocusFollowsMouse(true)
@@ -2797,7 +2797,7 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
 
     @Test @MainActor func floatingMouseInitiatedFocusDoesNotMoveMouseToFocusedWindow() async {
         let controller = makeMouseEventTestController()
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
         controller.syncMonitorsToNiriEngine()
         controller.setMoveMouseToFocusedWindow(true)
@@ -2867,7 +2867,7 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
 
     @Test @MainActor func focusFollowsMouseDoesNotStealFocusDuringRecentFloatingPointerInteraction() async {
         let controller = makeMouseEventTestController()
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
         controller.syncMonitorsToNiriEngine()
         controller.setFocusFollowsMouse(true)
@@ -2950,7 +2950,7 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
 
     @Test @MainActor func mouseInitiatedFocusDoesNotMoveMouseToFocusedWindow() async {
         let controller = makeMouseEventTestController()
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
         controller.syncMonitorsToNiriEngine()
         controller.setMoveMouseToFocusedWindow(true)
@@ -3026,7 +3026,7 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
 
     @Test @MainActor func focusFollowsMouseReactivatesLastHoveredWindowAfterGestureFocusChange() async {
         let controller = makeMouseEventTestController()
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
         controller.syncMonitorsToNiriEngine()
         controller.setFocusFollowsMouse(true)
@@ -3098,7 +3098,7 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
 
     @Test @MainActor func focusFollowsMouseActivatesVisibleNiriWindowWithoutRecenteringViewport() async {
         let controller = makeMouseEventTestController()
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
         controller.syncMonitorsToNiriEngine()
         controller.setFocusFollowsMouse(true)
@@ -3249,7 +3249,7 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
 
     @Test @MainActor func focusFollowsMouseFiresThroughClickThroughOverlay() async {
         let controller = makeMouseEventTestController()
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
         controller.syncMonitorsToNiriEngine()
         controller.setFocusFollowsMouse(true)
@@ -3322,7 +3322,7 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
 
     @Test @MainActor func focusFollowsMouseSuppressesOverInteractiveOverlay() async {
         let controller = makeMouseEventTestController()
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
         controller.syncMonitorsToNiriEngine()
         controller.setFocusFollowsMouse(true)
@@ -3396,7 +3396,7 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
     @Test @MainActor func focusFollowsMouseNotSuppressedByOwnedPassthroughBorder() async {
         let registry = makeOwnedMouseWindowRegistry { nil }
         let controller = makeMouseEventTestController(ownedWindowRegistry: registry)
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
         controller.syncMonitorsToNiriEngine()
         controller.setFocusFollowsMouse(true)
@@ -3497,7 +3497,7 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
 
     @Test @MainActor func focusFollowsMouseFiresThroughFacelessClickThroughOverlayOnSnapshotFallback() async {
         let controller = makeMouseEventTestController()
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
         controller.syncMonitorsToNiriEngine()
         controller.setFocusFollowsMouse(true)
@@ -3576,7 +3576,7 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
         // overlay owned by a real bundled app must still suppress FFM on the
         // snapshot-fallback path, even though windowUnderPointer is nil.
         let controller = makeMouseEventTestController()
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
         controller.syncMonitorsToNiriEngine()
         controller.setFocusFollowsMouse(true)

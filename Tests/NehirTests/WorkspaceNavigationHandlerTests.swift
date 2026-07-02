@@ -125,7 +125,7 @@ private func assertMovedWindowRevealedInTargetViewport(
             return
         }
 
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await waitForLayoutPlanRefreshWork(on: controller)
         controller.syncMonitorsToNiriEngine()
 
@@ -178,7 +178,7 @@ private func assertMovedWindowRevealedInTargetViewport(
             return
         }
 
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await waitForLayoutPlanRefreshWork(on: controller)
         controller.syncMonitorsToNiriEngine()
 
@@ -267,7 +267,7 @@ private func assertMovedWindowRevealedInTargetViewport(
         }
         #expect(controller.workspaceManager.descriptor(for: targetWorkspaceId)?.name == "3")
 
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await waitForLayoutPlanRefreshWork(on: controller)
         controller.syncMonitorsToNiriEngine()
 

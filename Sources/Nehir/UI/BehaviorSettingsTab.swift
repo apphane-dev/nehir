@@ -47,16 +47,16 @@ struct BehaviorSettingsTab: View {
                     "When moving a window to another workspace, switches your active workspace to follow it."
                 )
 
-                Picker("Reveal Partial", selection: $settings.revealPartial) {
-                    ForEach(RevealPartial.allCases, id: \.self) { policy in
+                Picker("Reveal Style", selection: $settings.revealStyle) {
+                    ForEach(RevealStyle.allCases, id: \.self) { policy in
                         Text(policy.displayName).tag(policy)
                     }
                 }
-                .onChange(of: settings.revealPartial) { _, newValue in
-                    controller.updateNiriConfig(revealPartial: newValue)
+                .onChange(of: settings.revealStyle) { _, newValue in
+                    controller.updateNiriConfig(revealStyle: newValue)
                 }
                 SettingsCaption(
-                    "Controls how activating a partially visible window reveals it. Fully visible windows do not move the viewport."
+                    "Controls where reveals place clipped or offscreen targets. Fully visible targets never scroll. Viewport Scroll Lock blocks background automatic reveals; direct navigation and manual scrolling still work."
                 )
             }
 

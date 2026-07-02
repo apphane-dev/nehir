@@ -251,39 +251,31 @@ final class RuntimeDiagnosticsCoordinator {
     }
 
     func recordRuntimeResizeTrace(_ message: String) {
-        let timestamp = Date()
-        let line = timestamp.ISO8601Format() + " " + message
-        if runtimeTraceCaptureSession != nil {
-            runtimeResizeTraceRecords.append(line)
-            if runtimeResizeTraceRecords.count > 400 {
-                runtimeResizeTraceRecords.removeFirst(runtimeResizeTraceRecords.count - 400)
-            }
-        }
-        appendBackgroundTrace(category: .resize, text: line, timestamp: timestamp)
+        recordRuntimeTrace(into: \.runtimeResizeTraceRecords, category: .resize, message: message)
     }
 
     func recordRuntimeMouseTrace(_ message: String) {
-        let timestamp = Date()
-        let line = timestamp.ISO8601Format() + " " + message
-        if runtimeTraceCaptureSession != nil {
-            runtimeMouseTraceRecords.append(line)
-            if runtimeMouseTraceRecords.count > 400 {
-                runtimeMouseTraceRecords.removeFirst(runtimeMouseTraceRecords.count - 400)
-            }
-        }
-        appendBackgroundTrace(category: .mouse, text: line, timestamp: timestamp)
+        recordRuntimeTrace(into: \.runtimeMouseTraceRecords, category: .mouse, message: message)
     }
 
     func recordRuntimeInsertionTrace(_ message: String) {
+        recordRuntimeTrace(into: \.runtimeInsertionTraceRecords, category: .insertion, message: message)
+    }
+
+    private func recordRuntimeTrace(
+        into recordsKeyPath: ReferenceWritableKeyPath<RuntimeDiagnosticsCoordinator, [String]>,
+        category: BackgroundTraceCategory,
+        message: String
+    ) {
         let timestamp = Date()
         let line = timestamp.ISO8601Format() + " " + message
         if runtimeTraceCaptureSession != nil {
-            runtimeInsertionTraceRecords.append(line)
-            if runtimeInsertionTraceRecords.count > 400 {
-                runtimeInsertionTraceRecords.removeFirst(runtimeInsertionTraceRecords.count - 400)
+            self[keyPath: recordsKeyPath].append(line)
+            if self[keyPath: recordsKeyPath].count > 400 {
+                self[keyPath: recordsKeyPath].removeFirst(self[keyPath: recordsKeyPath].count - 400)
             }
         }
-        appendBackgroundTrace(category: .insertion, text: line, timestamp: timestamp)
+        appendBackgroundTrace(category: category, text: line, timestamp: timestamp)
     }
 
     func recordRuntimeViewportTrace(
@@ -822,11 +814,11 @@ final class RuntimeDiagnosticsCoordinator {
         controller.isTransferringWindow = false
 
         if controller.niriEngine != nil {
-            controller.enableNiriLayout(revealPartial: controller.settings.revealPartial)
+            controller.enableNiriLayout(revealStyle: controller.settings.revealStyle)
             controller.updateNiriConfig(
                 balancedColumnCount: controller.settings.niriBalancedColumnCount,
                 infiniteLoop: controller.settings.niriInfiniteLoop,
-                revealPartial: controller.settings.revealPartial,
+                revealStyle: controller.settings.revealStyle,
                 loneWindowPolicy: controller.settings.loneWindowPolicy,
                 columnWidthPresets: controller.settings.niriColumnWidthPresets,
                 defaultColumnWidth: controller.settings.niriDefaultColumnWidth

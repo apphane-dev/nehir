@@ -89,6 +89,7 @@ struct WorkspaceBarSettingsTab: View {
                 isEnabled: settings.workspaceBarEnabled,
                 showLabels: settings.workspaceBarShowLabels,
                 showFloatingWindows: settings.workspaceBarShowFloatingWindows,
+                showScrollLockButton: settings.workspaceBarShowScrollLockButton,
                 deduplicateAppIcons: settings.workspaceBarDeduplicateAppIcons,
                 hideEmptyWorkspaces: settings.workspaceBarHideEmptyWorkspaces,
                 scopeDescription: "Preview reflects the global workspace bar defaults."
@@ -210,6 +211,7 @@ private struct WorkspaceBarPreviewConfiguration {
     let isEnabled: Bool
     let showLabels: Bool
     let showFloatingWindows: Bool
+    let showScrollLockButton: Bool
     let deduplicateAppIcons: Bool
     let hideEmptyWorkspaces: Bool
     let scopeDescription: String
@@ -218,6 +220,7 @@ private struct WorkspaceBarPreviewConfiguration {
         isEnabled: Bool,
         showLabels: Bool,
         showFloatingWindows: Bool,
+        showScrollLockButton: Bool,
         deduplicateAppIcons: Bool,
         hideEmptyWorkspaces: Bool,
         scopeDescription: String
@@ -225,6 +228,7 @@ private struct WorkspaceBarPreviewConfiguration {
         self.isEnabled = isEnabled
         self.showLabels = showLabels
         self.showFloatingWindows = showFloatingWindows
+        self.showScrollLockButton = showScrollLockButton
         self.deduplicateAppIcons = deduplicateAppIcons
         self.hideEmptyWorkspaces = hideEmptyWorkspaces
         self.scopeDescription = scopeDescription
@@ -235,6 +239,7 @@ private struct WorkspaceBarPreviewConfiguration {
             isEnabled: resolved.enabled,
             showLabels: resolved.showLabels,
             showFloatingWindows: resolved.showFloatingWindows,
+            showScrollLockButton: resolved.showScrollLockButton,
             deduplicateAppIcons: resolved.deduplicateAppIcons,
             hideEmptyWorkspaces: resolved.hideEmptyWorkspaces,
             scopeDescription: scopeDescription
@@ -246,6 +251,7 @@ private struct WorkspaceBarPreviewConfiguration {
             isEnabled: override.enabled ?? settings.workspaceBarEnabled,
             showLabels: override.showLabels ?? settings.workspaceBarShowLabels,
             showFloatingWindows: override.showFloatingWindows ?? settings.workspaceBarShowFloatingWindows,
+            showScrollLockButton: override.showScrollLockButton ?? settings.workspaceBarShowScrollLockButton,
             deduplicateAppIcons: override.deduplicateAppIcons ?? settings.workspaceBarDeduplicateAppIcons,
             hideEmptyWorkspaces: override.hideEmptyWorkspaces ?? settings.workspaceBarHideEmptyWorkspaces,
             scopeDescription: scopeDescription
@@ -257,6 +263,7 @@ private struct WorkspaceBarPreviewConfiguration {
             isEnabled: settings.workspaceBarEnabled,
             showLabels: settings.workspaceBarShowLabels,
             showFloatingWindows: settings.workspaceBarShowFloatingWindows,
+            showScrollLockButton: settings.workspaceBarShowScrollLockButton,
             deduplicateAppIcons: settings.workspaceBarDeduplicateAppIcons,
             hideEmptyWorkspaces: settings.workspaceBarHideEmptyWorkspaces,
             scopeDescription: "Preview reflects the global workspace bar defaults."
@@ -285,6 +292,7 @@ private struct WorkspaceBarPreviewSection: View {
                 WorkspaceBarAnimation(
                     showLabels: configuration.showLabels,
                     showFloatingWindows: configuration.showFloatingWindows,
+                    showScrollLockButton: configuration.showScrollLockButton,
                     deduplicateAppIcons: configuration.deduplicateAppIcons,
                     hideEmptyWorkspaces: configuration.hideEmptyWorkspaces
                 )
@@ -376,12 +384,6 @@ private struct GlobalBarSettingsSection: View {
                     .onChange(of: settings.workspaceBarShowFloatingWindows) { _, _ in
                         controller.updateWorkspaceBarSettings()
                     }
-                if settings.developerModeEnabled {
-                    SettingsCaption(
-                        "Developer trace controls now live in the DebugBar, keeping workspace navigation separate from debugging actions."
-                    )
-                }
-
                 Toggle("Group Windows by App", isOn: $settings.workspaceBarDeduplicateAppIcons)
                     .onChange(of: settings.workspaceBarDeduplicateAppIcons) { _, _ in
                         controller.updateWorkspaceBarSettings()
@@ -392,13 +394,23 @@ private struct GlobalBarSettingsSection: View {
                         controller.updateWorkspaceBarSettings()
                     }
 
+                Toggle("Show Scroll Lock Button", isOn: $settings.workspaceBarShowScrollLockButton)
+                    .onChange(of: settings.workspaceBarShowScrollLockButton) { _, _ in
+                        controller.updateWorkspaceBarSettings()
+                    }
                 SettingsCaption(
-                    "Tip: right-click a window icon, the scratchpad, or a workspace for more actions."
+                    "Adds a button that blocks background automatic reveal scrolling. Direct navigation — workspace-bar window clicks, focus commands, trackpad gestures, scroll-viewport hotkeys, and drags — can still move the viewport and does not unlock the workspace."
                 )
             }
         }
 
         if settings.workspaceBarEnabled {
+            Section("Actions") {
+                SettingsCaption(
+                    "Right-click a workspace, window icon, or scratchpad item for actions such as move, float, sticky, scratchpad, app-rule, and close."
+                )
+            }
+
             Section("Position & Level") {
                 Picker("Position", selection: $settings.workspaceBarPosition) {
                     ForEach(WorkspaceBarPosition.allCases) { position in
@@ -602,6 +614,7 @@ private struct SavedMonitorBarOverrideSection: View {
             savedValue("Group Windows by App", override.deduplicateAppIcons.map { $0 ? "On" : "Off" })
             savedValue("Hide Empty Workspaces", override.hideEmptyWorkspaces.map { $0 ? "On" : "Off" })
             savedValue("Show Trace Capture Button", override.showTraceButton.map { $0 ? "On" : "Off" })
+            savedValue("Show Scroll Lock Button", override.showScrollLockButton.map { $0 ? "On" : "Off" })
             savedValue("Position", override.position?.displayName)
             savedValue("Window Level", override.windowLevel?.displayName)
             savedValue("Notch-Aware Positioning", override.notchAware.map { $0 ? "On" : "Off" })
@@ -695,6 +708,17 @@ private struct MonitorBarSettingsSection: View {
                 globalValue: settings.workspaceBarHideEmptyWorkspaces,
                 onChange: { newValue in updateSetting { $0.hideEmptyWorkspaces = newValue } },
                 onReset: { updateSetting { $0.hideEmptyWorkspaces = nil } }
+            )
+
+            OverridableToggle(
+                label: "Show Scroll Lock Button",
+                value: ms.showScrollLockButton,
+                globalValue: settings.workspaceBarShowScrollLockButton,
+                onChange: { newValue in updateSetting { $0.showScrollLockButton = newValue } },
+                onReset: { updateSetting { $0.showScrollLockButton = nil } }
+            )
+            .help(
+                "Show a button that blocks background automatic reveals. Direct navigation and manual scrolling still work while locked."
             )
 
             if settings.developerModeEnabled {

@@ -19,6 +19,16 @@ struct SettingsMigrationDescriptor: Identifiable, Equatable {
     let enforcementWarning: String
 }
 
+enum RevealPartialMigrationKeys {
+    static let legacySection = "niri"
+    static let legacyKey = "revealPartial"
+    static let newKey = "revealStyle"
+
+    static var legacyKeyPath: String {
+        "\(legacySection).\(legacyKey)"
+    }
+}
+
 enum SettingsMigrationRegistry {
     static let workspacesArrayToKeyedTables = SettingsMigrationDescriptor(
         id: "workspaces-array-to-keyed-tables",
@@ -30,8 +40,19 @@ enum SettingsMigrationRegistry {
         enforcementWarning: "A future Nehir update may require the new format."
     )
 
+    static let revealPartialToRevealStyle = SettingsMigrationDescriptor(
+        id: "reveal-partial-to-reveal-style",
+        title: "Update reveal setting",
+        fileName: SettingsFilePersistence.fileName,
+        oldFormatSummary: "[\(RevealPartialMigrationKeys.legacySection)].\(RevealPartialMigrationKeys.legacyKey)",
+        newFormatSummary: "[\(RevealPartialMigrationKeys.legacySection)].\(RevealPartialMigrationKeys.newKey)",
+        warningBody: "settings.toml uses the old revealPartial key. Nehir now uses revealStyle for placement and Viewport Scroll Lock for suppressing background automatic reveals.",
+        enforcementWarning: "A future Nehir update may require the new key."
+    )
+
     static let all: [SettingsMigrationDescriptor] = [
-        workspacesArrayToKeyedTables
+        workspacesArrayToKeyedTables,
+        revealPartialToRevealStyle
     ]
 }
 
@@ -48,14 +69,21 @@ enum SettingsMigrationDetector {
     static func applicableMigrations(
         configDirectory: URL = SettingsFilePersistence.defaultDirectoryURL
     ) -> [PendingSettingsMigration] {
+        var migrations: [PendingSettingsMigration] = []
+
         let workspaceDescriptor = SettingsMigrationRegistry.workspacesArrayToKeyedTables
         let workspacesURL = configDirectory.appendingPathComponent(workspaceDescriptor.fileName, isDirectory: false)
-
-        guard WorkspacesConfigMigration.needsMigration(fileURL: workspacesURL) else {
-            return []
+        if WorkspacesConfigMigration.needsMigration(fileURL: workspacesURL) {
+            migrations.append(PendingSettingsMigration(descriptor: workspaceDescriptor, fileURL: workspacesURL))
         }
 
-        return [PendingSettingsMigration(descriptor: workspaceDescriptor, fileURL: workspacesURL)]
+        let revealDescriptor = SettingsMigrationRegistry.revealPartialToRevealStyle
+        let settingsURL = configDirectory.appendingPathComponent(revealDescriptor.fileName, isDirectory: false)
+        if RevealPartialSettingsMigration.needsMigration(fileURL: settingsURL) {
+            migrations.append(PendingSettingsMigration(descriptor: revealDescriptor, fileURL: settingsURL))
+        }
+
+        return migrations
     }
 
     static func pendingMigrations(
@@ -89,7 +117,7 @@ enum WorkspacesConfigMigration {
             throw SettingsMigrationError.migrationNotNeeded
         }
 
-        let backupURL = try createTimestampedBackup(for: fileURL)
+        let backupURL = try createTimestampedSettingsMigrationBackup(for: fileURL)
         let decoded = WorkspacesTOMLCodec.decode(
             data,
             defaults: BuiltInSettingsDefaults.workspaceConfigurations
@@ -98,35 +126,138 @@ enum WorkspacesConfigMigration {
         try encoded.write(to: fileURL, options: .atomic)
         return backupURL
     }
+}
 
-    private static func createTimestampedBackup(for fileURL: URL) throws -> URL {
-        let fileManager = FileManager.default
-        let directory = fileURL.deletingLastPathComponent()
+enum RevealPartialSettingsMigration {
+    static let migrationID = SettingsMigrationRegistry.revealPartialToRevealStyle.id
 
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "yyyyMMdd-HHmmss"
-        let stamp = formatter.string(from: Date())
+    static func needsMigration(fileURL: URL) -> Bool {
+        guard let data = try? Data(contentsOf: fileURL) else { return false }
+        return needsMigration(data: data)
+    }
 
-        let baseName = fileURL.deletingPathExtension().lastPathComponent
-        let fileExtension = fileURL.pathExtension
-        let backupName = fileExtension.isEmpty
-            ? "\(baseName)-\(stamp).backup"
-            : "\(baseName)-\(stamp).\(fileExtension).backup"
+    static func needsMigration(data: Data) -> Bool {
+        guard let string = String(data: data, encoding: .utf8) else { return false }
+        return niriValue(for: RevealPartialMigrationKeys.legacyKey, in: string) != nil
+    }
 
-        var backupURL = directory.appendingPathComponent(backupName, isDirectory: false)
-        var suffix = 2
-        while fileManager.fileExists(atPath: backupURL.path) {
-            let suffixedName = fileExtension.isEmpty
-                ? "\(baseName)-\(stamp)-\(suffix).backup"
-                : "\(baseName)-\(stamp)-\(suffix).\(fileExtension).backup"
-            backupURL = directory.appendingPathComponent(suffixedName, isDirectory: false)
-            suffix += 1
+    @discardableResult
+    static func migrate(fileURL: URL) throws -> URL {
+        let data = try Data(contentsOf: fileURL)
+        guard let string = String(data: data, encoding: .utf8), needsMigration(data: data) else {
+            throw SettingsMigrationError.migrationNotNeeded
         }
 
-        try fileManager.copyItem(at: fileURL, to: backupURL)
+        let backupURL = try createTimestampedSettingsMigrationBackup(for: fileURL)
+        var export = try SettingsTOMLCodec.decode(data)
+
+        if niriValue(for: RevealPartialMigrationKeys.newKey, in: string) == nil,
+           let oldValue = niriValue(for: RevealPartialMigrationKeys.legacyKey, in: string)
+        {
+            export.revealStyle = migratedRevealStyle(from: oldValue)
+        }
+        export.settingsTOMLUnknownFields[RevealPartialMigrationKeys.legacySection]?
+            .removeValue(forKey: RevealPartialMigrationKeys.legacyKey)
+        if export.settingsTOMLUnknownFields[RevealPartialMigrationKeys.legacySection]?.isEmpty == true {
+            export.settingsTOMLUnknownFields.removeValue(forKey: RevealPartialMigrationKeys.legacySection)
+        }
+
+        let encoded = try SettingsTOMLCodec.encode(export)
+        try encoded.write(to: fileURL, options: .atomic)
         return backupURL
     }
+
+    private static func migratedRevealStyle(from revealPartial: String) -> String {
+        switch revealPartial {
+        case "snapClosest": RevealStyle.closest.rawValue
+        case "snapCenter": RevealStyle.center.rawValue
+        case "default",
+             "off": RevealStyle.auto.rawValue
+        default: RevealStyle.auto.rawValue
+        }
+    }
+
+    private static func niriValue(for key: String, in toml: String) -> String? {
+        var inNiri = false
+        for rawLine in toml.split(separator: "\n", omittingEmptySubsequences: false) {
+            let line = stripComment(String(rawLine)).trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !line.isEmpty else { continue }
+            if line.hasPrefix("[") {
+                inNiri = line == "[niri]"
+                continue
+            }
+            guard inNiri,
+                  line.hasPrefix(key),
+                  let equalsIndex = line.firstIndex(of: "=")
+            else { continue }
+
+            let lhs = line[..<equalsIndex].trimmingCharacters(in: .whitespacesAndNewlines)
+            guard lhs == key else { continue }
+            let rhs = line[line.index(after: equalsIndex)...].trimmingCharacters(in: .whitespacesAndNewlines)
+            return unquotedString(rhs)
+        }
+        return nil
+    }
+
+    private static func stripComment(_ line: String) -> String {
+        var result = ""
+        var quote: Character?
+        var isEscaped = false
+        for character in line {
+            if character == "\\", quote == "\"" {
+                result.append(character)
+                isEscaped.toggle()
+                continue
+            }
+            if (character == "\"" || character == "'"), !isEscaped {
+                quote = quote == character ? nil : (quote ?? character)
+            }
+            if character == "#", quote == nil {
+                break
+            }
+            result.append(character)
+            isEscaped = false
+        }
+        return result
+    }
+
+    private static func unquotedString(_ value: String) -> String? {
+        guard value.count >= 2,
+              let first = value.first,
+              (first == "\"" || first == "'"),
+              value.last == first
+        else { return nil }
+        return String(value.dropFirst().dropLast())
+    }
+}
+
+private func createTimestampedSettingsMigrationBackup(for fileURL: URL) throws -> URL {
+    let fileManager = FileManager.default
+    let directory = fileURL.deletingLastPathComponent()
+
+    let formatter = DateFormatter()
+    formatter.locale = Locale(identifier: "en_US_POSIX")
+    formatter.dateFormat = "yyyyMMdd-HHmmss"
+    let stamp = formatter.string(from: Date())
+
+    let baseName = fileURL.deletingPathExtension().lastPathComponent
+    let fileExtension = fileURL.pathExtension
+    let backupName = fileExtension.isEmpty
+        ? "\(baseName)-\(stamp).backup"
+        : "\(baseName)-\(stamp).\(fileExtension).backup"
+
+    var backupURL = directory.appendingPathComponent(backupName, isDirectory: false)
+    var suffix = 2
+    while fileManager.fileExists(atPath: backupURL.path) {
+        let suffixedName = fileExtension.isEmpty
+            ? "\(baseName)-\(stamp)-\(suffix).backup"
+            : "\(baseName)-\(stamp)-\(suffix).\(fileExtension).backup"
+        backupURL = directory.appendingPathComponent(suffixedName, isDirectory: false)
+        suffix += 1
+    }
+
+    try fileManager.copyItem(at: fileURL, to: backupURL)
+    return backupURL
 }
 
 enum SettingsMigrationError: LocalizedError, Equatable {

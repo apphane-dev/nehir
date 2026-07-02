@@ -1755,6 +1755,10 @@ final class WorkspaceManager {
         var rememberedFocusToken = patch.rememberedFocusToken
 
         if var viewportState = patch.viewportState {
+            // Scroll lock is runtime state owned by explicit lock toggles; stale relayout-plan
+            // patches must not overwrite the current lock value.
+            let liveScrollLock = niriViewportState(for: patch.workspaceId).isScrollLocked
+
             // Gesture viewport changes are owned by MouseEventHandler and are applied to the
             // workspace state before a relayout is requested. A relayout plan may be built from
             // one of those gesture snapshots and arrive later, after more gesture updates or after
@@ -1782,6 +1786,7 @@ final class WorkspaceManager {
                 rememberedFocusToken = nil
             }
 
+            viewportState.isScrollLocked = liveScrollLock
             updateNiriViewportState(viewportState, for: patch.workspaceId)
             changed = true
         }
@@ -3586,6 +3591,7 @@ final class WorkspaceManager {
         // `niriViewportState(for:)` hands the plan-builder, so the comparison is
         // consistent, and a first write that is itself empty does not bump.
         let previousSelection = previousViewportState ?? ViewportState()
+        let lockStateChanged = previousSelection.isScrollLocked != normalizedState.isScrollLocked
         if previousSelection.selectedNodeId != normalizedState.selectedNodeId
             || previousSelection.activeColumnIndex != normalizedState.activeColumnIndex
             || previousSelection.selectionProgress != normalizedState.selectionProgress
@@ -3603,6 +3609,8 @@ final class WorkspaceManager {
             // (confirmedManagedFocusToken), so the anchor policy that suppresses
             // `setManagedFocus` under non-managed focus is preserved.
             invalidateWorkspaceProjection(reason: "viewportSelectionChanged")
+        } else if lockStateChanged {
+            invalidateWorkspaceProjection(reason: "viewportScrollLockChanged")
         }
 
         sessionState.workspaceSessions[workspaceId] = workspaceSession

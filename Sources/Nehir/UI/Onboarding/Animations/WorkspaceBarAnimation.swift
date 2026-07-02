@@ -10,13 +10,14 @@ import SwiftUI
 /// workspaces so the user sees "this bar tracks active workspaces".
 ///
 /// Reflects the live content settings (`showLabels`, `showFloatingWindows`,
-/// `deduplicateAppIcons`, `hideEmptyWorkspaces`) so the onboarding toggles preview changes
+/// `showScrollLockButton`, `deduplicateAppIcons`, `hideEmptyWorkspaces`) so the onboarding toggles preview changes
 /// in real time. Floating windows are rendered inside their owning workspace pill, matching the
 /// real bar. The focus tour only visits non-empty workspaces so toggling "Hide Empty" can never
 /// strand the highlight on a pill that just vanished.
 struct WorkspaceBarAnimation: View {
     let showLabels: Bool
     let showFloatingWindows: Bool
+    let showScrollLockButton: Bool
     let deduplicateAppIcons: Bool
     let hideEmptyWorkspaces: Bool
 
@@ -129,6 +130,10 @@ struct WorkspaceBarAnimation: View {
             ForEach(visibleWorkspaces) { ws in
                 workspacePill(ws)
             }
+
+            if showScrollLockButton {
+                scrollLockButton
+            }
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
@@ -143,6 +148,23 @@ struct WorkspaceBarAnimation: View {
         .animation(.easeInOut(duration: 0.3), value: focusedWorkspace)
         .animation(.easeInOut(duration: 0.2), value: hideEmptyWorkspaces)
         .animation(.easeInOut(duration: 0.2), value: showFloatingWindows)
+        .animation(.easeInOut(duration: 0.2), value: showScrollLockButton)
+    }
+
+    private var scrollLockButton: some View {
+        Image(systemName: "lock.open")
+            .font(.system(size: max(10, iconSize), weight: .semibold))
+            .foregroundStyle(Color.secondary)
+            .frame(width: pillHeight, height: pillHeight)
+            .background {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(.thinMaterial)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                            .strokeBorder(Color.secondary.opacity(0.24), lineWidth: 0.75)
+                    }
+            }
+            .accessibilityLabel("Viewport Scroll Lock")
     }
 
     private func workspacePill(_ ws: MockWorkspace) -> some View {

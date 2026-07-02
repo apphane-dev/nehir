@@ -570,7 +570,7 @@ private func prepareNiriState(
     focusedWindowId: Int,
     ensureWorkspaces: Set<WorkspaceDescriptor.ID> = []
 ) async -> [Int: WindowHandle] {
-    controller.enableNiriLayout()
+    controller.enableNiriLayout(revealStyle: .auto)
     await waitForRefreshWork(on: controller)
     controller.syncMonitorsToNiriEngine()
 
@@ -691,7 +691,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
                     workspaceConfigurations: workspaceConfigurations
                 )
                 defer { cleanupRefreshTestController(initialController) }
-                initialController.enableNiriLayout()
+                initialController.enableNiriLayout(revealStyle: .auto)
                 await waitForRefreshWork(on: initialController)
                 initialController.syncMonitorsToNiriEngine()
 
@@ -778,7 +778,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
                     (makeRefreshTestWindow(windowId: windowId), getpid(), windowId)
                 }
             }
-            relaunchedController.enableNiriLayout()
+            relaunchedController.enableNiriLayout(revealStyle: .auto)
             await waitForRefreshWork(on: relaunchedController)
             let bootEntries = relaunchedController.workspaceManager.bootPersistedWindowRestoreCatalogForTests().entries
             #expect(bootEntries.count == 3)
@@ -862,7 +862,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
             assignToWorkspace: "2"
         )
         controller.windowRuleEngine.rebuild(rules: [rule])
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await waitForRefreshWork(on: controller)
         controller.syncMonitorsToNiriEngine()
         guard let engine = controller.niriEngine else {
@@ -1229,7 +1229,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         let recorder = RefreshEventRecorder()
         installRefreshSpies(on: controller, recorder: recorder)
 
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await waitForRefreshWork(on: controller)
 
         #expect(controller.layoutRefreshController.debugCounters.relayoutExecutions == 1)
@@ -1743,7 +1743,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
     @Test @MainActor func inactiveWorkspaceHandleAppActivationRevealsHiddenWindow() async {
         let controller = makeRefreshTestController()
         controller.hasStartedServices = true
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await waitForRefreshWork(on: controller)
         controller.syncMonitorsToNiriEngine()
 
@@ -1817,7 +1817,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         defer { controller.nativeFullscreenPlaceholderManager.removeAll() }
         let lifecycleManager = ServiceLifecycleManager(controller: controller)
         controller.axManager.currentWindowsAsyncOverride = { [] }
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await waitForRefreshWork(on: controller)
 
         guard let workspaceId = controller.interactionWorkspace()?.id else {
@@ -1849,7 +1849,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         let controller = makeRefreshTestController()
         defer { controller.nativeFullscreenPlaceholderManager.removeAll() }
         controller.axManager.currentWindowsAsyncOverride = { [] }
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await waitForRefreshWork(on: controller)
 
         guard let workspaceId = controller.interactionWorkspace()?.id else {
@@ -2030,7 +2030,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
                 (makeRefreshTestWindow(windowId: 2612), getpid(), 2612)
             ])
             configureNativeFullscreenTestState(on: controller, visibleWindows: visibleWindows)
-            controller.enableNiriLayout()
+            controller.enableNiriLayout(revealStyle: .auto)
             await waitForRefreshWork(on: controller)
 
             controller.layoutRefreshController.requestFullRescan(reason: .startup)
@@ -2102,7 +2102,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
                 (makeRefreshTestWindow(windowId: 2672), getpid(), 2672)
             ])
             configureNativeFullscreenTestState(on: controller, visibleWindows: visibleWindows)
-            controller.enableNiriLayout()
+            controller.enableNiriLayout(revealStyle: .auto)
             await waitForRefreshWork(on: controller)
 
             controller.layoutRefreshController.requestFullRescan(reason: .startup)
@@ -2186,7 +2186,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
                 (makeRefreshTestWindow(windowId: 2616), getpid(), 2616)
             ])
             configureNativeFullscreenTestState(on: controller, visibleWindows: visibleWindows)
-            controller.enableNiriLayout()
+            controller.enableNiriLayout(revealStyle: .auto)
             await waitForRefreshWork(on: controller)
 
             controller.layoutRefreshController.requestFullRescan(reason: .startup)
@@ -2259,7 +2259,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         controller.axEventHandler.isFullscreenProvider = { axRef in
             fullscreenWindowIds.contains(axRef.windowId)
         }
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await waitForRefreshWork(on: controller)
 
         controller.layoutRefreshController.requestFullRescan(reason: .startup)
@@ -2383,7 +2383,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         controller.axEventHandler.isFullscreenProvider = { axRef in
             fullscreenWindowIds.contains(axRef.windowId)
         }
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await waitForRefreshWork(on: controller)
 
         controller.layoutRefreshController.requestFullRescan(reason: .startup)
@@ -2459,7 +2459,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         controller.axEventHandler.isFullscreenProvider = { axRef in
             fullscreenWindowIds.contains(axRef.windowId)
         }
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         controller.hasStartedServices = true
         await waitForRefreshWork(on: controller)
 
@@ -2544,7 +2544,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         controller.axEventHandler.isFullscreenProvider = { axRef in
             fullscreenWindowIds.contains(axRef.windowId)
         }
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await waitForRefreshWork(on: controller)
 
         controller.layoutRefreshController.requestFullRescan(reason: .startup)
@@ -2789,7 +2789,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
             (makeRefreshTestWindow(windowId: 2655), getpid(), 2655)
         ])
         configureNativeFullscreenTestState(on: controller, visibleWindows: visibleWindows)
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await waitForRefreshWork(on: controller)
 
         controller.layoutRefreshController.requestFullRescan(reason: .startup)
@@ -2908,7 +2908,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
             (makeRefreshTestWindow(windowId: 2675), getpid(), 2675)
         ])
         configureNativeFullscreenTestState(on: controller, visibleWindows: visibleWindows)
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await waitForRefreshWork(on: controller)
 
         controller.layoutRefreshController.requestFullRescan(reason: .startup)
@@ -3003,7 +3003,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
             (makeRefreshTestWindow(windowId: 2665), getpid(), 2665)
         ])
         configureNativeFullscreenTestState(on: controller, visibleWindows: visibleWindows)
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await waitForRefreshWork(on: controller)
 
         controller.layoutRefreshController.requestFullRescan(reason: .startup)
@@ -3081,7 +3081,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         ])
         controller.axManager.currentWindowsAsyncOverride = { visibleWindows.value }
         controller.axEventHandler.isFullscreenProvider = { _ in false }
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         controller.setBordersEnabled(true)
         await waitForRefreshWork(on: controller)
 
@@ -3786,7 +3786,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         var lateCreateWasQueuedDuringFullRescan = false
         var newToken: WindowToken?
 
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         let primaryHandle = addWindow(
             on: controller,
             workspaceId: fixture.primaryWorkspaceId,

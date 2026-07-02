@@ -61,6 +61,7 @@ struct OnboardingView: View {
             WorkspaceBarAnimation(
                 showLabels: settings.workspaceBarShowLabels,
                 showFloatingWindows: settings.workspaceBarShowFloatingWindows,
+                showScrollLockButton: settings.workspaceBarShowScrollLockButton,
                 deduplicateAppIcons: settings.workspaceBarDeduplicateAppIcons,
                 hideEmptyWorkspaces: settings.workspaceBarHideEmptyWorkspaces
             )
