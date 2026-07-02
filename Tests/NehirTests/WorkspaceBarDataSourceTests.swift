@@ -65,7 +65,8 @@ private func makeWorkspaceBarTestMetadata(
             options: WorkspaceBarProjectionOptions(
                 deduplicateAppIcons: false,
                 hideEmptyWorkspaces: true,
-                showFloatingWindows: false
+                showFloatingWindows: false,
+                showWorkspacesFromOtherDisplays: false
             ),
             workspaceManager: controller.workspaceManager,
             appInfoCache: controller.appInfoCache,
@@ -105,7 +106,8 @@ private func makeWorkspaceBarTestMetadata(
             options: WorkspaceBarProjectionOptions(
                 deduplicateAppIcons: false,
                 hideEmptyWorkspaces: true,
-                showFloatingWindows: true
+                showFloatingWindows: true,
+                showWorkspacesFromOtherDisplays: false
             ),
             workspaceManager: controller.workspaceManager,
             appInfoCache: controller.appInfoCache,
@@ -152,7 +154,8 @@ private func makeWorkspaceBarTestMetadata(
             options: WorkspaceBarProjectionOptions(
                 deduplicateAppIcons: false,
                 hideEmptyWorkspaces: true,
-                showFloatingWindows: false
+                showFloatingWindows: false,
+                showWorkspacesFromOtherDisplays: false
             ),
             workspaceManager: controller.workspaceManager,
             appInfoCache: controller.appInfoCache,
@@ -203,7 +206,8 @@ private func makeWorkspaceBarTestMetadata(
             options: WorkspaceBarProjectionOptions(
                 deduplicateAppIcons: false,
                 hideEmptyWorkspaces: false,
-                showFloatingWindows: true
+                showFloatingWindows: true,
+                showWorkspacesFromOtherDisplays: false
             ),
             workspaceManager: controller.workspaceManager,
             appInfoCache: controller.appInfoCache,
@@ -254,7 +258,8 @@ private func makeWorkspaceBarTestMetadata(
             options: WorkspaceBarProjectionOptions(
                 deduplicateAppIcons: false,
                 hideEmptyWorkspaces: false,
-                showFloatingWindows: true
+                showFloatingWindows: true,
+                showWorkspacesFromOtherDisplays: false
             ),
             workspaceManager: controller.workspaceManager,
             appInfoCache: controller.appInfoCache,
@@ -310,7 +315,8 @@ private func makeWorkspaceBarTestMetadata(
             options: WorkspaceBarProjectionOptions(
                 deduplicateAppIcons: true,
                 hideEmptyWorkspaces: false,
-                showFloatingWindows: true
+                showFloatingWindows: true,
+                showWorkspacesFromOtherDisplays: false
             ),
             workspaceManager: controller.workspaceManager,
             appInfoCache: controller.appInfoCache,
@@ -325,5 +331,84 @@ private func makeWorkspaceBarTestMetadata(
         #expect(workspaceItem.floatingWindows.count == 1)
         #expect(workspaceItem.floatingWindows.first?.windowCount == 1)
         #expect(workspaceItem.windows.map(\.windowCount) == [2, 1])
+    }
+
+    @Test @MainActor func foreignWorkspacesAppearOnlyWhenToggleIsEnabled() throws {
+        let fixture = makeTwoMonitorLayoutPlanTestController(
+            primaryMonitor: makeLayoutPlanPrimaryTestMonitor(name: "Primary"),
+            secondaryMonitor: makeLayoutPlanSecondaryTestMonitor(name: "Built-in Retina Display", x: 1920)
+        )
+        let controller = fixture.controller
+        let primaryMonitor = fixture.primaryMonitor
+        let secondaryMonitor = fixture.secondaryMonitor
+        let secondaryWorkspaceId = fixture.secondaryWorkspaceId
+
+        // Give the secondary display's workspace a tiled window so it is not empty.
+        controller.appInfoCache.storeInfoForTests(pid: 7100, name: "Other", bundleId: "com.example.other")
+        _ = controller.workspaceManager.addWindow(
+            makeLayoutPlanTestWindow(windowId: 1200),
+            pid: 7100,
+            windowId: 1200,
+            to: secondaryWorkspaceId,
+            mode: .tiling
+        )
+
+        func projection(showingForeign: Bool) -> WorkspaceBarProjection {
+            WorkspaceBarDataSource.workspaceBarProjection(
+                for: primaryMonitor,
+                options: WorkspaceBarProjectionOptions(
+                    deduplicateAppIcons: false,
+                    hideEmptyWorkspaces: false,
+                    showFloatingWindows: false,
+                    showWorkspacesFromOtherDisplays: showingForeign
+                ),
+                workspaceManager: controller.workspaceManager,
+                appInfoCache: controller.appInfoCache,
+                niriEngine: nil,
+                focusedToken: controller.workspaceManager.confirmedManagedFocusToken,
+                settings: controller.settings
+            )
+        }
+
+        // Toggle off: only this display's workspaces appear; none are foreign.
+        let off = projection(showingForeign: false)
+        #expect(off.items.contains(where: \.isForeign) == false)
+        #expect(off.items.contains(where: { $0.id == secondaryWorkspaceId }) == false)
+
+        // Toggle on: the secondary's active workspace appears as a compact foreign pill.
+        let on = projection(showingForeign: true)
+        let foreign = try #require(on.items.first(where: { $0.id == secondaryWorkspaceId && $0.isForeign }))
+        #expect(foreign.homeMonitorName == secondaryMonitor.name)
+        #expect(foreign.homeMonitorLabel == "D2")
+        #expect(foreign.isActiveOnHomeDisplay == true)
+        #expect(foreign.isFocused == false)
+        #expect(foreign.windows.isEmpty)
+    }
+
+    @Test @MainActor func foreignEmptyWorkspacesRespectHideEmptyWorkspaces() throws {
+        let fixture = makeTwoMonitorLayoutPlanTestController()
+        let controller = fixture.controller
+        let primaryMonitor = fixture.primaryMonitor
+        let secondaryWorkspaceId = fixture.secondaryWorkspaceId
+        // The secondary display's workspace has no windows.
+
+        let projection = WorkspaceBarDataSource.workspaceBarProjection(
+            for: primaryMonitor,
+            options: WorkspaceBarProjectionOptions(
+                deduplicateAppIcons: false,
+                hideEmptyWorkspaces: true,
+                showFloatingWindows: false,
+                showWorkspacesFromOtherDisplays: true
+            ),
+            workspaceManager: controller.workspaceManager,
+            appInfoCache: controller.appInfoCache,
+            niriEngine: nil,
+            focusedToken: controller.workspaceManager.confirmedManagedFocusToken,
+            settings: controller.settings
+        )
+
+        // An empty foreign workspace is hidden, consistent with local items.
+        #expect(projection.items.contains(where: { $0.id == secondaryWorkspaceId }) == false)
+        #expect(projection.items.contains(where: \.isForeign) == false)
     }
 }

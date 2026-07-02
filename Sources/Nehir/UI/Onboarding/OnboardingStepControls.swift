@@ -204,6 +204,11 @@ struct WorkspaceBarStepControl: View {
                 description: "Hide pills with no windows.",
                 isOn: $settings.workspaceBarHideEmptyWorkspaces
             )
+            WorkspaceBarFeatureRow(
+                title: "Show Other Displays' Workspaces",
+                description: "Show other displays' workspaces after a display icon.",
+                isOn: $settings.workspaceBarShowWorkspacesFromOtherDisplays
+            )
         }
         .padding(.horizontal, 32)
     }

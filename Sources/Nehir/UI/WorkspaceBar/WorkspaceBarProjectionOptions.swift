@@ -10,6 +10,7 @@ struct WorkspaceBarProjectionOptions: Equatable {
     let deduplicateAppIcons: Bool
     let hideEmptyWorkspaces: Bool
     let showFloatingWindows: Bool
+    let showWorkspacesFromOtherDisplays: Bool
 }
 
 extension ResolvedBarSettings {
@@ -17,7 +18,8 @@ extension ResolvedBarSettings {
         WorkspaceBarProjectionOptions(
             deduplicateAppIcons: deduplicateAppIcons,
             hideEmptyWorkspaces: hideEmptyWorkspaces,
-            showFloatingWindows: showFloatingWindows
+            showFloatingWindows: showFloatingWindows,
+            showWorkspacesFromOtherDisplays: showWorkspacesFromOtherDisplays
         )
     }
 }

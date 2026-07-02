@@ -18,6 +18,7 @@ struct MonitorBarSettings: MonitorSettingsType {
     var showFloatingWindows: Bool?
     var deduplicateAppIcons: Bool?
     var hideEmptyWorkspaces: Bool?
+    var showWorkspacesFromOtherDisplays: Bool?
     var reserveLayoutSpace: Bool?
     var notchAware: Bool?
     var showTraceButton: Bool?
@@ -39,6 +40,7 @@ struct MonitorBarSettings: MonitorSettingsType {
         showFloatingWindows: Bool? = nil,
         deduplicateAppIcons: Bool? = nil,
         hideEmptyWorkspaces: Bool? = nil,
+        showWorkspacesFromOtherDisplays: Bool? = nil,
         reserveLayoutSpace: Bool? = nil,
         notchAware: Bool? = nil,
         showTraceButton: Bool? = nil,
@@ -59,6 +61,7 @@ struct MonitorBarSettings: MonitorSettingsType {
         self.showFloatingWindows = showFloatingWindows
         self.deduplicateAppIcons = deduplicateAppIcons
         self.hideEmptyWorkspaces = hideEmptyWorkspaces
+        self.showWorkspacesFromOtherDisplays = showWorkspacesFromOtherDisplays
         self.reserveLayoutSpace = reserveLayoutSpace
         self.notchAware = notchAware
         self.showTraceButton = showTraceButton
@@ -74,8 +77,8 @@ struct MonitorBarSettings: MonitorSettingsType {
     private enum CodingKeys: String, CodingKey {
         case id, monitorName, monitorDisplayId, monitorAnchorPoint
         case enabled, showLabels, showFloatingWindows, deduplicateAppIcons
-        case hideEmptyWorkspaces, reserveLayoutSpace, notchAware, showTraceButton, showScrollLockButton, position,
-             windowLevel
+        case hideEmptyWorkspaces, showWorkspacesFromOtherDisplays, reserveLayoutSpace, notchAware, showTraceButton,
+             showScrollLockButton, position, windowLevel
         case height, backgroundOpacity, xOffset, yOffset
     }
 
@@ -90,6 +93,10 @@ struct MonitorBarSettings: MonitorSettingsType {
         showFloatingWindows = try container.decodeIfPresent(Bool.self, forKey: .showFloatingWindows)
         deduplicateAppIcons = try container.decodeIfPresent(Bool.self, forKey: .deduplicateAppIcons)
         hideEmptyWorkspaces = try container.decodeIfPresent(Bool.self, forKey: .hideEmptyWorkspaces)
+        showWorkspacesFromOtherDisplays = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .showWorkspacesFromOtherDisplays
+        )
         reserveLayoutSpace = try container.decodeIfPresent(Bool.self, forKey: .reserveLayoutSpace)
         notchAware = try container.decodeIfPresent(Bool.self, forKey: .notchAware)
         showTraceButton = try container.decodeIfPresent(Bool.self, forKey: .showTraceButton)
@@ -115,6 +122,7 @@ struct MonitorBarSettings: MonitorSettingsType {
         try container.encodeIfPresent(showFloatingWindows, forKey: .showFloatingWindows)
         try container.encodeIfPresent(deduplicateAppIcons, forKey: .deduplicateAppIcons)
         try container.encodeIfPresent(hideEmptyWorkspaces, forKey: .hideEmptyWorkspaces)
+        try container.encodeIfPresent(showWorkspacesFromOtherDisplays, forKey: .showWorkspacesFromOtherDisplays)
         try container.encodeIfPresent(reserveLayoutSpace, forKey: .reserveLayoutSpace)
         try container.encodeIfPresent(notchAware, forKey: .notchAware)
         try container.encodeIfPresent(showTraceButton, forKey: .showTraceButton)
@@ -136,6 +144,7 @@ struct ResolvedBarSettings {
     let showScrollLockButton: Bool
     let deduplicateAppIcons: Bool
     let hideEmptyWorkspaces: Bool
+    let showWorkspacesFromOtherDisplays: Bool
     let reserveLayoutSpace: Bool
     let notchAware: Bool
     let position: WorkspaceBarPosition
@@ -155,6 +164,7 @@ struct ResolvedBarSettings {
         showScrollLockButton: false,
         deduplicateAppIcons: false,
         hideEmptyWorkspaces: false,
+        showWorkspacesFromOtherDisplays: false,
         reserveLayoutSpace: false,
         notchAware: true,
         position: .overlappingMenuBar,
