@@ -99,7 +99,8 @@ extension NiriLayoutEngine {
             state: &state,
             workingFrame: workingFrame,
             gaps: gaps,
-            orientation: orientation
+            orientation: orientation,
+            revealTrigger: .explicitNavigation
         )
 
         return newSelection
@@ -180,7 +181,8 @@ extension NiriLayoutEngine {
         orientation: Monitor.Orientation = .horizontal,
         animationConfig: SpringConfig? = nil,
         fromContainerIndex: Int? = nil,
-        previousActiveContainerPosition: CGFloat? = nil
+        previousActiveContainerPosition: CGFloat? = nil,
+        revealTrigger: RevealTrigger = .automatic
     ) {
         let containers = columns(in: workspaceId)
         guard !containers.isEmpty else { return }
@@ -238,7 +240,8 @@ extension NiriLayoutEngine {
                 ),
                 motion: motion,
                 scale: scale,
-                animationConfig: animationConfig
+                animationConfig: animationConfig,
+                trigger: revealTrigger
             )
         }
 
@@ -298,7 +301,8 @@ extension NiriLayoutEngine {
                 state: &state,
                 workingFrame: workingFrame,
                 gaps: gaps,
-                orientation: orientation
+                orientation: orientation,
+                revealTrigger: .explicitNavigation
             )
         }
         return target
@@ -322,7 +326,8 @@ extension NiriLayoutEngine {
                 motion: motion,
                 state: &state,
                 workingFrame: workingFrame,
-                gaps: gaps
+                gaps: gaps,
+                revealTrigger: .explicitNavigation
             )
             return target
         }
@@ -409,7 +414,8 @@ extension NiriLayoutEngine {
             motion: motion,
             state: &state,
             workingFrame: workingFrame,
-            gaps: gaps
+            gaps: gaps,
+            revealTrigger: .explicitNavigation
         )
         return target
     }
@@ -547,7 +553,8 @@ extension NiriLayoutEngine {
                 motion: motion,
                 state: &state,
                 workingFrame: workingFrame,
-                gaps: gaps
+                gaps: gaps,
+                revealTrigger: .explicitNavigation
             )
             return target
         }
@@ -577,7 +584,8 @@ extension NiriLayoutEngine {
                 motion: motion,
                 state: &state,
                 workingFrame: workingFrame,
-                gaps: gaps
+                gaps: gaps,
+                revealTrigger: .explicitNavigation
             )
             return target
         }
@@ -641,7 +649,8 @@ extension NiriLayoutEngine {
             motion: motion,
             state: &state,
             workingFrame: workingFrame,
-            gaps: gaps
+            gaps: gaps,
+            revealTrigger: .explicitNavigation
         )
         return target
     }
@@ -671,7 +680,8 @@ extension NiriLayoutEngine {
             motion: motion,
             state: &state,
             workingFrame: workingFrame,
-            gaps: gaps
+            gaps: gaps,
+            revealTrigger: .explicitNavigation
         )
 
         return previousWindow

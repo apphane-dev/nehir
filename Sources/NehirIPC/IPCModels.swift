@@ -234,6 +234,7 @@ public enum IPCCommandName: String, Codable, CaseIterable, Equatable, Sendable {
     case focusColumnLast = "focus-column-last"
     case scrollViewportLeft = "scroll-viewport-left"
     case scrollViewportRight = "scroll-viewport-right"
+    case toggleViewportScrollLock = "toggle-viewport-lock"
     case move
     case moveWindowDown = "move-window-down"
     case moveWindowUp = "move-window-up"
@@ -371,6 +372,7 @@ public enum IPCCommandRequest: Equatable, Sendable {
     case focusColumnLast
     case scrollViewportLeft
     case scrollViewportRight
+    case toggleViewportScrollLock
     case move(direction: IPCDirection)
     case moveWindowDown
     case moveWindowUp
@@ -473,6 +475,8 @@ public enum IPCCommandRequest: Equatable, Sendable {
             .scrollViewportLeft
         case .scrollViewportRight:
             .scrollViewportRight
+        case .toggleViewportScrollLock:
+            .toggleViewportScrollLock
         case .move:
             .move
         case .moveWindowDown:
@@ -704,6 +708,9 @@ public enum IPCCommandRequest: Equatable, Sendable {
         case .scrollViewportRight:
             try requireNoArguments()
             self = .scrollViewportRight
+        case .toggleViewportScrollLock:
+            try requireNoArguments()
+            self = .toggleViewportScrollLock
         case .move:
             self = .move(direction: try requireDirection())
         case .moveWindowDown:
@@ -986,6 +993,8 @@ extension IPCCommandRequest: Codable {
             self = .scrollViewportLeft
         case .scrollViewportRight:
             self = .scrollViewportRight
+        case .toggleViewportScrollLock:
+            self = .toggleViewportScrollLock
         case .move:
             let arguments = try container.decode(IPCDirectionArguments.self, forKey: .arguments)
             self = .move(direction: arguments.direction)
@@ -1176,6 +1185,8 @@ extension IPCCommandRequest: Codable {
         case .scrollViewportLeft:
             break
         case .scrollViewportRight:
+            break
+        case .toggleViewportScrollLock:
             break
         case let .move(direction):
             try container.encode(IPCDirectionArguments(direction: direction), forKey: .arguments)

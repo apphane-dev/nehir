@@ -472,7 +472,8 @@ final class WindowActionHandler {
                     motion: .enabled,
                     state: &targetState,
                     workingFrame: workingFrame,
-                    gaps: gap
+                    gaps: gap,
+                    revealTrigger: .explicitNavigation
                 )
                 targetState.selectionProgress = 0
             }

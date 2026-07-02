@@ -54,7 +54,7 @@ private func prepareIPCNiriState(
     assignments: [(workspaceId: WorkspaceDescriptor.ID, windowId: Int)],
     focusedWindowId: Int
 ) -> [Int: WindowHandle] {
-    controller.enableNiriLayout()
+    controller.enableNiriLayout(revealStyle: .auto)
     controller.syncMonitorsToNiriEngine()
 
     var handlesByWindowId: [Int: WindowHandle] = [:]
@@ -340,7 +340,7 @@ private func prepareIPCNiriState(
         let router = makeIPCCommandRouter(for: controller)
         let sourceWorkspaceId = try #require(controller.workspaceManager.workspaceId(for: "1", createIfMissing: false))
         let targetWorkspaceId = try #require(controller.workspaceManager.workspaceId(for: "2", createIfMissing: false))
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         controller.syncMonitorsToNiriEngine()
         controller.workspaceManager.updateNiriViewportState(ViewportState(), for: sourceWorkspaceId)
 
@@ -358,7 +358,7 @@ private func prepareIPCNiriState(
         let monitor = try #require(controller.workspaceManager.monitor(for: targetWorkspaceId))
         #expect(controller.workspaceManager.setActiveWorkspace(sourceWorkspaceId, on: monitor.id))
         _ = controller.workspaceManager.setInteractionMonitor(monitor.id)
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         controller.syncMonitorsToNiriEngine()
         controller.workspaceManager.updateNiriViewportState(ViewportState(), for: sourceWorkspaceId)
 
@@ -401,6 +401,21 @@ private func prepareIPCNiriState(
         #expect(updated.selectedNodeId == engine.findNode(for: try #require(handles[2122]))?.id)
     }
 
+    @Test func toggleViewportScrollLockCommandTogglesActiveWorkspace() throws {
+        let controller = makeLayoutPlanTestController()
+        let router = makeIPCCommandRouter(for: controller)
+        let workspaceId = try #require(controller.workspaceManager.workspaceId(for: "1", createIfMissing: false))
+        controller.enableNiriLayout(revealStyle: .auto)
+        var state = controller.workspaceManager.niriViewportState(for: workspaceId)
+        state.isScrollLocked = false
+        controller.workspaceManager.updateNiriViewportState(state, for: workspaceId)
+
+        let result = router.handle(.toggleViewportScrollLock)
+
+        #expect(result == .executed)
+        #expect(controller.workspaceManager.niriViewportState(for: workspaceId).isScrollLocked)
+    }
+
     @Test func moveToWorkspaceOnMonitorRejectsWorkspaceOnWrongAdjacentMonitor() throws {
         let primaryMonitor = makeLayoutPlanPrimaryTestMonitor(name: "Primary")
         let secondaryMonitor = makeLayoutPlanSecondaryTestMonitor(name: "Secondary", x: 1920)
@@ -411,7 +426,7 @@ private func prepareIPCNiriState(
                 WorkspaceConfiguration(name: "10", monitorAssignment: .main)
             ]
         )
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         controller.syncMonitorsToNiriEngine()
 
         let router = makeIPCCommandRouter(for: controller)
@@ -628,7 +643,7 @@ private func prepareIPCNiriState(
 
     @Test @MainActor func toggleFocusedWindowFloatingTargetsFocusedFloatingWindowOverNiriSelection() async throws {
         let controller = makeLayoutPlanTestController()
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         let router = makeIPCCommandRouter(for: controller)
         let workspaceId = try #require(controller.workspaceManager.workspaceId(for: "1", createIfMissing: false))
         let monitor = try #require(controller.workspaceManager.monitor(for: workspaceId))
@@ -649,7 +664,7 @@ private func prepareIPCNiriState(
 
     @Test @MainActor func moveFocusedWindowTracksFrontmostFloatingCommandTarget() async throws {
         let controller = makeLayoutPlanTestController()
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         let router = makeIPCCommandRouter(for: controller)
         let workspaceOne = try #require(controller.workspaceManager.workspaceId(for: "1", createIfMissing: false))
         let workspaceTwo = try #require(controller.workspaceManager.workspaceId(for: "2", createIfMissing: false))
@@ -809,7 +824,7 @@ private func prepareIPCNiriState(
 
     @Test func windowFocusUsesTrackedWindowRoute() {
         let controller = makeLayoutPlanTestController()
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         let workspaceId = controller.workspaceManager.workspaceId(for: "1", createIfMissing: false)!
         let token = addLayoutPlanTestWindow(
             on: controller,
@@ -831,6 +846,60 @@ private func prepareIPCNiriState(
         )
 
         #expect(result == .executed)
+    }
+
+    @Test func windowFocusBypassesViewportScrollLockForExplicitNavigation() throws {
+        let monitor = makeLayoutPlanTestMonitor(width: 800, height: 600)
+        let controller = makeLayoutPlanTestController(monitors: [monitor])
+        let workspaceId = try #require(controller.workspaceManager.workspaceId(for: "1", createIfMissing: false))
+        let handles = prepareIPCNiriState(
+            on: controller,
+            assignments: [
+                (workspaceId, 9111),
+                (workspaceId, 9112),
+                (workspaceId, 9113)
+            ],
+            focusedWindowId: 9111
+        )
+        let engine = try #require(controller.niriEngine)
+        engine.revealStyle = .center
+        for column in engine.columns(in: workspaceId) {
+            column.width = .fixed(400)
+            column.cachedWidth = 400
+        }
+        let targetHandle = try #require(handles[9113])
+        let targetNode = try #require(engine.findNode(for: targetHandle))
+        var state = controller.workspaceManager.niriViewportState(for: workspaceId)
+        state.selectedNodeId = engine.findNode(for: try #require(handles[9111]))?.id
+        state.activeColumnIndex = 0
+        state.viewOffsetPixels = .static(0)
+        state.isScrollLocked = true
+        controller.workspaceManager.updateNiriViewportState(state, for: workspaceId)
+        let router = makeIPCCommandRouter(for: controller)
+
+        let result = router.handle(
+            IPCWindowRequest(
+                name: .focus,
+                windowId: IPCWindowOpaqueID.encode(
+                    pid: targetHandle.id.pid,
+                    windowId: targetHandle.id.windowId,
+                    sessionToken: ipcCommandRouterSessionToken
+                )
+            )
+        )
+
+        let updated = controller.workspaceManager.niriViewportState(for: workspaceId)
+        let context = engine.makeViewportSnapContext(
+            columns: engine.columns(in: workspaceId),
+            state: updated,
+            workingFrame: controller.insetWorkingFrame(for: monitor),
+            gaps: controller.gapSize(for: monitor)
+        )
+        let viewStart = context.currentViewStart(in: updated)
+        #expect(result == .executed)
+        #expect(updated.isScrollLocked)
+        #expect(updated.selectedNodeId == targetNode.id)
+        #expect(viewStart > 100)
     }
 
     @Test func windowNavigateUsesWindowActionHandlerRoute() throws {

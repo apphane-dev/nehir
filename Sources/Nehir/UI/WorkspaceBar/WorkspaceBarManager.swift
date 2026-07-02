@@ -239,6 +239,9 @@ final class WorkspaceBarManager {
                 onOpenCommandPalette: { [weak controller] in
                     controller?.openCommandPalette()
                 },
+                onToggleViewportScrollLock: { [weak controller] in
+                    controller?.toggleViewportScrollLock(on: monitor.id)
+                },
                 onOpenDiagnostics: { [weak controller, weak settings] in
                     guard let controller, let settings else { return }
                     SettingsWindowController.shared.show(
@@ -393,6 +396,7 @@ final class WorkspaceBarManager {
             backgroundOpacity: current.backgroundOpacity,
             barHeight: current.barHeight,
             hasDisplayDiagnosticsWarning: current.hasDisplayDiagnosticsWarning,
+            showScrollLockButton: resolved.showScrollLockButton,
             accentColor: resolved.accentColor,
             textColor: resolved.textColor
         )
@@ -465,7 +469,7 @@ final class WorkspaceBarManager {
         let projection = controller?.workspaceBarProjection(
             for: monitor,
             projection: resolved.projectionOptions
-        ) ?? WorkspaceBarProjection(items: [], sticky: nil, scratchpad: nil)
+        ) ?? WorkspaceBarProjection(items: [], sticky: nil, scratchpad: nil, isViewportScrollLocked: false)
 
         return WorkspaceBarSnapshot(
             projection: projection,
@@ -474,6 +478,7 @@ final class WorkspaceBarManager {
             barHeight: geometry.barHeight,
             hasDisplayDiagnosticsWarning: DisplayEnvironmentDiagnostics.evaluate(monitors: monitorProvider())
                 .hasWarnings,
+            showScrollLockButton: resolved.showScrollLockButton,
             accentColor: resolved.accentColor,
             textColor: resolved.textColor
         )

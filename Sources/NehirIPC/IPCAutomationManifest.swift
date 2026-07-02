@@ -495,6 +495,11 @@ public enum IPCAutomationManifest {
             summary: "Scroll the Niri viewport right to the next snap point."
         ),
         command(
+            ["toggle-viewport-lock"],
+            name: .toggleViewportScrollLock,
+            summary: "Toggle automatic viewport scroll lock on the active workspace."
+        ),
+        command(
             ["move"],
             name: .move,
             summary: "Move the focused window in the given direction.",

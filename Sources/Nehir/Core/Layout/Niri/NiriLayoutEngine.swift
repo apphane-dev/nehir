@@ -7,11 +7,21 @@
 import AppKit
 import Foundation
 
-enum RevealPartial: String, CaseIterable, Codable, Identifiable {
-    case `default`
-    case off
-    case snapClosest
-    case snapCenter
+enum RevealTrigger {
+    /// Background maintenance/layout reveals should be suppressed by viewport scroll lock.
+    case automatic
+    /// Direct user navigation (focus commands, workspace-bar window clicks) may reveal while locked.
+    case explicitNavigation
+
+    var respectsScrollLock: Bool {
+        self == .automatic
+    }
+}
+
+enum RevealStyle: String, CaseIterable, Codable, Identifiable {
+    case auto
+    case closest
+    case center
 
     var id: String {
         rawValue
@@ -19,10 +29,9 @@ enum RevealPartial: String, CaseIterable, Codable, Identifiable {
 
     var displayName: String {
         switch self {
-        case .default: "Default"
-        case .off: "Off"
-        case .snapClosest: "Snap Closest"
-        case .snapCenter: "Snap Center"
+        case .auto: "Auto"
+        case .closest: "Closest"
+        case .center: "Center"
         }
     }
 }
@@ -155,7 +164,7 @@ final class NiriLayoutEngine {
     var balancedColumnCount: Int
     var infiniteLoop: Bool
 
-    var revealPartial: RevealPartial = .default
+    var revealStyle: RevealStyle = .auto
 
     var loneWindowPolicy: LoneWindowPolicy = .fill
 
@@ -373,7 +382,7 @@ final class NiriLayoutEngine {
     func updateConfiguration(
         balancedColumnCount: Int? = nil,
         infiniteLoop: Bool? = nil,
-        revealPartial: RevealPartial? = nil,
+        revealStyle: RevealStyle? = nil,
         loneWindowPolicy: LoneWindowPolicy? = nil,
         presetColumnWidths: [PresetSize]? = nil,
         defaultColumnWidth: CGFloat?? = nil
@@ -384,8 +393,8 @@ final class NiriLayoutEngine {
         if let loop = infiniteLoop {
             self.infiniteLoop = loop
         }
-        if let revealPartial {
-            self.revealPartial = revealPartial
+        if let revealStyle {
+            self.revealStyle = revealStyle
         }
         if let loneWindowPolicy {
             self.loneWindowPolicy = loneWindowPolicy

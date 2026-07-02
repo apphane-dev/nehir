@@ -190,6 +190,11 @@ struct WorkspaceBarStepControl: View {
                 isOn: $settings.workspaceBarShowFloatingWindows
             )
             WorkspaceBarFeatureRow(
+                title: "Show Scroll Lock Button",
+                description: "Toggle viewport scroll lock from the bar.",
+                isOn: $settings.workspaceBarShowScrollLockButton
+            )
+            WorkspaceBarFeatureRow(
                 title: "Group Windows by App",
                 description: "Collapse duplicate apps into a badge.",
                 isOn: $settings.workspaceBarDeduplicateAppIcons

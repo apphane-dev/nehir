@@ -150,20 +150,28 @@ A proportional column/window span resolved by `ProportionalSize.resolveProportio
 resolvedSpan = (availableSpace - gap) * proportion - gap
 ```
 
-This rule is intentionally centralized. Reveal Partial `.default` relies on the same `2 * gap` fit tolerance so groups such as 50% + 50% remain viewport-fitting.
+This rule is intentionally centralized. Reveal Style `.auto` relies on the same `2 * gap` fit tolerance so groups such as 50% + 50% remain viewport-fitting.
 
 ---
 
 ## reveal
 
-Scrolling the viewport to bring a newly focused column into view. Whether a reveal occurs depends on the column's **visibility state** at the time focus changes:
+Automatic viewport scrolling to bring a newly focused column into view. Whether a reveal occurs is fixed:
 
-- **Fully visible** — no reveal (any source)
-- **[Parked](glossary.md#parked-window)** — always reveals to the closest snap (any source)
-- **[Clipped](glossary.md#clipped-column) + FFM** — no reveal; cursor is already in the visible portion
-- **[Clipped](glossary.md#clipped-column) + other source** — after visibility/source gates allow reveal, the `revealPartial` setting (`.default`, `.off`, `.snapClosest`, `.snapCenter`) chooses how the column is revealed
+- **FFM** — never reveals.
+- **Fully visible target** — never reveals.
+- **Viewport Scroll Lock enabled for a background/automatic trigger** — never reveals.
+- **Explicit user navigation to a clipped or parked target** — reveals using `revealStyle` (`.auto`, `.closest`, `.center`).
 
 See [Reveal on Focus](viewport-navigation-spec.md#reveal-on-focus).
+
+---
+
+## viewport scroll lock
+
+A per-workspace runtime toggle that suppresses background automatic reveal scrolling. It does not block explicit user navigation such as workspace-bar window clicks and focus commands, and it does not block explicit viewport manipulation such as viewport scroll commands, trackpad gestures, or interactive drags.
+
+See [Reveal on Focus](viewport-navigation-spec.md#viewport-scroll-lock).
 
 ---
 

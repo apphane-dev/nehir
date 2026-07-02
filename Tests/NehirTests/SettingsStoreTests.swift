@@ -361,7 +361,7 @@ struct SettingsExportTests {
         #expect(defaults.outerGapRight == 0)
         #expect(defaults.outerGapTop == 0)
         #expect(defaults.outerGapBottom == 0)
-        #expect(defaults.revealPartial == RevealPartial.default.rawValue)
+        #expect(defaults.revealStyle == RevealStyle.auto.rawValue)
         #expect(defaults.niriLoneWindowMaxWidth == nil)
         #expect(defaults.niriDefaultColumnWidth == nil)
         #expect(defaults.workspaceConfigurations == BuiltInSettingsDefaults.workspaceConfigurations)

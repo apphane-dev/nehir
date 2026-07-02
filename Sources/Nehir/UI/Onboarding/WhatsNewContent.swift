@@ -48,7 +48,7 @@ enum WhatsNewContent {
             icon: "rectangle.split.3x1",
             bullets: [
                 "Tune Inner Gap, Screen Margins, and the lone-window policy per monitor, inheriting global defaults wherever you like.",
-                "New Reveal Partial and snap-grid navigation make viewport movement more predictable, replacing the old centering controls.",
+                "New Reveal Style and snap-grid navigation make viewport movement more predictable, replacing the old centering controls.",
                 "Proportional columns like 50% + 50% now center their slack instead of hugging one edge, and terminal-cell rounding no longer mis-pins window heights."
             ]
         ),

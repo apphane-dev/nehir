@@ -61,7 +61,7 @@ import Testing
             return
         }
 
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await waitForLayoutPlanRefreshWork(on: controller)
         controller.syncMonitorsToNiriEngine()
 

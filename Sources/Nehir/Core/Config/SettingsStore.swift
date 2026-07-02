@@ -101,9 +101,9 @@ final class SettingsStore {
         didSet { scheduleSave() }
     }
 
-    var revealPartial = RevealPartial(
-        rawValue: SettingsStore.defaultExport.revealPartial
-    ) ?? .default {
+    var revealStyle = RevealStyle(
+        rawValue: SettingsStore.defaultExport.revealStyle
+    ) ?? .auto {
         didSet { scheduleSave() }
     }
 
@@ -177,6 +177,10 @@ final class SettingsStore {
     }
 
     var workspaceBarShowTraceButton = SettingsStore.defaultExport.workspaceBarShowTraceButton {
+        didSet { scheduleSave() }
+    }
+
+    var workspaceBarShowScrollLockButton = SettingsStore.defaultExport.workspaceBarShowScrollLockButton {
         didSet { scheduleSave() }
     }
 
@@ -446,7 +450,7 @@ final class SettingsStore {
             outerGapBottom: outerGapBottom,
             niriBalancedColumnCount: niriBalancedColumnCount,
             niriInfiniteLoop: niriInfiniteLoop,
-            revealPartial: revealPartial.rawValue,
+            revealStyle: revealStyle.rawValue,
             niriLoneWindowMaxWidth: niriLoneWindowMaxWidth,
             niriColumnWidthPresets: niriColumnWidthPresets,
             niriDefaultColumnWidth: niriDefaultColumnWidth,
@@ -462,6 +466,7 @@ final class SettingsStore {
             workspaceBarShowLabels: workspaceBarShowLabels,
             workspaceBarShowFloatingWindows: workspaceBarShowFloatingWindows,
             workspaceBarShowTraceButton: workspaceBarShowTraceButton,
+            workspaceBarShowScrollLockButton: workspaceBarShowScrollLockButton,
             workspaceBarWindowLevel: workspaceBarWindowLevel.rawValue,
             workspaceBarPosition: workspaceBarPosition.rawValue,
             workspaceBarNotchAware: workspaceBarNotchAware,
@@ -525,7 +530,7 @@ final class SettingsStore {
 
         niriBalancedColumnCount = export.niriBalancedColumnCount
         niriInfiniteLoop = export.niriInfiniteLoop
-        revealPartial = RevealPartial(rawValue: export.revealPartial) ?? .default
+        revealStyle = RevealStyle(rawValue: export.revealStyle) ?? .auto
         niriLoneWindowMaxWidth = SettingsStore.validatedLoneWindowMaxWidth(export.niriLoneWindowMaxWidth)
         niriColumnWidthPresets = SettingsStore.validatedPresets(
             export.niriColumnWidthPresets ?? baseline.niriColumnWidthPresets ?? SettingsStore.defaultColumnWidthPresets
@@ -551,6 +556,7 @@ final class SettingsStore {
         workspaceBarShowLabels = export.workspaceBarShowLabels
         workspaceBarShowFloatingWindows = export.workspaceBarShowFloatingWindows
         workspaceBarShowTraceButton = export.workspaceBarShowTraceButton
+        workspaceBarShowScrollLockButton = export.workspaceBarShowScrollLockButton
         workspaceBarWindowLevel = WorkspaceBarWindowLevel(rawValue: export.workspaceBarWindowLevel) ?? .popup
         workspaceBarPosition = WorkspaceBarPosition(rawValue: export.workspaceBarPosition) ?? .overlappingMenuBar
         workspaceBarNotchAware = export.workspaceBarNotchAware
@@ -807,6 +813,7 @@ final class SettingsStore {
             showLabels: override?.showLabels ?? workspaceBarShowLabels,
             showFloatingWindows: override?.showFloatingWindows ?? workspaceBarShowFloatingWindows,
             showTraceButton: override?.showTraceButton ?? workspaceBarShowTraceButton,
+            showScrollLockButton: override?.showScrollLockButton ?? workspaceBarShowScrollLockButton,
             deduplicateAppIcons: override?.deduplicateAppIcons ?? workspaceBarDeduplicateAppIcons,
             hideEmptyWorkspaces: override?.hideEmptyWorkspaces ?? workspaceBarHideEmptyWorkspaces,
             reserveLayoutSpace: override?.reserveLayoutSpace ?? workspaceBarReserveLayoutSpace,

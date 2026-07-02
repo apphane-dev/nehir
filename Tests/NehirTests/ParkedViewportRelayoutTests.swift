@@ -38,7 +38,7 @@ struct ParkedViewportRelayoutTests {
             return nil
         }
 
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         controller.updateNiriConfig(balancedColumnCount: 1)
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
         controller.syncMonitorsToNiriEngine()

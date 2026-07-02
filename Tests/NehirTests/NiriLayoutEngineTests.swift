@@ -299,7 +299,7 @@ private func makeCenteredCrossMonitorFixture(
     let controller = fixture.controller
 
     suppressAutomaticRefreshExecution(on: controller)
-    controller.enableNiriLayout()
+    controller.enableNiriLayout(revealStyle: .auto)
     controller.updateNiriConfig(
         balancedColumnCount: 2,
         defaultColumnWidth: .some(0.85)
@@ -389,7 +389,7 @@ private func makeCenteredCrossMonitorFixture(
             fatalError("Missing monitor or active workspace for single-column focus fixture")
         }
 
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         controller.updateNiriConfig(balancedColumnCount: 3)
         await waitForLayoutPlanRefreshWork(on: controller)
         controller.layoutRefreshController.stopAllScrollAnimations()
@@ -678,7 +678,7 @@ private func makeCenteredCrossMonitorFixture(
 
         controller.settings.niriBalancedColumnCount = balancedColumnCount
         controller.setOuterGaps(left: outerGapLeft, right: outerGapRight, top: 0, bottom: 0)
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         controller.updateNiriConfig(
             balancedColumnCount: balancedColumnCount
         )
@@ -1646,7 +1646,7 @@ private func makeCenteredCrossMonitorFixture(
             return
         }
 
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await waitForLayoutPlanRefreshWork(on: controller)
         controller.syncMonitorsToNiriEngine()
         controller.niriEngine?.presetColumnWidths = [.proportion(0.5), .proportion(0.5)]
@@ -3068,7 +3068,7 @@ private func makeCenteredCrossMonitorFixture(
             return
         }
 
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         controller.updateNiriConfig(balancedColumnCount: 3)
         await waitForLayoutPlanRefreshWork(on: controller)
         controller.layoutRefreshController.stopAllScrollAnimations()
@@ -3163,7 +3163,7 @@ private func makeCenteredCrossMonitorFixture(
             return
         }
 
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         controller.updateNiriConfig(balancedColumnCount: 3)
         await waitForLayoutPlanRefreshWork(on: controller)
         controller.layoutRefreshController.stopAllScrollAnimations()
@@ -3722,7 +3722,7 @@ private func makeCenteredCrossMonitorFixture(
         )
         let controller = fixture.controller
 
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await waitForLayoutPlanRefreshWork(on: controller)
         controller.syncMonitorsToNiriEngine()
 
@@ -3933,7 +3933,7 @@ private func makeCenteredCrossMonitorFixture(
             return
         }
 
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         controller.settings.niriLoneWindowMaxWidth = 0.6
         controller.updateNiriConfig(loneWindowPolicy: .centered(maxWidthFraction: 0.6))
         await waitForLayoutPlanRefreshWork(on: controller)
@@ -3978,7 +3978,7 @@ private func makeCenteredCrossMonitorFixture(
         let controller = makeLayoutPlanTestController(monitors: [monitor])
         controller.settings.niriLoneWindowMaxWidth = 0.6
 
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         controller.updateNiriConfig(loneWindowPolicy: .centered(maxWidthFraction: 0.6))
         await waitForLayoutPlanRefreshWork(on: controller)
         controller.syncMonitorsToNiriEngine()
@@ -4007,7 +4007,7 @@ private func makeCenteredCrossMonitorFixture(
             return
         }
 
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         controller.settings.niriLoneWindowMaxWidth = 0.6
         controller.updateNiriConfig(loneWindowPolicy: .centered(maxWidthFraction: 0.6))
         await waitForLayoutPlanRefreshWork(on: controller)
@@ -4048,7 +4048,7 @@ private func makeCenteredCrossMonitorFixture(
             return
         }
 
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await waitForLayoutPlanRefreshWork(on: controller)
         controller.syncMonitorsToNiriEngine()
 
@@ -4084,7 +4084,7 @@ private func makeCenteredCrossMonitorFixture(
             return
         }
 
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await waitForLayoutPlanRefreshWork(on: controller)
         controller.syncMonitorsToNiriEngine()
         controller.niriEngine?.presetColumnWidths = [.proportion(1.0), .proportion(0.5)]
@@ -4124,7 +4124,7 @@ private func makeCenteredCrossMonitorFixture(
         }
 
         controller.setBordersEnabled(true)
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         controller.updateNiriConfig(balancedColumnCount: 1)
         await waitForLayoutPlanRefreshWork(on: controller)
         controller.syncMonitorsToNiriEngine()
@@ -4178,7 +4178,7 @@ private func makeCenteredCrossMonitorFixture(
             return
         }
 
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await waitForLayoutPlanRefreshWork(on: controller)
         controller.syncMonitorsToNiriEngine()
 
@@ -4223,7 +4223,7 @@ private func makeCenteredCrossMonitorFixture(
             return
         }
 
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await waitForLayoutPlanRefreshWork(on: controller)
         controller.syncMonitorsToNiriEngine()
 
@@ -4310,7 +4310,7 @@ private func makeCenteredCrossMonitorFixture(
         let controller = fixture.controller
         let workspaceId = fixture.primaryWorkspaceId
 
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await waitForLayoutPlanRefreshWork(on: controller)
         controller.syncMonitorsToNiriEngine()
 
@@ -6857,7 +6857,7 @@ private func makeCenteredCrossMonitorFixture(
             return
         }
 
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await waitForLayoutPlanRefreshWork(on: controller)
         controller.syncMonitorsToNiriEngine()
 
@@ -7098,7 +7098,7 @@ private func makeCenteredCrossMonitorFixture(
         let workspaceId = fixture.primaryWorkspaceId
 
         suppressAutomaticRefreshExecution(on: controller)
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await waitForLayoutPlanRefreshWork(on: controller)
         controller.syncMonitorsToNiriEngine()
 
@@ -7178,7 +7178,7 @@ private func makeCenteredCrossMonitorFixture(
         _ = controller.workspaceManager.setInteractionMonitor(monitors.lower.id)
 
         suppressAutomaticRefreshExecution(on: controller)
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await waitForLayoutPlanRefreshWork(on: controller)
         controller.syncMonitorsToNiriEngine()
 
@@ -7244,7 +7244,7 @@ private func makeCenteredCrossMonitorFixture(
             return
         }
 
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await waitForLayoutPlanRefreshWork(on: controller)
         controller.syncMonitorsToNiriEngine()
 
@@ -7308,7 +7308,7 @@ private func makeCenteredCrossMonitorFixture(
         let fixture = makeTwoMonitorLayoutPlanTestController()
         let controller = fixture.controller
         controller.setBordersEnabled(true)
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await waitForLayoutPlanRefreshWork(on: controller)
         controller.syncMonitorsToNiriEngine()
 
@@ -7348,7 +7348,7 @@ private func makeCenteredCrossMonitorFixture(
         }
 
         controller.setBordersEnabled(true)
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await waitForLayoutPlanRefreshWork(on: controller)
 
         let focusedToken = addLayoutPlanTestWindow(
@@ -7388,7 +7388,7 @@ private func makeCenteredCrossMonitorFixture(
             return
         }
 
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         controller.updateNiriConfig(balancedColumnCount: 2)
         await waitForLayoutPlanRefreshWork(on: controller)
         controller.syncMonitorsToNiriEngine()
@@ -7581,7 +7581,7 @@ private func makeCenteredCrossMonitorFixture(
             return
         }
 
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         controller.updateNiriConfig(balancedColumnCount: 2)
         await waitForLayoutPlanRefreshWork(on: controller)
         controller.syncMonitorsToNiriEngine()
@@ -7677,7 +7677,7 @@ private func makeCenteredCrossMonitorFixture(
     @Test @MainActor func visibleSecondaryWorkspacePlanRestoresInactiveHiddenWindows() async throws {
         let fixture = makeTwoMonitorLayoutPlanTestController()
         let controller = fixture.controller
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await waitForLayoutPlanRefreshWork(on: controller)
         controller.syncMonitorsToNiriEngine()
 
@@ -7714,7 +7714,7 @@ private func makeCenteredCrossMonitorFixture(
             return
         }
 
-        controller.enableNiriLayout()
+        controller.enableNiriLayout(revealStyle: .auto)
         await waitForLayoutPlanRefreshWork(on: controller)
         controller.syncMonitorsToNiriEngine()
 

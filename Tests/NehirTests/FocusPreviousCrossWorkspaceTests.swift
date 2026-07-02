@@ -162,7 +162,7 @@ private func makeFocusPreviousFixture(
     assignments: [(workspaceName: String, windowId: Int)]
 ) -> FocusPreviousFixture {
     let controller = makeLayoutPlanTestController()
-    controller.enableNiriLayout()
+    controller.enableNiriLayout(revealStyle: .auto)
     controller.syncMonitorsToNiriEngine()
 
     var tokens: [Int: WindowToken] = [:]
@@ -215,7 +215,7 @@ private func makeTwoMonitorFocusPreviousFixture() -> FocusPreviousFixture {
             WorkspaceConfiguration(name: "2", monitorAssignment: .secondary)
         ]
     )
-    controller.enableNiriLayout()
+    controller.enableNiriLayout(revealStyle: .auto)
     controller.syncMonitorsToNiriEngine()
 
     guard let ws1 = controller.workspaceManager.workspaceId(for: "1", createIfMissing: false),

@@ -160,7 +160,13 @@ enum SettingsDiagnosticsDetector {
             .map(SettingsDiagnosticsIssue.softMigration)
 
         let settingsURL = configDirectory.appendingPathComponent(SettingsFilePersistence.fileName, isDirectory: false)
-        let unknownKeys = detectUnknownKeys(in: settingsURL)
+        var unknownKeys = detectUnknownKeys(in: settingsURL)
+        if issues.contains(where: { issue in
+            guard case .softMigration(let migration) = issue else { return false }
+            return migration.id == SettingsMigrationRegistry.revealPartialToRevealStyle.id
+        }) {
+            unknownKeys.removeAll { $0 == RevealPartialMigrationKeys.legacyKeyPath }
+        }
         if !unknownKeys.isEmpty {
             issues.append(.unknownKeys(UnknownSettingsKeysIssue(fileURL: settingsURL, keyPaths: unknownKeys)))
         }

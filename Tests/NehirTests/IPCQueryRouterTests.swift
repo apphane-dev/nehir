@@ -37,7 +37,7 @@ private func prepareIPCQueryRouterNiriState(
     assignments: [(workspaceId: WorkspaceDescriptor.ID, windowId: Int)],
     focusedWindowId: Int
 ) {
-    controller.enableNiriLayout()
+    controller.enableNiriLayout(revealStyle: .auto)
     controller.syncMonitorsToNiriEngine()
 
     var handlesByWindowId: [Int: WindowHandle] = [:]

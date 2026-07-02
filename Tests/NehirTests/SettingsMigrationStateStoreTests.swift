@@ -23,6 +23,90 @@ import Testing
         #expect(reloaded.isPostponed(migrationID: "workspaces-array-to-keyed-tables", currentAppVersion: "1.2.3"))
     }
 
+    @Test func revealPartialMigrationRewritesSettingsToml() throws {
+        let configDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("nehir-reveal-migration-config-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: configDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: configDirectory) }
+
+        let settingsURL = configDirectory.appendingPathComponent("settings.toml")
+        try """
+        [niri]
+        revealPartial = "snapCenter"
+        balancedColumnCount = 2
+        infiniteLoop = false
+        """.write(to: settingsURL, atomically: true, encoding: .utf8)
+
+        let migrations = SettingsMigrationDetector.applicableMigrations(configDirectory: configDirectory)
+        #expect(migrations.map(\.id).contains(SettingsMigrationRegistry.revealPartialToRevealStyle.id))
+
+        let backupURL = try RevealPartialSettingsMigration.migrate(fileURL: settingsURL)
+        let migrated = try String(contentsOf: settingsURL, encoding: .utf8)
+        let backup = try String(contentsOf: backupURL, encoding: .utf8)
+        let decoded = try SettingsTOMLCodec.decode(Data(contentsOf: settingsURL))
+
+        #expect(backup.contains("revealPartial = \"snapCenter\""))
+        #expect(migrated.contains("revealStyle = \"center\""))
+        #expect(!migrated.contains("revealPartial"))
+        #expect(decoded.revealStyle == RevealStyle.center.rawValue)
+        #expect(decoded.settingsTOMLUnknownFields["niri"]?["revealPartial"] == nil)
+    }
+
+    @Test func revealPartialDiagnosticsShowsMigrationInsteadOfUnknownKey() throws {
+        let configDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("nehir-reveal-migration-config-\(UUID().uuidString)", isDirectory: true)
+        let stateDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("nehir-reveal-migration-state-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: configDirectory, withIntermediateDirectories: true)
+        defer {
+            try? FileManager.default.removeItem(at: configDirectory)
+            try? FileManager.default.removeItem(at: stateDirectory)
+        }
+
+        let settingsURL = configDirectory.appendingPathComponent("settings.toml")
+        try """
+        [niri]
+        revealPartial = "snapClosest"
+        """.write(to: settingsURL, atomically: true, encoding: .utf8)
+
+        let issues = SettingsDiagnosticsDetector.pendingIssues(
+            configDirectory: configDirectory,
+            stateStore: SettingsMigrationStateStore(directory: stateDirectory),
+            appVersion: "1.2.3"
+        )
+
+        #expect(issues.contains { issue in
+            guard case .softMigration(let migration) = issue else { return false }
+            return migration.id == SettingsMigrationRegistry.revealPartialToRevealStyle.id
+        })
+        #expect(!issues.contains { issue in
+            guard case .unknownKeys(let unknown) = issue else { return false }
+            return unknown.keyPaths.contains("niri.revealPartial")
+        })
+    }
+
+    @Test func revealPartialMigrationPreservesExplicitRevealStyleWhenBothKeysExist() throws {
+        let configDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("nehir-reveal-migration-config-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: configDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: configDirectory) }
+
+        let settingsURL = configDirectory.appendingPathComponent("settings.toml")
+        try """
+        [niri]
+        revealPartial = "snapCenter"
+        revealStyle = "closest"
+        """.write(to: settingsURL, atomically: true, encoding: .utf8)
+
+        _ = try RevealPartialSettingsMigration.migrate(fileURL: settingsURL)
+        let migrated = try String(contentsOf: settingsURL, encoding: .utf8)
+        let decoded = try SettingsTOMLCodec.decode(Data(contentsOf: settingsURL))
+
+        #expect(migrated.contains("revealStyle = \"closest\""))
+        #expect(!migrated.contains("revealPartial"))
+        #expect(decoded.revealStyle == RevealStyle.closest.rawValue)
+    }
+
     @Test func detectorSuppressesOnlyPostponedCurrentVersion() throws {
         let configDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent("nehir-migration-config-\(UUID().uuidString)", isDirectory: true)

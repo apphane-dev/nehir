@@ -112,6 +112,49 @@ Every supported config migration must have a registry entry containing:
 
 ## Current registry
 
+### `reveal-partial-to-reveal-style`
+
+| Field | Value |
+|-------|-------|
+| `id` | `reveal-partial-to-reveal-style` |
+| `file` | `~/.config/nehir/settings.toml` |
+| `phase` | `introduced` |
+| `introduced` | TBD: first release that ships Reveal Style and Viewport Scroll Lock |
+| `deprecated` | TBD: earliest release where **Postpone Warning** is removed |
+| `enforced` | TBD: release where `revealPartial` migration support is removed |
+| `detects` | The `[niri]` table contains a `revealPartial` key. |
+| `user action` | Diagnostics offers **Migrate** and **Postpone Warning**. After postponing, warning/badge state is suppressed for the current release, but the entry and **Migrate** action remain available. |
+| `enforcement plan` | Keep detecting `revealPartial` during the introduced phase. Move to deprecated before enforcement. In the enforced phase, remove dedicated migration support and report the stale key through standard settings recovery/unknown-key assistance. |
+
+Old format:
+
+```toml
+[niri]
+revealPartial = "snapClosest"
+```
+
+New canonical format:
+
+```toml
+[niri]
+revealStyle = "closest"
+```
+
+Mapping:
+
+| Old `revealPartial` | New `revealStyle` |
+|---|---|
+| `default` | `auto` |
+| `snapClosest` | `closest` |
+| `snapCenter` | `center` |
+| `off` | `auto` |
+
+Notes:
+
+- The old `off` value has no persisted global equivalent. The replacement is the runtime per-workspace **Viewport Scroll Lock** toggle; migration writes `revealStyle = "auto"` and removes `revealPartial`.
+- If both `revealPartial` and `revealStyle` are present, migration preserves the existing `revealStyle` value and removes only `revealPartial`.
+- Fresh saves emit only `revealStyle`.
+
 ### `workspaces-array-to-keyed-tables`
 
 | Field | Value |
@@ -160,7 +203,26 @@ Notes:
 
 ## Diagnostics copy guidance
 
-### Introduced phase
+### Reveal Partial introduced phase
+
+Suggested title:
+
+```text
+Update reveal setting
+```
+
+Suggested body:
+
+```text
+settings.toml uses the old revealPartial key. Nehir now uses revealStyle for where reveals land, and Viewport Scroll Lock for suppressing background automatic reveals. You can migrate now, or hide this reminder until the next Nehir update. A future Nehir update may require the new key.
+```
+
+Actions:
+
+- **Migrate** — back up and rewrite `settings.toml` with `revealStyle`, removing `revealPartial`.
+- **Postpone Warning** — record the migration id and current app version in the migration state file. This suppresses warning/badge state for the current release only, while keeping the migration entry and **Migrate** action visible.
+
+### Workspaces introduced phase
 
 Suggested title:
 
@@ -179,7 +241,7 @@ Actions:
 - **Migrate** — back up and rewrite `workspaces.toml` to keyed tables.
 - **Postpone Warning** — record the migration id and current app version in the migration state file. This suppresses warning/badge state for the current release only, while keeping the migration entry and **Migrate** action visible.
 
-### Deprecated phase
+### Workspaces deprecated phase
 
 Suggested body:
 

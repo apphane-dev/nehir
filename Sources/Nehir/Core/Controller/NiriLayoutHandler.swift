@@ -1943,6 +1943,20 @@ enum NiriWindowMoveResult {
         }
     }
 
+    func toggleViewportScrollLock() {
+        guard let controller,
+              let workspaceId = controller.interactionWorkspace()?.id
+        else { return }
+        toggleViewportScrollLock(in: workspaceId)
+    }
+
+    func toggleViewportScrollLock(in workspaceId: WorkspaceDescriptor.ID) {
+        guard let controller else { return }
+        controller.workspaceManager.withNiriViewportState(for: workspaceId) { state in
+            state.isScrollLocked.toggle()
+        }
+    }
+
     func setColumnWidth(_ change: NiriSizeChange) {
         guard let controller else { return }
         withNiriWorkspaceContext { engine, wsId, motion, state, _, workingFrame, gaps in
@@ -2023,10 +2037,10 @@ enum NiriWindowMoveResult {
 
     // MARK: - Layout Engine Configuration
 
-    func enableNiriLayout(revealPartial: RevealPartial = .default) {
+    func enableNiriLayout(revealStyle: RevealStyle) {
         guard let controller else { return }
         let engine = NiriLayoutEngine()
-        engine.revealPartial = revealPartial
+        engine.revealStyle = revealStyle
         engine.renderStyle.tabIndicatorWidth = TabbedColumnOverlayManager.tabIndicatorWidth
         engine.animationClock = controller.animationClock
         controller.setNiriEngine(engine)
@@ -2074,7 +2088,7 @@ enum NiriWindowMoveResult {
     func updateNiriConfig(
         balancedColumnCount: Int? = nil,
         infiniteLoop: Bool? = nil,
-        revealPartial: RevealPartial? = nil,
+        revealStyle: RevealStyle? = nil,
         loneWindowPolicy: LoneWindowPolicy? = nil,
         columnWidthPresets: [Double]? = nil,
         defaultColumnWidth: Double?? = nil
@@ -2083,7 +2097,7 @@ enum NiriWindowMoveResult {
         controller.niriEngine?.updateConfiguration(
             balancedColumnCount: balancedColumnCount,
             infiniteLoop: infiniteLoop,
-            revealPartial: revealPartial,
+            revealStyle: revealStyle,
             loneWindowPolicy: loneWindowPolicy,
             presetColumnWidths: columnWidthPresets?.map { .proportion($0) },
             defaultColumnWidth: defaultColumnWidth.map { $0.map { CGFloat($0) } }

@@ -21,6 +21,7 @@ struct MonitorBarSettings: MonitorSettingsType {
     var reserveLayoutSpace: Bool?
     var notchAware: Bool?
     var showTraceButton: Bool?
+    var showScrollLockButton: Bool?
     var position: WorkspaceBarPosition?
     var windowLevel: WorkspaceBarWindowLevel?
     var height: Double?
@@ -41,6 +42,7 @@ struct MonitorBarSettings: MonitorSettingsType {
         reserveLayoutSpace: Bool? = nil,
         notchAware: Bool? = nil,
         showTraceButton: Bool? = nil,
+        showScrollLockButton: Bool? = nil,
         position: WorkspaceBarPosition? = nil,
         windowLevel: WorkspaceBarWindowLevel? = nil,
         height: Double? = nil,
@@ -60,6 +62,7 @@ struct MonitorBarSettings: MonitorSettingsType {
         self.reserveLayoutSpace = reserveLayoutSpace
         self.notchAware = notchAware
         self.showTraceButton = showTraceButton
+        self.showScrollLockButton = showScrollLockButton
         self.position = position
         self.windowLevel = windowLevel
         self.height = height
@@ -71,7 +74,8 @@ struct MonitorBarSettings: MonitorSettingsType {
     private enum CodingKeys: String, CodingKey {
         case id, monitorName, monitorDisplayId, monitorAnchorPoint
         case enabled, showLabels, showFloatingWindows, deduplicateAppIcons
-        case hideEmptyWorkspaces, reserveLayoutSpace, notchAware, showTraceButton, position, windowLevel
+        case hideEmptyWorkspaces, reserveLayoutSpace, notchAware, showTraceButton, showScrollLockButton, position,
+             windowLevel
         case height, backgroundOpacity, xOffset, yOffset
     }
 
@@ -89,6 +93,7 @@ struct MonitorBarSettings: MonitorSettingsType {
         reserveLayoutSpace = try container.decodeIfPresent(Bool.self, forKey: .reserveLayoutSpace)
         notchAware = try container.decodeIfPresent(Bool.self, forKey: .notchAware)
         showTraceButton = try container.decodeIfPresent(Bool.self, forKey: .showTraceButton)
+        showScrollLockButton = try container.decodeIfPresent(Bool.self, forKey: .showScrollLockButton)
         position = try container.decodeIfPresent(String.self, forKey: .position)
             .flatMap { WorkspaceBarPosition(rawValue: $0) }
         windowLevel = try container.decodeIfPresent(String.self, forKey: .windowLevel)
@@ -113,6 +118,7 @@ struct MonitorBarSettings: MonitorSettingsType {
         try container.encodeIfPresent(reserveLayoutSpace, forKey: .reserveLayoutSpace)
         try container.encodeIfPresent(notchAware, forKey: .notchAware)
         try container.encodeIfPresent(showTraceButton, forKey: .showTraceButton)
+        try container.encodeIfPresent(showScrollLockButton, forKey: .showScrollLockButton)
         try container.encodeIfPresent(position?.rawValue, forKey: .position)
         try container.encodeIfPresent(windowLevel?.rawValue, forKey: .windowLevel)
         try container.encodeIfPresent(height, forKey: .height)
@@ -127,6 +133,7 @@ struct ResolvedBarSettings {
     let showLabels: Bool
     let showFloatingWindows: Bool
     let showTraceButton: Bool
+    let showScrollLockButton: Bool
     let deduplicateAppIcons: Bool
     let hideEmptyWorkspaces: Bool
     let reserveLayoutSpace: Bool
@@ -145,6 +152,7 @@ struct ResolvedBarSettings {
         showLabels: true,
         showFloatingWindows: false,
         showTraceButton: false,
+        showScrollLockButton: false,
         deduplicateAppIcons: false,
         hideEmptyWorkspaces: false,
         reserveLayoutSpace: false,
