@@ -107,6 +107,15 @@ struct NiriCreateFocusTraceEvent: Equatable {
             hasExplicitWorkspaceAssignment: Bool,
             activeManagedRequestToken: WindowToken?
         )
+        // Emitted when a `window_decision` is vetoed by the
+        // unrequested-admission guard (i.e.
+        // `shouldSuppressUnrequestedAdmissionDuringNonManagedFocus` returns
+        // true), so tooling grepping decision records alone does not conclude
+        // the window was admitted.
+        case windowDecisionSuppressed(
+            token: WindowToken,
+            reason: String
+        )
         case windowDecision(
             token: WindowToken,
             context: String,
@@ -240,6 +249,8 @@ extension NiriCreateFocusTraceEvent: CustomStringConvertible {
             activeManagedRequestToken
         ):
             "unrequested_admission_nonmanaged_focus_decision token=\(token) suppressed=\(suppressed) reason=\(reason) context_source=\(createContextSource ?? "nil") recent_pid_workspace=\(recentPidWorkspaceId?.uuidString ?? "nil") explicit_workspace_assignment=\(hasExplicitWorkspaceAssignment) active_managed_request_token=\(String(describing: activeManagedRequestToken))"
+        case let .windowDecisionSuppressed(token, reason):
+            "window_decision_suppressed token=\(token) reason=\(reason)"
         case let .windowDecision(
             token,
             context,
@@ -440,6 +451,13 @@ final class AXEventHandler: CGSEventDelegate {
     private static let createdWindowRetryLimit = 5
     private static let createPlacementContextTTL: TimeInterval = 15
     private static let recentManagedAdmissionTTL: TimeInterval = 15
+    // A deliberate user app switch (Dock/Cmd-Tab/launcher) and the target
+    // window's focused-admission arrive within a second or two of each other,
+    // so a short window suffices to bridge them. Kept well below
+    // recentManagedAdmissionTTL (15s) on purpose: this exemption widens the
+    // unrequested-admission guard, so it should decay quickly to avoid
+    // admitting unrelated surfaces that merely happen to share the pid.
+    private static let recentAppActivationTTL: TimeInterval = 10
     private static let activationRetryLimit = 5
     private static let nativeAppSwitchLeaseRequestConfirmationGrace: TimeInterval = 0.6
     private static let createFocusTraceLimit = 128
@@ -459,6 +477,7 @@ final class AXEventHandler: CGSEventDelegate {
     }
 
     private var recentManagedWorkspaceByPid: [pid_t: RecentManagedWorkspace] = [:]
+    private var recentAppActivationByPid: [pid_t: TimeInterval] = [:]
     private var recentManagedAdmissionByToken: [WindowToken: RecentManagedAdmission] = [:]
     private var pendingManagedReplacementBursts: [ManagedReplacementKey: PendingManagedReplacementBurst] = [:]
     private var pendingManagedReplacementTasks: [ManagedReplacementKey: Task<Void, Never>] = [:]
@@ -507,6 +526,7 @@ final class AXEventHandler: CGSEventDelegate {
     func cleanup() {
         resetCreatePlacementContextState()
         recentManagedWorkspaceByPid.removeAll()
+        recentAppActivationByPid.removeAll()
         recentManagedAdmissionByToken.removeAll()
         resetManagedReplacementState()
         endWindowCloseFocusRecovery()
@@ -650,6 +670,7 @@ final class AXEventHandler: CGSEventDelegate {
         resetCreatedWindowRetryState()
         resetCreatePlacementContextState()
         recentManagedWorkspaceByPid.removeAll()
+        recentAppActivationByPid.removeAll()
         recentManagedAdmissionByToken.removeAll()
         resetActivationRetryState()
         controller?.focusBridge.reset()
@@ -781,6 +802,23 @@ final class AXEventHandler: CGSEventDelegate {
             )
             return false
         }
+        // A deliberate user app switch to this pid (observed as a
+        // workspaceDidActivateApplication activation moments earlier) is an
+        // intent signal on par with a CGS create. Without this, launcher/Dock/
+        // Cmd-Tab switches to an existing-but-untracked window are dropped and
+        // the untracked window's own focus keeps non-managed focus armed,
+        // trapping it permanently.
+        if hasRecentAppActivation(for: token.pid) {
+            recordUnrequestedAdmissionDuringNonManagedFocusDecision(
+                token: token,
+                suppressed: false,
+                reason: "recent_app_activation",
+                createPlacementContext: createPlacementContext,
+                hasExplicitWorkspaceAssignment: hasExplicitWorkspaceAssignment,
+                activeManagedRequestToken: activeManagedRequestToken
+            )
+            return false
+        }
 
         recordUnrequestedAdmissionDuringNonManagedFocusDecision(
             token: token,
@@ -789,6 +827,14 @@ final class AXEventHandler: CGSEventDelegate {
             createPlacementContext: createPlacementContext,
             hasExplicitWorkspaceAssignment: hasExplicitWorkspaceAssignment,
             activeManagedRequestToken: activeManagedRequestToken
+        )
+        recordNiriCreateFocusTrace(
+            .init(
+                kind: .windowDecisionSuppressed(
+                    token: token,
+                    reason: "stale_unrequested_nonmanaged_focus"
+                )
+            )
         )
         return true
     }
@@ -1862,6 +1908,14 @@ final class AXEventHandler: CGSEventDelegate {
                 )
             )
         )
+        // A genuine app-level switch (Dock, Cmd-Tab, launcher activate()) is a
+        // user-intent signal that should still admit the app's window even while
+        // non-managed focus is active. Window-level focus churn
+        // (.focusedWindowChanged) does not qualify, so only record app
+        // activations here.
+        if source == .workspaceDidActivateApplication {
+            recordRecentAppActivation(pid: pid)
+        }
         guard controller.hasStartedServices else { return }
 
         let activeRequest = controller.focusBridge.activeManagedRequest
@@ -3929,6 +3983,23 @@ final class AXEventHandler: CGSEventDelegate {
         }
     }
 
+    private func recordRecentAppActivation(pid: pid_t) {
+        pruneRecentAppActivations()
+        recentAppActivationByPid[pid] = managedReplacementCurrentUptime()
+    }
+
+    private func hasRecentAppActivation(for pid: pid_t) -> Bool {
+        pruneRecentAppActivations()
+        return recentAppActivationByPid[pid] != nil
+    }
+
+    private func pruneRecentAppActivations(now: TimeInterval? = nil) {
+        let now = now ?? managedReplacementCurrentUptime()
+        recentAppActivationByPid = recentAppActivationByPid.filter { _, recordedAt in
+            now - recordedAt <= Self.recentAppActivationTTL
+        }
+    }
+
     private func recentManagedAdmissionWorkspaceId(for token: WindowToken) -> WorkspaceDescriptor.ID? {
         pruneRecentManagedAdmissions()
         guard let admission = recentManagedAdmissionByToken[token],
@@ -4637,6 +4708,7 @@ final class AXEventHandler: CGSEventDelegate {
 
     func cleanupFocusStateForTerminatedApp(pid: pid_t) {
         recentManagedWorkspaceByPid.removeValue(forKey: pid)
+        recentAppActivationByPid.removeValue(forKey: pid)
 
         guard let controller else { return }
 

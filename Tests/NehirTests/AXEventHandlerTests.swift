@@ -263,6 +263,36 @@ private func createFocusTraceEvents(on controller: WMController) -> [NiriCreateF
     controller.axEventHandler.niriCreateFocusTraceSnapshotForTests()
 }
 
+private func makeSynthesizedFocusedAdmissionContext() -> WindowCreatePlacementContext {
+    WindowCreatePlacementContext(
+        nativeSpaceMonitorId: nil,
+        activeFocusRequestWorkspaceId: nil,
+        activeFocusRequestMonitorId: nil,
+        focusedWorkspaceId: nil,
+        focusedMonitorId: nil,
+        interactionMonitorId: nil,
+        source: "ax_focused_admission_synthesized",
+        focusedWorkspaceSource: nil,
+        recentPidWorkspaceId: nil,
+        createdAt: Date()
+    )
+}
+
+@MainActor
+private func unrequestedAdmissionDecisionReason(
+    on controller: WMController,
+    for token: WindowToken
+) -> String? {
+    for event in controller.axEventHandler.niriCreateFocusTraceSnapshotForTests().reversed() {
+        if case let .unrequestedAdmissionDuringNonManagedFocusDecision(
+            decisionToken, _, reason, _, _, _, _
+        ) = event.kind, decisionToken == token {
+            return reason
+        }
+    }
+    return nil
+}
+
 @MainActor
 private func managedReplacementTraceEvents(
     on controller: WMController
@@ -1689,6 +1719,88 @@ private func waitUntilAXEventTest(
         #expect(controller.interactionWorkspace()?.id == workspaceTwo)
         #expect(controller.workspaceManager.confirmedManagedFocusToken == nil)
         #expect(controller.workspaceManager.isNonManagedFocusActive)
+    }
+
+    @Test @MainActor func recentAppActivationExemptsUnrequestedAdmissionDuringNonManagedFocus() {
+        let controller = makeAXEventTestController()
+        let appPid: pid_t = 8_662
+        let token = WindowToken(pid: appPid, windowId: 8_983)
+
+        // A genuine user app switch to this pid is recorded as intent.
+        controller.axEventHandler.handleAppActivation(
+            pid: appPid,
+            source: .workspaceDidActivateApplication
+        )
+        #expect(controller.workspaceManager.enterNonManagedFocus(appFullscreen: false))
+        #expect(controller.workspaceManager.isNonManagedFocusActive)
+
+        let suppressed = controller.axEventHandler.shouldSuppressUnrequestedAdmissionDuringNonManagedFocus(
+            token: token,
+            createPlacementContext: makeSynthesizedFocusedAdmissionContext()
+        )
+
+        #expect(suppressed == false)
+        #expect(unrequestedAdmissionDecisionReason(on: controller, for: token) == "recent_app_activation")
+    }
+
+    @Test @MainActor func staleAppActivationDoesNotExemptUnrequestedAdmission() {
+        let controller = makeAXEventTestController()
+        var clock: TimeInterval = 0
+        controller.axEventHandler.managedReplacementTimeSourceForTests = { clock }
+        let appPid: pid_t = 8_662
+        let token = WindowToken(pid: appPid, windowId: 8_983)
+
+        controller.axEventHandler.handleAppActivation(
+            pid: appPid,
+            source: .workspaceDidActivateApplication
+        )
+        #expect(controller.workspaceManager.enterNonManagedFocus(appFullscreen: false))
+
+        // Advance past the recent-app-activation TTL (10s).
+        clock = 11
+
+        let suppressed = controller.axEventHandler.shouldSuppressUnrequestedAdmissionDuringNonManagedFocus(
+            token: token,
+            createPlacementContext: makeSynthesizedFocusedAdmissionContext()
+        )
+
+        #expect(suppressed)
+        #expect(
+            unrequestedAdmissionDecisionReason(on: controller, for: token)
+                == "stale_unrequested_nonmanaged_focus"
+        )
+        let trace = controller.axEventHandler.niriCreateFocusTraceSnapshotForTests()
+        #expect(trace.contains { event in
+            if case let .windowDecisionSuppressed(suppressedToken, reason) = event.kind {
+                return suppressedToken == token && reason == "stale_unrequested_nonmanaged_focus"
+            }
+            return false
+        })
+    }
+
+    @Test @MainActor func focusedWindowChangedActivationDoesNotExemptUnrequestedAdmission() {
+        let controller = makeAXEventTestController()
+        let appPid: pid_t = 8_662
+        let token = WindowToken(pid: appPid, windowId: 8_983)
+
+        // Window-level focus churn is not an app-level switch and must not
+        // create an exemption.
+        controller.axEventHandler.handleAppActivation(
+            pid: appPid,
+            source: .focusedWindowChanged
+        )
+        #expect(controller.workspaceManager.enterNonManagedFocus(appFullscreen: false))
+
+        let suppressed = controller.axEventHandler.shouldSuppressUnrequestedAdmissionDuringNonManagedFocus(
+            token: token,
+            createPlacementContext: makeSynthesizedFocusedAdmissionContext()
+        )
+
+        #expect(suppressed)
+        #expect(
+            unrequestedAdmissionDecisionReason(on: controller, for: token)
+                == "stale_unrequested_nonmanaged_focus"
+        )
     }
 
     @Test @MainActor func untrackedSamePidDestroySuppressesUnrelatedInactiveWorkspaceActivation() async {
