@@ -35,8 +35,8 @@ makes illegal states unrepresentable. Probably the highest-leverage refactor for
 ### 6. Centralize the RefreshReason → route mapping. Done — PR #43.
 `LayoutRefreshController` (~3,500 LOC) maps `RefreshReason` to one of five refresh routes (fullRescan / relayout / immediateRelayout / visibilityRefresh / windowRemoval) implicitly, scattered across scheduling call sites. A central table (`extension RefreshReason { var route: ...; var scheduling: ... }`) makes adding reasons and changing policies a one-place edit.
 
-### 7. Narrow WMController's public surface
-`WMController` (~3,600 LOC, ~190 funcs) is an intentional orchestrator, but handlers reach through it into `niriLayoutHandler` / `niriEngine` directly, giving command logic ad-hoc access to deep layout state. Cheap insurance before any second layout paradigm or new interactive mode: hide behind narrow protocols (e.g., `LayoutCoordinator`, `FocusCoordinator`), make `niriEngine` mutation explicit (`setNiriEngine(_:)`). Plan: `planned/20260614-narrow-wmcontroller-public-surface.md`.
+### 7. Narrow WMController's public surface. Done — shipped 2026-06-20, follow-ups 2026-07-02.
+`WMController` (~3,600 LOC, ~190 funcs) is an intentional orchestrator, but handlers reach through it into `niriLayoutHandler` / `niriEngine` directly, giving command logic ad-hoc access to deep layout state. Cheap insurance before any second layout paradigm or new interactive mode: hide behind narrow protocols (e.g., `LayoutCoordinator`, `FocusCoordinator`), make `niriEngine` mutation explicit (`setNiriEngine(_:)`). Shipped to `main` as `776b9559` (coordinator protocols + `setNiriEngine` funnel), with follow-ups `e87bade3` (`preferredFrame(for:)` query seam) and `d1505910` (diagnostics extraction into `RuntimeDiagnosticsCoordinator`, WMController 5,031 → 3,939 LOC). Plan: `completed/20260614-narrow-wmcontroller-public-surface.md`; boundary verification: `discovery/20260702-mega-file-growth-and-narrow-wmcontroller-revisit.md`.
 
 ## Risk Hotspots (monitor, don't necessarily fix)
 
@@ -78,12 +78,9 @@ These are load-bearing decisions — future changes should not erode them:
 - `discovery/20260614-focus-guard-topology-fragility.md` — expands finding #9 (maps the four-way focus-guard coordination point and the monitor attach/detach seam; also references #5, #6, #7, #10).
 - `discovery/20260614-ax-frame-write-verification-race.md` — expands finding #10 (corrects the readback-race mental model, traces how a racy readback propagates into the dedup/learn caches, audits the SkyLight oracle, lays out implementation options).
 
-**Active plans:**
-
-- `planned/20260614-narrow-wmcontroller-public-surface.md` — implements finding #7.
-
 **Closed by PR (findings marked Done):**
 
+- #7 narrow WMController surface — `776b9559`, follow-ups `e87bade3` + `d1505910`; plan now at `completed/20260614-narrow-wmcontroller-public-surface.md`.
 - #2 app-rule TOML parse diagnostics — merged 2026-07-02 (`a2055ff8`).
 - #3 reverse index + #4 monitor-ID validation — PR #40 (`ef6cd44`).
 - #5 `WindowVisibility` enum — PR #41 (`ec615dc`).
