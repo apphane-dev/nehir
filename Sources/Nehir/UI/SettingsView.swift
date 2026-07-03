@@ -563,9 +563,31 @@ private struct PercentTextField: View {
     }
 }
 
+private struct PresetRow: Identifiable {
+    let id: UUID
+    var value: Double
+}
+
 struct GlobalNiriSettingsSection: View {
     @Bindable var settings: SettingsStore
     @Bindable var controller: WMController
+
+    @State private var presetRows: [PresetRow]
+
+    init(settings: SettingsStore, controller: WMController) {
+        self.settings = settings
+        self.controller = controller
+        _presetRows = State(
+            initialValue: settings.niriColumnWidthPresets.map { PresetRow(id: UUID(), value: $0) }
+        )
+    }
+
+    private func syncPresetRows() {
+        let external = settings.niriColumnWidthPresets
+        if presetRows.map(\.value) != external {
+            presetRows = external.map { PresetRow(id: UUID(), value: $0) }
+        }
+    }
 
     var body: some View {
         let defaultColumnWidthMode = Binding(
@@ -603,7 +625,6 @@ struct GlobalNiriSettingsSection: View {
                 controller.updateNiriConfig(loneWindowPolicy: settings.loneWindowPolicy)
             }
         )
-        let presets = settings.niriColumnWidthPresets
 
         Section("Default Column Width") {
             LabeledContent("Mode") {
@@ -664,25 +685,25 @@ struct GlobalNiriSettingsSection: View {
         }
 
         Section("Resize Presets") {
-            ForEach(presets.indices, id: \.self) { index in
+            ForEach(Array(presetRows.enumerated()), id: \.element.id) { index, row in
                 LabeledContent("Preset \(index + 1)") {
                     HStack {
                         PercentTextField(
                             title: "Preset \(index + 1)",
-                            value: Int(presets[index] * 100),
+                            value: Int(row.value * 100),
                             range: 5 ... 100,
                             onCommit: { newPercent in
-                                var current = settings.niriColumnWidthPresets
-                                current[index] = Double(newPercent) / 100.0
-                                settings.niriColumnWidthPresets = current
+                                guard let idx = presetRows.firstIndex(where: { $0.id == row.id }) else { return }
+                                presetRows[idx].value = Double(newPercent) / 100.0
+                                settings.niriColumnWidthPresets = presetRows.map(\.value)
                                 controller.updateNiriConfig(columnWidthPresets: settings.niriColumnWidthPresets)
                             }
                         )
                         .accessibilityLabel("Preset \(index + 1) width")
                         Button(role: .destructive) {
-                            var presets = settings.niriColumnWidthPresets
-                            presets.remove(at: index)
-                            settings.niriColumnWidthPresets = presets
+                            guard let idx = presetRows.firstIndex(where: { $0.id == row.id }) else { return }
+                            presetRows.remove(at: idx)
+                            settings.niriColumnWidthPresets = presetRows.map(\.value)
                             controller.updateNiriConfig(columnWidthPresets: settings.niriColumnWidthPresets)
                         } label: {
                             Label("Remove preset \(index + 1)", systemImage: "minus.circle")
@@ -690,16 +711,15 @@ struct GlobalNiriSettingsSection: View {
                         }
                         .buttonStyle(.borderless)
                         .help("Remove preset \(index + 1)")
-                        .disabled(settings.niriColumnWidthPresets.count <= 2)
+                        .disabled(presetRows.count <= 2)
                     }
                 }
             }
 
             HStack {
                 Button("Add Preset") {
-                    var presets = settings.niriColumnWidthPresets
-                    presets.append(0.5)
-                    settings.niriColumnWidthPresets = presets
+                    presetRows.append(PresetRow(id: UUID(), value: 0.5))
+                    settings.niriColumnWidthPresets = presetRows.map(\.value)
                     controller.updateNiriConfig(columnWidthPresets: settings.niriColumnWidthPresets)
                 }
                 Button("Reset Resize Presets") {
@@ -709,7 +729,8 @@ struct GlobalNiriSettingsSection: View {
             }
             SettingsCaption("Used only by width-cycle commands. These do not affect default column width.")
         }
-        .id(settings.niriColumnWidthPresets.count)
+        .onAppear { syncPresetRows() }
+        .onChange(of: settings.niriColumnWidthPresets) { _, _ in syncPresetRows() }
     }
 }
 
