@@ -1,9 +1,12 @@
 # Discovery: unmanaged-focused window can never be admitted — non-managed focus suppresses its own admission
 
-Status: discovery — runtime evidence and source mechanism both fully confirmed
+Status: resolved — runtime evidence and source mechanism both fully confirmed
 across five captures; the admission pipeline is working exactly as coded. The
 fix has one design decision (which user-intent signal should exempt the
-admission), captured under "Fix options" below.
+admission), captured under "Fix options" below. **Fix option A landed** on
+branch `fix/nonmanaged-admission-exemption` in commit `fc4d11aa` (plus the
+trace fix from C); see
+`completed/20260703-fix-unrequested-admission-guard-user-activation-exemption.md`.
 
 Validated against the main Nehir source tree on 2026-07-03 at commit `8286c192`
 ("Show other displays in the workspace bar"), the build that produced the

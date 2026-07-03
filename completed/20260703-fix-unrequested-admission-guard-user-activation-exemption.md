@@ -1,5 +1,26 @@
 # Plan: exempt user-activated apps from the unrequested-admission guard
 
+**Status:** completed — implemented on branch
+`fix/nonmanaged-admission-exemption` in commit `fc4d11aa` ("Exempt
+user-activated apps from the unrequested-admission guard"), pending merge to
+`main`. Moved from `planned/` to `completed/`. All four tasks landed:
+`AXEventHandler` gained a short-TTL (`recentAppActivationTTL = 10s`)
+`recentAppActivationByPid` map fed only by
+`source == .workspaceDidActivateApplication` activations (mirroring
+`recentManagedWorkspaceByPid` mechanics, cleared on cleanup/reset/app-terminate);
+`shouldSuppressUnrequestedAdmissionDuringNonManagedFocus` gained a
+`recent_app_activation` exemption after the `recent_pid_workspace` check, order
+of existing exemptions unchanged; a `windowDecisionSuppressed`
+(`window_decision_suppressed token=…`) trace record is emitted whenever the
+guard vetoes, so decision-record greps no longer misread a vetoed window as
+admitted (Task 3, smallest-honest-change — no pipeline restructure). Four unit
+tests added to `Tests/NehirTests/AXEventHandlerTests.swift` (recent activation
+→ exempt; stale >TTL via injected clock → suppressed; `.focusedWindowChanged`
+-only → not exempt; existing exemptions unchanged). Full suite green (1390 tests
+/ 115 suites); SwiftFormat/SwiftLint clean; `patch` changeset added. Manual
+runtime verification against the discovery's confirmed repro still pending
+(user to run). Executed by a delegated agent (opus-4.8) in a worktree.
+
 Source discovery:
 `discovery/20260703-user-activated-slack-suppressed-as-stale-under-nonmanaged-focus.md`
 (read it first — it contains the full evidence, the confirmed reproduction
