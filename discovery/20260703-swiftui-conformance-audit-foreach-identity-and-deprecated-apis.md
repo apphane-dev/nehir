@@ -5,8 +5,11 @@ plans executed and shipped on `main` 2026-07-03 (`c3f1856d` + `6c3e65ce`, and
 `ea013f2c`):
 `completed/20260703-fix-foreach-index-identity-in-settings-and-onboarding.md` (correctness),
 `completed/20260703-migrate-foregroundcolor-to-foregroundstyle.md` (mechanical sweep).
-Finding 4 (tap-gesture buttons, `@Observable` migration) remains open with no
-plan — revisit if command-palette work comes up.
+Finding 4 (tap-gesture buttons, `@Observable` migration) split into its own
+discovery
+`discovery/20260703-command-palette-tap-gesture-accessibility-and-observable-migration.md`;
+still open (no plan), gated on a product decision — revisit if command-palette
+work comes up.
 
 Audited against the main Nehir source tree on 2026-07-03 at commit `8286c192`
 ("Show other displays in the workspace bar"), using the SwiftUI Agent Skill
@@ -94,6 +97,12 @@ Per the skill's soft-deprecation guidance this should be a dedicated mechanical
 sweep, not folded into feature edits.
 
 ## Finding 4 (accessibility/modernization candidates, no plan yet)
+
+Split into its own document 2026-07-03 with concrete evidence and options:
+`discovery/20260703-command-palette-tap-gesture-accessibility-and-observable-migration.md`.
+Summary retained below; that doc supersedes it and carries the design/risk
+decisions.
+
 
 - **Tap gestures instead of buttons.** Nine `.onTapGesture` sites act as
   activation on row/list content — six in the command palette
