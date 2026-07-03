@@ -281,12 +281,12 @@ struct AppRulesEmptyState: View {
             VStack(spacing: 16) {
                 Image(systemName: "app.badge.checkmark")
                     .font(.system(size: 48))
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                 Text("No App Rule Selected")
                     .font(.headline)
                 Text("Select an app rule from the sidebar to edit it,\nor add a new rule to get started.")
                     .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                 Button("Add Rule", action: onAdd)
                     .buttonStyle(.borderedProminent)
@@ -337,7 +337,7 @@ struct AppRuleDetailView: View {
                 LabeledContent("Bundle ID") {
                     Text(draft.bundleId)
                         .font(.system(.body, design: .monospaced))
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
             }
 
@@ -394,7 +394,7 @@ struct AppRuleDetailView: View {
                             .textFieldStyle(.roundedBorder)
                             .frame(width: 100)
                         Text("px")
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                     }
                 }
 
@@ -406,7 +406,7 @@ struct AppRuleDetailView: View {
                             .textFieldStyle(.roundedBorder)
                             .frame(width: 100)
                         Text("px")
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                     }
                 }
 
@@ -490,13 +490,13 @@ struct AppRuleAddPane: View {
                     if let error = bundleIdError {
                         Text(error)
                             .font(.caption)
-                            .foregroundColor(.red)
+                            .foregroundStyle(.red)
                     }
 
                     DisclosureGroup(isExpanded: $isPickerExpanded) {
                         if runningApps.isEmpty {
                             Text("No apps with windows found")
-                                .foregroundColor(.secondary)
+                                .foregroundStyle(.secondary)
                                 .font(.caption)
                         } else {
                             ScrollView {
@@ -535,7 +535,7 @@ struct AppRuleAddPane: View {
 
                     Text("Examples: com.apple.finder or dentalplus-air")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
 
                 Section("Window Behavior") {
@@ -550,7 +550,7 @@ struct AppRuleAddPane: View {
                             "Ignored windows are left out of Nehir's managed model. Layout, Sticky, workspace, and size effects will not apply."
                         )
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                     }
 
                     Picker("Layout", selection: $draft.layoutAction) {
@@ -581,7 +581,7 @@ struct AppRuleAddPane: View {
                         if workspaceNames.isEmpty {
                             Text("No workspaces configured. Add workspaces in Settings.")
                                 .font(.caption)
-                                .foregroundColor(.secondary)
+                                .foregroundStyle(.secondary)
                         }
                     }
                 }
@@ -595,7 +595,7 @@ struct AppRuleAddPane: View {
                                 .textFieldStyle(.roundedBorder)
                                 .frame(width: 100)
                             Text("px")
-                                .foregroundColor(.secondary)
+                                .foregroundStyle(.secondary)
                         }
                     }
 
@@ -607,13 +607,13 @@ struct AppRuleAddPane: View {
                                 .textFieldStyle(.roundedBorder)
                                 .frame(width: 100)
                             Text("px")
-                                .foregroundColor(.secondary)
+                                .foregroundStyle(.secondary)
                         }
                     }
 
                     Text("Prevents layout engine from sizing window smaller than these values.")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
 
                 Section {
@@ -694,7 +694,7 @@ struct AdvancedMatchersEditor: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Use advanced matchers when bundle-level rules are too broad.")
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
 
             Toggle("App Name Contains", isOn: $draft.appNameMatcherEnabled)
             if draft.appNameMatcherEnabled {
@@ -721,7 +721,7 @@ struct AdvancedMatchersEditor: View {
                 if let regexError {
                     Text("Title regex is invalid: \(regexError)")
                         .font(.caption)
-                        .foregroundColor(.red)
+                        .foregroundStyle(.red)
                 }
             }
 
@@ -785,7 +785,7 @@ struct FocusedWindowInspectorView: View {
                 } else {
                     Text("No focused window is available for inspection.")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -810,7 +810,7 @@ struct RuleBadge: View {
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
             .background(color.opacity(0.2))
-            .foregroundColor(color)
+            .foregroundStyle(color)
             .clipShape(RoundedRectangle(cornerRadius: 4))
     }
 }
@@ -835,21 +835,21 @@ struct RunningAppRow: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(app.appName)
                         .font(.body)
-                        .foregroundColor(.primary)
+                        .foregroundStyle(.primary)
                     Text(app.bundleId)
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
 
                 Spacer()
 
                 Text("\(Int(app.windowSize.width))x\(Int(app.windowSize.height))")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
 
                 if isSelected {
                     Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(.accentColor)
+                        .foregroundStyle(Color.accentColor)
                 }
             }
             .padding(.vertical, 4)

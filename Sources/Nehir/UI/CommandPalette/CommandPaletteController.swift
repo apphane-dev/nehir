@@ -1223,14 +1223,14 @@ private struct CommandPaletteView: View {
 
                 HStack(spacing: 8) {
                     Image(systemName: "magnifyingglass")
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                     TextField(searchPlaceholder, text: $controller.searchText)
                         .textFieldStyle(.plain)
                         .font(.system(size: 18))
                     if !controller.searchText.isEmpty {
                         Button(action: { controller.searchText = "" }) {
                             Image(systemName: "xmark.circle.fill")
-                                .foregroundColor(.secondary)
+                                .foregroundStyle(.secondary)
                         }
                         .buttonStyle(.plain)
                     }
@@ -1239,7 +1239,7 @@ private struct CommandPaletteView: View {
                 HStack(spacing: 8) {
                     Text(statusText)
                         .font(.system(size: 12))
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                         .lineLimit(1)
                     Spacer()
                 }
@@ -1467,10 +1467,10 @@ private struct CommandPaletteModePicker: View {
             HStack(spacing: 10) {
                 Text(hint.title)
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(tabTitleColor(isSelected: isSelected, enabled: enabled))
+                    .foregroundStyle(tabTitleColor(isSelected: isSelected, enabled: enabled))
                 Text(hint.shortcut)
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(tabShortcutColor(isSelected: isSelected, enabled: enabled))
+                    .foregroundStyle(tabShortcutColor(isSelected: isSelected, enabled: enabled))
             }
             .frame(maxWidth: .infinity)
             .padding(.horizontal, 10)
@@ -1513,7 +1513,7 @@ private struct CommandPaletteShortcutBadge: View {
     var body: some View {
         Text(text)
             .font(.system(size: 10, weight: .semibold, design: .monospaced))
-            .foregroundColor(foregroundColor)
+            .foregroundStyle(foregroundColor)
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
             .background(backgroundColor)
@@ -1548,7 +1548,7 @@ private struct CommandPaletteLoadingView: View {
                 .scaleEffect(0.85)
             Text(text)
                 .font(.system(size: 13))
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
                 .padding(.top, 8)
             Spacer()
         }
@@ -1565,10 +1565,10 @@ private struct CommandPaletteEmptyStateView: View {
             Spacer()
             Image(systemName: symbolName)
                 .font(.system(size: 30))
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
             Text(text)
                 .font(.system(size: 13))
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
                 .padding(.top, 8)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 24)
@@ -1584,7 +1584,7 @@ private struct CommandPaletteFallbackSectionHeader: View {
     var body: some View {
         Text(title)
             .font(.system(size: 11, weight: .semibold))
-            .foregroundColor(.secondary)
+            .foregroundStyle(.secondary)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 16)
             .padding(.top, 8)
@@ -1612,7 +1612,7 @@ private struct CommandPaletteWindowRow: View {
                 Image(systemName: "app.fill")
                     .resizable()
                     .frame(width: 32, height: 32)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
 
             VStack(alignment: .leading, spacing: 2) {
@@ -1621,7 +1621,7 @@ private struct CommandPaletteWindowRow: View {
                     .lineLimit(1)
                 Text(item.appName)
                     .font(.system(size: 12))
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
 
@@ -1631,7 +1631,7 @@ private struct CommandPaletteWindowRow: View {
                 if let summonHint {
                     Text(summonHint.title)
                         .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                     CommandPaletteShortcutBadge(text: summonHint.shortcut)
                 }
 
@@ -1663,7 +1663,7 @@ private struct CommandPaletteMenuRow: View {
                 if !item.parentTitles.isEmpty {
                     Text(item.parentTitles.joined(separator: " > "))
                         .font(.system(size: 11))
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
             }
@@ -1693,7 +1693,7 @@ private struct CommandPaletteCommandRow: View {
                     .lineLimit(1)
                 Text(item.category.rawValue)
                     .font(.system(size: 11))
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
 
