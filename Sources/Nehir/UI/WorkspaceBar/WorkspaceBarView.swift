@@ -644,7 +644,7 @@ private struct WorkspaceLabelButton: View {
         Button(action: onFocusWorkspace) {
             Text(item.name)
                 .font(.system(.caption, design: .monospaced).weight(.medium))
-                .foregroundColor(resolvedLabelColor)
+                .foregroundStyle(resolvedLabelColor)
                 .frame(minWidth: 16)
                 .contentShape(Rectangle())
         }
@@ -693,7 +693,7 @@ private struct ForeignWorkspaceGroupView: View {
         HStack(spacing: 4) {
             Image(systemName: "display")
                 .font(.system(size: max(9, iconSize * 0.58), weight: .medium))
-                .foregroundColor(resolvedSecondaryTextColor.opacity(0.75))
+                .foregroundStyle(resolvedSecondaryTextColor.opacity(0.75))
                 .accessibilityHidden(true)
 
             ForEach(group.items, id: \.id) { item in
@@ -750,7 +750,7 @@ private struct ForeignWorkspaceItemView: View {
                 }
                 Text(item.name)
                     .font(.system(.caption, design: .monospaced).weight(.medium))
-                    .foregroundColor(textColor ?? .primary)
+                    .foregroundStyle(textColor ?? .primary)
                     .frame(minWidth: 16)
             }
             .padding(.horizontal, 6)
@@ -880,7 +880,7 @@ private struct StickyPillView: View {
         HStack(spacing: 5) {
             Image(systemName: "pin.fill")
                 .font(.system(size: max(10, iconSize * 0.64), weight: .semibold))
-                .foregroundColor(isFocused ? resolvedAccentColor : resolvedSecondaryTextColor)
+                .foregroundStyle(isFocused ? resolvedAccentColor : resolvedSecondaryTextColor)
                 .accessibilityHidden(true)
 
             ForEach(item.windows, id: \.id) { window in
@@ -952,7 +952,7 @@ private struct ScratchpadPillView: View {
             HStack(spacing: 5) {
                 Image(systemName: "tray.fill")
                     .font(.system(size: max(10, iconSize * 0.64), weight: .semibold))
-                    .foregroundColor(item.window.isFocused ? resolvedAccentColor : resolvedSecondaryTextColor)
+                    .foregroundStyle(item.window.isFocused ? resolvedAccentColor : resolvedSecondaryTextColor)
                     .accessibilityHidden(true)
 
                 AppIconImage(icon: item.window.icon)
@@ -1239,7 +1239,7 @@ private struct WindowCountBadge: View {
     var body: some View {
         Text("\(count)")
             .font(.caption2.weight(.semibold).monospacedDigit())
-            .foregroundColor(textColor ?? .primary)
+            .foregroundStyle(textColor ?? .primary)
             .padding(.horizontal, 3)
             .padding(.vertical, 1)
             .background(
@@ -1414,12 +1414,12 @@ private struct WindowListSheet: View {
                 } label: {
                     HStack {
                         Text(windowInfo.title)
-                            .foregroundColor(windowInfo
+                            .foregroundStyle(windowInfo
                                 .isFocused ? resolvedPrimaryTextColor : resolvedSecondaryTextColor)
                         Spacer()
                         if windowInfo.isFocused {
                             Image(systemName: "checkmark.circle.fill")
-                                .foregroundColor(resolvedAccentColor)
+                                .foregroundStyle(resolvedAccentColor)
                         }
                     }
                 }

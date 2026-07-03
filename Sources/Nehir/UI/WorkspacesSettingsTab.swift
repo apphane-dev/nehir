@@ -262,7 +262,7 @@ struct WorkspaceSidebarRow: View {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text(configuration.name)
                     .font(.system(.body, design: .monospaced).weight(.bold))
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
 
                 Text(configuration.displayName.flatMap { $0.isEmpty ? nil : $0 } ?? "Workspace \(configuration.name)")
                     .font(.body)
@@ -275,7 +275,7 @@ struct WorkspaceSidebarRow: View {
                     .frame(width: 6, height: 6)
                 Text(monitorLabel)
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
         }
         .padding(.vertical, 4)
@@ -303,12 +303,12 @@ struct WorkspacesEmptyState: View {
             VStack(spacing: 16) {
                 Image(systemName: "square.grid.2x2")
                     .font(.system(size: 48))
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                 Text("No Workspace Selected")
                     .font(.headline)
                 Text("Select a workspace from the sidebar to edit it,\nor add a new workspace to get started.")
                     .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                 Button("Add Workspace", action: onAdd)
                     .buttonStyle(.borderedProminent)
@@ -316,7 +316,7 @@ struct WorkspacesEmptyState: View {
                 GroupBox {
                     Text(WorkspaceConfigurationAddPolicy.footerText)
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                         .frame(maxWidth: .infinity)
                 }
@@ -348,7 +348,7 @@ struct WorkspaceDetailPane: View {
                 LabeledContent("Internal ID") {
                     Text(configuration.name)
                         .font(.system(.body, design: .monospaced))
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
             } header: {
                 Text("Identity")
@@ -429,7 +429,7 @@ struct WorkspaceAddPane: View {
                 LabeledContent("Internal ID") {
                     Text(configuration.name)
                         .font(.system(.body, design: .monospaced))
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
             } header: {
                 Text("Identity")
@@ -482,7 +482,7 @@ struct HomeMonitorPicker: View {
                 HStack {
                     Text(monitor.name)
                     if monitor.isMain {
-                        Text("(Main)").foregroundColor(.secondary)
+                        Text("(Main)").foregroundStyle(.secondary)
                     }
                 }
                 .tag(MonitorAssignment.specificDisplay(OutputId(from: monitor)))

@@ -19,7 +19,7 @@ struct SettingsSceneRedirectView: View {
         VStack(spacing: 8) {
             ProgressView()
             Text(didRedirect ? "Opening Nehir Settings…" : "Starting Nehir…")
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
         }
         .frame(width: 1, height: 1)
         .background(
