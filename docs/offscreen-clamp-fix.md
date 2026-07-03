@@ -87,6 +87,27 @@ the target monitor's vertical band. This does not remove macOS offscreen clampin
 avoids the wrong-display parking coordinates seen in direct built-in ↔ external workspace
 assignment traces.
 
+### 6. SkyLight Move Coordinate Bug (Window Height Not Accounted) — Found, Not Yet Fixed
+
+`AXManager.applyPositionsViaSkyLight` converts each requested AppKit top-left origin to a
+Quartz (WindowServer) coordinate via a bare point flip (`ScreenCoordinateSpace.toWindowServer(point:)`),
+without subtracting the window's height. For a requested AppKit origin `(2055, 7)` with height
+`1251` on a 1329-tall screen, this produces Quartz `(2055, 1322)` — placing the window's
+top-left near the bottom of the screen, so the window ends up almost entirely below the
+visible band rather than at the intended row. `hidePlan.verify` then reads the resulting AX
+origin as `(2055, -1244)` (`dy=1251`, exactly the window height), fails the exact-match
+check, and falls through to the AX fallback on every single park — the SkyLight move never
+actually lands the window at its intended target under the current code path. The correct
+height-accounted Quartz coordinate is already computed for diagnostic logging as
+`hintedBottomLeft` (e.g. `(2055, 71)` for the same example) but is not used for the move.
+
+This is a genuine, narrow bug independent of the Dock clamp (see finding #17 above): fixing
+it makes the SkyLight move land exactly on target and removes the always-AX-fallback
+behavior. It does **not** fix Dock-edge parking — WindowServer re-clamps the corrected
+SkyLight move too (see #17) — but it is worth fixing on its own, since it currently makes
+every park depend on the AX fallback path when SkyLight alone should suffice on non-Dock
+edges.
+
 ## Status
 
 **PARTIALLY SOLVED (corner parking).** The `layoutTransient` hide pushes windows to
@@ -192,6 +213,22 @@ intrusive.
 The vertical clamp is not an exact constant. Auto-hide traces show 32px (1068−1036),
 while earlier traces showed ~34px. The threshold may vary with window size or timing.
 
+### Confirmed: The Dock-Edge Clamp Applies to SkyLight Moves Too, Not Just AX
+
+A later session measured a right-hidden window (1011px wide) on a 2056-wide screen with a
+fixed right Dock (`visibleFrame.maxX=1969`, ≈87px Dock inset). Requesting the near-edge
+target `x=2055` (physical edge − 1px reveal) through the **uncorrected** SkyLight move (see
+finding #6/#17) always fell through to the AX fallback, which clamped to `x=1929` — a 127px
+strip (87px Dock + 40px standard clamp).
+
+After fixing the SkyLight move's coordinate bug (see [SkyLight Move Coordinate Bug](#6-skylight-move-coordinate-bug-window-height-not-accounted--found-not-yet-fixed))
+so the move lands exactly on `(2055, 7)` with no AX fallback triggered, the window's live
+frame still drifted back to `x=1943` (a ~113px strip) on the very next layout snapshot, with
+no further Nehir frame write in between. **The Dock-edge clamp is a WindowServer-level
+re-clamp that applies to a SkyLight-placed window just as it applies to an AX-placed one.**
+Neither backend can hold a window past the Dock-reserved region on the Dock's own edge. See
+finding #17 in [Approaches That Did Not Work](#approaches-that-did-not-work).
+
 ## Approaches That Did Not Work
 
 | # | Approach | Result | Evidence |
@@ -212,6 +249,7 @@ while earlier traces showed ~34px. The threshold may vary with window size or ti
 | 14 | `SLSSetWindowTransform` / `CGSSetWindowTransform` raw near-zero scale | API returns success but does not hide external app pixels reliably. Raw scale pulls windows toward global origin, causing random-width left-edge clamp artifacts. | Trace: `hideTransform.apply ... result=CGError(rawValue: 0)` followed by visible artifacts |
 | 15 | Anchored `SLSSetWindowTransform` near-zero scale, skip move | API still returns success, but the window remains visually parked at natural left-clamped position — effectively as if nothing happened/worse. Transform is not a usable external-window hide primitive. | |
 | 16 | Explicit 1px edge parking on both sides | **Intermittent mitigation, not a complete fix.** The approach improves the common non-Dock-edge case, but must not be described as fully confirmed or universally reliable. Slowly approaching the edge can look stable briefly, but after the window is classified hidden/parked, a visible strip can remain stuck on screen (~15px or more observed). A later physical-frame variant showed some windows parked at `-851`/`1727`, while another stale/cached-hidden window remained live-clamped at `-812`. | Evidence: one right-edge run requested `placement=(1728,8) result=(1728,8)` for `frame=(1726,8 1626x1068)`, then AX fallback targeted `(1727.5,8)` and observed `(1727,8)` for a 1626px-wide window. Another run requested `experiment=physicalEdge1pt ... result=(-851,8)`, but layout decisions showed one window with `target=-852 ... live=-812`, while neighboring hidden windows were `live=-851`. |
+| 17 | SkyLight-only move to the physical edge, past the Dock, with the AX fallback made unreachable by fixing the SkyLight move's coordinate | **Disproven — WindowServer re-clamps the SkyLight move itself, not just the AX fallback.** `AXManager.applyPositionsViaSkyLight` was found to feed the wrong Quartz coordinate for the move (it flips the window's AppKit top-left as a bare point, without subtracting window height, so the intended near-edge origin lands far below the real screen). Feeding it the height-corrected coordinate made the SkyLight move land exactly on the requested near-edge target and let `hidePlan.verify` pass with no AX fallback — but with a fixed Dock on the parking edge, the window's live frame still drifted back onto the Dock-reserved region afterward, with **zero further Nehir frame writes issued**. WindowServer re-clamps the SkyLight-placed window on its own, the same way it re-clamps the AX fallback. | Evidence: a right park requested `(2055,7)` on a 2056-wide screen with `visibleFrame.maxX=1969` (87px right Dock inset). Corrected-coordinate SkyLight move: `hidePlan.verify requested=(2055,7) observed=(2055,7) dx=0.0 dy=0.0 fallback=no`, `hidePlan.final ... verified=false`, `parking_verify_mismatch backend=skylight ... visibleRisk=false` — the move landed exactly on target with no fallback triggered. No further frame-apply call for that window followed. The next layout snapshot nonetheless showed the window's live frame at `1943` (`hidden:right`), a ~113px strip (`2056 − 1943`), matching the same clamp family as the AX-fallback case (`1929` in the uncorrected run). Since Nehir issued nothing between the confirmed `(2055,7)` verify and the observed `1943` drift, the re-clamp is WindowServer's, not Nehir's animation writer's. |
 
 ### Why Right-Hidden Windows Can Appear Invisible — But Are Not Reliable
 
@@ -350,3 +388,39 @@ No failing test is kept in the tree: the runtime behavior depends on WindowServe
 SkyLight behavior that unit tests can only simulate. A future fix should first be confirmed
 manually with layout traces and visual testing, then covered by tests for the code
 path/invariants that are under Nehir's control.
+
+## Iteration: Fixed-Dock Edge Confirmed Unbeatable Positionally (SkyLight Included)
+
+A follow-up investigation set out to answer whether a fixed Dock on the parking edge could
+be fixed by routing the park through SkyLight instead of the AX fallback, since SkyLight
+moves are not documented to hit the same clamp as `AXUIElementSetAttributeValue`. Two things
+were established (see finding #17 in [Approaches That Did Not Work](#approaches-that-did-not-work)
+and [SkyLight Move Coordinate Bug](#6-skylight-move-coordinate-bug-window-height-not-accounted--found-not-yet-fixed)):
+
+1. `AXManager.applyPositionsViaSkyLight` has a real, narrow coordinate bug (window height
+   not accounted for in the AppKit→Quartz flip) that makes every park fall through to the AX
+   fallback regardless of Dock presence. This is worth fixing independently of the Dock
+   question.
+2. Once that bug is corrected and the SkyLight move lands exactly on the requested near-edge
+   target with no AX fallback triggered, a fixed Dock on the parking edge still re-clamps the
+   window back onto the Dock-reserved region on its own, with no further Nehir frame write in
+   between the confirmed on-target verify and the observed drift. This rules out "avoid the
+   AX fallback" as a fix for the Dock case: the clamp is enforced by WindowServer against
+   both backends.
+
+**Conclusion: no positional primitive available to Nehir (AX or SkyLight) can hold a window
+past the Dock-reserved region on the Dock's own parking edge.** The support stance from the
+prior iteration — fixed Dock on the target parking edge is a known degraded/unsupported
+configuration — stands, and is now confirmed for the SkyLight path as well, not just AX.
+
+The active direction going forward is **virtual-display parking**: creating a display with
+no physical screen and parking hidden windows fully inside its frame, so the park never
+approaches a real screen or Dock-reserved edge at all. A feasibility spike already confirmed
+the core hypothesis — a window parked fully inside a virtual display's frame is not clamped
+and its AX-observed origin matches the requested target exactly, while the window remains
+alive/ordered-in and invisible on the real display. A full single-display integration attempt
+is in progress in a separate branch, reusing the spike's private-API loader
+(`Sources/Nehir/Core/SkyLight/VirtualParkDisplay.swift`) as its starting point. Do not mark
+virtual-display parking as fixed/solved until it is manually confirmed end-to-end (workspace
+bar, gestures, focus, and reveal all still functioning, plus visual confirmation of no strip
+on the real display) per the pitfalls above — a clean compile is not sufficient evidence.
