@@ -45,7 +45,7 @@ struct ConfigRecoveryView: View {
                     .foregroundStyle(.secondary)
                     .textSelection(.enabled)
 
-                ForEach(Array(details.enumerated()), id: \.offset) { _, detail in
+                ForEach(details, id: \.self) { detail in
                     HStack(alignment: .top, spacing: 10) {
                         Image(systemName: "xmark.circle.fill")
                             .font(.callout)

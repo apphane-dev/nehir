@@ -258,7 +258,7 @@ struct WorkspaceBarAnimation: View {
                     .foregroundStyle(isFocused ? Color.accentColor : Color.secondary)
                     .frame(minWidth: 10)
             }
-            ForEach(Array(displayedWindows(ws.tiledWindows).enumerated()), id: \.offset) { _, item in
+            ForEach(displayedWindows(ws.tiledWindows)) { item in
                 windowIcon(symbol: item.symbol, count: item.count, isFocused: isFocused)
             }
             if showFloatingWindows && !ws.floatingWindows.isEmpty {
@@ -320,9 +320,17 @@ struct WorkspaceBarAnimation: View {
 
     /// Collapses duplicate app icons into a single icon with a count badge when
     /// "Group Windows by App" is on; otherwise renders every window icon individually.
-    private func displayedWindows(_ windows: [MockWindow]) -> [(symbol: String, count: Int)] {
+    private struct DisplayedWindow: Identifiable {
+        let id: String
+        let symbol: String
+        let count: Int
+    }
+
+    private func displayedWindows(_ windows: [MockWindow]) -> [DisplayedWindow] {
         if !deduplicateAppIcons {
-            return windows.map { (symbol: $0.symbol, count: 1) }
+            return windows.map { window in
+                DisplayedWindow(id: window.id.uuidString, symbol: window.symbol, count: 1)
+            }
         }
         var order: [String] = []
         var counts: [String: Int] = [:]
@@ -330,7 +338,7 @@ struct WorkspaceBarAnimation: View {
             if counts[window.symbol] == nil { order.append(window.symbol) }
             counts[window.symbol, default: 0] += 1
         }
-        return order.map { (symbol: $0, count: counts[$0] ?? 0) }
+        return order.map { DisplayedWindow(id: $0, symbol: $0, count: counts[$0] ?? 0) }
     }
 
     private func windowIcon(symbol: String, count: Int, isFocused: Bool) -> some View {
@@ -356,7 +364,7 @@ struct WorkspaceBarAnimation: View {
                 .font(.system(size: max(9, iconSize * 0.58), weight: .medium))
                 .foregroundStyle(isFocused ? Color.primary : Color.secondary)
                 .accessibilityHidden(true)
-            ForEach(Array(displayedWindows(windows).enumerated()), id: \.offset) { _, item in
+            ForEach(displayedWindows(windows)) { item in
                 windowIcon(symbol: item.symbol, count: item.count, isFocused: isFocused)
             }
         }

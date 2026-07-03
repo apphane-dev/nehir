@@ -229,7 +229,7 @@ struct NavigationStepControl: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
+            ForEach(Array(rows.enumerated()), id: \.element.bindingID) { index, row in
                 NavigationShortcutRow(
                     keys: keyDisplayString(for: row.bindingID),
                     description: row.description
