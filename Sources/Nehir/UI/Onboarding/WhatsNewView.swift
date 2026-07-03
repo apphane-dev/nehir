@@ -39,7 +39,7 @@ struct WhatsNewView: View {
                         settingsWarningsCard
                     }
 
-                    ForEach(Array(sections.enumerated()), id: \.offset) { _, section in
+                    ForEach(sections, id: \.title) { section in
                         sectionCard(section)
                     }
                 }
@@ -150,7 +150,7 @@ struct WhatsNewView: View {
             }
             .padding(.bottom, 4)
 
-            ForEach(Array(section.bullets.enumerated()), id: \.offset) { index, bullet in
+            ForEach(Array(section.bullets.enumerated()), id: \.element) { index, bullet in
                 if index > 0 {
                     Divider().opacity(0.5)
                 }
