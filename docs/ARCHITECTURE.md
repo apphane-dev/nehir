@@ -414,6 +414,7 @@ When AX readback shows that a real app refused or clamped a requested resize, th
 | `serviceLifecycleManager` | App lifecycle, observer setup, permission polling |
 | `borderCoordinator` | Orchestrates border updates after layout/focus changes |
 | `focusNotificationDispatcher` | Publishes focus change events to IPC subscribers |
+| `diagnostics` (`RuntimeDiagnosticsCoordinator`) | Owns the diagnostics/trace surface: runtime-state dump/reset, trace capture toggling and export, the background trace clip buffer, viewport-mutation audit gating, and the debug snapshots behind the Diagnostics tab, DebugBar, command palette, and `nehirctl` debug endpoints |
 
 **Core managers** (owned directly):
 
