@@ -22,6 +22,7 @@ final class ServiceLifecycleManager {
     weak var controller: WMController?
 
     private var displayObserver: DisplayConfigurationObserver?
+    private var screenParametersObserver: NSObjectProtocol?
     private var appActivationObserver: NSObjectProtocol?
     private var appDeactivationObserver: NSObjectProtocol?
     private var appHideObserver: NSObjectProtocol?
@@ -107,6 +108,25 @@ final class ServiceLifecycleManager {
         controller.workspaceManager.onGapsChanged = { [weak self] in
             self?.handleGapsChanged()
         }
+        controller.dockEdgeShieldManager.trace = { [weak controller] message in
+            controller?.axManager.recordFrameApplyTrace(message)
+        }
+        controller.dockEdgeShieldManager.onButtonTap = { [weak self] in
+            // Re-evaluate the Dock environment as at app start: drop the learned insets
+            // and re-read the live configuration. If the Dock is genuinely gone, the
+            // working area reclaims the band and the shield hides itself.
+            DockReservation.forgetStickyInsets()
+            self?.handleMonitorConfigurationChanged()
+        }
+        controller.dockEdgeShieldManager.onLogoTap = { [weak controller] in
+            guard let controller else { return }
+            SettingsWindowController.shared.show(settings: controller.settings, controller: controller, section: .about)
+        }
+        controller.dockEdgeShieldManager.outerGapsProvider = { [weak controller] monitor in
+            controller?.outerGaps(for: monitor) ?? .zero
+        }
+        applyDockShieldSettings()
+        controller.dockEdgeShieldManager.update(monitors: controller.workspaceManager.monitors)
 
         performStartupRefresh()
         startLockScreenObserver()
@@ -129,6 +149,20 @@ final class ServiceLifecycleManager {
         displayObserver = DisplayConfigurationObserver()
         displayObserver?.setEventHandler { [weak self] event in
             self?.handleDisplayEvent(event)
+        }
+        // The Dock showing/hiding (e.g. a quick-terminal that hides the Dock while
+        // frontmost) changes screen parameters but is NOT a CGDisplay reconfiguration,
+        // so DisplayConfigurationObserver never fires for it. Without this the Dock
+        // reservation can be absent at launch and the viewport stays full-width until a
+        // manual restart. didChangeScreenParameters fires on every visibleFrame change.
+        screenParametersObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.handleMonitorConfigurationChanged()
+            }
         }
     }
 
@@ -170,6 +204,7 @@ final class ServiceLifecycleManager {
 
         controller.workspaceManager.applyMonitorConfigurationChange(currentMonitors)
         controller.syncMouseWarpPolicy(for: controller.workspaceManager.monitors)
+        controller.dockEdgeShieldManager.update(monitors: controller.workspaceManager.monitors)
         guard performPostUpdateActions else { return }
 
         controller.syncMonitorsToNiriEngine()
@@ -226,8 +261,48 @@ final class ServiceLifecycleManager {
         controller.layoutRefreshController.requestRefresh(reason: .unlock)
     }
 
+    /// Push the current Dock-Shield settings (enabled/color/opacity) into the manager and
+    /// refresh live shields. Call at setup and whenever those settings change.
+    func applyDockShieldSettings() {
+        guard let controller else { return }
+        let manager = controller.dockEdgeShieldManager
+        manager.isEnabled = controller.settings.dockShieldEnabled
+        manager.fillColorHex = controller.settings.dockShieldColorHex
+        manager.fillColorDarkHex = controller.settings.dockShieldColorDarkHex
+        manager.fillOpacity = controller.settings.dockShieldOpacity
+        manager.applyAppearance()
+        manager.update(monitors: controller.workspaceManager.monitors)
+    }
+
     func performStartupRefresh() {
         controller?.layoutRefreshController.requestRefresh(reason: .startup)
+        scheduleDockReservationSettleRefreshes()
+    }
+
+    /// The Dock's edge reservation — and its AX bar geometry — is frequently not
+    /// available for the first moment after launch, so the initial layout computes a
+    /// full-width viewport and it stays that way (a manual restart is what "fixes" it).
+    /// Re-read the monitor configuration a few times shortly after startup and re-apply
+    /// it only if the effective visibleFrame changed, so the viewport corrects itself.
+    private func scheduleDockReservationSettleRefreshes() {
+        guard controller != nil else { return }
+        for delay in [0.5, 1.5, 3.0] {
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .seconds(delay))
+                guard let self, let controller = self.controller else { return }
+                let fresh = Monitor.current()
+                let currentById = Dictionary(
+                    uniqueKeysWithValues: controller.workspaceManager.monitors.map { ($0.id, $0) }
+                )
+                let changed = fresh.contains { monitor in
+                    guard let current = currentById[monitor.id] else { return true }
+                    return abs(current.visibleFrame.width - monitor.visibleFrame.width) > 0.5
+                        || abs(current.visibleFrame.height - monitor.visibleFrame.height) > 0.5
+                }
+                guard changed else { return }
+                self.applyMonitorConfigurationChanged(currentMonitors: fresh)
+            }
+        }
     }
 
     func handleActiveSpaceDidChange() {
@@ -369,6 +444,10 @@ final class ServiceLifecycleManager {
 
         displayObserver = nil
 
+        if let observer = screenParametersObserver {
+            NotificationCenter.default.removeObserver(observer)
+            screenParametersObserver = nil
+        }
         if let observer = appActivationObserver {
             NSWorkspace.shared.notificationCenter.removeObserver(observer)
             appActivationObserver = nil

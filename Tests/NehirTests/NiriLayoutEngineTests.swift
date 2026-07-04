@@ -7143,11 +7143,12 @@ private func makeCenteredCrossMonitorFixture(
             return
         }
 
-        // Experimental live hide origin intentionally uses physical monitor frame
-        // parking, while layout's hidden animation frame still uses normal placement.
-        // This verifies only the requested live coordinate.
-        #expect(liveOrigin.x == monitors.primary.frame.minX - canonicalFrame.width + LayoutRefreshController
-            .hiddenWindowEdgeRevealEpsilon)
+        // Live hide origin parks 1pt inside the working (visibleFrame) edge. This
+        // verifies only the requested live coordinate.
+        #expect(
+            liveOrigin.x == monitors.primary.visibleFrame.minX - canonicalFrame.width + LayoutRefreshController
+                .hiddenWindowEdgeRevealEpsilon
+        )
         #expect(liveOrigin.y == canonicalFrame.origin.y)
         _ = hiddenFrame
     }
@@ -7227,11 +7228,15 @@ private func makeCenteredCrossMonitorFixture(
             return
         }
 
-        // Experimental live hide origin intentionally uses physical monitor frame
-        // parking, while layout's hidden animation frame still uses normal placement.
-        // This verifies only the requested live coordinate.
+        // Live hide origin parks 1pt inside the working (visibleFrame) edge. For a
+        // window on the lower display of a vertical stack, overlap avoidance parks it
+        // off the BOTTOM (minimum) edge so it does not bleed onto the stacked upper
+        // display.
         #expect(liveOrigin.x == canonicalFrame.origin.x)
-        #expect(liveOrigin.y == monitors.lower.frame.maxY - LayoutRefreshController.hiddenWindowEdgeRevealEpsilon)
+        #expect(
+            liveOrigin.y == monitors.lower.visibleFrame.minY - canonicalFrame.height + LayoutRefreshController
+                .hiddenWindowEdgeRevealEpsilon
+        )
         _ = hiddenFrame
     }
 

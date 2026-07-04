@@ -1,5 +1,13 @@
 # Offscreen Window Clamp Fix
 
+> **UPDATE (2026-07) — Fixed-Dock edge is SOLVED; virtual-display direction dropped.**
+> The parking problem on a fixed-Dock edge was resolved by (a) parking so the window keeps
+> **≥1px inside `visibleFrame`** (accepted verbatim, holds), and (b) **masking** the reserved
+> Dock band with an opaque panel behind the Dock (`DockEdgeShieldManager`). Several
+> "unbeatable / WindowServer re-clamps / EUI is the mechanism" conclusions below were
+> **superseded** — see [RESOLUTION (2026-07)](#resolution-2026-07-fixed-dock-edge-solved) at
+> the end. Read that section before acting on the older failure log.
+
 ## Bug
 
 When scrolling through a Niri horizontal column layout via trackpad gesture, keyboard
@@ -424,3 +432,74 @@ is in progress in a separate branch, reusing the spike's private-API loader
 virtual-display parking as fixed/solved until it is manually confirmed end-to-end (workspace
 bar, gestures, focus, and reveal all still functioning, plus visual confirmation of no strip
 on the real display) per the pitfalls above — a clean compile is not sufficient evidence.
+
+## RESOLUTION (2026-07): Fixed-Dock Edge Solved
+
+The fixed-Dock parking problem is solved. It did **not** need a virtual display. Two
+independent pieces, both confirmed in runtime traces + visual testing:
+
+### A. Park keeping ≥1px inside `visibleFrame` (the real invariant)
+
+The whole "clamp saga" reduces to one rule:
+
+> **macOS AX clamps a park to `visibleFrame.max − 40` exactly when the window would keep
+> 0px inside `visibleFrame`. Keep ≥1px inside and the park is accepted verbatim and holds.**
+
+- Park a right column at `x = visibleFrame.maxX − 1` (1px reveal into the workspace). Accepted, stable.
+- The broken targets all left **0px inside** `visibleFrame`: the `visibleFrame.maxX` (0-reveal)
+  target and the physical-screen-edge target (`x ≈ frame.maxX − 1`, entirely in the Dock band).
+  Both got clamped to `visibleFrame.maxX − 40`, leaving a ~40px strip in the workspace.
+- **`AXEnhancedUserInterface` (EUI) was a red herring.** A trace showed the clamp firing with
+  `euiDisabled=true` under an active side-Dock reservation. Disabling EUI does not prevent it;
+  the ≥1px-inside rule does. The older findings blaming EUI / "WindowServer re-clamps SkyLight
+  moves" / "Dock edge unbeatable" are superseded by this rule.
+- Implementation: `SideHiding.placement` / `physicalScreenEdgeOrigin` use
+  `parkingFrame = monitor.visibleFrame` with a flat 1pt reveal. Render and park targets both
+  derive from `placement`, so they never disagree.
+
+### B. Mask the reserved band (`DockEdgeShieldManager`)
+
+The 1px sliver (and the rest of the parked window that sits under the Dock) is hidden by an
+opaque `NSPanel` per display filling the full reserved Dock band, at level `dockWindow − 1`
+(behind the translucent Dock). This is the shipping "hide" for the Dock edge — no order-out,
+no virtual display. Key properties:
+
+- Fills the whole band (`visibleFrame.max` → physical edge), full bounds, rounded corners
+  (radius 12), opaque dark gradient, +1px past the workspace edge (`parkCover`) to cover the
+  reveal sliver. Passthrough everywhere except a small centered button.
+- Updated idempotently on every layout refresh (`executeRefreshExecutionPlan` — the real
+  chokepoint; `applyLayoutForWorkspaces` had NO callers), and instrumented into the runtime
+  **snapshot dump** (`-- Dock Edge Shield --`) which is never evicted, unlike the 200-entry
+  `recordFrameApplyTrace` ring buffer.
+
+### C. Stable working area across Dock hide/show
+
+`DockReservation.stableVisibleFrame` treats the Dock inset as a **stable property**:
+
+- Sticky inset per **displayId** (keying by orientation/frame broke it — `CFPreferences("orientation")`
+  reads nil intermittently → wrong key + wrong-axis math → the learned inset was silently wiped).
+- The corrected frame is computed from the **stable physical `frame` edge minus the sticky
+  inset**, preserving `visibleFrame`'s orthogonal (menu-bar) edges — NOT from the live
+  `visibleFrame`, which flaps as a quick-terminal hides/shows the Dock. This keeps the working
+  width and the shield rock-stable across QT toggles (no re-tile jump).
+- **No auto-detection of genuine auto-hide.** A timeout/debounce approach was built and
+  **rejected by the user** (it removed the shield / relayouted on QT open). Instead: a manual
+  **re-evaluate button** on the shield (`forgetStickyInsets()` + re-read `Monitor.current()`),
+  reachable only when the Dock is fully gone (QT). An auto-hide Dock still has a queryable AX
+  bar and re-reveals on edge approach, so it cannot be distinguished by geometry and the button
+  can't be reached under it — a known, accepted limitation.
+
+### D. Cold-start reservation suppression
+
+The Dock reservation is often absent right after launch (or while a quick-terminal that hid the
+Dock is frontmost). Handled by: not caching a **nil** Dock-AX probe (keep re-probing until the
+Dock answers), post-startup **settle refreshes** (0.5/1.5/3.0s) that re-tile only if the
+effective `visibleFrame` changed, and a `NSApplication.didChangeScreenParametersNotification`
+observer (Dock show/hide is not a CGDisplay reconfiguration, so the display observer never fired).
+
+### E. Niri column widths must be re-resolved on working-width change
+
+Column widths are cached absolute spans resolved from `.proportion(0.5)` against the working
+width at layout time. A viewport correction alone did **not** reflow them (visible focused
+window stayed full-width). `NiriLayoutEngine.updateMonitors` now detects a >0.5px working-size
+change and calls the existing `invalidateCachedLayoutSpans()` so columns re-resolve.

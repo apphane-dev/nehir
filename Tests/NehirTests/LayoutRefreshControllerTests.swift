@@ -503,7 +503,7 @@ private func makeUnavailableLayoutPlanTestWindow(windowId: Int) -> AXWindowRef {
         #expect(lastAppliedBorderFrameForLayoutPlanTests(on: controller) == originalFrame)
     }
 
-    @Test @MainActor func liveFrameHideOriginUsesExperimentalPhysicalEdgeParkingForTransientHide() {
+    @Test @MainActor func liveFrameHideOriginUsesWorkingEdgePlacementForTransientHide() {
         let controller = makeLayoutPlanTestController()
         guard let monitor = controller.workspaceManager.monitors.first else {
             Issue.record("Missing monitor for transient hide-origin test")
@@ -522,10 +522,12 @@ private func makeUnavailableLayoutPlanTestWindow(windowId: Int) -> AXWindowRef {
             return
         }
 
-        // Experimental path: park 1pt across the physical screen edge. This only
-        // verifies Nehir's requested coordinate, not WindowServer behavior.
+        // Transient (scroll) hides park 1pt inside the working (visibleFrame) edge.
         #expect(origin.y == frame.origin.y)
-        #expect(origin.x == monitor.frame.minX - frame.width + LayoutRefreshController.hiddenWindowEdgeRevealEpsilon)
+        #expect(
+            origin.x == monitor.visibleFrame.minX - frame.width + LayoutRefreshController
+                .hiddenWindowEdgeRevealEpsilon
+        )
     }
 
     @Test @MainActor func liveFrameHideOriginPreservesWindowYForWorkspaceHideOnVerticalOverride() {
@@ -609,8 +611,10 @@ private func makeUnavailableLayoutPlanTestWindow(windowId: Int) -> AXWindowRef {
         }
 
         #expect(origin.x == frame.origin.x)
-        #expect(origin.y == fixture.secondaryMonitor.frame.minY - frame.height + LayoutRefreshController
-            .hiddenWindowEdgeRevealEpsilon)
+        #expect(
+            origin.y == fixture.secondaryMonitor.visibleFrame.minY - frame.height + LayoutRefreshController
+                .hiddenWindowEdgeRevealEpsilon
+        )
     }
 
     @Test @MainActor func hideInactiveWorkspacesMarksSecondaryWorkspaceWindowHiddenOnVerticalOverride() {

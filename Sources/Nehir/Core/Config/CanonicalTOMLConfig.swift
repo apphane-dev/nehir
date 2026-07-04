@@ -45,13 +45,18 @@ struct CanonicalTOMLConfig: Codable, Equatable {
         var backgroundTraceRetentionSeconds: TimeInterval
         var backgroundTraceMaxBytes: Int
         var ignoreMonitorIdentity: Bool
+        var dockShieldEnabled: Bool
+        var dockShieldColorHex: String
+        var dockShieldColorDarkHex: String
+        var dockShieldOpacity: Double
         var unknownFields: [String: SettingsTOMLUnknownValue] = [:]
 
         enum CodingKeys: String, CodingKey, CaseIterable {
             case hotkeysEnabled, preventSleepEnabled, ipcEnabled, developerModeEnabled,
                  debugBarEnabled, debugTraceExportCopiesFile, viewportTraceVerbosity,
                  backgroundTraceRetentionSeconds,
-                 backgroundTraceMaxBytes, ignoreMonitorIdentity
+                 backgroundTraceMaxBytes, ignoreMonitorIdentity,
+                 dockShieldEnabled, dockShieldColorHex, dockShieldColorDarkHex, dockShieldOpacity
         }
     }
 
@@ -271,6 +276,10 @@ extension CanonicalTOMLConfig {
             backgroundTraceRetentionSeconds: export.backgroundTraceRetentionSeconds,
             backgroundTraceMaxBytes: export.backgroundTraceMaxBytes,
             ignoreMonitorIdentity: export.ignoreMonitorIdentity,
+            dockShieldEnabled: export.dockShieldEnabled,
+            dockShieldColorHex: export.dockShieldColorHex,
+            dockShieldColorDarkHex: export.dockShieldColorDarkHex,
+            dockShieldOpacity: export.dockShieldOpacity,
             unknownFields: unknown["general"] ?? [:]
         )
         focus = Focus(
@@ -457,6 +466,10 @@ extension CanonicalTOMLConfig {
             backgroundTraceRetentionSeconds: general.backgroundTraceRetentionSeconds,
             backgroundTraceMaxBytes: general.backgroundTraceMaxBytes,
             ignoreMonitorIdentity: general.ignoreMonitorIdentity,
+            dockShieldEnabled: general.dockShieldEnabled,
+            dockShieldColorHex: general.dockShieldColorHex,
+            dockShieldColorDarkHex: general.dockShieldColorDarkHex,
+            dockShieldOpacity: general.dockShieldOpacity,
             settingsTOMLUnknownFields: unknown
         )
     }
@@ -545,6 +558,26 @@ extension CanonicalTOMLConfig.General {
             forKey: .ignoreMonitorIdentity,
             default: d.ignoreMonitorIdentity
         )
+        dockShieldEnabled = try container.decodeWithDefault(
+            Bool.self,
+            forKey: .dockShieldEnabled,
+            default: d.dockShieldEnabled
+        )
+        dockShieldColorHex = try container.decodeWithDefault(
+            String.self,
+            forKey: .dockShieldColorHex,
+            default: d.dockShieldColorHex
+        )
+        dockShieldColorDarkHex = try container.decodeWithDefault(
+            String.self,
+            forKey: .dockShieldColorDarkHex,
+            default: d.dockShieldColorDarkHex
+        )
+        dockShieldOpacity = try container.decodeWithDefault(
+            Double.self,
+            forKey: .dockShieldOpacity,
+            default: d.dockShieldOpacity
+        )
         unknownFields = try SettingsTOMLUnknownValue.decodeUnknownFields(from: decoder, excluding: CodingKeys.self)
     }
 
@@ -560,6 +593,10 @@ extension CanonicalTOMLConfig.General {
         try container.encode(backgroundTraceRetentionSeconds, forKey: "backgroundTraceRetentionSeconds")
         try container.encode(backgroundTraceMaxBytes, forKey: "backgroundTraceMaxBytes")
         try container.encode(ignoreMonitorIdentity, forKey: "ignoreMonitorIdentity")
+        try container.encode(dockShieldEnabled, forKey: "dockShieldEnabled")
+        try container.encode(dockShieldColorHex, forKey: "dockShieldColorHex")
+        try container.encode(dockShieldColorDarkHex, forKey: "dockShieldColorDarkHex")
+        try container.encode(dockShieldOpacity, forKey: "dockShieldOpacity")
         try container.encodeUnknownFields(unknownFields)
     }
 }

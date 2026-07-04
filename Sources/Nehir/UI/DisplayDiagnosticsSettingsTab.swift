@@ -12,6 +12,7 @@ struct DisplayDiagnosticsSettingsTab: View {
     @Bindable var navigation: SettingsNavigationModel
 
     @State private var diagnostics = DisplayEnvironmentDiagnostics.current()
+    @State private var dismissedIssueIds: Set<String> = []
     @State private var displaySpacesMode: DisplaySpacesMode = .unavailable
     @State private var monitors = Monitor.current()
     @State private var axGranted = AccessibilityPermissionMonitor.shared.isGranted
@@ -166,14 +167,14 @@ struct DisplayDiagnosticsSettingsTab: View {
             Section("Status") {
                 HStack(alignment: .top, spacing: 10) {
                     Image(systemName: diagnostics
-                        .hasWarnings ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
-                        .foregroundStyle(diagnostics.hasWarnings ? .yellow : .green)
+                        .hasBadgeWarnings ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
+                        .foregroundStyle(diagnostics.hasBadgeWarnings ? .yellow : .green)
                         .font(.title3)
                         .accessibilityHidden(true)
 
                     VStack(alignment: .leading, spacing: 4) {
                         Text(diagnostics
-                            .hasWarnings ? "Recommendations need attention" : "Display environment looks good")
+                            .hasBadgeWarnings ? "Recommendations need attention" : "Display environment looks good")
                             .font(.headline)
                         Text(statusMessage)
                             .foregroundStyle(.secondary)
@@ -182,6 +183,11 @@ struct DisplayDiagnosticsSettingsTab: View {
 
                 Button("Refresh Diagnostics") {
                     refresh()
+                }
+                if !dismissedIssueIds.isEmpty {
+                    Button("Reset Dismissed Notices") {
+                        dismissedIssueIds.removeAll()
+                    }
                 }
             }
 
@@ -198,18 +204,31 @@ struct DisplayDiagnosticsSettingsTab: View {
                     "Separate Spaces is detected for visibility only; Nehir does not enforce it or change display-arrangement recommendations based on it yet."
                 )
 
-                if diagnostics.issues.isEmpty {
+                let visibleIssues = diagnostics.issues.filter { !dismissedIssueIds.contains($0.id) }
+                if visibleIssues.isEmpty {
                     Label(
-                        "No fixed Dock or unsupported vertical display overlap detected.",
+                        "No side fixed Dock or unsupported vertical display overlap detected.",
                         systemImage: "checkmark.circle"
                     )
                     .foregroundStyle(.green)
                 } else {
-                    ForEach(diagnostics.issues) { issue in
-                        DiagnosticIssueView(issue: issue)
+                    ForEach(visibleIssues) { issue in
+                        DiagnosticIssueView(
+                            issue: issue,
+                            isDockShieldEnabled: settings.dockShieldEnabled,
+                            onEnableDockShield: issue.isExperimentalDockNotice ? {
+                                settings.dockShieldEnabled = true
+                                controller.applyDockShieldSettings()
+                            } : nil,
+                            onDismiss: issue.isExperimentalDockNotice ? {
+                                dismissedIssueIds.insert(issue.id)
+                            } : nil
+                        )
                     }
                 }
             }
+
+            dockShieldSection
 
             Section("Detected Displays") {
                 if monitors.isEmpty {
@@ -444,7 +463,7 @@ struct DisplayDiagnosticsSettingsTab: View {
     }
 
     private var statusMessage: String {
-        guard diagnostics.hasWarnings else {
+        guard diagnostics.hasBadgeWarnings else {
             return "Auto-hide Dock and vertical display arrangement are the expected low-artifact configuration."
         }
         return "Nehir can still run, but parked offscreen windows may leave visible strips or bleed onto neighboring displays."
@@ -554,6 +573,142 @@ struct DisplayDiagnosticsSettingsTab: View {
 
     private func formatFileSize(_ bytes: Int64) -> String {
         ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+    }
+
+    // `dark == nil` is a single color; a non-nil `dark` is a light/dark scheme that
+    // follows the system theme.
+    private static let dockShieldColorPresets: [(name: String, light: String, dark: String?)] = [
+        ("Charcoal", "#1F1F1F", nil),
+        ("Black", "#000000", nil),
+        ("Graphite", "#2C2C2E", nil),
+        ("Paper", "#ECECEC", nil),
+        ("Silver", "#C9CDD2", nil),
+        ("System", "#ECECEC", "#1C1C1E"),
+        ("Contrast", "#FFFFFF", "#000000"),
+        ("Ocean", "#DCE7F2", "#10233D")
+    ]
+
+    @ViewBuilder
+    private var dockShieldSection: some View {
+        Section {
+            Toggle("Enable Dock Shield", isOn: $settings.dockShieldEnabled)
+                .onChange(of: settings.dockShieldEnabled) { _, _ in
+                    controller.applyDockShieldSettings()
+                }
+            SettingsCaption(
+                "Masks off-screen columns parked behind a side fixed Dock with an opaque panel, so no strip leaks into the workspace."
+            )
+            if settings.dockShieldEnabled {
+                Toggle("Follow system theme (light/dark)", isOn: followSystemThemeBinding)
+                ColorPicker(
+                    followSystemThemeBinding.wrappedValue ? "Light Color" : "Shield Color",
+                    selection: dockShieldColorBinding,
+                    supportsOpacity: false
+                )
+                if followSystemThemeBinding.wrappedValue {
+                    ColorPicker("Dark Color", selection: dockShieldDarkColorBinding, supportsOpacity: false)
+                }
+                dockShieldPresetRow
+                dockShieldOpacityRow
+                SettingsCaption("Lower the opacity to let parked windows show through the shield.")
+            }
+        } header: {
+            HStack(spacing: 8) {
+                Text("Dock Shield")
+                ExperimentalBadge()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var dockShieldPresetRow: some View {
+        HStack(spacing: 8) {
+            ForEach(Self.dockShieldColorPresets, id: \.name) { preset in
+                let selected = isDockShieldPresetSelected(light: preset.light, dark: preset.dark)
+                Button {
+                    settings.dockShieldColorHex = preset.light
+                    settings.dockShieldColorDarkHex = preset.dark ?? ""
+                    controller.applyDockShieldSettings()
+                } label: {
+                    dockShieldSwatch(light: preset.light, dark: preset.dark)
+                        .frame(width: 22, height: 22)
+                        .overlay(
+                            Circle().strokeBorder(
+                                selected ? Color.accentColor : Color.secondary.opacity(0.4),
+                                lineWidth: selected ? 2 : 1
+                            )
+                        )
+                }
+                .buttonStyle(.plain)
+                .help(preset.dark == nil ? preset.name : "\(preset.name) (follows theme)")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var dockShieldOpacityRow: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Opacity: \(Int((settings.dockShieldOpacity * 100).rounded()))%")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Slider(value: $settings.dockShieldOpacity, in: 0.2 ... 1.0)
+                .onChange(of: settings.dockShieldOpacity) { _, _ in
+                    controller.applyDockShieldSettings()
+                }
+        }
+    }
+
+    private var dockShieldColorBinding: Binding<Color> {
+        Binding(
+            get: { colorFromHexString(settings.dockShieldColorHex) },
+            set: { newColor in
+                settings.dockShieldColorHex = hexStringFromColor(newColor)
+                controller.applyDockShieldSettings()
+            }
+        )
+    }
+
+    private var dockShieldDarkColorBinding: Binding<Color> {
+        Binding(
+            get: { colorFromHexString(settings.dockShieldColorDarkHex) },
+            set: { newColor in
+                settings.dockShieldColorDarkHex = hexStringFromColor(newColor)
+                controller.applyDockShieldSettings()
+            }
+        )
+    }
+
+    private var followSystemThemeBinding: Binding<Bool> {
+        Binding(
+            get: { !settings.dockShieldColorDarkHex.isEmpty },
+            set: { follow in
+                settings.dockShieldColorDarkHex = follow ? "#1C1C1E" : ""
+                controller.applyDockShieldSettings()
+            }
+        )
+    }
+
+    private func isDockShieldPresetSelected(light: String, dark: String?) -> Bool {
+        settings.dockShieldColorHex.caseInsensitiveCompare(light) == .orderedSame
+            && settings.dockShieldColorDarkHex.caseInsensitiveCompare(dark ?? "") == .orderedSame
+    }
+
+    @ViewBuilder
+    private func dockShieldSwatch(light: String, dark: String?) -> some View {
+        if let dark {
+            Circle().fill(
+                LinearGradient(
+                    stops: [
+                        .init(color: colorFromHexString(light), location: 0.5),
+                        .init(color: colorFromHexString(dark), location: 0.5)
+                    ],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+            )
+        } else {
+            Circle().fill(colorFromHexString(light))
+        }
     }
 
     private func refresh() {
@@ -1018,18 +1173,69 @@ private struct HotkeyConflictWarningView: View {
 
 private struct DiagnosticIssueView: View {
     let issue: DisplayEnvironmentDiagnostics.Issue
+    var isDockShieldEnabled: Bool = false
+    var onEnableDockShield: (() -> Void)?
+    var onDismiss: (() -> Void)?
+
+    private var isExperimental: Bool {
+        issue.isExperimentalDockNotice
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Label(issue.title, systemImage: "exclamationmark.triangle.fill")
-                .font(.headline)
-                .foregroundStyle(.yellow)
+            if isExperimental {
+                HStack(spacing: 8) {
+                    Text(issue.title).font(.headline)
+                    ExperimentalBadge()
+                }
+            } else {
+                Label(issue.title, systemImage: "exclamationmark.triangle.fill")
+                    .font(.headline)
+                    .foregroundStyle(.yellow)
+            }
             Text(issue.message)
                 .foregroundStyle(.secondary)
             Text(issue.recommendation)
+
+            if isExperimental {
+                HStack(spacing: 8) {
+                    if let onEnableDockShield, !isDockShieldEnabled {
+                        Button("Enable Dock Shield", action: onEnableDockShield)
+                            .buttonStyle(.borderedProminent)
+                    } else if isDockShieldEnabled {
+                        Label("Dock Shield enabled", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                            .font(.caption)
+                    }
+                    if let onDismiss {
+                        Button("Dismiss", action: onDismiss)
+                    }
+                }
+                .padding(.top, 2)
+            }
         }
         .padding(.vertical, 4)
     }
+}
+
+private func colorFromHexString(_ hex: String) -> Color {
+    var s = hex.trimmingCharacters(in: .whitespacesAndNewlines)
+    if s.hasPrefix("#") { s.removeFirst() }
+    guard s.count == 6, let v = UInt32(s, radix: 16) else { return Color(white: 0.12) }
+    return Color(
+        .sRGB,
+        red: Double((v >> 16) & 0xFF) / 255.0,
+        green: Double((v >> 8) & 0xFF) / 255.0,
+        blue: Double(v & 0xFF) / 255.0
+    )
+}
+
+private func hexStringFromColor(_ color: Color) -> String {
+    let ns = NSColor(color).usingColorSpace(.sRGB) ?? NSColor(color)
+    let r = Int((ns.redComponent * 255).rounded())
+    let g = Int((ns.greenComponent * 255).rounded())
+    let b = Int((ns.blueComponent * 255).rounded())
+    return String(format: "#%02X%02X%02X", r, g, b)
 }
 
 private struct DisplayDiagnosticMonitorRow: View {

@@ -139,7 +139,64 @@ enum NiriWindowMoveResult {
             }
             controller.layoutRefreshController.hideInactiveWorkspaces(activeWorkspaceIds: activeIds)
             controller.layoutRefreshController.stopScrollAnimation(for: displayId)
+            parkSettledHiddenColumns(wsId: wsId, engine: engine, monitor: monitor)
             controller.mouseEventHandler.refreshFocusFollowsMouseAtCurrentPointer()
+        }
+    }
+
+    // After a scroll animation settles, park every window the settled layout
+    // classifies as hidden. Mid-animation passes can consume the hide transition
+    // while the token's frame writes are suppressed or mid-flight, stranding the
+    // window at its last animated frame; without this sweep the park only happens
+    // on the next unrelated full refresh, which may never come while the user is
+    // only gesturing. hideWindow is idempotent for correctly parked windows (it
+    // re-reads the live frame before deciding), so already-parked columns are
+    // untouched.
+    private func parkSettledHiddenColumns(
+        wsId: WorkspaceDescriptor.ID,
+        engine: NiriLayoutEngine,
+        monitor: Monitor
+    ) {
+        guard let controller,
+              let snapshot = makeWorkspaceSnapshot(
+                  workspaceId: wsId,
+                  monitor: monitor,
+                  viewportState: nil,
+                  useScrollAnimationPath: false,
+                  removalSeed: nil,
+                  isActiveWorkspace: true
+              )
+        else { return }
+        let gaps = LayoutGaps(
+            horizontal: snapshot.gap,
+            vertical: snapshot.gap,
+            outer: snapshot.outerGaps
+        )
+        let area = WorkingAreaContext(
+            workingFrame: snapshot.monitor.workingFrame,
+            viewFrame: snapshot.monitor.frame,
+            scale: snapshot.monitor.scale
+        )
+        let (_, hiddenHandles) = engine.calculateCombinedLayoutUsingPools(
+            in: wsId,
+            monitor: monitor,
+            gaps: gaps,
+            state: snapshot.viewportState,
+            workingArea: area,
+            animationTime: nil
+        )
+        guard !hiddenHandles.isEmpty else { return }
+        controller.axManager.recordFrameApplyTrace(
+            "settleHide.sweep ws=\(wsId.uuidString.prefix(8)) hidden=\(hiddenHandles.map { "\($0.key.windowId):\($0.value)" }.sorted().joined(separator: ","))"
+        )
+        for (token, side) in hiddenHandles {
+            guard let entry = controller.workspaceManager.entry(for: token) else { continue }
+            controller.layoutRefreshController.hideWindow(
+                entry,
+                monitor: monitor,
+                side: side,
+                reason: .layoutTransient
+            )
         }
     }
 

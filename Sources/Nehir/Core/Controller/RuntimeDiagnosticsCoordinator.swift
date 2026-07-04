@@ -711,6 +711,8 @@ final class RuntimeDiagnosticsCoordinator {
             focusTargetDebugDump(),
             "-- Monitor Topology --",
             controller.workspaceManager.monitorTopologyDebugDump(),
+            "-- Dock Edge Shield --",
+            controller.dockEdgeShieldManager.debugStateDump(),
             "-- SpaceTopology --",
             controller.layoutRefreshController.spaceTopologyDebugDump(),
             "-- WorkspaceManager --",

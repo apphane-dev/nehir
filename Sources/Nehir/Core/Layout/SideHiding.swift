@@ -85,17 +85,22 @@ enum HiddenWindowPlacementResolver {
         monitors: [HiddenPlacementMonitorContext]
     ) -> CGPoint {
         let reveal = baseReveal / max(1.0, scale)
+        // Workspace-inactive / scratchpad hides park against the PHYSICAL screen edge.
+        // Only the scroll-hide `placement` path parks 1px inside the visibleFrame/Dock
+        // edge; this path stays physical so a hidden window rests at the true screen
+        // edge regardless of Dock reservation.
+        let parkingFrame = monitor.frame
 
         func origin(for side: HideSide, y: CGFloat) -> CGPoint {
             switch side {
             case .left:
-                CGPoint(
-                    x: monitor.frame.minX - size.width + reveal,
+                return CGPoint(
+                    x: parkingFrame.minX - size.width + reveal,
                     y: y
                 )
             case .right:
-                CGPoint(
-                    x: monitor.frame.maxX - reveal,
+                return CGPoint(
+                    x: parkingFrame.maxX - reveal,
                     y: y
                 )
             }
@@ -163,7 +168,18 @@ enum HiddenWindowPlacementResolver {
         monitor: HiddenPlacementMonitorContext,
         monitors: [HiddenPlacementMonitorContext]
     ) -> HiddenWindowPlacement {
-        let reveal = baseReveal / max(1.0, scale)
+        // Park 1pt inside the working (visibleFrame) edge — 1px from the Dock. The
+        // window rests 1px inside the workspace with the rest under the Dock + shield;
+        // this is the placement AX accepts and holds. Parking at the physical screen
+        // edge (2055) is clamped to visibleFrame.maxX-40. Render and park targets both
+        // come from here, so they stay in agreement.
+        // Reveal is at least 1 POINT (not 1 physical pixel). A ½pt sliver on a 2× display
+        // is below macOS' minimum-visible threshold, so the park gets clamped to ~40px
+        // and a continuous scroll-hide reverify loop makes the parked window "dance" on a
+        // non-Dock edge. Keeping ≥1pt visible holds. On a Dock edge the window still rests
+        // 1pt inside the visibleFrame edge, behind the Dock + shield.
+        let edgeReveal = max(1.0, baseReveal / max(1.0, scale))
+        let parkingFrame = monitor.visibleFrame.isNull ? monitor.frame : monitor.visibleFrame
 
         func origin(for edge: AxisHideEdge) -> CGPoint {
             switch orientation {
@@ -171,12 +187,12 @@ enum HiddenWindowPlacementResolver {
                 switch edge {
                 case .minimum:
                     return CGPoint(
-                        x: monitor.visibleFrame.minX - size.width + reveal,
+                        x: parkingFrame.minX - size.width + edgeReveal,
                         y: orthogonalOrigin
                     )
                 case .maximum:
                     return CGPoint(
-                        x: monitor.visibleFrame.maxX - reveal,
+                        x: parkingFrame.maxX - edgeReveal,
                         y: orthogonalOrigin
                     )
                 }
@@ -185,12 +201,12 @@ enum HiddenWindowPlacementResolver {
                 case .minimum:
                     return CGPoint(
                         x: orthogonalOrigin,
-                        y: monitor.visibleFrame.minY - size.height + reveal
+                        y: parkingFrame.minY - size.height + edgeReveal
                     )
                 case .maximum:
                     return CGPoint(
                         x: orthogonalOrigin,
-                        y: monitor.visibleFrame.maxY - reveal
+                        y: parkingFrame.maxY - edgeReveal
                     )
                 }
             }

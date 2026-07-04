@@ -845,10 +845,15 @@ final class AXManager {
             )
             let heuristicTransform = ScreenCoordinateSpace.debugDescriptionForClosestAppKitPoint($0.origin)
             let hintedTransform = ScreenCoordinateSpace.debugDescription(for: $0.displayId)
+            // SLSTransactionMoveWindow takes the window's bottom-left corner in Quartz
+            // coordinates; flipping the AppKit top-left origin as a bare point lands the
+            // window one window-height below the intended row (fully offscreen for
+            // full-height windows), which silently rerouted every park through the AX
+            // fallback and its fully-offscreen clamp.
             recordFrameApplyTrace(
-                "SkyLight.move id=\($0.windowId) displayHint=\(display) appKitOrigin=\(LayoutTrace.point($0.origin)) appKitBLGuess=\(LayoutTrace.point(appKitBottomLeftGuess)) windowServer=\(LayoutTrace.point(transformed)) hintedTopLeft=\(LayoutTrace.point(hintedTopLeft)) hintedBottomLeft=\(LayoutTrace.point(hintedBottomLeft)) heuristicTransform=\(heuristicTransform) hintedTransform=\(hintedTransform)"
+                "SkyLight.move id=\($0.windowId) displayHint=\(display) appKitOrigin=\(LayoutTrace.point($0.origin)) appKitBLGuess=\(LayoutTrace.point(appKitBottomLeftGuess)) topLeftFlip=\(LayoutTrace.point(transformed)) hintedTopLeft=\(LayoutTrace.point(hintedTopLeft)) chosen=\(LayoutTrace.point(hintedBottomLeft)) heuristicTransform=\(heuristicTransform) hintedTransform=\(hintedTransform)"
             )
-            return (windowId: UInt32($0.windowId), origin: transformed)
+            return (windowId: UInt32($0.windowId), origin: hintedBottomLeft)
         }
         SkyLight.shared.batchMoveWindows(batchPositions)
     }

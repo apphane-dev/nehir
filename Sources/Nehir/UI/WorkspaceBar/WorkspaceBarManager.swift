@@ -495,7 +495,7 @@ final class WorkspaceBarManager {
             backgroundOpacity: resolved.backgroundOpacity,
             barHeight: geometry.barHeight,
             hasDisplayDiagnosticsWarning: DisplayEnvironmentDiagnostics.evaluate(monitors: monitorProvider())
-                .hasWarnings,
+                .hasBadgeWarnings,
             showScrollLockButton: resolved.showScrollLockButton,
             accentColor: resolved.accentColor,
             textColor: resolved.textColor
