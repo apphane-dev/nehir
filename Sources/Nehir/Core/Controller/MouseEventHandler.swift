@@ -15,6 +15,7 @@ private let macNormalizedTouchPositionToNiriGestureUnits: CGFloat = 500.0
 private let mouseWheelAxisEpsilon: CGFloat = 0.001
 private let niriWheelScrollTickAmount: CGFloat = 120.0
 private let queuedMouseMoveCurrentPointerTolerance: CGFloat = 2.0
+private let ffmOcclusionGrace: TimeInterval = 0.35
 private let mouseRelevantModifierFlags: CGEventFlags = [
     .maskAlternate,
     .maskShift,
@@ -1301,6 +1302,9 @@ final class MouseEventHandler {
             windowUnderPointer: windowUnderPointer
         )
         guard case let .target(target) = resolution else {
+            if case .occlusion = resolution {
+                state.suppressFocusFollowsMouseUntil = now.addingTimeInterval(ffmOcclusionGrace)
+            }
             traceMouseFocus(
                 "ffm.skip reason=noTarget sub=\(resolution.skipReason) loc=\(formatPoint(location)) windowUnderPointer=\(windowUnderPointer.map(String.init) ?? "nil") confirmed=\(formatToken(confirmedToken)) pending=\(formatToken(pendingToken))"
             )

@@ -2552,11 +2552,13 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
         }
         controller.ownerAppIsInteractiveApplicationProvider = { _ in true }
 
+        let beforeMove = Date()
         controller.mouseEventHandler.dispatchMouseMoved(at: unmanagedFrame.center)
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
 
         #expect(controller.workspaceManager.confirmedManagedFocusToken == firstToken)
         #expect(controller.workspaceManager.activeFocusRequestToken == nil)
+        #expect(controller.mouseEventHandler.state.suppressFocusFollowsMouseUntil > beforeMove)
     }
 
     @Test @MainActor func mouseDraggedDoesNotPollWindowServerSnapshotWhenEventWindowIsUnavailable() {
@@ -3482,6 +3484,68 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
         #expect(resolvedWindow == 8822)
         #expect(controller.workspaceManager.pendingFocusedHandle == secondHandle)
         #expect(snapshotCalls == 0)
+    }
+
+    @Test @MainActor func unmanagedInteractiveOcclusionExemptsDockAndDecorativeBordersOnly() {
+        let point = CGPoint(x: 100, y: 100)
+        let frame = CGRect(x: 50, y: 50, width: 160, height: 120)
+
+        let dockCovers = WMController.visibleUnmanagedInteractiveWindowServerWindowCovers(
+            point: point,
+            windows: [makeUnmanagedOverlayWindowInfo(
+                windowId: 77_001,
+                pid: 77_101,
+                appKitFrame: frame,
+                layer: 20,
+                ownerName: "Dock"
+            )],
+            ownerAppIsInteractiveApplication: { _ in true }
+        )
+        let decorativeBorderCovers = WMController.visibleUnmanagedInteractiveWindowServerWindowCovers(
+            point: point,
+            windows: [makeUnmanagedOverlayWindowInfo(
+                windowId: 77_002,
+                pid: 77_102,
+                appKitFrame: frame,
+                ownerName: "borders"
+            )],
+            ownerAppIsInteractiveApplication: { _ in false }
+        )
+        let ghosttyCovers = WMController.visibleUnmanagedInteractiveWindowServerWindowCovers(
+            point: point,
+            windows: [makeUnmanagedOverlayWindowInfo(
+                windowId: 77_003,
+                pid: 77_103,
+                appKitFrame: frame,
+                layer: 25,
+                ownerName: "Ghostty"
+            )],
+            ownerAppIsInteractiveApplication: { _ in false }
+        )
+
+        #expect(dockCovers == false)
+        #expect(decorativeBorderCovers == false)
+        #expect(ghosttyCovers)
+    }
+
+    @Test @MainActor func unmanagedInteractiveFastPathExemptsDockOnly() {
+        let controller = makeMouseEventTestController()
+        let dockWindowId = 78_001
+        let ghosttyWindowId = 78_002
+        controller.unmanagedWindowServerWindowOwnerProvider = { windowId in
+            windowId == dockWindowId
+                ? (pid: 0, ownerName: "Dock")
+                : (pid: 4321, ownerName: "Ghostty")
+        }
+
+        #expect(controller.unmanagedInteractiveWindowServerWindowCovers(
+            point: CGPoint(x: 100, y: 100),
+            windowUnderPointer: dockWindowId
+        ) == false)
+        #expect(controller.unmanagedInteractiveWindowServerWindowCovers(
+            point: CGPoint(x: 100, y: 100),
+            windowUnderPointer: ghosttyWindowId
+        ))
     }
 
     // MARK: - #64: snapshot-fallback path (windowUnderPointer == nil)
