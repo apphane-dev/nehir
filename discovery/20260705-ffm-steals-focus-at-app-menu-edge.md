@@ -206,7 +206,72 @@ popup is momentarily in `trackedWindowIds` decides which gate it slips through.
 Per-pixel occlusion of a flapping transient popup is therefore the wrong
 foundation.
 
-### Revised fix direction — session-level suppression, not per-pixel occlusion
+### Pinned fix (2026-07-05) — classify the AX-less menu popup as `.unmanaged` (dimension-free, PiP-safe)
+
+Located the exact admission seam. In `WindowRuleEngine.decision(for:)`, the menu
+popup misses every existing menu/popup rule and falls to the AX-fetch-failed
+branch:
+
+- `transientSystemDialogSurfaceDecision` (`WindowRuleEngine.swift:661`) and the
+  "floating-tagged non-document popup" rule (`:502`) both require
+  `facts.ax.attributeFetchSucceeded` — the popup's AX fetch **failed**
+  (`axRole=nil axSubrole=nil`, `fetchFailure=multiple_attribute_fetch_failed`).
+- `parentedWindowServerSurfaceDecision` (`:639`) requires `windowServer.parentId
+  != 0`, but the `window_decision` was taken with `wsParent=0` (the parent
+  `215` is only resolved later, on the layout-rejection path). So it misfired.
+- Result: control reaches `if !facts.ax.attributeFetchSucceeded` (`:578`), which
+  returns `.undecided / deferredReason=.attributeFetchFailed`. That is what gets
+  **rescue-admitted** as a flapping tracked-floating candidate (`rescue=true`,
+  re-admitted repeatedly), i.e. the tracked-limbo that escapes both FFM
+  occlusion gates.
+
+The engine already has the right **dimension-free** signal for "AX-less native
+transient surface": `WindowRuleFacts.degradedWindowServerChildEvidence` (`:119`)
+= `!attributeFetchSucceeded` AND (`windowServer.hasModalTag` OR
+(`hasFloatingTag && !hasDocumentTag`)), **with a PiP carve-out already built in**
+(`windowServer.parentId == 0 && isTopLevelResizableMediaLikeSurface` returns
+early). The popup also carries `windowServer.hasTransientSurfaceEvidence`
+(`transientWindowServerEvidence=true` in the trace).
+
+**Fix:** in the `!facts.ax.attributeFetchSucceeded` branch (`:578`), before the
+`.undecided/deferred` fallback, classify the window as **`.unmanaged`** (a native
+menu/popup surface; new `builtInRule` source, mirroring
+`transientSystemDialogSurface` which is also `.unmanaged`) when the WindowServer
+facts show transient-menu evidence — i.e. `degradedWindowServerChildEvidence`
+(and/or `windowServer.hasTransientSurfaceEvidence`) — and it is **not** a
+PiP-like top-level resizable media surface. Being `.unmanaged`, the popup leaves
+`trackedWindowIds` and the layout tree, so:
+
+1. The **unmanaged-overlay FFM gate** (`unmanagedInteractiveWindowServerWindowCovers`)
+   now sees it and returns `.occlusion` → the shipped **grace period**
+   (95fe0725) holds focus through edge/gap crossings → no steal.
+2. The flapping `rescue=true` re-admission stops (a bonus; cf.
+   [[20260622-rescued-floating-auxiliary-windows-leak-into-workspace-bar]],
+   [[20260628-stale-floating-entry-lingers-after-surface-destroyed]]).
+
+**Why PiP is safe** (per the user's steer — *dimension is a bad signal*): the fix
+keys on AX-less + WindowServer transient-menu evidence, never on size. PiP is a
+real AX window: `pipDefaultStickyCandidate` (`:146`) and all PiP handling require
+`attributeFetchSucceeded`, so PiP never reaches this AX-less branch; and
+`degradedWindowServerChildEvidence` already excludes `isTopLevelResizableMediaLikeSurface`
+(PiP's shape). See [[20260617-omniwm-113-above-normal-level-pip-tiling]],
+[[20260626-pip-common-defaults-no-special-mode]].
+
+**Guard against over-classifying** (`AGENTS.md` admission caution): a *real*
+window can transiently fail AX fetch while opening — that is exactly why this
+branch currently **defers** rather than decides. So gate the new `.unmanaged`
+decision on the positive WindowServer transient-menu evidence
+(`degradedWindowServerChildEvidence` / `hasTransientSurfaceEvidence`); keep the
+existing `.undecided/deferred` fallback for AX-less windows *without* that
+evidence, so a briefly-AX-less real window still gets retried, not ignored.
+
+**Residual:** the unmanaged-occlusion snapshot still filters `width>=80 &&
+height>=80`, so a very thin submenu strip could momentarily not occlude — the
+0.35 s grace period bridges those brief crossings. Widening/removing that size
+filter for transient-evidence surfaces is a possible follow-up, out of scope
+here.
+
+### (superseded framing) session-level suppression, not per-pixel occlusion
 
 FFM should be frozen for the **duration of an app menu-tracking session**, not
 decided per pixel. Since these Chromium/Electron menus are AX-less layer-0
