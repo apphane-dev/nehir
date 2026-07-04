@@ -1,5 +1,14 @@
 # Parked-window invisibility on a horizontally-arranged 2nd monitor — Discovery
 
+> **STATUS UPDATE (2026-07-05): still open.** The Dock Shield work that shipped
+> (`docs/offscreen-clamp-fix.md` RESOLUTION; completed
+> `dock-edge-shield-and-parking-lessons.md`) addresses only the **side fixed-Dock** case by
+> masking the band. The horizontal (side-by-side) arrangement here is unchanged: a column
+> hidden toward the **shared** monitor edge is flipped to the far edge by
+> `HiddenWindowPlacementResolver.placement`'s overlap-avoidance (confirmed in a runtime
+> trace), so it teleports/disappears rather than bleeding — the maintainer deferred a proper
+> fix ("work on this later"). This discovery remains the reference for that case.
+
 Discovery (2026-06-25). The maintainer's open interest, stated plainly, is:
 **"placing windows parked so it isn't visible on 2nd monitor arranged horizontally."**
 i.e. when two monitors sit **side-by-side** in macOS System Settings, Nehir's
