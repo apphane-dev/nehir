@@ -154,6 +154,87 @@ menu that overhangs another tile:
 Ask the user to confirm on their real repro before adding regression tests
 (per repo `AGENTS.md`: no test edits until the runtime fix is user-confirmed).
 
+## Update 2026-07-05 (after the grace-period fix): still reproduces — occlusion does not even fire
+
+The occlusion-hysteresis fix above was implemented (arm
+`suppressFocusFollowsMouseUntil = now + 0.35s` when `resolveFocusFollowsMouse`
+returns `.occlusion`). It cut the steals dramatically (a later capture shows a
+single `ffm.activate` instead of the earlier 16) but **did not eliminate them**,
+because there is a *second mode* of this bug where **occlusion never fires**, so
+the grace period is never armed.
+
+Evidence (later capture, two Helium tiles: `215` left `{14,7 1011×1251}`,
+`244` right `{1031,7 1011×1251}`; a Helium context menu open):
+
+```
+… ffm.skip reason=noTarget sub=noHitTest …            ← sub=noHitTest, NOT sub=occlusion
+tap.mouseMoved direct=0 canHandle=0 resolved=nil loc=(1258.9,1075.8)
+ffm.activate reason=hoverTarget loc=(1258.9,1075.8) target=(pid 28651, windowId 244) confirmed=(pid 28651, windowId 215)
+```
+
+The skips are `sub=noHitTest`, not `sub=occlusion` — occlusion returned `false`,
+so the `.occlusion` grace-arm branch is never taken. The runtime state confirms
+why: `windows total=3 tiled=3 floating=0` — the menu popup is **not** a managed
+floating window. It is a **tracked candidate in limbo**: the rule engine logs
+`candidate_tracked token=(28651,645)` with
+`window_decision … disposition=undecided outcome=deferred deferred=attributeFetchFailed`
+(a Chromium menu popup, `wsLevel=0`, `220×80`, no AX attributes, no
+close/zoom/minimize buttons, re-admitted repeatedly with `rescue=true`).
+
+That limbo state defeats **both** occlusion gates:
+
+- **Unmanaged-overlay gate** (`unmanagedInteractiveWindowServerWindowCovers`):
+  excludes any window in `trackedWindowIds` / owned surfaces. While the popup is
+  a tracked candidate it is treated as "one of ours" and does not occlude.
+- **Floating gate** (`isFloatingWindowCoveringPointer` /
+  `hasVisibleFloatingWindowOverNiriLayout`): only counts *managed floating
+  entries* that are `observedState.isVisible && visibility == .visible`. The
+  popup is never promoted to a stable floating entry (`floating=0`), and
+  `hasVisibleFloatingWindowOverNiriLayout` also early-returns `false` when the
+  focused window is a tiling window (it is, `215`).
+
+So the menu popup falls through both gates → `resolveFocusFollowsMouse` reaches
+the tile hit-test → returns `.target(tile 244)` → FFM steals. Note the preceding
+`tap.mouseMoved direct=0 canHandle=0 resolved=nil`: the CGEvent reports **no
+window under the pointer that can handle the event**, the signature of hovering a
+transient menu popup that does not participate in normal hit-testing — yet FFM
+still fell back to a geometric tile hit-test.
+
+Admission is racy, which is why the earlier capture caught the popup as an
+unmanaged occluder (`sub=occlusion`, 52×) while this one does not: whether the
+popup is momentarily in `trackedWindowIds` decides which gate it slips through.
+Per-pixel occlusion of a flapping transient popup is therefore the wrong
+foundation.
+
+### Revised fix direction — session-level suppression, not per-pixel occlusion
+
+FFM should be frozen for the **duration of an app menu-tracking session**, not
+decided per pixel. Since these Chromium/Electron menus are AX-less layer-0
+popups (native `NSMenu` / `kCGPopUpMenuWindowLevel` detection misses them), the
+robust proxy is the **presence of a transient popup owned by the focused/
+frontmost app** — exactly the `attributeFetchFailed` / `transientWindowServerEvidence`
+candidates the reconcile loop already enumerates. Recommended:
+
+- **Primary:** while any transient menu-like popup (AX-less deferred candidate /
+  `transientWindowServerEvidence`) owned by the focused app is present, suppress
+  FFM entirely (e.g. keep re-arming `suppressFocusFollowsMouseUntil`, or add an
+  explicit `isMenuTrackingActive` guard in `shouldHandleFocusFollowsMouse`).
+  This holds regardless of pointer geometry, the admission race, or which gate
+  the popup slips through.
+- **Keep** the `.occlusion` grace period (95fe0725) as a complementary net for
+  the case where the popup *is* caught as an occluder and the pointer leaves its
+  edge.
+- **Consider** classifying these popups as `disposition=.unmanaged` via a
+  built-in rule (cf. `builtInRule("transientSystemDialogSurface")`,
+  `WMController.swift:2331`) so they never enter `trackedWindowIds` — that alone
+  would route them back through the unmanaged-overlay gate + grace period, and
+  also stops the flapping `rescue=true` re-admission.
+
+Trade-off to weigh: the suppression predicate must be tight enough not to freeze
+FFM whenever any app merely has a transient child window. Scope it to popups
+owned by the currently focused app and present *now*, and release as soon as the
+popup set empties.
+
 ## Files (fix)
 
 - `Sources/Nehir/Core/Controller/MouseEventHandler.swift` — add the
