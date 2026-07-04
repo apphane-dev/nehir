@@ -222,3 +222,7 @@ window dictionaries. Add cases:
   fix, not a target.
 - Fixed-Dock **window parking** quirks (a separate, acknowledged limitation) are
   out of scope; this task only restores focus-follows-mouse.
+- The context-menu-edge focus steal found while validating this fix is a
+  **separate, pre-existing** FFM bug (per-pixel occlusion vs. menu-tracking) and
+  is tracked in [[20260705-ffm-steals-focus-at-app-menu-edge]]. It does not block
+  shipping this change.
