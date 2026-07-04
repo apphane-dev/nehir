@@ -46,7 +46,7 @@ struct DisplayEnvironmentDiagnostics: Equatable {
         var message: String {
             switch kind {
             case let .fixedDock(_, _, edge, inset):
-                "The Dock appears to reserve \(Int(inset.rounded())) px on the \(edge.displayName.lowercased()) edge. Parked transient windows can be clamped to the Dock boundary and leave a visible strip."
+                "A fixed Dock reserves \(Int(inset.rounded())) px on the \(edge.displayName.lowercased()) edge, where Nehir parks off-screen columns. This configuration is experimental."
             case let .horizontalDisplayArrangement(_, firstMonitorName, _, secondMonitorName):
                 "\(firstMonitorName) and \(secondMonitorName) overlap vertically in macOS display arrangement. Horizontally parked windows can bleed onto the neighboring display."
             }
@@ -55,10 +55,17 @@ struct DisplayEnvironmentDiagnostics: Equatable {
         var recommendation: String {
             switch kind {
             case .fixedDock:
-                "Enable Dock auto-hide in System Settings > Desktop & Dock, or move the fixed Dock away from the edge used for hidden-window parking."
+                "Enable the experimental Dock Shield to mask parked windows behind the Dock, or enable Dock auto-hide in System Settings > Desktop & Dock."
             case .horizontalDisplayArrangement:
                 "Arrange displays vertically or diagonally in System Settings > Displays > Arrange so display frames do not overlap vertically."
             }
+        }
+
+        /// A side fixed-Dock notice is a dismissable experimental warning that offers to
+        /// enable the Dock Shield; other issues are hard warnings.
+        var isExperimentalDockNotice: Bool {
+            if case .fixedDock = kind { return true }
+            return false
         }
     }
 
@@ -82,6 +89,17 @@ struct DisplayEnvironmentDiagnostics: Equatable {
         !issues.isEmpty
     }
 
+    /// Issues that should drive the warning badge. Experimental Dock notices are opt-in
+    /// informational recommendations, not hard warnings, so they are excluded — they are
+    /// still listed (and dismissable) in the Diagnostics tab.
+    var badgeIssues: [Issue] {
+        issues.filter { !$0.isExperimentalDockNotice }
+    }
+
+    var hasBadgeWarnings: Bool {
+        !badgeIssues.isEmpty
+    }
+
     static func current() -> DisplayEnvironmentDiagnostics {
         evaluate(monitors: Monitor.current())
     }
@@ -101,14 +119,20 @@ struct DisplayEnvironmentDiagnostics: Equatable {
     }
 
     private static func fixedDockIssues(monitors: [Monitor]) -> [Issue] {
+        // Note: a phantom side inset on a display that does NOT host the Dock (e.g. an
+        // offset DELL next to a built-in) is already removed upstream by
+        // `DockReservation.stableVisibleFrame`, so only the real Dock display arrives here
+        // with a side inset above the threshold.
         monitors.flatMap { monitor -> [Issue] in
             let frame = monitor.frame
             let visibleFrame = monitor.visibleFrame
             let threshold: CGFloat = 24
+            // A bottom fixed Dock is NOT an issue — columns scroll horizontally, so the
+            // bottom reservation never interferes with parking. Only a SIDE (left/right)
+            // fixed Dock reserves the parking edge.
             let insets: [(DockEdge, CGFloat)] = [
                 (.left, visibleFrame.minX - frame.minX),
-                (.right, frame.maxX - visibleFrame.maxX),
-                (.bottom, visibleFrame.minY - frame.minY)
+                (.right, frame.maxX - visibleFrame.maxX)
             ]
 
             return insets.compactMap { edge, inset in

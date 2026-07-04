@@ -164,7 +164,7 @@ final class StatusBarMenuBuilder {
 
     @discardableResult
     private func addWarningSection(to menu: NSMenu) -> Bool {
-        let diagIssues = DisplayEnvironmentDiagnostics.current().issues
+        let diagIssues = DisplayEnvironmentDiagnostics.current().badgeIssues
         let axGranted = AccessibilityPermissionMonitor.shared.isGranted
         let settingsIssues = SettingsDiagnosticsDetector.pendingIssues()
         guard !diagIssues.isEmpty || !axGranted || !settingsIssues.isEmpty else { return false }

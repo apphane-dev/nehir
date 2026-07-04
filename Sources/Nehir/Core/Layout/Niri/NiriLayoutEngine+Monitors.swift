@@ -29,11 +29,27 @@ extension NiriLayoutEngine {
     }
 
     func updateMonitors(_ newMonitors: [Monitor], orientations: [Monitor.ID: Monitor.Orientation] = [:]) {
+        var workingSizeChanged = false
         for monitor in newMonitors {
             if let niriMonitor = monitors[monitor.id] {
+                let previousVisible = niriMonitor.visibleFrame
                 let orientation = orientations[monitor.id]
                 niriMonitor.updateOutputSize(monitor: monitor, orientation: orientation)
+                if abs(previousVisible.width - niriMonitor.visibleFrame.width) > 0.5
+                    || abs(previousVisible.height - niriMonitor.visibleFrame.height) > 0.5
+                {
+                    workingSizeChanged = true
+                }
             }
+        }
+
+        // The working area changed (e.g. the Dock reservation appeared after a
+        // quick-terminal that hid it at launch was dismissed). Column widths are cached
+        // absolute spans resolved from each column's proportion against the OLD working
+        // width; without this they keep their stale size and windows stay laid out "as
+        // if there were no Dock". Reset the caches so they re-resolve on the next pass.
+        if workingSizeChanged {
+            invalidateCachedLayoutSpans()
         }
 
         let newIds = Set(newMonitors.map(\.id))

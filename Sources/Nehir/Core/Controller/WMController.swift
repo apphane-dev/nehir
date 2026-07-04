@@ -138,6 +138,8 @@ final class WMController {
     @ObservationIgnored
     private(set) lazy var debugBarManager: DebugBarManager = .init()
     @ObservationIgnored
+    private(set) lazy var dockEdgeShieldManager: DockEdgeShieldManager = .init()
+    @ObservationIgnored
     private var workspaceBarRefreshGeneration: UInt64 = 0
     @ObservationIgnored
     private var pendingWorkspaceBarRefreshGeneration: UInt64?
@@ -482,6 +484,7 @@ final class WMController {
         cancelPendingWorkspaceBarRefresh()
         workspaceBarManager.cleanup()
         debugBarManager.cleanup()
+        dockEdgeShieldManager.cleanup()
     }
 
     func setPreventSleepEnabled(_ enabled: Bool) {
@@ -649,6 +652,11 @@ final class WMController {
         workspaceBarManager.updateSettings()
         debugBarManager.setup(controller: self, settings: settings)
         layoutRefreshController.requestRefresh(reason: .monitorSettingsChanged)
+    }
+
+    /// Applies the current Dock-Shield settings (enabled/color/opacity) to live shields.
+    func applyDockShieldSettings() {
+        serviceLifecycleManager.applyDockShieldSettings()
     }
 
     func updateWorkspaceBarAppearance() {

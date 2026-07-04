@@ -186,6 +186,8 @@ import QuartzCore
     private var activeFrameContext: RefreshFrameContext?
     private var pendingRevealTransactionsByWindowId: [Int: PendingRevealTransaction] = [:]
     private var pendingRevealVerificationTasksByWindowId: [Int: Task<Void, Never>] = [:]
+    private var delayedParkReverifyTasksByWindowId: [Int: Task<Void, Never>] = [:]
+    private var delayedParkReverifyAttemptsByWindowId: [Int: Int] = [:]
     private var nativeFullscreenRestoredFrameApplyTokens: Set<WindowToken> = []
 
     func fastFrame(for token: WindowToken, axRef: AXWindowRef) -> CGRect? {
@@ -469,6 +471,13 @@ import QuartzCore
         }
 
         executeLayoutPlans(plan.workspacePlans)
+
+        // Keep the Dock-edge shield in sync on every refresh (idempotent — skips
+        // AppKit work when geometry is unchanged). This is the central execution path
+        // (startup, relayout, scroll, visibility all route here), so the shield
+        // self-heals once the Dock reservation becomes available instead of only at
+        // the two explicit setup/display-change call sites.
+        controller.dockEdgeShieldManager.update(monitors: controller.workspaceManager.monitors)
 
         if let visibility = plan.effects.visibility {
             restoreWorkspaceInactiveFloatingWindows(activeWorkspaceIds: visibility.activeWorkspaceIds)
@@ -2784,13 +2793,11 @@ import QuartzCore
             return false
         }
 
-        guard let displayId = plan.displayId,
-              let monitor = controller?.workspaceManager.monitors.first(where: { $0.displayId == displayId })
-        else {
-            return true
-        }
-
-        return monitor.visibleFrame.contains(CGPoint(x: observedFrame.midX, y: observedFrame.midY))
+        // These plans are hide/park placements. A correct park is intentionally outside
+        // the visible working area, so coordinate equality is the verification; requiring
+        // the midpoint to remain inside visibleFrame makes every successful park look
+        // failed and creates needless reverify churn.
+        return true
     }
 
     private func verifiedCurrentRevealFrame(
@@ -2820,105 +2827,146 @@ import QuartzCore
                 )
         }
 
-        controller.axManager.applyPositionsViaSkyLight(
-            plans.map {
-                (
-                    windowId: $0.entry.windowId,
-                    origin: $0.origin,
-                    height: $0.frameSize.height,
-                    displayId: $0.displayId
-                )
-            },
-            allowInactive: true
-        )
-
-        let verifyEpsilon: CGFloat = 1.0
+        // Parks are AX-only, with the target app's AXEnhancedUserInterface disabled
+        // around the write. Reproduced with external probes: with EUI=true, the app's
+        // own AppKit clamps an AX move so ~40px stay inside visibleFrame on the RIGHT
+        // edge only (2055→1929 with a right Dock; left parks unaffected — matching
+        // "left ok, right misplaced"), and it also reacts to SkyLight move events
+        // with a delayed re-clamp (~1944 drift 0.3–1s after a verified SLS park).
+        // With EUI=false the same AX write is accepted verbatim and holds. So: no
+        // SkyLight move for parks at all, and EUI off while the park write runs.
         var results: [WindowPositionApplyResult] = []
         results.reserveCapacity(plans.count)
 
+        let euiKey = "AXEnhancedUserInterface" as CFString
+        var euiDisabledApps: [pid_t: AXUIElement] = [:]
+        for plan in plans {
+            let pid = plan.entry.pid
+            guard euiDisabledApps[pid] == nil else { continue }
+            let appElement = AXUIElementCreateApplication(pid)
+            var euiValue: CFTypeRef?
+            if AXUIElementCopyAttributeValue(appElement, euiKey, &euiValue) == .success,
+               let enabled = euiValue as? Bool, enabled
+            {
+                AXUIElementSetAttributeValue(appElement, euiKey, kCFBooleanFalse)
+                euiDisabledApps[pid] = appElement
+            }
+        }
+        defer {
+            for (_, appElement) in euiDisabledApps {
+                AXUIElementSetAttributeValue(appElement, euiKey, kCFBooleanTrue)
+            }
+        }
+
         for plan in plans {
             let requestedFrame = CGRect(origin: plan.origin, size: plan.frameSize)
-            var observedFrame = AXWindowService.framePreferFast(plan.entry.axRef)
+            let fallbackAXRef = AXWindowService.axWindowRef(
+                for: UInt32(plan.entry.windowId),
+                pid: plan.entry.pid
+            ) ?? plan.entry.axRef
+            let axResult = AXWindowService.setFrame(fallbackAXRef, frame: requestedFrame)
+            if axResult.failureReason == nil, fallbackAXRef != plan.entry.axRef {
+                plan.entry.axRef = fallbackAXRef
+            }
+            let observedFrame = axResult.observedFrame
+                ?? AXWindowService.framePreferFast(fallbackAXRef)
                 ?? controller.axManager.lastAppliedFrame(for: plan.entry.windowId)
-            var fallbackAttempted = false
-            var fallbackResult: AXFrameWriteResult?
-
-            let shouldFallback: Bool
-            if let observedOrigin = observedFrame?.origin {
-                let dx = abs(observedOrigin.x - plan.origin.x)
-                let dy = abs(observedOrigin.y - plan.origin.y)
-                shouldFallback = dx > verifyEpsilon || dy > verifyEpsilon
-                // Diagnostic: log SkyLight result vs requested
-                controller.axManager
-                    .recordFrameApplyTrace(
-                        "hidePlan.verify id=\(plan.entry.windowId) requested=\(LayoutTrace.point(plan.origin)) observed=\(LayoutTrace.point(observedOrigin)) dx=\(String(format: "%.1f", dx)) dy=\(String(format: "%.1f", dy)) fallback=\(shouldFallback ? "YES" : "no")"
-                    )
-            } else {
-                shouldFallback = true
-                controller.axManager
-                    .recordFrameApplyTrace(
-                        "hidePlan.verify id=\(plan.entry.windowId) requested=\(LayoutTrace.point(plan.origin)) observed=nil fallback=YES"
-                    )
-            }
-
-            if shouldFallback {
-                fallbackAttempted = true
-                let fallbackAXRef = AXWindowService.axWindowRef(
-                    for: UInt32(plan.entry.windowId),
-                    pid: plan.entry.pid
-                ) ?? plan.entry.axRef
-                let axResult = AXWindowService.setFrame(fallbackAXRef, frame: requestedFrame)
-                if axResult.failureReason == nil, fallbackAXRef != plan.entry.axRef {
-                    plan.entry.axRef = fallbackAXRef
-                }
-                fallbackResult = axResult
-                observedFrame = axResult.observedFrame
-                    ?? AXWindowService.framePreferFast(fallbackAXRef)
-                    ?? controller.axManager.lastAppliedFrame(for: plan.entry.windowId)
-                // Diagnostic: log AX fallback result
-                if let afterFallback = observedFrame?.origin {
-                    controller.axManager
-                        .recordFrameApplyTrace(
-                            "hidePlan.axFallback id=\(plan.entry.windowId) axResult=\(axResult) requested=\(LayoutTrace.point(plan.origin)) afterFallback=\(LayoutTrace.point(afterFallback))"
-                        )
-                } else {
-                    controller.axManager
-                        .recordFrameApplyTrace(
-                            "hidePlan.axFallback id=\(plan.entry.windowId) axResult=\(axResult) afterFallback=nil"
-                        )
-                }
-            }
+            controller.axManager
+                .recordFrameApplyTrace(
+                    "hidePlan.axPlace id=\(plan.entry.windowId) requested=\(LayoutTrace.point(plan.origin)) observed=\(observedFrame.map { LayoutTrace.point($0.origin) } ?? "nil") failure=\(axResult.failureReason.map { "\($0)" } ?? "nil") euiDisabled=\(euiDisabledApps[plan.entry.pid] != nil)"
+                )
 
             let verified = positionPlanPlacementVerified(
                 plan,
                 requestedFrame: requestedFrame,
                 observedFrame: observedFrame,
-                epsilon: verifyEpsilon
+                epsilon: 1.0
             )
             controller.axManager.recordFrameApplyTrace(
-                "hidePlan.final id=\(plan.entry.windowId) requested=\(LayoutTrace.rect(requestedFrame)) observed=\(observedFrame.map(LayoutTrace.rect) ?? "nil") fallback=\(fallbackAttempted ? "YES" : "no") verified=\(verified)"
+                "hidePlan.final id=\(plan.entry.windowId) requested=\(LayoutTrace.rect(requestedFrame)) observed=\(observedFrame.map(LayoutTrace.rect) ?? "nil") verified=\(verified)"
             )
             if !verified {
                 recordParkingVerifyMismatch(
                     plan: plan,
                     requestedFrame: requestedFrame,
                     observedFrame: observedFrame,
-                    backend: fallbackAttempted ? "ax" : "skylight"
+                    backend: "ax"
                 )
             }
             recordHiddenReplacementFrameMismatch(plan: plan, parkedFrame: requestedFrame)
+            scheduleDelayedParkReverify(for: plan)
             results.append(
                 WindowPositionApplyResult(
                     token: plan.entry.token,
                     requestedFrame: requestedFrame,
                     observedFrame: observedFrame,
-                    fallbackAttempted: fallbackAttempted,
-                    fallbackResult: fallbackResult,
+                    fallbackAttempted: true,
+                    fallbackResult: axResult,
                     verified: verified
                 )
             )
         }
         return results
+    }
+
+    // A park can be silently reverted moments after a successful verify: an AX frame
+    // write already executing on the app's AX thread when the park cancelled pending
+    // jobs still lands afterward, snapping the window back to its pre-park frame with
+    // no later pass to repair it. Re-check shortly after the park and re-apply once if
+    // the window is still model-hidden but its live frame left the park origin.
+    private func scheduleDelayedParkReverify(for plan: WindowPositionPlan) {
+        let windowId = plan.entry.windowId
+        delayedParkReverifyTasksByWindowId[windowId]?.cancel()
+        delayedParkReverifyTasksByWindowId[windowId] = Task { @MainActor [weak self] in
+            // Two checks: the first catches in-flight AX writes landing just after the
+            // park; the second catches WindowServer's asynchronous re-clamp of
+            // SkyLight-placed windows, which was observed to land later than 300ms.
+            for delayMs in [400, 1400] {
+                try? await Task.sleep(for: .milliseconds(delayMs))
+                guard !Task.isCancelled else { return }
+                guard let self, let controller = self.controller else { return }
+                // Only re-park windows the model still considers hidden and that are
+                // not mid-reveal; otherwise a legitimate reveal would be yanked back
+                // offscreen.
+                guard controller.workspaceManager.hiddenState(for: plan.entry.token) != nil,
+                      self.pendingRevealTransactionsByWindowId[windowId] == nil
+                else {
+                    self.delayedParkReverifyAttemptsByWindowId.removeValue(forKey: windowId)
+                    self.delayedParkReverifyTasksByWindowId.removeValue(forKey: windowId)
+                    return
+                }
+                guard let liveFrame = AXWindowService.framePreferFast(plan.entry.axRef) else {
+                    self.delayedParkReverifyAttemptsByWindowId.removeValue(forKey: windowId)
+                    self.delayedParkReverifyTasksByWindowId.removeValue(forKey: windowId)
+                    return
+                }
+                let dx = abs(liveFrame.origin.x - plan.origin.x)
+                let dy = abs(liveFrame.origin.y - plan.origin.y)
+                guard dx > 1.0 || dy > 1.0 else { continue }
+                let attempts = self.delayedParkReverifyAttemptsByWindowId[windowId, default: 0]
+                guard attempts < 3 else {
+                    controller.axManager.recordFrameApplyTrace(
+                        "hidePlan.delayedReverify id=\(windowId) live=\(LayoutTrace.point(liveFrame.origin)) giveUp attempts=\(attempts)"
+                    )
+                    self.delayedParkReverifyAttemptsByWindowId.removeValue(forKey: windowId)
+                    self.delayedParkReverifyTasksByWindowId.removeValue(forKey: windowId)
+                    return
+                }
+                self.delayedParkReverifyAttemptsByWindowId[windowId] = attempts + 1
+                controller.axManager.recordFrameApplyTrace(
+                    "hidePlan.delayedReverify id=\(windowId) requested=\(LayoutTrace.point(plan.origin)) live=\(LayoutTrace.point(liveFrame.origin)) reapplying attempt=\(attempts + 1) afterMs=\(delayMs)"
+                )
+                controller.axManager.cancelPendingFrameJobs([(plan.entry.handle.pid, windowId)])
+                controller.axManager.suppressFrameWrites([(plan.entry.handle.pid, windowId)])
+                // Re-applying schedules a fresh reverify task keyed on this windowId,
+                // replacing this one.
+                self.applyPositionPlans([plan])
+                return
+            }
+            guard let self else { return }
+            self.delayedParkReverifyAttemptsByWindowId.removeValue(forKey: windowId)
+            self.delayedParkReverifyTasksByWindowId.removeValue(forKey: windowId)
+        }
     }
 
     fileprivate func resolveHideOperation(
@@ -3161,36 +3209,18 @@ import QuartzCore
                 monitor: hiddenPlacementMonitor,
                 monitors: resolvedHiddenPlacementMonitors
             )
-            // Mitigation: explicit 1pt parking on the physical screen edge.
-            // This improves the common non-Dock-edge case, but it is not a complete
-            // WindowServer hide primitive and must not be described as universally
-            // reliable. Prior 1px parking through the normal placement path still
-            // produced stuck visible strips for wide windows. This variant intentionally
-            // uses the full monitor frame (not visibleFrame) and avoids the vertical
-            // offscreen push, so Dock visibleFrame shrinkage and y-clamping are not part
-            // of the parking target.
-            let reveal: CGFloat = Self.hiddenWindowEdgeRevealEpsilon
-            let result: CGPoint = switch orientation {
-            case .horizontal:
-                switch requestedEdge {
-                case .minimum:
-                    CGPoint(x: monitor.frame.minX - frame.width + reveal, y: orthogonalOrigin)
-                case .maximum:
-                    CGPoint(x: monitor.frame.maxX - reveal, y: orthogonalOrigin)
-                }
-            case .vertical:
-                switch requestedEdge {
-                case .minimum:
-                    CGPoint(x: orthogonalOrigin, y: monitor.frame.minY - frame.height + reveal)
-                case .maximum:
-                    CGPoint(x: orthogonalOrigin, y: monitor.frame.maxY - reveal)
-                }
-            }
+            // Single source of truth: the park origin is the same working-edge 1pt
+            // placement the layout engine uses for hidden render rects
+            // (HiddenWindowPlacementResolver.placement). On a fixed-Dock edge this is
+            // the visibleFrame edge, because AX/AppKit clamps physical-edge right parks
+            // back into the workspace when the Dock reservation is active. Diverging park
+            // and render targets previously made every layout pass pull a parked window
+            // back toward a different coordinate.
             controller.axManager
                 .recordFrameApplyTrace(
-                    "hideOrigin.resolve experiment=physicalEdge1pt reason=layoutTransient side=\(side) placement=\(LayoutTrace.point(placement.origin)) result=\(LayoutTrace.point(result)) frame=\(LayoutTrace.rect(frame)) monitorFrame=\(LayoutTrace.rect(monitor.frame)) visibleFrame=\(LayoutTrace.rect(monitor.visibleFrame))"
+                    "hideOrigin.resolve experiment=workingEdgePlacement reason=layoutTransient side=\(side) result=\(LayoutTrace.point(placement.origin)) resolvedEdge=\(placement.resolvedEdge) frame=\(LayoutTrace.rect(frame)) monitorFrame=\(LayoutTrace.rect(monitor.frame)) visibleFrame=\(LayoutTrace.rect(monitor.visibleFrame))"
                 )
-            return result
+            return placement.origin
         }
     }
 
@@ -3519,8 +3549,21 @@ import QuartzCore
         if controller.workspaceManager.hiddenState(for: pendingTransaction.token) == nil {
             controller.workspaceManager.setHiddenState(pendingTransaction.hiddenState, for: pendingTransaction.token)
         }
-        if controller.workspaceManager.hiddenState(for: pendingTransaction.token) != nil {
+        if let hiddenState = controller.workspaceManager.hiddenState(for: pendingTransaction.token) {
             controller.axManager.suppressFrameWrites(frameEntry)
+            // The failed reveal left the window at whatever mid-reveal frame the last
+            // write produced — visibly stranded on screen while the model says hidden.
+            // Re-park it instead of only re-suppressing; hideWindow is idempotent for
+            // correctly parked windows.
+            if let side = hiddenState.offscreenSide,
+               let entry = controller.workspaceManager.entry(for: pendingTransaction.token),
+               let monitor = controller.workspaceManager.monitor(for: entry.workspaceId)
+            {
+                controller.axManager.recordFrameApplyTrace(
+                    "revealRollback.repark id=\(pendingTransaction.windowId) side=\(side)"
+                )
+                hideWindow(entry, monitor: monitor, side: side, reason: .layoutTransient)
+            }
         }
     }
 
@@ -4257,6 +4300,9 @@ final class LayoutDiffExecutor {
         }
 
         if !hiddenEntries.isEmpty {
+            controller.axManager.recordFrameApplyTrace(
+                "hiddenEntries.process ws=\(plan.workspaceId.uuidString.prefix(8)) ids=\(hiddenEntries.map { "\($0.entry.windowId):\($0.side)" }.sorted().joined(separator: ","))"
+            )
             var hiddenJobs: [(pid: pid_t, windowId: Int)] = []
             hiddenJobs.reserveCapacity(hiddenEntries.count)
             var hidePlans: [LayoutRefreshController.WindowPositionPlan] = []
@@ -4286,11 +4332,6 @@ final class LayoutDiffExecutor {
             }
             if !hidePlans.isEmpty {
                 refreshController.applyPositionPlans(hidePlans)
-                for plan in hidePlans {
-                    if let windowId = UInt32(exactly: plan.entry.windowId) {
-                        SkyLight.shared.orderWindow(windowId, relativeTo: 0, order: .below)
-                    }
-                }
                 if LayoutTrace.isEnabled {
                     for plan in hidePlans {
                         LayoutTrace.log(
@@ -4573,6 +4614,11 @@ final class LayoutDiffExecutor {
             workspaceId: workspaceId,
             excludedTokens: excludedTokens
         )
+        if controller.diagnostics.isRuntimeTraceCaptureActive {
+            controller.axManager.recordFrameApplyTrace(
+                "stableHide.reconcile ws=\(workspaceId.uuidString.prefix(8)) candidates=\(candidates.map { "\($0.entry.windowId):\($0.side)" }.sorted().joined(separator: ",")) excluded=\(excludedTokens.count)"
+            )
+        }
         guard !candidates.isEmpty else { return [] }
 
         var reconcilePlans: [LayoutRefreshController.WindowPositionPlan] = []
@@ -4638,11 +4684,6 @@ final class LayoutDiffExecutor {
         }
         guard !plans.isEmpty else { return }
         refreshController.applyPositionPlans(plans)
-        for plan in plans {
-            if let windowId = UInt32(exactly: plan.entry.windowId) {
-                SkyLight.shared.orderWindow(windowId, relativeTo: 0, order: .below)
-            }
-        }
         if LayoutTrace.isEnabled {
             for plan in plans {
                 LayoutTrace.log(

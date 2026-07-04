@@ -73,7 +73,7 @@ struct SettingsSidebar: View {
     }
 
     private func refreshDiagnostics() {
-        let diagIssues = DisplayEnvironmentDiagnostics.current().issues.count
+        let diagIssues = DisplayEnvironmentDiagnostics.current().badgeIssues.count
         let axIssue = AccessibilityPermissionMonitor.shared.isGranted ? 0 : 1
         let settingsIssues = SettingsDiagnosticsDetector.pendingIssues(
             hotkeyFailures: controller.hotkeyRegistrationFailures,

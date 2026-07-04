@@ -102,6 +102,19 @@ struct SettingsExport: Equatable, Sendable {
     /// different monitor sets (e.g. home vs office).
     var ignoreMonitorIdentity: Bool
 
+    /// Experimental: masks off-screen columns parked behind a side fixed Dock with an
+    /// opaque panel. Off by default; the display diagnostics offer to enable it.
+    var dockShieldEnabled: Bool
+    /// Hex color (e.g. "#1F1F1F") of the Dock Shield fill. In a light/dark scheme this is
+    /// the light-appearance color.
+    var dockShieldColorHex: String
+    /// Optional dark-appearance hex for the Dock Shield fill. Empty means the shield uses
+    /// a single color (`dockShieldColorHex`) regardless of theme.
+    var dockShieldColorDarkHex: String
+    /// Opacity of the Dock Shield fill (0…1). 1 is fully opaque; lower values opt into
+    /// translucency so parked windows show through.
+    var dockShieldOpacity: Double
+
     var capabilityOverrides: [WindowCapabilityProfileTOMLOverride] = []
 
     /// Unknown keys decoded from settings.toml under known schema tables, grouped by table path.
@@ -185,6 +198,10 @@ extension SettingsExport {
             backgroundTraceRetentionSeconds: 0,
             backgroundTraceMaxBytes: 64 * 1024 * 1024,
             ignoreMonitorIdentity: false,
+            dockShieldEnabled: false,
+            dockShieldColorHex: "#1F1F1F",
+            dockShieldColorDarkHex: "",
+            dockShieldOpacity: 1.0,
             capabilityOverrides: []
         )
     }

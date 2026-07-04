@@ -308,6 +308,22 @@ final class SettingsStore {
         didSet { scheduleSave() }
     }
 
+    var dockShieldEnabled = SettingsStore.defaultExport.dockShieldEnabled {
+        didSet { scheduleSave() }
+    }
+
+    var dockShieldColorHex = SettingsStore.defaultExport.dockShieldColorHex {
+        didSet { scheduleSave() }
+    }
+
+    var dockShieldColorDarkHex = SettingsStore.defaultExport.dockShieldColorDarkHex {
+        didSet { scheduleSave() }
+    }
+
+    var dockShieldOpacity = SettingsStore.defaultExport.dockShieldOpacity {
+        didSet { scheduleSave() }
+    }
+
     var scrollGestureEnabled = SettingsStore.defaultExport.scrollGestureEnabled {
         didSet { scheduleSave() }
     }
@@ -511,6 +527,10 @@ final class SettingsStore {
             backgroundTraceRetentionSeconds: backgroundTraceRetentionSeconds,
             backgroundTraceMaxBytes: backgroundTraceMaxBytes,
             ignoreMonitorIdentity: ignoreMonitorIdentity,
+            dockShieldEnabled: dockShieldEnabled,
+            dockShieldColorHex: dockShieldColorHex,
+            dockShieldColorDarkHex: dockShieldColorDarkHex,
+            dockShieldOpacity: dockShieldOpacity,
             capabilityOverrides: [],
             settingsTOMLUnknownFields: settingsTOMLUnknownFields
         )
@@ -604,6 +624,10 @@ final class SettingsStore {
         backgroundTraceRetentionSeconds = max(0, export.backgroundTraceRetentionSeconds)
         backgroundTraceMaxBytes = max(1, export.backgroundTraceMaxBytes)
         ignoreMonitorIdentity = export.ignoreMonitorIdentity
+        dockShieldEnabled = export.dockShieldEnabled
+        dockShieldColorHex = export.dockShieldColorHex
+        dockShieldColorDarkHex = export.dockShieldColorDarkHex
+        dockShieldOpacity = export.dockShieldOpacity
         settingsTOMLUnknownFields = export.settingsTOMLUnknownFields
     }
 

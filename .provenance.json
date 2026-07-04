@@ -52,6 +52,7 @@
         "Sources/Nehir/UI/DestructiveConfirmationAlert.swift",
         "Sources/Nehir/UI/DeveloperBadge.swift",
         "Sources/Nehir/UI/DisplayDiagnosticsSettingsTab.swift",
+        "Sources/Nehir/UI/DockEdgeShield/DockEdgeShieldManager.swift",
         "Sources/Nehir/UI/ExperimentalBadge.swift",
         "Sources/Nehir/UI/LayoutSettingsTab.swift",
         "Sources/Nehir/UI/Onboarding/Animations/StaticStepIcon.swift",
