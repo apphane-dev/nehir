@@ -240,9 +240,37 @@ private func makeWindowRuleFacts(
         #expect(decision.heuristicReasons == [])
     }
 
-    @Test func degradedAxFloatingTaggedWindowServerTransientRemainsUndecided() {
+    @Test func degradedAxFloatingTaggedWindowServerTransientIsUnmanaged() {
         let engine = WindowRuleEngine()
         var windowServer = WindowServerInfo(id: 3202, pid: 3202, level: 0, frame: .zero)
+        windowServer.tags = 0x2
+
+        let decision = engine.decision(
+            for: makeWindowRuleFacts(
+                role: kAXWindowRole as String,
+                subrole: "AXUnknown",
+                attributeFetchSucceeded: false,
+                windowServer: windowServer
+            ),
+            token: nil,
+            appFullscreen: false
+        )
+
+        #expect(decision.disposition == .unmanaged)
+        #expect(decision.source == .builtInRule("degradedWindowServerChildSurface"))
+        #expect(decision.deferredReason == nil)
+        #expect(decision.trackedMode == nil)
+        #expect(decision.heuristicReasons == [])
+    }
+
+    @Test func axFetchFailedPipLikeTransientSurfaceRemainsDeferred() {
+        let engine = WindowRuleEngine()
+        var windowServer = WindowServerInfo(
+            id: 3206,
+            pid: 3206,
+            level: 3,
+            frame: CGRect(x: 20, y: 20, width: 320, height: 180)
+        )
         windowServer.tags = 0x2
 
         let decision = engine.decision(

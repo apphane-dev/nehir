@@ -118,16 +118,20 @@ struct WindowRuleFacts: Equatable, Sendable {
     let sizeConstraints: WindowSizeConstraints?
     let windowServer: WindowServerInfo?
 
+    private var axLessNonPipTransientWindowServer: WindowServerInfo? {
+        guard !ax.attributeFetchSucceeded, let windowServer else { return nil }
+        if windowServer.parentId == 0, isTopLevelResizableMediaLikeSurface(windowServer) { return nil }
+        return windowServer
+    }
+
     var degradedWindowServerChildEvidence: Bool {
-        guard !ax.attributeFetchSucceeded,
-              let windowServer
-        else {
-            return false
-        }
-        if windowServer.parentId == 0, isTopLevelResizableMediaLikeSurface(windowServer) {
-            return false
-        }
-        return windowServer.hasModalTag || (windowServer.hasFloatingTag && !windowServer.hasDocumentTag)
+        guard let ws = axLessNonPipTransientWindowServer else { return false }
+        return ws.hasModalTag || (ws.hasFloatingTag && !ws.hasDocumentTag)
+    }
+
+    var axFetchFailedTransientSurfaceEvidence: Bool {
+        guard let ws = axLessNonPipTransientWindowServer else { return false }
+        return ws.hasTransientSurfaceEvidence
     }
 
     var userAddressableTransientWindowServerSurface: Bool {
@@ -320,6 +324,7 @@ final class WindowRuleEngine {
     static let systemTextInputPanelRuleName = "systemTextInputPanel"
     private static let transientWindowServerSurfaceRuleName = "transientWindowServerSurface"
     private static let parentedWindowServerSurfaceRuleName = "parentedWindowServerSurface"
+    private static let degradedWindowServerChildSurfaceRuleName = "degradedWindowServerChildSurface"
     private static let transientSystemDialogSurfaceRuleName = "transientSystemDialogSurface"
     private static let cleanShotRecordingOverlayRuleName = "cleanShotRecordingOverlay"
     private static let ghosttyQuickTerminalRuleName = "ghosttyQuickTerminalOverlay"
@@ -576,6 +581,18 @@ final class WindowRuleEngine {
         }
 
         if !facts.ax.attributeFetchSucceeded {
+            if facts.degradedWindowServerChildEvidence || facts.axFetchFailedTransientSurfaceEvidence {
+                return WindowDecision(
+                    disposition: .unmanaged,
+                    source: .builtInRule(Self.degradedWindowServerChildSurfaceRuleName),
+                    layoutDecisionKind: .explicitLayout,
+                    workspaceName: nil,
+                    ruleEffects: .none,
+                    heuristicReasons: [],
+                    deferredReason: nil
+                )
+            }
+
             if let userRule, userRule.rule.effectiveLayoutAction == .float {
                 return fallbackDecisionForMatchedUserRule(
                     userRule,

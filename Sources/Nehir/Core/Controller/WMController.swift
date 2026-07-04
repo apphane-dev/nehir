@@ -231,6 +231,12 @@ final class WMController {
         CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID) as? [[String: Any]] ?? []
     }
 
+    @ObservationIgnored
+    var unmanagedWindowServerWindowOwnerProvider: @MainActor (Int) -> (pid: pid_t, ownerName: String?)? = { windowId in
+        guard windowId > 0, let info = SkyLight.shared.queryWindowInfo(UInt32(windowId)) else { return nil }
+        return (pid_t(info.pid), nil)
+    }
+
     /// Reports whether the process owning an overlay window is a registered,
     /// bundled application. This is a structural, timing-independent signal
     /// (unlike an `AXUIElementCopyAttributeNames` query, which can transiently
@@ -2561,7 +2567,7 @@ final class WMController {
     /// whose WindowServer owner name matches a known decorative border utility
     /// (e.g. `borders` / JankyBorders) is excluded (#64). Unknown faceless
     /// owners remain occluding, preserving Ghostty Quick terminal suppression.
-    /// The number fast-path is unchanged.
+    /// System chrome such as the Dock is also excluded on both paths.
     func unmanagedInteractiveWindowServerWindowCovers(
         point: CGPoint,
         windowUnderPointer: Int? = nil,
@@ -2569,7 +2575,7 @@ final class WMController {
     ) -> Bool {
         let trackedWindowIds = Set(workspaceManager.trackedWindowIdsForDebug())
         if let windowUnderPointer, windowUnderPointer > 0 {
-            return isUnmanagedWindowServerWindow(
+            return isUnmanagedInteractiveWindowServerWindow(
                 windowId: windowUnderPointer,
                 trackedWindowIds: trackedWindowIds
             )
@@ -2622,8 +2628,8 @@ final class WMController {
                   let y = (bounds["Y"] as? NSNumber)?.doubleValue,
                   let width = (bounds["Width"] as? NSNumber)?.doubleValue,
                   let height = (bounds["Height"] as? NSNumber)?.doubleValue,
-                  width >= 80,
-                  height >= 80
+                  width > 0,
+                  height > 0
             else { continue }
 
             let frame = ScreenCoordinateSpace.toAppKit(
@@ -2635,16 +2641,22 @@ final class WMController {
             guard windowId > 0 else { continue }
             if isOwnedWindowNumber(windowId) { continue }
             if trackedWindowIds.contains(windowId) { continue }
+            if width < 80 || height < 80,
+               !isTransientWindowServerSurface(windowId: windowId)
+            {
+                continue
+            }
 
             let pid = (info[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value ?? 0
             let ownerName = info[kCGWindowOwnerName as String] as? String
             // Only a known decorative border utility gets the faceless-process
             // exemption. Ghostty's Quick terminal can also appear faceless on
             // the snapshot path, but it is interactive and must still occlude.
-            if pid > 0,
-               !ownerAppIsInteractiveApplication(pid),
-               isDecorativeBorderOverlayOwner(ownerName)
-            {
+            if isExemptUnmanagedInteractiveOwner(
+                ownerName: ownerName,
+                pid: pid,
+                ownerAppIsInteractiveApplication: ownerAppIsInteractiveApplication
+            ) {
                 continue
             }
 
@@ -2660,9 +2672,45 @@ final class WMController {
         return normalized == "borders" || normalized == "jankyborders" || normalized == "janky borders"
     }
 
+    private static func isExemptUnmanagedInteractiveOwner(
+        ownerName: String?,
+        pid: pid_t,
+        ownerAppIsInteractiveApplication: @MainActor (pid_t) -> Bool
+    ) -> Bool {
+        isSystemChromeOwner(ownerName: ownerName, pid: pid)
+            || (pid > 0 && !ownerAppIsInteractiveApplication(pid) && isDecorativeBorderOverlayOwner(ownerName))
+    }
+
+    private static func isSystemChromeOwner(ownerName: String?, pid: pid_t) -> Bool {
+        if pid > 0,
+           NSRunningApplication(processIdentifier: pid)?.bundleIdentifier == "com.apple.dock"
+        {
+            return true
+        }
+
+        return ownerName?.trimmingCharacters(in: .whitespacesAndNewlines) == "Dock"
+    }
+
+    private static func isTransientWindowServerSurface(windowId: Int) -> Bool {
+        guard let windowInfo = SkyLight.shared.queryWindowInfo(UInt32(windowId)) else { return false }
+        return windowInfo.hasTransientSurfaceEvidence
+    }
+
     private func isUnmanagedWindowServerWindow(windowId: Int, trackedWindowIds: Set<Int>) -> Bool {
         guard !trackedWindowIds.contains(windowId) else { return false }
         guard !ownedWindowRegistry.contains(windowNumber: windowId) else { return false }
+        return true
+    }
+
+    private func isUnmanagedInteractiveWindowServerWindow(windowId: Int, trackedWindowIds: Set<Int>) -> Bool {
+        guard isUnmanagedWindowServerWindow(windowId: windowId, trackedWindowIds: trackedWindowIds) else {
+            return false
+        }
+        if let owner = unmanagedWindowServerWindowOwnerProvider(windowId),
+           Self.isSystemChromeOwner(ownerName: owner.ownerName, pid: owner.pid)
+        {
+            return false
+        }
         return true
     }
 
