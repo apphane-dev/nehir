@@ -21,7 +21,9 @@ struct BehaviorSettingsTab: View {
                 .onChange(of: settings.focusFollowsMouse) { _, newValue in
                     controller.setFocusFollowsMouse(newValue)
                 }
-                SettingsCaption("Moves keyboard focus to whichever window is under the cursor.")
+                SettingsCaption(
+                    "Moves keyboard focus to whichever window is under the cursor. Hover focus does not reveal clipped or offscreen targets; hold the Manual Override modifier and click a window to use normal focus and reveal it."
+                )
 
                 Toggle(isOn: $settings.moveMouseToFocusedWindow) {
                     HStack(spacing: 8) {
@@ -95,15 +97,15 @@ struct BehaviorSettingsTab: View {
                 SettingsCaption("Hold this key + scroll wheel to navigate workspaces")
             }
 
-            Section("Mouse Resize") {
-                Picker("Mouse Modifier", selection: $settings.mouseResizeModifierKey) {
-                    ForEach(MouseResizeModifierKey.allCases, id: \.self) { key in
+            Section("Manual Override") {
+                Picker("Modifier", selection: $settings.overrideModifier) {
+                    ForEach(OverrideModifierKey.allCases, id: \.self) { key in
                         Text(key.displayName).tag(key)
                     }
                 }
 
                 SettingsCaption(
-                    "Hold this modifier combo to resize with right mouse drag, or during a trackpad scroll gesture to bypass snap."
+                    "Hold this modifier to take manual control: resize the tiled window under the pointer with a right-mouse drag, scroll the viewport freely past column snapping, and — while Focus Follows Mouse is on — keep focus on the current window as the pointer passes over others."
                 )
             }
         }

@@ -68,7 +68,7 @@ Rules:
 | Setting | Type | Default | Behavior |
 |---|---|---|---|
 | Reveal Style | `.auto` / `.closest` / `.center` | `.auto` | Controls where automatic reveals place clipped or parked targets. It never decides whether a reveal happens. |
-| Mouse Modifier | Key binding or `none` | User setting | Hold during a scroll gesture to bypass snap for that gesture. `none` disables snap bypass. |
+| Manual Override Modifier | Key binding | User setting | Hold during a scroll gesture to bypass snap for that gesture. |
 | Lone Window | `Fill` / `Centered(width)` with per-monitor `Use Global` / `Fill` / `Centered(width)` | `Fill` | Controls the default viewport geometry for a one-window workspace. |
 
 ---
@@ -103,7 +103,7 @@ Monitor-specific gap values are resolved centrally by `SettingsStore.resolvedGap
 
 ## Snap Grid
 
-Snap points are computed per column. The viewport always snaps to the nearest snap point on gesture release (unless the mouse modifier is held).
+Snap points are computed per column. The viewport always snaps to the nearest snap point on gesture release (unless the Manual Override modifier is held).
 
 ### Snap point rules
 
@@ -124,7 +124,7 @@ A single tiled column uses the same far overscroll boundary points as a multi-co
 
 On gesture release, the viewport snaps to the nearest snap point. The focused column updates to the column at the target snap position.
 
-Hold the **Mouse Modifier** key during a gesture to bypass snapping — the viewport settles at the decelerated natural position.
+Hold the **Manual Override** modifier during a gesture to bypass snapping — the viewport settles at the decelerated natural position.
 
 Implementation contract: `computeSnapGrid(...)`, `viewportStartBounds(...)`, and `ViewportSnapContext` in `ViewportState+Geometry.swift` are the source of truth for snap points and bounds. Gesture release, viewport scroll commands, Reveal Style, resize adjustment, column transitions, and lone-window scroll/snap handling must consume this shared geometry instead of constructing local snap/edge formulas.
 

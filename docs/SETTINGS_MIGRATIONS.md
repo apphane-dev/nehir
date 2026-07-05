@@ -155,6 +155,46 @@ Notes:
 - If both `revealPartial` and `revealStyle` are present, migration preserves the existing `revealStyle` value and removes only `revealPartial`.
 - Fresh saves emit only `revealStyle`.
 
+### `mouse-resize-modifier-to-override-modifier`
+
+| Field | Value |
+|-------|-------|
+| `id` | `mouse-resize-modifier-to-override-modifier` |
+| `file` | `~/.config/nehir/settings.toml` |
+| `phase` | `introduced` |
+| `introduced` | TBD: first release that ships the Manual Override modifier rename and hold-to-lock-focus behavior |
+| `deprecated` | TBD: earliest release where **Postpone Warning** is removed |
+| `enforced` | TBD: release where `mouseResizeModifierKey` migration support is removed |
+| `detects` | The `[gestures]` table contains a `mouseResizeModifierKey` key. |
+| `user action` | Diagnostics offers **Migrate** and **Postpone Warning**. After postponing, warning/badge state is suppressed for the current release, but the entry and **Migrate** action remain available. |
+| `enforcement plan` | Keep detecting `mouseResizeModifierKey` during the introduced phase. Move to deprecated before enforcement. In the enforced phase, remove dedicated migration support and report the stale key through standard settings recovery/unknown-key assistance. |
+
+Old format:
+
+```toml
+[gestures]
+mouseResizeModifierKey = "option"
+```
+
+New canonical format:
+
+```toml
+[gestures]
+overrideModifier = "option"
+```
+
+Mapping:
+
+| Old `mouseResizeModifierKey` | New `overrideModifier` |
+|---|---|
+| any valid raw value | identical raw value |
+
+Notes:
+
+- If both `mouseResizeModifierKey` and `overrideModifier` are present, migration preserves the existing `overrideModifier` value and removes only `mouseResizeModifierKey`.
+- Fresh saves emit only `overrideModifier`.
+- The renamed setting is the Manual Override modifier: right-drag resize, trackpad snap bypass, and hold-to-lock-focus while Focus Follows Mouse is enabled.
+
 ### `workspaces-array-to-keyed-tables`
 
 | Field | Value |
@@ -220,6 +260,25 @@ settings.toml uses the old revealPartial key. Nehir now uses revealStyle for whe
 Actions:
 
 - **Migrate** — back up and rewrite `settings.toml` with `revealStyle`, removing `revealPartial`.
+- **Postpone Warning** — record the migration id and current app version in the migration state file. This suppresses warning/badge state for the current release only, while keeping the migration entry and **Migrate** action visible.
+
+### Mouse Resize Modifier introduced phase
+
+Suggested title:
+
+```text
+Update mouse modifier setting
+```
+
+Suggested body:
+
+```text
+settings.toml uses the old mouseResizeModifierKey key. Nehir now uses overrideModifier for the Manual Override modifier. You can migrate now, or hide this reminder until the next Nehir update. A future Nehir update may require the new key.
+```
+
+Actions:
+
+- **Migrate** — back up and rewrite `settings.toml` with `overrideModifier`, removing `mouseResizeModifierKey`.
 - **Postpone Warning** — record the migration id and current app version in the migration state file. This suppresses warning/badge state for the current release only, while keeping the migration entry and **Migrate** action visible.
 
 ### Workspaces introduced phase

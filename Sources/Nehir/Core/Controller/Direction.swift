@@ -66,7 +66,7 @@ extension ScrollModifierKey {
     }
 }
 
-extension MouseResizeModifierKey {
+extension OverrideModifierKey {
     var cgEventFlag: CGEventFlags {
         switch self {
         case .option: .maskAlternate

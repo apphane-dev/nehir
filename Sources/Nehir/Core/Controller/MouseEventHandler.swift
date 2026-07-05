@@ -266,6 +266,9 @@ final class MouseEventHandler {
     private var multitouchSource: MultitouchGestureSource?
     var pressedMouseButtonsProvider: @MainActor () -> Int = { Int(NSEvent.pressedMouseButtons) }
     var mouseLocationProvider: @MainActor () -> CGPoint = { NSEvent.mouseLocation }
+    var liveModifierFlagsProvider: @MainActor () -> CGEventFlags = {
+        CGEventSource.flagsState(.combinedSessionState)
+    }
 
     init(controller: WMController) {
         self.controller = controller
@@ -915,6 +918,15 @@ final class MouseEventHandler {
         guard !state.isResizing, !isViewportGestureActive else { return false }
         guard Date() >= state.suppressFocusFollowsMouseUntil else { return false }
         guard let controller else { return false }
+
+        // OmniWM #425: hold the override modifier to keep focus on the current
+        // window while the pointer crosses others. Live flags are re-read every
+        // move, so a missed key-up cannot strand focus (self-healing).
+        let live = liveModifierFlagsProvider()
+        if Self.modifierFlagsMatch(live, required: controller.settings.overrideModifier.cgEventFlag) {
+            return false
+        }
+
         guard let monitor = location.monitorApproximation(in: controller.workspaceManager.monitors),
               let workspace = controller.workspaceManager.activeWorkspaceOrFirst(on: monitor.id)
         else {
@@ -1003,7 +1015,7 @@ final class MouseEventHandler {
         }
 
         guard button == .right,
-              Self.modifierFlagsMatch(modifiers, required: controller.settings.mouseResizeModifierKey.cgEventFlag)
+              Self.modifierFlagsMatch(modifiers, required: controller.settings.overrideModifier.cgEventFlag)
         else { return false }
         guard let tiledWindow = engine.hitTestTiled(point: location, in: wsId),
               let frame = tiledWindow.preferredFrame
@@ -1677,7 +1689,7 @@ final class MouseEventHandler {
                 monitorId: currentContext.monitor.id,
                 bypassSnap: Self.modifierFlagsMatch(
                     snapshot.modifiers,
-                    required: controller.settings.mouseResizeModifierKey.cgEventFlag
+                    required: controller.settings.overrideModifier.cgEventFlag
                 )
             )
             state.gestureStartX = avgX
@@ -1737,7 +1749,7 @@ final class MouseEventHandler {
             if !lockedContext.bypassSnap,
                Self.modifierFlagsMatch(
                    snapshot.modifiers,
-                   required: controller.settings.mouseResizeModifierKey.cgEventFlag
+                   required: controller.settings.overrideModifier.cgEventFlag
                )
             {
                 lockedContext = .init(

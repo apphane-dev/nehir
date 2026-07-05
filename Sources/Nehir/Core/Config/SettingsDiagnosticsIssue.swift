@@ -167,6 +167,12 @@ enum SettingsDiagnosticsDetector {
         }) {
             unknownKeys.removeAll { $0 == RevealPartialMigrationKeys.legacyKeyPath }
         }
+        if issues.contains(where: { issue in
+            guard case .softMigration(let migration) = issue else { return false }
+            return migration.id == SettingsMigrationRegistry.mouseResizeModifierToOverrideModifier.id
+        }) {
+            unknownKeys.removeAll { $0 == OverrideModifierMigrationKeys.legacyKeyPath }
+        }
         if !unknownKeys.isEmpty {
             issues.append(.unknownKeys(UnknownSettingsKeysIssue(fileURL: settingsURL, keyPaths: unknownKeys)))
         }
