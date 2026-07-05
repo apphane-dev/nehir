@@ -8,6 +8,36 @@ folders live at the repo root here — `planned/`, `completed/`, `discovery/`,
 (`Sources/Nehir/...`, `Tests/NehirTests/...`) still refer to the main Nehir
 repository.
 
+## Workflow lifecycle
+
+Planning work moves through a fixed lifecycle. Each stage has a home and a
+discipline; keep documents in sync with where the work actually is.
+
+1. **Discovery** (`discovery/`) — investigate a bug or opportunity and write a
+   self-contained, source-backed root-cause note. Trace logs to a hypothesis,
+   then **confirm the arming/gating condition in actual source** (cite file +
+   line) before writing anything down. If source contradicts the hypothesis,
+   discard it and re-investigate — do not ship repro steps inferred from traces
+   alone. A discovery whose verdict is no-op / already-fixed / duplicate / not
+   applicable moves to `noop/` with the verdict stated up front.
+2. **Plan** (`planned/`) — turn an actionable discovery into a self-contained
+   plan: exact files to touch (repo-relative source paths), explicit
+   do-not-touch fences naming what parallel work owns, the fast gate to run
+   between steps and the full suite once at the end, and the required commit
+   message shape.
+3. **Delegate & implement** (happens on `main`, not here) — hand the plan to a
+   worker agent in an isolated worktree using an approved model. Do not make the
+   spec'd edits directly; delegate, then supervise.
+4. **Review & verify** — read the worker's diff yourself and re-run the gate in
+   a fresh pane. Merge only on green gates. Never trust an agent's "all green".
+5. **Housekeep** — once shipped or superseded, move the plan/discovery to
+   `completed/` (or `noop/`), keep it consistent with merged `main` state and
+   git history, and record follow-up work as a new discovery. Commit
+   per-action with the branch's message conventions.
+
+Every document must stay durable and machine-independent (see the two sections
+below): no trace log filenames, no machine-specific paths.
+
 ## Discovery documents: do not reference trace log filenames
 
 When writing discovery / investigation documents (under `discovery/`, `completed/`,
