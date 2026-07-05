@@ -759,6 +759,10 @@ struct DisplayDiagnosticsSettingsTab: View {
                 let backupURL = try RevealPartialSettingsMigration.migrate(fileURL: migration.fileURL)
                 try migrationStateStore.clearPostpone(migrationID: migration.id)
                 migrationConfirmation = "Migrated settings.toml. Backup: \(backupURL.lastPathComponent)"
+            case SettingsMigrationRegistry.mouseResizeModifierToOverrideModifier.id:
+                let backupURL = try MouseResizeModifierSettingsMigration.migrate(fileURL: migration.fileURL)
+                try migrationStateStore.clearPostpone(migrationID: migration.id)
+                migrationConfirmation = "Migrated settings.toml. Backup: \(backupURL.lastPathComponent)"
             default:
                 migrationError = "No migration action is registered for \(migration.id)."
             }

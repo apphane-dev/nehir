@@ -51,6 +51,56 @@ private extension String {
         #expect(decoded.ipcEnabled == SettingsExport.defaults().ipcEnabled)
     }
 
+    @Test func overrideModifierRoundTripsThroughToml() throws {
+        var export = SettingsExport.defaults()
+        export.overrideModifier = OverrideModifierKey.controlOption.rawValue
+
+        let data = try SettingsTOMLCodec.encode(export)
+        let output = try #require(String(data: data, encoding: .utf8))
+        let decoded = try SettingsTOMLCodec.decode(data)
+
+        #expect(decoded.overrideModifier == OverrideModifierKey.controlOption.rawValue)
+        #expect(output.contains("overrideModifier = \"controlOption\""))
+        #expect(!output.contains("mouseResizeModifierKey"))
+    }
+
+    @Test func legacyMouseResizeModifierKeyDecodesIntoOverrideModifier() throws {
+        let toml = """
+        [gestures]
+        mouseResizeModifierKey = "command"
+        """
+
+        let decoded = try SettingsTOMLCodec.decode(Data(toml.utf8))
+
+        #expect(decoded.overrideModifier == OverrideModifierKey.command.rawValue)
+        #expect(decoded.settingsTOMLUnknownFields["gestures"]?["mouseResizeModifierKey"] == .string("command"))
+    }
+
+    @Test func legacyMouseResizeModifierKeyReencodesWithoutAddingOverrideModifier() throws {
+        let toml = """
+        [gestures]
+        mouseResizeModifierKey = "command"
+        """
+
+        let decoded = try SettingsTOMLCodec.decode(Data(toml.utf8))
+        let output = try #require(String(data: SettingsTOMLCodec.encode(decoded), encoding: .utf8))
+
+        #expect(output.contains("mouseResizeModifierKey = \"command\""))
+        #expect(!output.contains("overrideModifier"))
+    }
+
+    @Test func newOverrideModifierKeyWinsWhenBothPresent() throws {
+        let toml = """
+        [gestures]
+        mouseResizeModifierKey = "command"
+        overrideModifier = "controlOption"
+        """
+
+        let decoded = try SettingsTOMLCodec.decode(Data(toml.utf8))
+
+        #expect(decoded.overrideModifier == OverrideModifierKey.controlOption.rawValue)
+    }
+
     @Test func mainSettingsRejectInvalidPresentValues() throws {
         let data = try SettingsTOMLCodec.encode(SettingsExport.defaults())
         let output = try #require(String(data: data, encoding: .utf8))

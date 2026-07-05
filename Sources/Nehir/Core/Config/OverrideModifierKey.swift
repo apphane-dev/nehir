@@ -1,10 +1,11 @@
 // SPDX-FileCopyrightText: 2026 BarutSRB
 // SPDX-FileCopyrightText: 2026 Aleksei Gurianov and Nehir contributors
 // SPDX-FileComment: Provenance=upstream-derived; Upstream-Project=OmniWM; Upstream-Author=BarutSRB; Nehir-Changes-Since=2026; See=NOTICE.md
+// SPDX-FileComment: Focus-lock behavior idea derived from OmniWM #425; implementation is Nehir-original and reuses this modifier enum.
 //
 // SPDX-License-Identifier: GPL-2.0-only
 
-enum MouseResizeModifierKey: String, CaseIterable, Codable {
+enum OverrideModifierKey: String, CaseIterable, Codable {
     case option
     case control
     case command

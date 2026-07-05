@@ -338,8 +338,8 @@ final class SettingsStore {
         didSet { scheduleSave() }
     }
 
-    var mouseResizeModifierKey = MouseResizeModifierKey(
-        rawValue: SettingsStore.defaultExport.mouseResizeModifierKey
+    var overrideModifier = OverrideModifierKey(
+        rawValue: SettingsStore.defaultExport.overrideModifier
     ) ?? .option {
         didSet { scheduleSave() }
     }
@@ -513,7 +513,7 @@ final class SettingsStore {
             scrollGestureEnabled: scrollGestureEnabled,
             scrollSensitivity: scrollSensitivity,
             scrollModifierKey: scrollModifierKey.rawValue,
-            mouseResizeModifierKey: mouseResizeModifierKey.rawValue,
+            overrideModifier: overrideModifier.rawValue,
             gestureFingerCount: gestureFingerCount.rawValue,
             gestureInvertDirection: gestureInvertDirection,
             statusBarShowWorkspaceName: statusBarShowWorkspaceName,
@@ -609,7 +609,7 @@ final class SettingsStore {
         scrollGestureEnabled = export.scrollGestureEnabled
         scrollSensitivity = export.scrollSensitivity
         scrollModifierKey = ScrollModifierKey(rawValue: export.scrollModifierKey) ?? .optionShift
-        mouseResizeModifierKey = MouseResizeModifierKey(rawValue: export.mouseResizeModifierKey) ?? .option
+        overrideModifier = OverrideModifierKey(rawValue: export.overrideModifier) ?? .option
         gestureFingerCount = GestureFingerCount(rawValue: export.gestureFingerCount) ?? .three
         gestureInvertDirection = export.gestureInvertDirection
         statusBarShowWorkspaceName = export.statusBarShowWorkspaceName

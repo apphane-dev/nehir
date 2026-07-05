@@ -29,6 +29,16 @@ enum RevealPartialMigrationKeys {
     }
 }
 
+enum OverrideModifierMigrationKeys {
+    static let section = "gestures"
+    static let legacyKey = "mouseResizeModifierKey"
+    static let newKey = "overrideModifier"
+
+    static var legacyKeyPath: String {
+        "\(section).\(legacyKey)"
+    }
+}
+
 enum SettingsMigrationRegistry {
     static let workspacesArrayToKeyedTables = SettingsMigrationDescriptor(
         id: "workspaces-array-to-keyed-tables",
@@ -50,9 +60,20 @@ enum SettingsMigrationRegistry {
         enforcementWarning: "A future Nehir update may require the new key."
     )
 
+    static let mouseResizeModifierToOverrideModifier = SettingsMigrationDescriptor(
+        id: "mouse-resize-modifier-to-override-modifier",
+        title: "Update mouse modifier setting",
+        fileName: SettingsFilePersistence.fileName,
+        oldFormatSummary: "[\(OverrideModifierMigrationKeys.section)].\(OverrideModifierMigrationKeys.legacyKey)",
+        newFormatSummary: "[\(OverrideModifierMigrationKeys.section)].\(OverrideModifierMigrationKeys.newKey)",
+        warningBody: "settings.toml uses the old mouseResizeModifierKey key. Nehir now uses overrideModifier for the Manual Override modifier.",
+        enforcementWarning: "A future Nehir update may require the new key."
+    )
+
     static let all: [SettingsMigrationDescriptor] = [
         workspacesArrayToKeyedTables,
-        revealPartialToRevealStyle
+        revealPartialToRevealStyle,
+        mouseResizeModifierToOverrideModifier
     ]
 }
 
@@ -81,6 +102,11 @@ enum SettingsMigrationDetector {
         let settingsURL = configDirectory.appendingPathComponent(revealDescriptor.fileName, isDirectory: false)
         if RevealPartialSettingsMigration.needsMigration(fileURL: settingsURL) {
             migrations.append(PendingSettingsMigration(descriptor: revealDescriptor, fileURL: settingsURL))
+        }
+
+        let overrideModifierDescriptor = SettingsMigrationRegistry.mouseResizeModifierToOverrideModifier
+        if MouseResizeModifierSettingsMigration.needsMigration(fileURL: settingsURL) {
+            migrations.append(PendingSettingsMigration(descriptor: overrideModifierDescriptor, fileURL: settingsURL))
         }
 
         return migrations
@@ -138,7 +164,11 @@ enum RevealPartialSettingsMigration {
 
     static func needsMigration(data: Data) -> Bool {
         guard let string = String(data: data, encoding: .utf8) else { return false }
-        return niriValue(for: RevealPartialMigrationKeys.legacyKey, in: string) != nil
+        return settingsTOMLValue(
+            for: RevealPartialMigrationKeys.legacyKey,
+            in: string,
+            section: RevealPartialMigrationKeys.legacySection
+        ) != nil
     }
 
     @discardableResult
@@ -151,8 +181,16 @@ enum RevealPartialSettingsMigration {
         let backupURL = try createTimestampedSettingsMigrationBackup(for: fileURL)
         var export = try SettingsTOMLCodec.decode(data)
 
-        if niriValue(for: RevealPartialMigrationKeys.newKey, in: string) == nil,
-           let oldValue = niriValue(for: RevealPartialMigrationKeys.legacyKey, in: string)
+        if settingsTOMLValue(
+            for: RevealPartialMigrationKeys.newKey,
+            in: string,
+            section: RevealPartialMigrationKeys.legacySection
+        ) == nil,
+            let oldValue = settingsTOMLValue(
+                for: RevealPartialMigrationKeys.legacyKey,
+                in: string,
+                section: RevealPartialMigrationKeys.legacySection
+            )
         {
             export.revealStyle = migratedRevealStyle(from: oldValue)
         }
@@ -176,59 +214,111 @@ enum RevealPartialSettingsMigration {
         default: RevealStyle.auto.rawValue
         }
     }
+}
 
-    private static func niriValue(for key: String, in toml: String) -> String? {
-        var inNiri = false
-        for rawLine in toml.split(separator: "\n", omittingEmptySubsequences: false) {
-            let line = stripComment(String(rawLine)).trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !line.isEmpty else { continue }
-            if line.hasPrefix("[") {
-                inNiri = line == "[niri]"
-                continue
-            }
-            guard inNiri,
-                  line.hasPrefix(key),
-                  let equalsIndex = line.firstIndex(of: "=")
-            else { continue }
+enum MouseResizeModifierSettingsMigration {
+    static let migrationID = SettingsMigrationRegistry.mouseResizeModifierToOverrideModifier.id
 
-            let lhs = line[..<equalsIndex].trimmingCharacters(in: .whitespacesAndNewlines)
-            guard lhs == key else { continue }
-            let rhs = line[line.index(after: equalsIndex)...].trimmingCharacters(in: .whitespacesAndNewlines)
-            return unquotedString(rhs)
-        }
-        return nil
+    static func needsMigration(fileURL: URL) -> Bool {
+        guard let data = try? Data(contentsOf: fileURL) else { return false }
+        return needsMigration(data: data)
     }
 
-    private static func stripComment(_ line: String) -> String {
-        var result = ""
-        var quote: Character?
-        var isEscaped = false
-        for character in line {
-            if character == "\\", quote == "\"" {
-                result.append(character)
-                isEscaped.toggle()
-                continue
-            }
-            if (character == "\"" || character == "'"), !isEscaped {
-                quote = quote == character ? nil : (quote ?? character)
-            }
-            if character == "#", quote == nil {
-                break
-            }
+    static func needsMigration(data: Data) -> Bool {
+        guard let string = String(data: data, encoding: .utf8) else { return false }
+        return settingsTOMLValue(
+            for: OverrideModifierMigrationKeys.legacyKey,
+            in: string,
+            section: OverrideModifierMigrationKeys.section
+        ) != nil
+    }
+
+    @discardableResult
+    static func migrate(fileURL: URL) throws -> URL {
+        let data = try Data(contentsOf: fileURL)
+        guard let string = String(data: data, encoding: .utf8), needsMigration(data: data) else {
+            throw SettingsMigrationError.migrationNotNeeded
+        }
+
+        let backupURL = try createTimestampedSettingsMigrationBackup(for: fileURL)
+        var export = try SettingsTOMLCodec.decode(data)
+
+        if settingsTOMLValue(
+            for: OverrideModifierMigrationKeys.newKey,
+            in: string,
+            section: OverrideModifierMigrationKeys.section
+        ) == nil,
+            let oldValue = settingsTOMLValue(
+                for: OverrideModifierMigrationKeys.legacyKey,
+                in: string,
+                section: OverrideModifierMigrationKeys.section
+            )
+        {
+            export.overrideModifier = oldValue
+        }
+        export.settingsTOMLUnknownFields[OverrideModifierMigrationKeys.section]?
+            .removeValue(forKey: OverrideModifierMigrationKeys.legacyKey)
+        if export.settingsTOMLUnknownFields[OverrideModifierMigrationKeys.section]?.isEmpty == true {
+            export.settingsTOMLUnknownFields.removeValue(forKey: OverrideModifierMigrationKeys.section)
+        }
+
+        let encoded = try SettingsTOMLCodec.encode(export)
+        try encoded.write(to: fileURL, options: .atomic)
+        return backupURL
+    }
+}
+
+private func settingsTOMLValue(for key: String, in toml: String, section: String) -> String? {
+    var isInTargetSection = false
+    for rawLine in toml.split(separator: "\n", omittingEmptySubsequences: false) {
+        let line = stripComment(String(rawLine)).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !line.isEmpty else { continue }
+        if line.hasPrefix("[") {
+            isInTargetSection = line == "[\(section)]"
+            continue
+        }
+        guard isInTargetSection,
+              line.hasPrefix(key),
+              let equalsIndex = line.firstIndex(of: "=")
+        else { continue }
+
+        let lhs = line[..<equalsIndex].trimmingCharacters(in: .whitespacesAndNewlines)
+        guard lhs == key else { continue }
+        let rhs = line[line.index(after: equalsIndex)...].trimmingCharacters(in: .whitespacesAndNewlines)
+        return unquotedString(rhs)
+    }
+    return nil
+}
+
+private func stripComment(_ line: String) -> String {
+    var result = ""
+    var quote: Character?
+    var isEscaped = false
+    for character in line {
+        if character == "\\", quote == "\"" {
             result.append(character)
-            isEscaped = false
+            isEscaped.toggle()
+            continue
         }
-        return result
+        if (character == "\"" || character == "'"), !isEscaped {
+            quote = quote == character ? nil : (quote ?? character)
+        }
+        if character == "#", quote == nil {
+            break
+        }
+        result.append(character)
+        isEscaped = false
     }
+    return result
+}
 
-    private static func unquotedString(_ value: String) -> String? {
-        guard value.count >= 2,
-              let first = value.first,
-              (first == "\"" || first == "'"),
-              value.last == first
-        else { return nil }
-        return String(value.dropFirst().dropLast())
-    }
+private func unquotedString(_ value: String) -> String? {
+    guard value.count >= 2,
+          let first = value.first,
+          (first == "\"" || first == "'"),
+          value.last == first
+    else { return nil }
+    return String(value.dropFirst().dropLast())
 }
 
 private func createTimestampedSettingsMigrationBackup(for fileURL: URL) throws -> URL {

@@ -107,6 +107,75 @@ import Testing
         #expect(decoded.revealStyle == RevealStyle.closest.rawValue)
     }
 
+    @Test func mouseResizeModifierMigrationNeedsMigrationDetectsLegacyKey() throws {
+        #expect(MouseResizeModifierSettingsMigration.needsMigration(data: Data("""
+        [gestures]
+        mouseResizeModifierKey = "command"
+        """.utf8)))
+        #expect(!MouseResizeModifierSettingsMigration.needsMigration(data: Data("""
+        [gestures]
+        overrideModifier = "command"
+        """.utf8)))
+        #expect(!MouseResizeModifierSettingsMigration.needsMigration(data: Data("""
+        [niri]
+        revealPartial = "snapCenter"
+        """.utf8)))
+    }
+
+    @Test func mouseResizeModifierMigrationRewritesToNewKey() throws {
+        let configDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("nehir-override-migration-config-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: configDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: configDirectory) }
+
+        let settingsURL = configDirectory.appendingPathComponent("settings.toml")
+        try """
+        [gestures]
+        mouseResizeModifierKey = "controlOption"
+        scrollEnabled = true
+        """.write(to: settingsURL, atomically: true, encoding: .utf8)
+
+        let migrations = SettingsMigrationDetector.applicableMigrations(configDirectory: configDirectory)
+        #expect(migrations.map(\.id).contains(SettingsMigrationRegistry.mouseResizeModifierToOverrideModifier.id))
+
+        let backupURL = try MouseResizeModifierSettingsMigration.migrate(fileURL: settingsURL)
+        let migrated = try String(contentsOf: settingsURL, encoding: .utf8)
+        let backup = try String(contentsOf: backupURL, encoding: .utf8)
+        let decoded = try SettingsTOMLCodec.decode(Data(contentsOf: settingsURL))
+
+        #expect(backup.contains("mouseResizeModifierKey = \"controlOption\""))
+        #expect(migrated.contains("overrideModifier = \"controlOption\""))
+        #expect(!migrated.contains("mouseResizeModifierKey"))
+        #expect(decoded.overrideModifier == OverrideModifierKey.controlOption.rawValue)
+        #expect(decoded.settingsTOMLUnknownFields["gestures"]?["mouseResizeModifierKey"] == nil)
+    }
+
+    @Test func mouseResizeModifierMigrationPreservesExplicitOverrideModifierWhenBothKeysExist() throws {
+        let configDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("nehir-override-migration-config-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: configDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: configDirectory) }
+
+        let settingsURL = configDirectory.appendingPathComponent("settings.toml")
+        try """
+        [gestures]
+        mouseResizeModifierKey = "command"
+        overrideModifier = "controlOption"
+        """.write(to: settingsURL, atomically: true, encoding: .utf8)
+
+        _ = try MouseResizeModifierSettingsMigration.migrate(fileURL: settingsURL)
+        let migrated = try String(contentsOf: settingsURL, encoding: .utf8)
+        let decoded = try SettingsTOMLCodec.decode(Data(contentsOf: settingsURL))
+
+        #expect(migrated.contains("overrideModifier = \"controlOption\""))
+        #expect(!migrated.contains("mouseResizeModifierKey"))
+        #expect(decoded.overrideModifier == OverrideModifierKey.controlOption.rawValue)
+    }
+
+    @Test func migrationRegistryIncludesOverrideModifierEntry() {
+        #expect(SettingsMigrationRegistry.all.contains(SettingsMigrationRegistry.mouseResizeModifierToOverrideModifier))
+    }
+
     @Test func detectorSuppressesOnlyPostponedCurrentVersion() throws {
         let configDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent("nehir-migration-config-\(UUID().uuidString)", isDirectory: true)

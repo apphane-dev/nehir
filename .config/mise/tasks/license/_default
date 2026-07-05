@@ -78,7 +78,10 @@ def render_header(entry: dict[str, Any]) -> str:
         lines.append(f"// SPDX-FileContributor: {item}")
 
     file_comment = entry.get("fileComment")
-    if file_comment:
+    if isinstance(file_comment, list):
+        for item in file_comment:
+            lines.append(f"// SPDX-FileComment: {item}")
+    elif file_comment:
         lines.append(f"// SPDX-FileComment: {file_comment}")
 
     lines.append("//")

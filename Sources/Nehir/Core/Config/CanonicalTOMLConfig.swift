@@ -230,14 +230,18 @@ struct CanonicalTOMLConfig: Codable, Equatable {
         var scrollEnabled: Bool
         var scrollSensitivity: Double
         var scrollModifierKey: String
-        var mouseResizeModifierKey: String
+        var overrideModifier: String
         var fingerCount: Int
         var invertDirection: Bool
         var unknownFields: [String: SettingsTOMLUnknownValue] = [:]
 
         enum CodingKeys: String, CodingKey, CaseIterable {
-            case scrollEnabled, scrollSensitivity, scrollModifierKey, mouseResizeModifierKey, fingerCount,
+            case scrollEnabled, scrollSensitivity, scrollModifierKey, overrideModifier, fingerCount,
                  invertDirection
+        }
+
+        enum LegacyCodingKeys: String, CodingKey {
+            case mouseResizeModifierKey
         }
     }
 
@@ -361,7 +365,7 @@ extension CanonicalTOMLConfig {
             scrollEnabled: export.scrollGestureEnabled,
             scrollSensitivity: export.scrollSensitivity,
             scrollModifierKey: export.scrollModifierKey,
-            mouseResizeModifierKey: export.mouseResizeModifierKey,
+            overrideModifier: export.overrideModifier,
             fingerCount: export.gestureFingerCount,
             invertDirection: export.gestureInvertDirection,
             unknownFields: unknown["gestures"] ?? [:]
@@ -452,7 +456,7 @@ extension CanonicalTOMLConfig {
             scrollGestureEnabled: gestures.scrollEnabled,
             scrollSensitivity: gestures.scrollSensitivity,
             scrollModifierKey: gestures.scrollModifierKey,
-            mouseResizeModifierKey: gestures.mouseResizeModifierKey,
+            overrideModifier: gestures.overrideModifier,
             gestureFingerCount: gestures.fingerCount,
             gestureInvertDirection: gestures.invertDirection,
             statusBarShowWorkspaceName: statusBar.showWorkspaceName,
@@ -880,10 +884,12 @@ extension CanonicalTOMLConfig.Gestures {
             forKey: .scrollModifierKey,
             default: d.scrollModifierKey
         )
-        mouseResizeModifierKey = try container.decodeWithDefault(
+        let legacyContainer = try decoder.container(keyedBy: LegacyCodingKeys.self)
+        let legacyOverride = try legacyContainer.decodeIfPresent(String.self, forKey: .mouseResizeModifierKey)
+        overrideModifier = try container.decodeWithDefault(
             String.self,
-            forKey: .mouseResizeModifierKey,
-            default: d.mouseResizeModifierKey
+            forKey: .overrideModifier,
+            default: legacyOverride ?? d.overrideModifier
         )
         fingerCount = try container.decodeWithDefault(Int.self, forKey: .fingerCount, default: d.fingerCount)
         invertDirection = try container.decodeWithDefault(
@@ -899,7 +905,9 @@ extension CanonicalTOMLConfig.Gestures {
         try container.encode(scrollEnabled, forKey: "scrollEnabled")
         try container.encode(scrollSensitivity, forKey: "scrollSensitivity")
         try container.encode(scrollModifierKey, forKey: "scrollModifierKey")
-        try container.encode(mouseResizeModifierKey, forKey: "mouseResizeModifierKey")
+        if unknownFields["mouseResizeModifierKey"] != .string(overrideModifier) {
+            try container.encode(overrideModifier, forKey: "overrideModifier")
+        }
         try container.encode(fingerCount, forKey: "fingerCount")
         try container.encode(invertDirection, forKey: "invertDirection")
         try container.encodeUnknownFields(unknownFields)

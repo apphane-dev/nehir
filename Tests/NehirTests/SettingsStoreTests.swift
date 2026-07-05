@@ -379,7 +379,7 @@ struct SettingsExportTests {
         #expect(defaults.preventSleepEnabled == false)
         #expect(defaults.ipcEnabled == false)
         #expect(defaults.scrollSensitivity == 5.0)
-        #expect(defaults.mouseResizeModifierKey == MouseResizeModifierKey.option.rawValue)
+        #expect(defaults.overrideModifier == OverrideModifierKey.option.rawValue)
         #expect(defaults.statusBarShowWorkspaceName == false)
         #expect(defaults.statusBarShowAppNames == false)
         #expect(defaults.statusBarUseWorkspaceId == false)
@@ -791,7 +791,7 @@ struct HotkeySurfaceTests {
         let settings = SettingsStore(defaults: defaults)
         settings.focusFollowsWindowToMonitor = true
         settings.mouseWarpAxis = .vertical
-        settings.mouseResizeModifierKey = .controlCommandShift
+        settings.overrideModifier = .controlCommandShift
         settings.statusBarShowWorkspaceName = true
         settings.statusBarShowAppNames = true
         settings.statusBarUseWorkspaceId = true
@@ -804,7 +804,7 @@ struct HotkeySurfaceTests {
 
         #expect(reloaded.focusFollowsWindowToMonitor == true)
         #expect(reloaded.mouseWarpAxis == .vertical)
-        #expect(reloaded.mouseResizeModifierKey == .controlCommandShift)
+        #expect(reloaded.overrideModifier == .controlCommandShift)
         #expect(reloaded.statusBarShowWorkspaceName == true)
         #expect(reloaded.statusBarShowAppNames == true)
         #expect(reloaded.statusBarUseWorkspaceId == true)

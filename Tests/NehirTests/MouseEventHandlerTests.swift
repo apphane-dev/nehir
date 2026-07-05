@@ -215,6 +215,73 @@ private func prepareMouseResizeFixture(
 }
 
 @MainActor
+private func prepareFocusFollowsMouseOverrideModifierFixture(
+    focusFollowsMouse: Bool = true
+) async -> (
+    controller: WMController,
+    firstHandle: WindowHandle,
+    secondHandle: WindowHandle,
+    hoverPoint: CGPoint
+) {
+    let controller = makeMouseEventTestController()
+    controller.settings.overrideModifier = .option
+    controller.enableNiriLayout(revealStyle: .auto)
+    await controller.layoutRefreshController.waitForRefreshWorkForTests()
+    controller.syncMonitorsToNiriEngine()
+    controller.setFocusFollowsMouse(focusFollowsMouse)
+
+    guard let workspaceId = controller.interactionWorkspace()?.id,
+          let engine = controller.niriEngine,
+          let monitor = controller.workspaceManager.monitor(for: workspaceId)
+    else {
+        fatalError("Missing Niri context for focus-follows-mouse override modifier fixture")
+    }
+
+    let firstToken = controller.workspaceManager.addWindow(
+        makeMouseEventTestWindow(windowId: 951),
+        pid: getpid(),
+        windowId: 951,
+        to: workspaceId
+    )
+    let secondToken = controller.workspaceManager.addWindow(
+        makeMouseEventTestWindow(windowId: 952),
+        pid: getpid(),
+        windowId: 952,
+        to: workspaceId
+    )
+    guard let firstHandle = controller.workspaceManager.handle(for: firstToken),
+          let secondHandle = controller.workspaceManager.handle(for: secondToken)
+    else {
+        fatalError("Missing handles for focus-follows-mouse override modifier fixture")
+    }
+
+    let handles = controller.workspaceManager.entries(in: workspaceId).map(\.handle)
+    _ = engine.syncWindows(
+        handles,
+        in: workspaceId,
+        selectedNodeId: nil,
+        focusedHandle: firstHandle
+    )
+    _ = controller.workspaceManager.setManagedFocus(firstHandle, in: workspaceId, onMonitor: monitor.id)
+    controller.layoutRefreshController.requestImmediateRelayout(reason: .workspaceTransition)
+    await controller.layoutRefreshController.waitForRefreshWorkForTests()
+    controller.mouseEventHandler.resetFocusFollowsMouseTimeForTesting()
+
+    guard let secondNode = engine.findNode(for: secondHandle),
+          let hoveredFrame = secondNode.frame
+    else {
+        fatalError("Missing second node frame for focus-follows-mouse override modifier fixture")
+    }
+
+    return (
+        controller,
+        firstHandle,
+        secondHandle,
+        CGPoint(x: hoveredFrame.midX, y: hoveredFrame.midY)
+    )
+}
+
+@MainActor
 private func prepareCommittedTrackpadGestureFixture() async -> (
     controller: WMController,
     handler: MouseEventHandler,
@@ -434,7 +501,7 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
     @Test func mouseResizeModifierMappingsMatchExactly() {
         let relevantFlags: [CGEventFlags] = [.maskAlternate, .maskControl, .maskCommand, .maskShift]
 
-        for key in MouseResizeModifierKey.allCases {
+        for key in OverrideModifierKey.allCases {
             let required = key.cgEventFlag
             #expect(MouseEventHandler.modifierFlagsMatch(required, required: required))
 
@@ -988,7 +1055,7 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
             return
         }
 
-        fixture.controller.settings.mouseResizeModifierKey = .controlShift
+        fixture.controller.settings.overrideModifier = .controlShift
         let originalWidth = column.cachedWidth
         let insetFrame = fixture.controller.insetWorkingFrame(for: monitor)
         let maxWidth = insetFrame.width
@@ -1015,7 +1082,7 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
             return
         }
 
-        fixture.controller.settings.mouseResizeModifierKey = .controlShift
+        fixture.controller.settings.overrideModifier = .controlShift
         let start = CGPoint(x: fixture.nodeFrame.maxX - 20, y: fixture.nodeFrame.midY)
 
         fixture.handler.dispatchMouseDown(at: start, modifiers: [.maskAlternate], button: .right)
@@ -3169,6 +3236,55 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
         // allowsSelectionOffscreen removed in viewport refactor; active column may differ from selection
         #expect(updatedState.activeColumnIndex == initialState.activeColumnIndex)
         #expect(controller.niriLayoutHandler.scrollAnimationByDisplay[monitor.displayId] == nil)
+    }
+
+    @Test @MainActor func focusFollowsMouseSuppressedWhileOverrideModifierHeld() async {
+        let fixture = await prepareFocusFollowsMouseOverrideModifierFixture()
+        fixture.controller.mouseEventHandler.liveModifierFlagsProvider = { .maskAlternate }
+
+        fixture.controller.mouseEventHandler.dispatchMouseMoved(at: fixture.hoverPoint)
+        await fixture.controller.layoutRefreshController.waitForRefreshWorkForTests()
+
+        #expect(fixture.controller.workspaceManager.focusedHandle == fixture.firstHandle)
+        #expect(fixture.controller.workspaceManager.pendingFocusedHandle == nil)
+    }
+
+    @Test @MainActor func focusFollowsMouseAppliesWhenOverrideModifierNotHeld() async {
+        let fixture = await prepareFocusFollowsMouseOverrideModifierFixture()
+        fixture.controller.mouseEventHandler.liveModifierFlagsProvider = { [] }
+
+        fixture.controller.mouseEventHandler.dispatchMouseMoved(at: fixture.hoverPoint)
+        await fixture.controller.layoutRefreshController.waitForRefreshWorkForTests()
+
+        #expect(fixture.controller.workspaceManager.focusedHandle == fixture.firstHandle)
+        #expect(fixture.controller.workspaceManager.pendingFocusedHandle == fixture.secondHandle)
+    }
+
+    @Test @MainActor func focusFollowsMouseUnaffectedWhenModifierHeldButFfmDisabled() async {
+        let fixture = await prepareFocusFollowsMouseOverrideModifierFixture(focusFollowsMouse: false)
+        var wasConsulted = false
+        fixture.controller.mouseEventHandler.liveModifierFlagsProvider = {
+            wasConsulted = true
+            return .maskAlternate
+        }
+
+        fixture.controller.mouseEventHandler.dispatchMouseMoved(at: fixture.hoverPoint)
+        await fixture.controller.layoutRefreshController.waitForRefreshWorkForTests()
+
+        #expect(wasConsulted == false)
+        #expect(fixture.controller.workspaceManager.focusedHandle == fixture.firstHandle)
+        #expect(fixture.controller.workspaceManager.pendingFocusedHandle == nil)
+    }
+
+    @Test @MainActor func overrideModifierSupersetDoesNotLockFocus() async {
+        let fixture = await prepareFocusFollowsMouseOverrideModifierFixture()
+        fixture.controller.mouseEventHandler.liveModifierFlagsProvider = { [.maskAlternate, .maskShift] }
+
+        fixture.controller.mouseEventHandler.dispatchMouseMoved(at: fixture.hoverPoint)
+        await fixture.controller.layoutRefreshController.waitForRefreshWorkForTests()
+
+        #expect(fixture.controller.workspaceManager.focusedHandle == fixture.firstHandle)
+        #expect(fixture.controller.workspaceManager.pendingFocusedHandle == fixture.secondHandle)
     }
 
     // MARK: - M5 step 1: gesture skip/abort trace capture

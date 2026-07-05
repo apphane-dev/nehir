@@ -45,7 +45,7 @@ viewportTraceVerbosity = "standard"
 [gestures]
 fingerCount = 3
 invertDirection = true
-mouseResizeModifierKey = "option"
+overrideModifier = "option"
 scrollEnabled = true
 scrollModifierKey = "optionShift"
 scrollSensitivity = 5.0
