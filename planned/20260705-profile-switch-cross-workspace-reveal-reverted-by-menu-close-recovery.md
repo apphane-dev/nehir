@@ -239,3 +239,115 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
 
 Include the changeset fragment in the same commit. When done, print the
 completion token: `PLAN_PROFILE_SWITCH_REVEAL_COMPLETE`.
+
+---
+
+## Revision 2 — the first implementation did not fix it; do this instead
+
+A first pass (commit `cfdacab6`) implemented Steps 1–3 above: a per-pid
+`recentCrossWorkspaceRaiseByPid` map with a `0.3s` TTL, a `shouldActivateWorkspace`
++ `hasRecentAppActivation`-gated recorder, a live-AX `inferred` fallback, and
+vetoes inside the two `arm…` helpers. A fresh capture reproduced the bug
+unchanged, with **no `close_recovery_skipped` trace record emitted at all** — the
+veto never fired. Root causes of the failure, all confirmed against the capture:
+
+1. **Not all recovery-arm paths were gated.** `beginWindowCloseFocusRecovery` is
+   called directly (not only via the two `arm…` helpers) at
+   `AXEventHandler.swift:1510` (window-destroy focus recovery) and
+   `:1702` (`handleManagedWindowHiddenStateChanged`). Recovery armed through an
+   ungated path.
+2. **The TTL is orders of magnitude too short.** A profile switch is a
+   multi-second interaction. In the capture the target raise (`w1945` confirmed
+   at `14:54:34`) and the recovery arming (`14:54:38`, and again `14:54:48`) are
+   4–14 s apart, and the `AXFocusedWindowChanged … window=nil` bursts span
+   `14:54:34 → 14:54:48`. A `0.3s` (or any sub-second) TTL expires before
+   recovery arms. Anchoring the TTL to the `0.4s` `native_app_switch` lease was
+   the wrong reference.
+3. **Recording was gated on `shouldActivateWorkspace`.** The capture was taken
+   across a Nehir restart; startup admission made the target workspace
+   (`B488928F`) *active first*, so `shouldActivateWorkspace` was false when the
+   target windows confirmed and no raise was ever recorded.
+4. **`hasRecentAppActivation` (10 s) is also too tight.** Only **one**
+   `workspaceDidActivateApplication` fires for the pid, at t≈0; the late recovery
+   at `14:54:48` is >10 s past it, so the live-AX `inferred` check (gated on
+   recent activation) could not fire either.
+5. **The deeper bug is unaddressed.** Skipping *arming* is only half of it.
+   During profile-switch churn, recovery anchors to whichever same-pid window is
+   confirmed-focused when the menu closes — frequently the window the user is
+   switching **away** from (`w1287` on the origin workspace) — so when recovery
+   does run it reveals the wrong workspace.
+
+### Revised approach (replaces Steps 1–3)
+
+Drop the wall-clock `recentCrossWorkspaceRaiseByPid` TTL map and the
+`hasRecentAppActivation` gate. Key the fix off the **profile-picker popup
+lifecycle**, which is the one signal that actually spans the whole interaction,
+and centralize the check so every arm path is covered.
+
+1. **Track transient same-pid popup activity per pid.** The profile picker is a
+   same-pid, level-≠0, AX-less transient surface — in the capture it appears as
+   `prepare_create_rejected … reason=missing_ax_ref window_info_level=101
+   ws_frame=(432,40 117x158)` (and a `parent`-linked menu-bar strip at level 0,
+   `window_info_parent=<managed window id>`). Record a per-pid timestamp whenever
+   such a transient popup surface is **seen created or destroyed** (reuse the
+   existing transient/AX-less popup classification the FFM menu-steal work already
+   uses — do not invent a new one; see
+   `completed/20260705-ffm-steals-focus-at-app-menu-edge.md`). This timestamp is
+   refreshed across the whole menu interaction *and* on the close edge that
+   triggers recovery.
+
+2. **Centralize the veto in `beginWindowCloseFocusRecovery`** (the single choke
+   point, `AXEventHandler.swift:1556`), so the destroy path (`:1510`), the
+   hidden-state path (`:1702`), and both `arm…` helpers are all covered. The
+   veto fires when **both**: (a) the pid (derive it from the recovery's
+   `suppressedActivationPid`/`preservedToken`, or the confirmed focus token's pid)
+   has transient-popup activity within a short grace of *now* (target ~1.5 s from
+   the last popup create/destroy — tie it to the popup event, not to app
+   activation); **and** (b) a **live AX** query shows that pid has a *standard*
+   (role `AXWindow`/subrole `AXStandardWindow`, level 0, non-sticky) window on an
+   **inactive** workspace other than the recovery's target workspace (the
+   TTL-free `inferCrossWorkspaceStandardWindowFromAXWindows` idea from the first
+   pass — keep it, but call it centrally and do not gate it on recent app
+   activation).
+
+3. **When vetoed, do not arm recovery** (emit the `close_recovery_skipped`
+   trace). This lets the app's own raise of the target-profile window stand.
+   Confirm end-state: the target workspace is the visible/active one and its
+   window is focused.
+
+4. Keep the sticky exclusion (`!hasStickyWindowSource`) and the standard-window
+   filter. Keep the new trace record. Remove the now-unused
+   `recentCrossWorkspaceRaiseByPid` map, its TTL, and the recorder if the
+   popup-lifecycle signal fully replaces them.
+
+### Revised tests
+
+Add/adjust so the harness exercises the **multi-second** and **restart-warmed**
+shapes the first pass missed:
+
+- Recovery is vetoed when a same-pid transient popup was seen/destroyed within
+  the grace **and** a live-AX standard window sits on another inactive workspace
+  — even when the target workspace was already active (no `shouldActivateWorkspace`)
+  and even when the last app activation is >10 s old.
+- Recovery still arms for a quick-terminal/dropdown close where **no** same-pid
+  transient profile-style popup was involved (regression 1).
+- Sticky-sourced cross-workspace window does not veto (regression 3).
+- The veto fires regardless of which arm site triggered recovery (destroy,
+  hidden-state, window-loss) — parametrize over all three.
+
+### Verify against a real capture, not just tests
+
+After the build, reproduce the profile switch and capture a runtime trace.
+Required signature for a pass: a `close_recovery_skipped
+reason=… pid=28651` record on the profile switch, **no** trailing
+`focus_lease_changed owner=window_close_focus_recovery` that re-reveals the
+origin workspace, and end-state runtime showing the **target** profile's
+workspace `visible=true` with its window focused. Do not declare done on green
+tests alone — the first pass passed its tests and still failed live.
+
+### Housekeeping
+
+Commit `cfdacab6` also carried an unrelated commit on the branch
+(`ff69764e "Make postponed migration warnings resettable"`, touching
+`DisplayDiagnosticsSettingsTab.swift`) — outside this plan's scope fence. Drop or
+separate it; this branch must contain only the profile-switch fix.
