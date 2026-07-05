@@ -174,3 +174,72 @@ The discussion frames this as "add a title-based popup rule." That path is a dea
 end for any Gecko app: the AX title is `nil` at (and after) admission, so no
 title matcher can ever fire. Any answer on the thread should say so and point at
 the document-tag discriminator instead.
+
+---
+
+## Prior art — how other macOS tiling WMs handle this
+
+Checked yabai and AeroSpace (the two most-used macOS tilers) to see whether this
+class of window is solved elsewhere. Conclusion: **nobody solves title-less Gecko
+dialogs with a generic AX heuristic; both fall back to per-app special-casing.**
+This validates option 1 above as the industry-standard approach.
+
+### yabai — subrole-only, no generic solution
+
+yabai's management eligibility keys almost entirely on AX subrole: a window is
+"real" (tileable) when `AXRole == AXWindow` and `AXSubrole` is one of
+`AXStandardWindow` / `AXDialog` / `AXFloatingWindow`, and only `AXStandardWindow`
+tiles by default; `AXDialog`/`AXFloatingWindow` float (koekeishiya/yabai #2046,
+#152). Because Gecko reports its dialog as `AXStandardWindow` — not `AXDialog` —
+yabai tiles it exactly like Nehir does. The documented user workaround is a manual
+per-app / per-title `manage=off` rule (koekeishiya/yabai #384, #109), which runs
+into the same wall this document describes: title is unavailable and the subrole
+does not separate the dialog from the compose window.
+
+### AeroSpace — generic "no fullscreen button" heuristic **plus a hardcoded Firefox branch**
+
+AeroSpace's `isDialogHeuristic`
+(`Sources/AppBundle/model/AxUiElementWindowType.swift`) is the closest analog to
+Nehir's `heuristicDisposition`. Two things stand out:
+
+1. Its generic rule is the mirror of Nehir's: *float any window whose fullscreen
+   button is absent or disabled* ("such windows are not designed to be big").
+   **This would NOT catch the Thunderbird send dialog either** — our capture shows
+   the dialog with `hasFullscreenButton=true fullscreenButtonEnabled=true`, so
+   AeroSpace's generic heuristic classifies it as a real window, same as Nehir.
+
+2. AeroSpace therefore carries an **explicit hardcoded Firefox special-case**,
+   keyed on a different AX signal — the minimize button:
+
+   ```swift
+   // Firefox: Picture in Picture window doesn't have minimize button.
+   // todo. bug: when firefox shows non-native fullscreen, minimize button is
+   // disabled for all other non-fullscreen windows
+   if id?.isFirefox == true && get(Ax.minimizeButtonAttr)?.get(Ax.enabledAttr) != true {
+       return true // treat as dialog → float
+   }
+   ```
+
+   The file is full of similar per-bundle hacks (`ghostty`, `gimp`, `chrome`,
+   `alacritty`, `steam`, `1password`, `iphonesimulator`, `qutebrowser`, `emacs`,
+   vscode…). The maintainer's stated stance is that hardcoding popular apps is an
+   acceptable way to fix heuristic misses.
+
+### Takeaways for Nehir
+
+- **Option 1 (scoped Gecko built-in rule) is the mainstream fix.** AeroSpace
+  literally hardcodes Firefox for this exact problem; yabai users hardcode via
+  rules. A narrow `org.mozilla.*` built-in in `WindowRuleEngine` is consistent
+  with both prior art and Nehir's own existing per-app built-ins.
+- **There is a second candidate discriminator worth capturing:** the *minimize
+  button enabled* state, which AeroSpace uses for Firefox. Nehir's capture records
+  `hasMinimizeButton=true` for the dialog but does **not** record its enabled
+  state, so we can't yet confirm the dialog's minimize button is disabled the way
+  AeroSpace relies on. Before choosing between the document-tag signal (found
+  here) and the minimize-button signal (AeroSpace's), a follow-up capture should
+  record `minimizeButtonEnabled` for both the compose window and the send dialog.
+  Note AeroSpace itself flags the minimize-button signal as buggy under Firefox
+  non-native fullscreen — the WindowServer document-tag signal has no such caveat
+  in our data, so it is the preferred primary discriminator.
+- **No WM offers a title-based path here** — confirming the thread's suggested fix
+  is a dead end across the ecosystem, not just in Nehir.
