@@ -244,12 +244,6 @@ Nehir is one of several projects exploring this workflow:
 [hyprslidr]: https://gitlab.com/magus/hyprslidr
 [PaperWM.spoon]: https://github.com/mogenson/PaperWM.spoon
 
-## Star History
-
-## Star History
-
-[![Star History Chart](https://api.star-history.com/chart?repos=apphane-dev/nehir&type=date&legend=top-left)](https://www.star-history.com/?repos=apphane-dev%2Fnehir&type=date&legend=top-left)
-
 ## License
 
 GPL-2.0-only
