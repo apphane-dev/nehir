@@ -1,6 +1,16 @@
 # Nehir #112 — Focus-follows-mouse blocked by a fixed Dock (occlusion-exemption regression)
 
-**Status:** planned
+**Verdict: shipped.** Fixed on `main` in commit `e68349f8` (2026-07-05, "Fix
+focus-follows-mouse regressions with a fixed Dock and app context menus (#112)")
+by re-exempting the Dock / system chrome from FFM's occlusion check on both the
+snapshot and fast (window-under-pointer) paths — the exemption a fixed Dock lost
+when #64 narrowed it. Ghostty Quick terminal and JankyBorders still occlude.
+Verified with regression tests and a user real-repro trace. The context-menu
+focus-steal found while validating this fix shipped in the same commit and is
+recorded in [[20260705-ffm-steals-focus-at-app-menu-edge]]. Moved from
+`planned/` to `completed/`.
+
+**Status:** shipped
 **GitHub issue:** #112 ("[Bug] Focus Follows Mouse not working with Fixed Dock")
 **Regressed:** between `v0.5.0` and `v0.6.0-rc.13`
 **Regressing commit:** `56573ba2` — "Fix focus-follows-mouse blocked by

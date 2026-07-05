@@ -1,5 +1,16 @@
 # FFM steals focus at the edge of an open app context menu (menu-tracking session not respected)
 
+**Verdict: shipped.** Fixed on `main` in commit `e68349f8` (2026-07-05, "Fix
+focus-follows-mouse regressions with a fixed Dock and app context menus (#112)"),
+alongside the #112 fixed-Dock fix. The shipped fix combines: (1) an FFM
+suppression **grace period** armed on an `.occlusion` resolution, and (2)
+classifying AX-less transient menu popups as `.unmanaged` via the dimension-free
+WindowServer transient-surface signal (PiP-safe), so the popup routes back
+through the unmanaged-occlusion gate — plus treating small transient surfaces as
+occluders. See the "Pinned fix" section below. Confirmed against user
+real-repro traces and covered by regression tests. Moved from `discovery/` to
+`completed/`.
+
 Discovery (2026-07-05). With `focusFollowsMouse=true`, opening an app **context
 menu** (here a Chromium/Helium menu) and navigating into its **second-level
 submenu** — which floats over a *different* tiled window — makes FFM **steal
