@@ -72,6 +72,23 @@ struct NiriCreateFocusTraceEvent: Equatable {
         case relayoutActivatedWindow(token: WindowToken, workspaceId: WorkspaceDescriptor.ID)
         case pendingFocusStarted(requestId: UInt64, token: WindowToken, workspaceId: WorkspaceDescriptor.ID)
         case activationSourceObserved(pid: pid_t, source: ActivationEventSource)
+        /// The macOS-observed reality for a focus Nehir just confirmed. Emitted
+        /// alongside `focus_confirmed` so a reader can tell Nehir's *intent*
+        /// (`focus_confirmed`/`focused=`) from what the window server actually
+        /// did: whether macOS made the window key (`observed_focused`), whether
+        /// it is physically on screen (`on_screen`), and whether its workspace
+        /// is the visible one (`ws_visible`). A confirmed focus with
+        /// `observed_focused=false` or `ws_visible=false` is a model/reality
+        /// divergence, not a success.
+        case focusReality(
+            token: WindowToken,
+            observedFocused: Bool,
+            observedVisible: Bool,
+            onScreen: Bool,
+            wsVisible: Bool,
+            appFrontmost: Bool,
+            appFocusedWindowId: Int?
+        )
         case activationDeferred(
             requestId: UInt64,
             token: WindowToken,
@@ -214,6 +231,18 @@ extension NiriCreateFocusTraceEvent: CustomStringConvertible {
             "pending_focus_started request=\(requestId) token=\(token) workspace=\(workspaceId.uuidString)"
         case let .activationSourceObserved(pid, source):
             "activation_source_observed pid=\(pid) source=\(source.rawValue)"
+        case let .focusReality(
+            token,
+            observedFocused,
+            observedVisible,
+            onScreen,
+            wsVisible,
+            appFrontmost,
+            appFocusedWindowId
+        ):
+            "focus_reality token=\(token) observed_focused=\(observedFocused) "
+                + "observed_visible=\(observedVisible) on_screen=\(onScreen) ws_visible=\(wsVisible) "
+                + "app_frontmost=\(appFrontmost) app_focused_window=\(appFocusedWindowId.map(String.init) ?? "nil")"
         case let .activationDeferred(requestId, token, source, reason, attempt):
             "activation_deferred request=\(requestId) token=\(token) source=\(source.rawValue) reason=\(reason.rawValue) attempt=\(attempt)"
         case let .focusConfirmed(token, workspaceId, source):
@@ -2453,6 +2482,7 @@ final class AXEventHandler: CGSEventDelegate {
                     )
                 )
             )
+            recordFocusRealityCheck(entry: entry)
         } else {
             _ = controller.workspaceManager.setManagedFocus(
                 entry.token,
@@ -3962,6 +3992,46 @@ final class AXEventHandler: CGSEventDelegate {
         recentManagedWorkspaceByPid[pid] = RecentManagedWorkspace(
             workspaceId: workspaceId,
             recordedAt: managedReplacementCurrentUptime()
+        )
+    }
+
+    /// Emit the macOS-observed reality for a focus Nehir just confirmed, so the
+    /// trace records intent *and* what the window server actually did. Without
+    /// this, `focus_confirmed`/`focused=` alone can read as success while the
+    /// window is not key (`observed_focused=false`) or its workspace is not the
+    /// visible one — the profile-switch failure mode where the trace looked
+    /// like it worked but nothing was on screen.
+    private func recordFocusRealityCheck(entry: WindowModel.Entry) {
+        guard let controller else { return }
+        let liveFrame = try? AXWindowService.frame(entry.axRef)
+        let onScreen = liveFrame.map { frame in
+            controller.workspaceManager.monitors.contains { monitor in
+                let overlap = monitor.visibleFrame.intersection(frame)
+                let frameArea = frame.width * frame.height
+                return !overlap.isNull && frameArea > 0
+                    && (overlap.width * overlap.height) >= frameArea * 0.5
+            }
+        } ?? false
+        let wsVisible = controller.workspaceManager.visibleWorkspaceIds().contains(entry.workspaceId)
+        // App-level ground truth: is the app even frontmost, and which window
+        // does the app itself report as focused. An `observed_focused=false`
+        // with `app_frontmost=false` means macOS never activated the app; an
+        // `app_focused_window` that differs from the token means Nehir confirmed
+        // a different window than the one the app actually made key.
+        let appFrontmost = NSWorkspace.shared.frontmostApplication?.processIdentifier == entry.pid
+        let appFocusedWindowId = resolveFocusedAXWindowRef(pid: entry.pid)?.windowId
+        recordNiriCreateFocusTrace(
+            .init(
+                kind: .focusReality(
+                    token: entry.token,
+                    observedFocused: entry.observedState.isFocused,
+                    observedVisible: entry.observedState.isVisible,
+                    onScreen: onScreen,
+                    wsVisible: wsVisible,
+                    appFrontmost: appFrontmost,
+                    appFocusedWindowId: appFocusedWindowId
+                )
+            )
         )
     }
 
