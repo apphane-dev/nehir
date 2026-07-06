@@ -3895,6 +3895,92 @@ private func makeCenteredCrossMonitorFixture(
         #expect(targetColumn.presetWidthIdx == nil)
     }
 
+    @Test func moveWindowToWorkspaceClearsManualLoneSurvivorWidthOverride() {
+        let engine = NiriLayoutEngine(balancedColumnCount: 3)
+        engine.loneWindowPolicy = .centered(maxWidthFraction: 0.6)
+        let sourceWorkspaceId = UUID()
+        let targetWorkspaceId = UUID()
+
+        let movedWindow = engine.addWindow(handle: makeTestHandle(pid: 91), to: sourceWorkspaceId, afterSelection: nil)
+        let survivorWindow = engine.addWindow(
+            handle: makeTestHandle(pid: 92),
+            to: sourceWorkspaceId,
+            afterSelection: movedWindow.id
+        )
+
+        guard let movedColumn = engine.column(of: movedWindow),
+              let survivorColumn = engine.column(of: survivorWindow)
+        else {
+            Issue.record("Expected two source columns before workspace move")
+            return
+        }
+
+        for column in [movedColumn, survivorColumn] {
+            column.hasManualSingleWindowWidthOverride = true
+            column.cachedWidth = 800
+        }
+
+        var sourceState = ViewportState()
+        var targetState = ViewportState()
+
+        let moved = engine.moveWindowToWorkspace(
+            movedWindow,
+            from: sourceWorkspaceId,
+            to: targetWorkspaceId,
+            sourceState: &sourceState,
+            targetState: &targetState
+        )
+
+        #expect(moved != nil)
+        #expect(engine.columns(in: sourceWorkspaceId).count == 1)
+        #expect(engine.columns(in: sourceWorkspaceId).first === survivorColumn)
+        #expect(!survivorColumn.hasManualSingleWindowWidthOverride)
+        #expect(survivorColumn.cachedWidth == 0)
+    }
+
+    @Test func moveColumnToWorkspaceClearsManualLoneSurvivorWidthOverride() {
+        let engine = NiriLayoutEngine(balancedColumnCount: 3)
+        engine.loneWindowPolicy = .centered(maxWidthFraction: 0.6)
+        let sourceWorkspaceId = UUID()
+        let targetWorkspaceId = UUID()
+
+        let movedWindow = engine.addWindow(handle: makeTestHandle(pid: 93), to: sourceWorkspaceId, afterSelection: nil)
+        let survivorWindow = engine.addWindow(
+            handle: makeTestHandle(pid: 94),
+            to: sourceWorkspaceId,
+            afterSelection: movedWindow.id
+        )
+
+        guard let movedColumn = engine.column(of: movedWindow),
+              let survivorColumn = engine.column(of: survivorWindow)
+        else {
+            Issue.record("Expected two source columns before column workspace move")
+            return
+        }
+
+        for column in [movedColumn, survivorColumn] {
+            column.hasManualSingleWindowWidthOverride = true
+            column.cachedWidth = 800
+        }
+
+        var sourceState = ViewportState()
+        var targetState = ViewportState()
+
+        let moved = engine.moveColumnToWorkspace(
+            movedColumn,
+            from: sourceWorkspaceId,
+            to: targetWorkspaceId,
+            sourceState: &sourceState,
+            targetState: &targetState
+        )
+
+        #expect(moved != nil)
+        #expect(engine.columns(in: sourceWorkspaceId).count == 1)
+        #expect(engine.columns(in: sourceWorkspaceId).first === survivorColumn)
+        #expect(!survivorColumn.hasManualSingleWindowWidthOverride)
+        #expect(survivorColumn.cachedWidth == 0)
+    }
+
     @Test func moveLastColumnToWorkspaceLeavesSourceWorkspaceEmpty() {
         let engine = NiriLayoutEngine()
         let sourceWorkspaceId = UUID()

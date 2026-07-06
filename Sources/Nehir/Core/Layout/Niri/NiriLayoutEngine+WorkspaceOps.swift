@@ -57,6 +57,7 @@ extension NiriLayoutEngine {
         cleanupEmptyColumn(sourceColumn, in: sourceWorkspaceId, state: &sourceState)
 
         sourceState.selectedNodeId = fallbackSelection
+        resetManualLoneWindowWidthOverrideIfNeeded(in: sourceWorkspaceId)
 
         targetState.selectedNodeId = window.id
 
@@ -106,6 +107,7 @@ extension NiriLayoutEngine {
         }
 
         sourceState.selectedNodeId = fallbackSelection
+        resetManualLoneWindowWidthOverrideIfNeeded(in: sourceWorkspaceId)
 
         targetState.selectedNodeId = column.firstChild()?.id
 
@@ -116,6 +118,15 @@ extension NiriLayoutEngine {
             movedHandle: firstWindowHandle,
             targetWorkspaceId: targetWorkspaceId
         )
+    }
+
+    private func resetManualLoneWindowWidthOverrideIfNeeded(in workspaceId: WorkspaceDescriptor.ID) {
+        guard let column = singleWindowLayoutContext(in: workspaceId)?.container,
+              column.hasManualSingleWindowWidthOverride
+        else { return }
+
+        column.hasManualSingleWindowWidthOverride = false
+        column.cachedWidth = 0
     }
 
     func adjacentWorkspace(
