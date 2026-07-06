@@ -1,0 +1,20 @@
+/Users/Aleksei_Gurianov/.local/state/nehir/traces/runtime-trace-1783340872402-1783343131780.log
+
+please check this trace for last quick terminal window close causing viewport scroll
+
+---
+
+why shouldSuppressSameAppInactiveWorkspaceActivationBeforeCloseRecovery didn't supressed it?
+
+---
+
+> Short answer: because the recovery target (Ghostty window 6872) was on the active workspace, and this guard only suppresses activations that land on an inactive workspace. It bailed out at line 1954, never reaching the suppression returns.
+
+user is not expecting ANY workspace movement on quick terminal closed.
+
+/Users/Aleksei_Gurianov/ghq/github.com/niri-wm/niri
+what original niri says about closing same app windows palced on different ends of layout strip? should it select near window or scroll to the same app placed on this workspace?
+
+---
+
+we also want to target this behaviour of maximum stable viewport approach. unfortunately it means we are fighting back macos. lets prepare plan to fix this
