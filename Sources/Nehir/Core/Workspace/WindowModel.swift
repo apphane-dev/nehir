@@ -454,7 +454,7 @@ final class WindowModel {
             entry.axRef = newAXRef
             entry.cachedConstraints = nil
             entry.constraintsCacheTime = nil
-            entry.inferredResizeMinimumSize = nil
+            // Preserve inferred resize minimum: it is a physical app invariant and survives AX-ref refresh.
             if let managedReplacementMetadata {
                 entry.managedReplacementMetadata = managedReplacementMetadata
             }
@@ -593,9 +593,7 @@ final class WindowModel {
             tokenIndexByKey: &tokenIndexByWorkspaceMode
         )
         entry.mode = mode
-        if mode != .tiling {
-            entry.inferredResizeMinimumSize = nil
-        }
+        // Preserve inferred resize minimum: it is a physical app invariant and survives mode changes.
         appendToken(
             token,
             to: WorkspaceModeKey(workspaceId: entry.workspaceId, mode: mode),
@@ -725,9 +723,7 @@ final class WindowModel {
             entry.prevParentKind = entry.parentKind
         }
         entry.layoutReason = reason
-        if reason != .standard {
-            entry.inferredResizeMinimumSize = nil
-        }
+        // Preserve inferred resize minimum: it is a physical app invariant and survives layout-reason changes.
     }
 
     func restoreFromNativeState(for token: WindowToken) -> ParentKind? {
