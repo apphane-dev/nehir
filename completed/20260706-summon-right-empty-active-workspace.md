@@ -336,20 +336,10 @@ on the empty second display (expect `commit path=crossWorkspace` and no
   to `SummonTraceFormatting.swift`).
 - `b8994c80` — fix cross-workspace admission drop.
 
-**Original branch context (superseded — for provenance only):** the feature was
-developed and confirmed working on branch `fix/summon-right-display-verify`:
+Runtime instrumentation proved the display targeting is correct; the follow-on
+bug was admission, not targeting.
 
-- `b4bc69b9` — summon into anchorless active workspace (append rightmost column).
-- `c838c9cc` — target the palette's monitor, not the interaction monitor.
-- `bfd70189` — harden: single `paletteScreen()` feeds both `positionPanel` and
-  the summon monitor mapping (AppKit-space `NSScreen` resolution, not CG-space
-  `Monitor.frame`).
-- `19e55b90` — Summon Right diagnostic tracing (see evidence below).
-
-Runtime instrumentation proved the display targeting is correct. The remaining
-bug is admission, not targeting.
-
-All source references verified against `fix/summon-right-display-verify`
+All source references below were verified against `fix/summon-right-display-verify`
 HEAD `19e55b90` on 2026-07-06. Line numbers drift (instrumentation shifted
 them) — re-verify before editing.
 
