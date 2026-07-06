@@ -1,6 +1,6 @@
 # Nehir issue #99 — Lone survivor does not re-center after moving a window away, when the surviving window was manually resized — Discovery
 
-**Status:** actionable — reopens `noop/20260622-nehir-99-source-lone-window-recenter-after-move.md`
+**Status:** ✅ shipped — fixed on `main` in `4f9e5682` (2026-07-07). See "Resolution" below.
 **Source issue:** https://github.com/apphane-dev/nehir/issues/99 (label `bug`)
 **Reporter env:** nehir 0.6.0-rc.29, macOS (dual monitor)
 **Verified against:** `main` on 2026-07-07 (source citations below).
@@ -166,25 +166,36 @@ as it does on first insertion.
 Workaround that confirms the cause: move the survivor to another empty workspace and back — it
 re-centers correctly (target path clears the manual override; source path does not).
 
-## Fix direction (for the plan stage — not implemented here)
+## Resolution (shipped `4f9e5682`, 2026-07-07)
 
-Make the **source** side of a move recenter a lone survivor the same way the target/insertion
-side does. Options, roughly in order of locality:
+Fixed with the localized move-path approach (the operation that actually orphaned the survivor,
+reusing the already-correct admission-path semantics — no new per-relayout heuristics, and the
+recenter gate's conservative side-snap/park preservation is left untouched).
 
-- In `moveWindowToWorkspace` / `moveColumnToWorkspace` source cleanup
-  (`NiriLayoutEngine+WorkspaceOps.swift:57`, `:108`), when the source workspace is left with
-  exactly one tiled column, clear that column's `hasManualSingleWindowWidthOverride` and
-  `cachedWidth` (mirroring `initializeNewColumnWidth`) so the relayout gate's
-  `previousSingleWindowWidth <= 0` path arms — matching the empty-workspace admission path.
-- Or, in the recenter gate (`NiriLayoutHandler.swift:815`), add an arming condition for a
-  workspace that just transitioned to a single manual lone window (e.g. compare `geometry`'s
-  *policy* width, not the manual-preserving `resolvedSingleWindowWidth`, against the current
-  width). Care: this must not fight a deliberately side-snapped lone window on unrelated
-  relayouts — the existing gate is intentionally conservative to preserve parks/side-snaps.
+`Sources/Nehir/Core/Layout/Niri/NiriLayoutEngine+WorkspaceOps.swift` gains a helper called from
+both `moveWindowToWorkspace` and `moveColumnToWorkspace` source cleanup:
 
-Prefer the first: it localizes the change to the move path (the operation that actually
-orphaned the survivor) and reuses the already-correct admission-path semantics, avoiding new
-per-relayout heuristics.
+```swift
+private func resetManualLoneWindowWidthOverrideIfNeeded(in workspaceId: WorkspaceDescriptor.ID) {
+    guard let column = singleWindowLayoutContext(in: workspaceId)?.container,
+          column.hasManualSingleWindowWidthOverride
+    else { return }
+
+    column.hasManualSingleWindowWidthOverride = false
+    column.cachedWidth = 0
+}
+```
+
+Gated on `singleWindowLayoutContext` it fires only when the source is left with a genuine lone
+window (one column / one window / not tabbed / normal sizing). Clearing the manual override and
+zeroing `cachedWidth` arms the existing recenter gate via its `previousSingleWindowWidth <= 0`
+path, so the lone-window centered policy re-resolves — the same end state the empty-workspace
+admission path (`initializeNewColumnWidth`) already produced. No-op for a non-manual survivor
+(that case already re-centered via `widthChanged`).
+
+Shipped with a `patch` changeset crediting reporter `flschulz`, and 86 lines of regression
+tests in `Tests/NehirTests/NiriLayoutEngineTests.swift` covering the manual-resize move for both
+`moveWindowToWorkspace` and `moveColumnToWorkspace`.
 
 ## Second, separate symptom in the same report (NOT source-confirmed here — needs its own ticket)
 
