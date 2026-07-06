@@ -45,7 +45,7 @@ struct CommandPaletteAppSnapshot: Equatable {
 }
 
 struct CommandPaletteSummonAnchor: Equatable {
-    let token: WindowToken
+    let token: WindowToken?
     let workspaceId: WorkspaceDescriptor.ID
 }
 
@@ -107,7 +107,7 @@ struct CommandPaletteEnvironment {
         controller.navigateToCommandPaletteWindow(handle)
     }
 
-    var summonWindowRight: (WMController, WindowHandle, WindowToken, WorkspaceDescriptor.ID) -> Void = {
+    var summonWindowRight: (WMController, WindowHandle, WindowToken?, WorkspaceDescriptor.ID) -> Void = {
         controller,
         handle,
         anchorToken,
@@ -338,9 +338,22 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
 
         self.wmController = wmController
 
+        let paletteScreen = Self.paletteScreen(containing: NSEvent.mouseLocation)
+        let paletteMonitorId = Self.paletteMonitorId(for: wmController, screen: paletteScreen)
         restoreFocusTarget = captureFrontmostFocusTarget()
         menuFocusTarget = resolveMenuFocusTarget()
-        summonAnchor = Self.resolveSummonAnchor(for: wmController)
+        summonAnchor = Self.resolveSummonAnchor(
+            for: wmController,
+            pointerMonitorId: paletteMonitorId
+        )
+        Self.recordSummonTrace(
+            wmController,
+            "palette.show pointerMonitor=\(SummonTraceFormatting.describe(paletteMonitorId)) "
+                + "interactionMonitor=\(SummonTraceFormatting.describe(wmController.workspaceManager.interactionMonitorId)) "
+                + "interactionWorkspace=\(SummonTraceFormatting.describe(wmController.interactionWorkspace()?.id)) "
+                + "anchor=\(SummonTraceFormatting.describe(summonAnchor)) "
+                + "visibleWorkspaces=\(Self.describeVisibleWorkspaces(wmController))"
+        )
         windows = buildWindowItems(from: wmController)
         commandItems = buildCommandItems(from: wmController)
         menuItems = []
@@ -357,7 +370,7 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
 
         guard let panel else { return }
 
-        positionPanel(panel)
+        positionPanel(panel, on: paletteScreen)
 
         let preferredMode = wmController.settings.commandPaletteLastMode
         selectedMode = resolvedInitialMode(preferredMode)
@@ -410,8 +423,45 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
         return "Enter jumps. \(summonText)"
     }
 
-    static func resolveSummonAnchor(for wmController: WMController) -> CommandPaletteSummonAnchor? {
-        guard let activeWorkspace = wmController.interactionWorkspace() else { return nil }
+    /// Resolves the screen the command palette opens on from the pointer
+    /// location. Goes through `NSScreen` so the pointer and screen frames share
+    /// the same (AppKit, bottom-left) coordinate space; `Monitor.frame` is
+    /// top-left CG space, so matching an AppKit pointer against it directly
+    /// picks the wrong display on vertically stacked monitors. Falls back to the
+    /// main screen exactly as `positionPanel` does so the palette's displayed
+    /// screen and the no-anchor summon target are derived from one decision.
+    static func paletteScreen(containing pointer: CGPoint = NSEvent.mouseLocation) -> NSScreen? {
+        NSScreen.screen(containing: pointer) ?? NSScreen.main
+    }
+
+    static func paletteMonitorId(for wmController: WMController, screen: NSScreen?) -> Monitor.ID? {
+        paletteMonitorId(for: wmController, displayId: screen?.displayId)
+    }
+
+    static func paletteMonitorId(for wmController: WMController, displayId: CGDirectDisplayID?) -> Monitor.ID? {
+        guard let displayId else { return nil }
+        return wmController.workspaceManager.monitors.first { $0.displayId == displayId }?.id
+    }
+
+    static func resolveSummonAnchor(
+        for wmController: WMController,
+        pointerMonitorId: Monitor.ID?
+    ) -> CommandPaletteSummonAnchor? {
+        // Target the active workspace on the monitor the palette opened on, not
+        // the interaction monitor — otherwise a no-anchor summon lands on
+        // whichever display last had a managed interaction rather than the one
+        // the user is looking at. Fall back to the interaction workspace only
+        // when the palette screen cannot be mapped to a managed monitor.
+        let activeWorkspace: WorkspaceDescriptor
+        if let pointerMonitorId,
+           let workspace = wmController.workspaceManager.activeWorkspaceOrFirst(on: pointerMonitorId)
+        {
+            activeWorkspace = workspace
+        } else if let workspace = wmController.interactionWorkspace() {
+            activeWorkspace = workspace
+        } else {
+            return nil
+        }
 
         let anchorToken = if let focusedToken = wmController.workspaceManager.confirmedManagedFocusToken,
                              let entry = wmController.workspaceManager.entry(for: focusedToken),
@@ -422,14 +472,37 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
             wmController.workspaceManager.preferredWorkspaceFocusToken(in: activeWorkspace.id)
         }
 
-        guard let anchorToken,
-              let entry = wmController.workspaceManager.entry(for: anchorToken),
-              entry.workspaceId == activeWorkspace.id
-        else {
-            return nil
+        let validatedToken: WindowToken? = anchorToken.flatMap { token in
+            guard let entry = wmController.workspaceManager.entry(for: token),
+                  entry.workspaceId == activeWorkspace.id
+            else {
+                return nil
+            }
+            return token
         }
 
-        return .init(token: anchorToken, workspaceId: activeWorkspace.id)
+        return .init(token: validatedToken, workspaceId: activeWorkspace.id)
+    }
+
+    private static func recordSummonTrace(_ wmController: WMController, _ message: String) {
+        wmController.diagnostics.recordRuntimeInsertionTrace("commandPalette.\(message)")
+    }
+
+    private static func describeVisibleWorkspaces(_ wmController: WMController) -> String {
+        wmController.workspaceManager.visibleWorkspaceIds()
+            .map { workspaceId in
+                let name = wmController.workspaceManager.descriptor(for: workspaceId)?.name ?? workspaceId.uuidString
+                let monitor = SummonTraceFormatting.describe(
+                    wmController.workspaceManager.monitor(for: workspaceId)?.id
+                )
+                let entries = wmController.workspaceManager.entries(in: workspaceId).count
+                let preferred = SummonTraceFormatting.describe(
+                    wmController.workspaceManager.preferredWorkspaceFocusToken(in: workspaceId)
+                )
+                return "\(name){id=\(workspaceId.uuidString),monitor=\(monitor),entries=\(entries),preferred=\(preferred)}"
+            }
+            .sorted()
+            .joined(separator: ";")
     }
 
     static func resolveMenuTarget(
@@ -913,7 +986,19 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
             case .primary:
                 return .navigateWindow(wmController, item.handle)
             case .alternate:
-                guard let summonAnchor else { return nil }
+                guard let summonAnchor else {
+                    Self.recordSummonTrace(
+                        wmController,
+                        "selection.alternate.unavailable selected=\(item.id) reason=noSummonAnchor"
+                    )
+                    return nil
+                }
+                Self.recordSummonTrace(
+                    wmController,
+                    "selection.alternate selected=\(item.id) handleWorkspace="
+                        + "\(SummonTraceFormatting.describe(wmController.workspaceManager.entry(for: item.handle)?.workspaceId)) "
+                        + "anchor=\(SummonTraceFormatting.describe(summonAnchor))"
+                )
                 return .summonWindowRight(wmController, item.handle, summonAnchor)
             }
         case .menu(let id):
@@ -948,6 +1033,10 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
         case let .navigateWindow(wmController, handle):
             environment.navigateToWindow(wmController, handle)
         case let .summonWindowRight(wmController, handle, summonAnchor):
+            Self.recordSummonTrace(
+                wmController,
+                "perform.summon handle=\(handle.id) anchor=\(SummonTraceFormatting.describe(summonAnchor))"
+            )
             environment.summonWindowRight(
                 wmController,
                 handle,
@@ -1075,8 +1164,8 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
         CommandPaletteView(controller: self)
     }
 
-    private func positionPanel(_ panel: NSPanel) {
-        guard let screen = NSScreen.screen(containing: NSEvent.mouseLocation) ?? NSScreen.main else { return }
+    private func positionPanel(_ panel: NSPanel, on screen: NSScreen?) {
+        guard let screen else { return }
 
         let panelWidth: CGFloat = 620
         let panelHeight: CGFloat = 430
