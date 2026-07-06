@@ -3410,7 +3410,7 @@ final class WMController {
 
     func summonCommandPaletteWindowRight(
         _ handle: WindowHandle,
-        anchorToken: WindowToken,
+        anchorToken: WindowToken?,
         anchorWorkspaceId: WorkspaceDescriptor.ID
     ) {
         windowActionHandler.summonWindowRight(

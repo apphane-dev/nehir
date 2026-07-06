@@ -532,7 +532,9 @@ private func primeFocusedBorder(on controller: WMController, handle: WindowHandl
 }
 
 @MainActor
-private func makeTwoMonitorRefreshTestController() -> (
+private func makeTwoMonitorRefreshTestController(
+    windowFocusOperations: WindowFocusOperations? = nil
+) -> (
     controller: WMController,
     primaryMonitor: Monitor,
     secondaryMonitor: Monitor,
@@ -540,6 +542,7 @@ private func makeTwoMonitorRefreshTestController() -> (
     secondaryWorkspaceId: WorkspaceDescriptor.ID
 ) {
     let controller = makeRefreshTestController(
+        windowFocusOperations: windowFocusOperations,
         workspaceConfigurations: [
             WorkspaceConfiguration(name: "1", monitorAssignment: .main),
             WorkspaceConfiguration(name: "2", monitorAssignment: .secondary)
@@ -1597,11 +1600,87 @@ private func syncNiriWorkspaceStatesForRefreshTests(
 
         let orderedWindowIds = engine.columns(in: targetWorkspaceId).compactMap { $0.windowNodes.first?.token.windowId }
 
-        #expect(recorder.relayoutEvents.map(\.0) == [.layoutCommand])
+        #expect(recorder.relayoutEvents.map(\.0) == [.workspaceTransition])
         #expect(recorder.relayoutEvents.map(\.1) == [.immediateRelayout])
+        #expect(
+            controller.layoutRefreshController.debugCounters.lastAffectedWorkspaceIdsByReason[.workspaceTransition]
+                == [sourceWorkspaceId, targetWorkspaceId]
+        )
         #expect(controller.workspaceManager.workspace(for: summonedHandle.id) == targetWorkspaceId)
         #expect(controller.workspaceManager.rememberedTiledFocusToken(in: targetWorkspaceId)?.windowId == 9302)
         #expect(orderedWindowIds == [9301, 9302, 9303])
+    }
+
+    @Test @MainActor func crossMonitorPaletteSummonRetainsTargetColumnAcrossFollowUpRelayout() async {
+        var focusRequests: [(pid_t, UInt32)] = []
+        let fixture = makeTwoMonitorRefreshTestController(
+            windowFocusOperations: WindowFocusOperations(
+                activateApp: { _ in },
+                focusSpecificWindow: { pid, windowId, _ in
+                    focusRequests.append((pid, windowId))
+                },
+                raiseWindow: { _ in }
+            )
+        )
+        let controller = fixture.controller
+        let sourceWorkspaceId = fixture.primaryWorkspaceId
+        let targetWorkspaceId = fixture.secondaryWorkspaceId
+
+        let handles = await prepareNiriState(
+            on: controller,
+            assignments: [
+                (workspaceId: sourceWorkspaceId, windowId: 9351)
+            ],
+            focusedWindowId: 9351,
+            ensureWorkspaces: [targetWorkspaceId]
+        )
+        guard let summonedHandle = handles[9351] else {
+            Issue.record("Missing summoned handle for cross-monitor summon-right retention test")
+            return
+        }
+
+        let recorder = RefreshEventRecorder()
+        installRefreshSpies(on: controller, recorder: recorder)
+
+        controller.windowActionHandler.summonWindowRight(
+            handle: summonedHandle,
+            anchorToken: nil,
+            anchorWorkspaceId: targetWorkspaceId
+        )
+        await waitForRefreshWork(on: controller)
+        await waitUntil {
+            focusRequests.contains { $0.0 == summonedHandle.pid && $0.1 == UInt32(summonedHandle.windowId) }
+        }
+
+        guard let engine = controller.niriEngine else {
+            Issue.record("Missing Niri engine after cross-monitor summon-right retention setup")
+            return
+        }
+
+        // Cross-workspace summon commits via a workspace-transition relayout scoped
+        // to BOTH source and target (the cross-monitor admission primitive), not
+        // the same-workspace layoutCommand path, and focuses the summoned window.
+        #expect(recorder.relayoutEvents.map(\.0) == [.workspaceTransition])
+        #expect(recorder.relayoutEvents.map(\.1) == [.immediateRelayout])
+        #expect(
+            controller.layoutRefreshController.debugCounters.lastAffectedWorkspaceIdsByReason[.workspaceTransition]
+                == [sourceWorkspaceId, targetWorkspaceId]
+        )
+        #expect(engine.columns(in: targetWorkspaceId).compactMap { $0.windowNodes.first?.token.windowId } == [9351])
+        #expect(focusRequests.contains { $0.0 == summonedHandle.pid && $0.1 == UInt32(summonedHandle.windowId) })
+
+        resetRefreshSpies(on: controller, recorder: recorder)
+        controller.layoutRefreshController.requestRefresh(
+            reason: .layoutCommand,
+            affectedWorkspaceIds: [targetWorkspaceId]
+        )
+        await waitForRefreshWork(on: controller)
+
+        let summonedEntry = controller.workspaceManager.entry(for: summonedHandle.id)
+        #expect(recorder.relayoutEvents.map(\.0) == [.layoutCommand])
+        #expect(engine.columns(in: targetWorkspaceId).compactMap { $0.windowNodes.first?.token.windowId } == [9351])
+        #expect(controller.workspaceManager.workspace(for: summonedHandle.id) == targetWorkspaceId)
+        #expect(summonedEntry?.desiredState.monitorId == fixture.secondaryMonitor.id)
     }
 
     @Test @MainActor func paletteSummonWindowRightIntoNiriNoOpsWhenAnchorDisappears() async {

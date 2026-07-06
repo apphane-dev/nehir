@@ -410,21 +410,53 @@ final class WindowActionHandler {
     @discardableResult
     func summonWindowRight(
         handle: WindowHandle,
-        anchorToken: WindowToken,
+        anchorToken: WindowToken?,
         anchorWorkspaceId: WorkspaceDescriptor.ID
     ) -> Bool {
-        guard let controller,
-              let anchorEntry = controller.workspaceManager.entry(for: anchorToken),
-              anchorEntry.workspaceId == anchorWorkspaceId,
-              let targetEntry = controller.workspaceManager.entry(for: handle)
-        else {
+        guard let controller else { return false }
+        traceSummonRight(
+            controller,
+            "request handle=\(handle.id) anchorToken=\(SummonTraceFormatting.describe(anchorToken)) "
+                + "anchorWorkspace=\(anchorWorkspaceId.uuidString) "
+                + "interactionWorkspace=\(SummonTraceFormatting.describe(controller.interactionWorkspace()?.id))"
+        )
+
+        guard let targetEntry = controller.workspaceManager.entry(for: handle) else {
+            traceSummonRight(controller, "reject handle=\(handle.id) reason=missingTargetEntry")
             return false
         }
 
+        if let anchorToken {
+            guard let anchorEntry = controller.workspaceManager.entry(for: anchorToken) else {
+                traceSummonRight(
+                    controller,
+                    "reject handle=\(handle.id) reason=missingAnchorEntry anchor=\(anchorToken)"
+                )
+                return false
+            }
+            guard anchorEntry.workspaceId == anchorWorkspaceId else {
+                traceSummonRight(
+                    controller,
+                    "reject handle=\(handle.id) reason=anchorWorkspaceMismatch "
+                        + "anchorEntryWorkspace=\(anchorEntry.workspaceId.uuidString) "
+                        + "anchorWorkspace=\(anchorWorkspaceId.uuidString)"
+                )
+                return false
+            }
+        }
+
         let token = handle.id
-        guard token != anchorToken else { return false }
+        guard token != anchorToken else {
+            traceSummonRight(controller, "reject handle=\(handle.id) reason=targetIsAnchor")
+            return false
+        }
 
         let targetWorkspaceId = anchorWorkspaceId
+        traceSummonRight(
+            controller,
+            "dispatch handle=\(handle.id) sourceWorkspace=\(targetEntry.workspaceId.uuidString) "
+                + "targetWorkspace=\(targetWorkspaceId.uuidString) focusedToken=\(SummonTraceFormatting.describe(anchorToken))"
+        )
         return summonWindowRightInNiri(
             token: token,
             sourceWorkspaceId: targetEntry.workspaceId,
@@ -512,18 +544,55 @@ final class WindowActionHandler {
         token: WindowToken,
         sourceWorkspaceId: WorkspaceDescriptor.ID,
         targetWorkspaceId: WorkspaceDescriptor.ID,
-        focusedToken: WindowToken
+        focusedToken: WindowToken?
     ) -> Bool {
-        guard let controller,
-              let engine = controller.niriEngine,
-              let focusedNode = engine.findNode(for: focusedToken),
-              let focusedColumn = engine.findColumn(containing: focusedNode, in: targetWorkspaceId),
-              let focusedColumnIndex = engine.columnIndex(of: focusedColumn, in: targetWorkspaceId)
-        else {
+        guard let controller else { return false }
+        guard let engine = controller.niriEngine else {
+            traceSummonRight(controller, "reject token=\(token) reason=niriDisabled")
             return false
         }
 
-        let insertIndex = focusedColumnIndex + 1
+        let insertIndex: Int
+        let targetColumnsBefore = engine.columns(in: targetWorkspaceId).count
+        if let focusedToken {
+            guard let focusedNode = engine.findNode(for: focusedToken) else {
+                traceSummonRight(
+                    controller,
+                    "reject token=\(token) reason=missingFocusedNode focusedToken=\(focusedToken)"
+                )
+                return false
+            }
+            guard let focusedColumn = engine.findColumn(containing: focusedNode, in: targetWorkspaceId) else {
+                traceSummonRight(
+                    controller,
+                    "reject token=\(token) reason=focusedColumnNotInTarget focusedToken=\(focusedToken) "
+                        + "targetWorkspace=\(targetWorkspaceId.uuidString)"
+                )
+                return false
+            }
+            guard let focusedColumnIndex = engine.columnIndex(of: focusedColumn, in: targetWorkspaceId) else {
+                traceSummonRight(
+                    controller,
+                    "reject token=\(token) reason=missingFocusedColumnIndex focusedToken=\(focusedToken) "
+                        + "targetWorkspace=\(targetWorkspaceId.uuidString)"
+                )
+                return false
+            }
+            insertIndex = focusedColumnIndex + 1
+            traceSummonRight(
+                controller,
+                "insertPlan token=\(token) mode=anchored focusedToken=\(focusedToken) "
+                    + "focusedColumnIndex=\(focusedColumnIndex) insertIndex=\(insertIndex) "
+                    + "targetColumnsBefore=\(targetColumnsBefore)"
+            )
+        } else {
+            insertIndex = targetColumnsBefore
+            traceSummonRight(
+                controller,
+                "insertPlan token=\(token) mode=append targetColumnsBefore=\(targetColumnsBefore) "
+                    + "insertIndex=\(insertIndex) targetWorkspace=\(targetWorkspaceId.uuidString)"
+            )
+        }
 
         if sourceWorkspaceId == targetWorkspaceId {
             guard controller.niriLayoutHandler.insertWindowInNewColumn(
@@ -531,8 +600,17 @@ final class WindowActionHandler {
                 insertIndex: insertIndex,
                 in: targetWorkspaceId
             ) else {
+                traceSummonRight(
+                    controller,
+                    "reject token=\(token) reason=sameWorkspaceInsertFailed insertIndex=\(insertIndex) "
+                        + "targetWorkspace=\(targetWorkspaceId.uuidString)"
+                )
                 return false
             }
+            traceSummonRight(
+                controller,
+                "commit token=\(token) path=sameWorkspace targetWorkspace=\(targetWorkspaceId.uuidString)"
+            )
             commitSummonedWindowFocus(token: token, workspaceId: targetWorkspaceId, startNiriScrollAnimation: true)
             return true
         }
@@ -541,18 +619,57 @@ final class WindowActionHandler {
             handle: WindowHandle(id: token),
             toWorkspaceId: targetWorkspaceId
         ) else {
+            traceSummonRight(
+                controller,
+                "reject token=\(token) reason=moveWindowFailed sourceWorkspace=\(sourceWorkspaceId.uuidString) "
+                    + "targetWorkspace=\(targetWorkspaceId.uuidString)"
+            )
             return false
         }
+
+        traceSummonRight(
+            controller,
+            "moved token=\(token) sourceWorkspace=\(sourceWorkspaceId.uuidString) "
+                + "targetWorkspace=\(targetWorkspaceId.uuidString) columnsAfterMove=\(engine.columns(in: targetWorkspaceId).count)"
+        )
 
         guard controller.niriLayoutHandler.insertWindowInNewColumn(
             handle: WindowHandle(id: token),
             insertIndex: insertIndex,
             in: targetWorkspaceId
         ) else {
+            traceSummonRight(
+                controller,
+                "reject token=\(token) reason=crossWorkspaceInsertFailed insertIndex=\(insertIndex) "
+                    + "targetWorkspace=\(targetWorkspaceId.uuidString)"
+            )
             return false
         }
-        commitSummonedWindowFocus(token: token, workspaceId: targetWorkspaceId, startNiriScrollAnimation: true)
+        // `moveWindow` already transferred the engine node, reassigned the workspace, and
+        // prepared the destination viewport/session patch for the summoned token. Avoid
+        // applying another session patch here (for example via `commitSummonedWindowFocus`)
+        // because it would schedule an additional relayout/viewport target. Mirror
+        // `commitNonFollowingWindowMove`, only swapping source-focus recovery for focusing
+        // the summoned token.
+        traceSummonRight(
+            controller,
+            "commit token=\(token) path=crossWorkspace targetWorkspace=\(targetWorkspaceId.uuidString)"
+        )
+        if let sourceMonitor = controller.workspaceManager.monitor(for: sourceWorkspaceId) {
+            controller.layoutRefreshController.stopScrollAnimation(for: sourceMonitor.displayId)
+        }
+        controller.layoutRefreshController.commitWorkspaceTransition(
+            affectedWorkspaces: [sourceWorkspaceId, targetWorkspaceId],
+            reason: .workspaceTransition
+        ) { [weak controller] in
+            controller?.focusWindow(token)
+        }
+        controller.layoutRefreshController.startScrollAnimation(for: targetWorkspaceId)
         return true
+    }
+
+    private func traceSummonRight(_ controller: WMController, _ message: String) {
+        controller.diagnostics.recordRuntimeInsertionTrace("summonRight.\(message)")
     }
 
     private func commitSummonedWindowFocus(
