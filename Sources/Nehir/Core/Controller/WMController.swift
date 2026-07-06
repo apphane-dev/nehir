@@ -3006,9 +3006,9 @@ final class WMController {
             }
 
             // Tripwire: a reevaluation that moves an already-placed window to a
-            // different workspace is the harmful churn the profile-switch "storm"
-            // was suspected of. Measured at zero on current builds; kept so a
-            // regression is visible in the trace.
+            // different workspace is a suspected source of workspace-assignment
+            // churn. Measured at zero on current builds; kept so a regression is
+            // visible in the trace.
             if let existingEntry, existingEntry.workspaceId != workspaceId {
                 diagnostics.recordNiriCreateFocusTrace(
                     .reevalWorkspaceChanged(

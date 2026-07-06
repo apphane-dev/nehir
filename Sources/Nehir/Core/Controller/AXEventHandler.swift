@@ -72,6 +72,7 @@ struct NiriCreateFocusTraceEvent: Equatable {
         case relayoutActivatedWindow(token: WindowToken, workspaceId: WorkspaceDescriptor.ID)
         case pendingFocusStarted(requestId: UInt64, token: WindowToken, workspaceId: WorkspaceDescriptor.ID)
         case activationSourceObserved(pid: pid_t, source: ActivationEventSource)
+        case followFocusToParkedWindow(token: WindowToken, workspaceId: WorkspaceDescriptor.ID, decision: String)
         /// The macOS-observed reality for a focus Nehir just confirmed. Emitted
         /// alongside `focus_confirmed` so a reader can tell Nehir's *intent*
         /// (`focus_confirmed`/`focused=`) from what the window server actually
@@ -104,9 +105,8 @@ struct NiriCreateFocusTraceEvent: Equatable {
             source: ActivationEventSource
         )
         /// A window-rule reevaluation moved an already-placed window to a
-        /// different workspace (the harmful churn the profile-switch "storm"
-        /// was suspected of). Measured at zero on current builds, kept as a
-        /// regression tripwire.
+        /// different workspace (a suspected source of workspace-assignment churn).
+        /// Measured at zero on current builds, kept as a regression tripwire.
         case reevalWorkspaceChanged(
             token: WindowToken,
             from: WorkspaceDescriptor.ID,
@@ -255,6 +255,8 @@ extension NiriCreateFocusTraceEvent: CustomStringConvertible {
             "pending_focus_started request=\(requestId) token=\(token) workspace=\(workspaceId.uuidString)"
         case let .activationSourceObserved(pid, source):
             "activation_source_observed pid=\(pid) source=\(source.rawValue)"
+        case let .followFocusToParkedWindow(token, workspaceId, decision):
+            "follow_focus_to_parked_window token=\(token) workspace=\(workspaceId.uuidString) decision=\(decision)"
         case let .focusReality(
             token,
             observedFocused,
@@ -268,12 +270,12 @@ extension NiriCreateFocusTraceEvent: CustomStringConvertible {
                 + "observed_visible=\(observedVisible) on_screen=\(onScreen) ws_visible=\(wsVisible) "
                 + "app_frontmost=\(appFrontmost) app_focused_window=\(appFocusedWindowId.map(String.init) ?? "nil")"
         case let .revealDecision(token, targetWs, isWorkspaceActive, shouldActivate, targetWsVisible, source):
-            "reveal_decision token=\(token) target_ws=\(targetWs.uuidString.prefix(8)) "
+            "reveal_decision token=\(token) target_ws=\(targetWs.uuidString) "
                 + "is_ws_active=\(isWorkspaceActive) should_activate=\(shouldActivate) "
                 + "target_ws_visible=\(targetWsVisible) source=\(source.rawValue)"
         case let .reevalWorkspaceChanged(token, from, to, context):
-            "reeval_workspace_changed token=\(token) from=\(from.uuidString.prefix(8)) "
-                + "to=\(to.uuidString.prefix(8)) context=\(context)"
+            "reeval_workspace_changed token=\(token) from=\(from.uuidString) "
+                + "to=\(to.uuidString) context=\(context)"
         case let .activationDeferred(requestId, token, source, reason, attempt):
             "activation_deferred request=\(requestId) token=\(token) source=\(source.rawValue) reason=\(reason.rawValue) attempt=\(attempt)"
         case let .focusConfirmed(token, workspaceId, source):
@@ -538,6 +540,18 @@ final class AXEventHandler: CGSEventDelegate {
 
     private var recentManagedWorkspaceByPid: [pid_t: RecentManagedWorkspace] = [:]
     private var recentAppActivationByPid: [pid_t: TimeInterval] = [:]
+    // A same-app window that recently closed is the only case the
+    // inactive-workspace activation guard is meant for (macOS re-focuses a
+    // successor window of the same app after a close). Tracked per pid.
+    private static let recentSameAppWindowCloseTTL: TimeInterval = 2
+    private var recentSameAppWindowCloseByPid: [pid_t: TimeInterval] = [:]
+    private static let parkedFocusFollowDedupTTL: TimeInterval = 1.5
+    private var recentParkedFocusFollowByToken: [WindowToken: TimeInterval] = [:]
+    // After follow_focus switches an app to a parked window's workspace, hold
+    // that workspace briefly so a same-app confirm of another window does not
+    // bounce the view back.
+    private static let parkedFollowHoldTTL: TimeInterval = 1.2
+    private var parkedFollowHoldByPid: [pid_t: (workspaceId: WorkspaceDescriptor.ID, at: TimeInterval)] = [:]
     private var recentManagedAdmissionByToken: [WindowToken: RecentManagedAdmission] = [:]
     private var pendingManagedReplacementBursts: [ManagedReplacementKey: PendingManagedReplacementBurst] = [:]
     private var pendingManagedReplacementTasks: [ManagedReplacementKey: Task<Void, Never>] = [:]
@@ -587,6 +601,9 @@ final class AXEventHandler: CGSEventDelegate {
         resetCreatePlacementContextState()
         recentManagedWorkspaceByPid.removeAll()
         recentAppActivationByPid.removeAll()
+        recentSameAppWindowCloseByPid.removeAll()
+        recentParkedFocusFollowByToken.removeAll()
+        parkedFollowHoldByPid.removeAll()
         recentManagedAdmissionByToken.removeAll()
         resetManagedReplacementState()
         endWindowCloseFocusRecovery()
@@ -731,6 +748,9 @@ final class AXEventHandler: CGSEventDelegate {
         resetCreatePlacementContextState()
         recentManagedWorkspaceByPid.removeAll()
         recentAppActivationByPid.removeAll()
+        recentSameAppWindowCloseByPid.removeAll()
+        recentParkedFocusFollowByToken.removeAll()
+        parkedFollowHoldByPid.removeAll()
         recentManagedAdmissionByToken.removeAll()
         resetActivationRetryState()
         controller?.focusBridge.reset()
@@ -1534,6 +1554,7 @@ final class AXEventHandler: CGSEventDelegate {
 
     func handleRemoved(token: WindowToken) {
         guard let controller else { return }
+        recordRecentSameAppWindowClose(pid: token.pid)
         let entry = controller.workspaceManager.entry(for: token)
         let affectedWorkspaceId = entry?.workspaceId
 
@@ -1909,6 +1930,16 @@ final class AXEventHandler: CGSEventDelegate {
     ) -> Bool {
         guard case .unrelatedNoRequest = requestDisposition else { return false }
         guard let controller else { return false }
+
+        // This guard exists only to absorb the successor-focus churn macOS emits
+        // when one of the app's own windows *closes* (it re-focuses another of
+        // the app's windows, possibly on an inactive workspace). It must not fire
+        // for an ordinary same-app focus switch with no close — that is a
+        // legitimate move to another of the app's windows and should reveal its
+        // workspace. Gate on a recent same-app window close.
+        guard hasRecentSameAppWindowClose(for: observedEntry.pid) else {
+            return false
+        }
 
         if let currentTarget = controller.currentBorderTarget(),
            currentTarget.token != observedEntry.token,
@@ -2465,7 +2496,14 @@ final class AXEventHandler: CGSEventDelegate {
         _ = restoreManagedWindowFromNativeFullscreen(entry)
         let wsId = entry.workspaceId
         let monitorId = controller.workspaceManager.monitorId(for: wsId)
-        let shouldActivateWorkspace = !isWorkspaceActive && !controller.isTransferringWindow
+        // If follow_focus just switched this app to a parked window's workspace,
+        // hold there briefly: an immediate confirm of another of the app's
+        // windows (the still-on-screen origin) must not bounce the view back to
+        // a different workspace. Suppress the workspace activation while the hold
+        // is on a different workspace than this window's.
+        let heldWorkspace = activeParkedFollowHoldWorkspace(forPid: entry.pid)
+        let bounceBlocked = heldWorkspace != nil && heldWorkspace != wsId
+        let shouldActivateWorkspace = !isWorkspaceActive && !controller.isTransferringWindow && !bounceBlocked
         recordNiriCreateFocusTrace(
             .init(
                 kind: .revealDecision(
@@ -2525,7 +2563,9 @@ final class AXEventHandler: CGSEventDelegate {
                     )
                 )
             )
-            recordFocusRealityCheck(entry: entry)
+            let onScreen = isEntryOnScreen(entry)
+            recordFocusRealityCheck(entry: entry, onScreen: onScreen)
+            followFocusToParkedWindowWorkspaceIfNeeded(entry: entry, onScreen: onScreen)
         } else {
             _ = controller.workspaceManager.setManagedFocus(
                 entry.token,
@@ -3623,6 +3663,9 @@ final class AXEventHandler: CGSEventDelegate {
         let resolvedToken = resolveWindowToken(windowId)
             ?? resolveTrackedToken(windowId)
             ?? pidHint.map { WindowToken(pid: $0, windowId: Int(windowId)) }
+        if let closedPid = pidHint ?? resolvedToken?.pid {
+            recordRecentSameAppWindowClose(pid: closedPid)
+        }
         if let resolvedToken {
             cancelWindowStabilizationRetry(for: resolvedToken)
             cancelPostCreateLifecycleVerification(for: resolvedToken)
@@ -4042,19 +4085,99 @@ final class AXEventHandler: CGSEventDelegate {
     /// trace records intent *and* what the window server actually did. Without
     /// this, `focus_confirmed`/`focused=` alone can read as success while the
     /// window is not key (`observed_focused=false`) or its workspace is not the
-    /// visible one — the profile-switch failure mode where the trace looked
-    /// like it worked but nothing was on screen.
-    private func recordFocusRealityCheck(entry: WindowModel.Entry) {
+    /// visible one — a model/reality divergence where the trace looked like it
+    /// worked but nothing was on screen.
+    /// Whether the window's live frame physically overlaps the visible area of
+    /// the monitors by at least half of its area — i.e. it is actually on
+    /// screen, not parked off the edge on an inactive workspace. Overlap is
+    /// summed across monitors so a window straddling two displays is not
+    /// misjudged as off-screen. Frame is resolved through the same injectable
+    /// path as the rest of the handler (`observedFrame`) so it stays testable.
+    private func isEntryOnScreen(_ entry: WindowModel.Entry) -> Bool {
+        guard let controller, let frame = observedFrame(for: entry) else {
+            return false
+        }
+        let frameArea = frame.width * frame.height
+        guard frameArea > 0 else { return false }
+        let visibleArea = controller.workspaceManager.monitors.reduce(CGFloat.zero) { total, monitor in
+            let overlap = monitor.visibleFrame.intersection(frame)
+            return overlap.isNull ? total : total + overlap.width * overlap.height
+        }
+        return visibleArea >= frameArea * 0.5
+    }
+
+    /// After a same-app focus switch, Nehir can end up with focus on one of the
+    /// app's windows that is parked off-screen (its workspace not actually
+    /// rendered), so nothing appears and the user has to reveal it by hand. If
+    /// the just-confirmed focus is on a managed, non-sticky window that is
+    /// physically off screen, follow it — switch to / re-reveal its workspace.
+    /// Keyed on the trustworthy on-screen signal (liveAXFrame), not the model's
+    /// visibility flag, because the bug is precisely that the model believes the
+    /// workspace is visible while the window is parked.
+    ///
+    /// Deduplicated per token for a short grace so the re-confirmation that
+    /// `activateWorkspace` triggers does not loop before the window unparks.
+    /// Restricted to tiling windows: `activateWorkspace` reveals a tiled column;
+    /// a floating window has no niri node for it to select, so it would no-op
+    /// and emit a misleading `switch` decision.
+    private func followFocusToParkedWindowWorkspaceIfNeeded(entry: WindowModel.Entry, onScreen: Bool) {
         guard let controller else { return }
-        let liveFrame = try? AXWindowService.frame(entry.axRef)
-        let onScreen = liveFrame.map { frame in
-            controller.workspaceManager.monitors.contains { monitor in
-                let overlap = monitor.visibleFrame.intersection(frame)
-                let frameArea = frame.width * frame.height
-                return !overlap.isNull && frameArea > 0
-                    && (overlap.width * overlap.height) >= frameArea * 0.5
-            }
-        } ?? false
+        let manager = controller.workspaceManager
+        let now = managedReplacementCurrentUptime()
+        recentParkedFocusFollowByToken = recentParkedFocusFollowByToken.filter {
+            now - $0.value <= Self.parkedFocusFollowDedupTTL
+        }
+        guard entry.mode == .tiling,
+              !onScreen,
+              !manager.hasStickyWindowSource(entry.token),
+              manager.monitorId(for: entry.workspaceId) != nil,
+              recentParkedFocusFollowByToken[entry.token] == nil
+        else {
+            return
+        }
+        recentParkedFocusFollowByToken[entry.token] = now
+        parkedFollowHoldByPid[entry.pid] = (workspaceId: entry.workspaceId, at: now)
+        recordNiriCreateFocusTrace(
+            .init(
+                kind: .followFocusToParkedWindow(
+                    token: entry.token,
+                    workspaceId: entry.workspaceId,
+                    decision: "switch"
+                )
+            )
+        )
+        controller.workspaceNavigationHandler.activateWorkspace(
+            entry.workspaceId,
+            focusing: entry.token
+        )
+    }
+
+    private func recordRecentSameAppWindowClose(pid: pid_t) {
+        recentSameAppWindowCloseByPid[pid] = managedReplacementCurrentUptime()
+    }
+
+    private func hasRecentSameAppWindowClose(for pid: pid_t) -> Bool {
+        guard let at = recentSameAppWindowCloseByPid[pid] else { return false }
+        guard managedReplacementCurrentUptime() - at <= Self.recentSameAppWindowCloseTTL else {
+            recentSameAppWindowCloseByPid.removeValue(forKey: pid)
+            return false
+        }
+        return true
+    }
+
+    /// The workspace a recent follow_focus pinned for `pid`, if the hold has not
+    /// expired.
+    private func activeParkedFollowHoldWorkspace(forPid pid: pid_t) -> WorkspaceDescriptor.ID? {
+        guard let hold = parkedFollowHoldByPid[pid] else { return nil }
+        guard managedReplacementCurrentUptime() - hold.at <= Self.parkedFollowHoldTTL else {
+            parkedFollowHoldByPid.removeValue(forKey: pid)
+            return nil
+        }
+        return hold.workspaceId
+    }
+
+    private func recordFocusRealityCheck(entry: WindowModel.Entry, onScreen: Bool) {
+        guard let controller else { return }
         let wsVisible = controller.workspaceManager.visibleWorkspaceIds().contains(entry.workspaceId)
         // App-level ground truth: is the app even frontmost, and which window
         // does the app itself report as focused. An `observed_focused=false`

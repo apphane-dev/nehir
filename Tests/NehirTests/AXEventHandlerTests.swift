@@ -1885,6 +1885,9 @@ private func waitUntilAXEventTest(
             return AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: inactiveToken.windowId)
         }
 
+        // The guard only applies to successor-focus churn after one of the app's
+        // windows closes; simulate that close first.
+        controller.axEventHandler.handleRemoved(pid: appPid, winId: 9_799)
         controller.axEventHandler.handleAppActivation(pid: appPid, source: .focusedWindowChanged)
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
 
