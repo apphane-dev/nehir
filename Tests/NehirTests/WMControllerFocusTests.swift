@@ -989,7 +989,12 @@ private func waitForFocusRefresh(on controller: WMController) async {
         controller.axEventHandler.isFullscreenProvider = { _ in false }
         controller.axEventHandler.focusedWindowRefProvider = { pid in
             guard pid == getpid() else { return nil }
-            return AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: crossWorkspaceHandle.id.windowId)
+            // Before the close macOS reports the focused window; once it is gone
+            // the successor is the same-app window on the other workspace.
+            let windowId = controller.workspaceManager.entry(for: removedToken) != nil
+                ? removedHandle.id.windowId
+                : crossWorkspaceHandle.id.windowId
+            return AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: windowId)
         }
 
         controller.axEventHandler.handleAppActivation(pid: getpid(), source: .focusedWindowChanged)
@@ -1056,6 +1061,9 @@ private func waitForFocusRefresh(on controller: WMController) async {
             return AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: inactiveHandle.id.windowId)
         }
 
+        // The guard only applies to successor-focus churn after one of the app's
+        // windows closes; simulate that close first.
+        controller.axEventHandler.handleRemoved(pid: ghosttyPid, winId: 79_999)
         controller.axEventHandler.handleAppActivation(pid: ghosttyPid, source: .focusedWindowChanged)
         controller.axEventHandler.handleWindowMiniaturized(pid: unmanagedToken.pid, windowId: unmanagedToken.windowId)
         #expect(controller.workspaceManager.activeWorkspace(on: monitorId)?.id == workspaceId)
@@ -1110,6 +1118,9 @@ private func waitForFocusRefresh(on controller: WMController) async {
             return AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: sameWorkspaceHandle.id.windowId)
         }
 
+        // The guard only applies to successor-focus churn after one of the app's
+        // windows closes; simulate that close first.
+        controller.axEventHandler.handleRemoved(pid: ghosttyPid, winId: 79_998)
         controller.axEventHandler.handleAppActivation(pid: ghosttyPid, source: .focusedWindowChanged)
         controller.axEventHandler.handleWindowMiniaturized(pid: unmanagedToken.pid, windowId: unmanagedToken.windowId)
         try? await Task.sleep(for: .milliseconds(50))
