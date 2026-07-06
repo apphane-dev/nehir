@@ -166,7 +166,10 @@ explicit in the `manage`/`layout` combination and documented.
    ships as an engine built-in now
    ([[20260706-thunderbird-gecko-dialog-float-builtin]]); if a second Gecko/other
    case appears, promote `documentTag`/`minimizeButtonEnabled` to a catalog
-   matcher rather than adding a second hardcoded family.
+   matcher rather than adding a second hardcoded family. (The Thunderbird fix
+   shipped as an engine built-in on `main` `45d3767f` on 2026-07-06 —
+   [[20260706-thunderbird-gecko-dialog-float-builtin]] — so the `documentTag`
+   matcher is the concrete first candidate whenever a second such case lands.)
 
 Net: the catalog is worth building, but its honest v1 is a **packaging + provenance
 + precedence + gating** system over the rules Nehir *already* expresses

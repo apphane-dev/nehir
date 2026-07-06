@@ -1,7 +1,10 @@
 # Thunderbird send-confirmation dialog tiles as a column (un-parented, un-tagged AXStandardWindow)
 
-Status: discovery. Verified against `main` on 2026-07-06 (`nehir v0.6.0` in the
-captures). Source: apphane-dev/nehir discussion #142 ("Popup window rule?").
+Status: **resolved / shipped**. Fix merged to `main` as `45d3767f` on 2026-07-06
+via plan [[20260706-thunderbird-gecko-dialog-float-builtin]] (a scoped built-in
+that floats top-level, document-tagless, standard Gecko-family windows). Verified
+against `main` on 2026-07-06 (`nehir v0.6.0` in the captures). Source:
+apphane-dev/nehir discussion #142 ("Popup window rule?").
 
 Thunderbird's "message sent" confirmation dialog (and its compose window) open as
 a tiled column instead of floating. The user asked for a window rule to exempt

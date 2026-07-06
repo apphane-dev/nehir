@@ -1,6 +1,8 @@
 # Plan: float Gecko (Thunderbird/Firefox) transient dialogs via a scoped built-in
 
-Status: planned. Verified against `main` on 2026-07-06 (`nehir v0.6.0`).
+Status: **shipped** on `main` as `45d3767f`
+("Float Gecko transient dialogs (Thunderbird/Firefox) (#142)"), 2026-07-06.
+Verified against `main` on 2026-07-06 (`nehir v0.6.0`).
 Root cause: [[20260706-thunderbird-gecko-dialog-tiled-untagged-unparented-standard-window]].
 Fixes apphane-dev/nehir discussion #142 (Thunderbird send-confirmation dialog
 tiles as a column).
@@ -197,3 +199,24 @@ Thunderbird/Firefox transient dialogs that previously tiled as columns"`.
 - Second candidate discriminator (minimize-button-enabled, per AeroSpace) is
   **not** used here; the document-tag signal has no known caveat, the
   minimize-button one does (buggy under Firefox non-native fullscreen).
+
+## Outcome (2026-07-06)
+
+Delegated to `openai-codex-3/gpt-5.5` in an isolated worktree, then reviewed.
+Shipped on `main` as `45d3767f` (branch `impl-thunderbird-gecko-dialog-float`):
+`WindowRuleEngine.swift` +53, `WindowRuleEngineTests.swift` +173 (6 new tests),
+plus a changeset.
+
+Review caught one correction before merge: the first pass added an unrequested
+`!windowServer.frame.isEmpty` guard, which would have **defeated the fix** — the
+captured dialog has `wsFrame=(0,0,0,0)` at the moment its AX attributes succeed
+(`CGRect.zero.isEmpty == true`), and the worker's test masked it with a hardcoded
+non-empty frame. The guard was removed and the float test changed to a `.zero`
+frame (helper now defaults `frame: .zero`) to encode the captured reality.
+Independently re-ran `swift test --filter WindowRuleEngine` → 35 tests pass.
+
+Note: the full `mise run check` gate was red only due to a **pre-existing,
+unrelated** failure —
+`RefreshRoutingTests.nativeFullscreenSpaceChangeRetainsMultiColumnNiriOrderWithSameWindowId`
+also fails on clean `main`. Tracked separately:
+[[20260706-refreshrouting-nativefullscreen-space-change-niri-order-pre-existing-failure]].
