@@ -296,3 +296,191 @@ the active workspace when it has no anchor window."
 - Consider whether the IPC `summonWindowRight(handle:)`
   (`WindowActionHandler.swift:392-408`) should gain the same
   summon-into-active-workspace fallback for parity with the palette.
+
+---
+
+## Follow-up (2026-07-06): fix cross-workspace summon admission drop
+
+**Status of the parent plan:** the feature + display-targeting are **shipped and
+confirmed working** on branch `fix/summon-right-display-verify`:
+
+- `b4bc69b9` — summon into anchorless active workspace (append rightmost column).
+- `c838c9cc` — target the palette's monitor, not the interaction monitor.
+- `bfd70189` — harden: single `paletteScreen()` feeds both `positionPanel` and
+  the summon monitor mapping (AppKit-space `NSScreen` resolution, not CG-space
+  `Monitor.frame`).
+- `19e55b90` — Summon Right diagnostic tracing (see evidence below).
+
+Runtime instrumentation proved the display targeting is correct. The remaining
+bug is admission, not targeting.
+
+All source references verified against `fix/summon-right-display-verify`
+HEAD `19e55b90` on 2026-07-06. Line numbers drift (instrumentation shifted
+them) — re-verify before editing.
+
+### Symptom
+
+On a 2-monitor setup, a **cross-workspace** Summon Right (selected window lives
+on another workspace/monitor; palette open on the *empty* active workspace of a
+second display) summons the window into the correct destination workspace, but
+the window is **misplaced and not admitted** to that workspace — it stays resting
+on the source display at its old frame, and the destination workspace shows no
+column — **until the user manually manipulates it** (scroll/focus), at which
+point a focus-driven admission finally moves and admits it.
+
+The **same-workspace** summon (append into the current workspace) is unaffected.
+
+### Evidence (inlined from a runtime trace; self-contained)
+
+Topology: display 1 (built-in, main) `frame=(0,0,2056,1329)`; display 2 (DELL)
+`frame=(-1171,1329,2560,1440)` stacked below. Palette opened on display 2 over
+empty workspace `2059F643` (workspace "6"); interaction monitor was display 1,
+interaction workspace `FAED2700` (workspace "1").
+
+Summon instrumentation (`## Niri insertion trace`):
+
+```
+commandPalette.palette.show pointerMonitor=display2 interactionMonitor=display1
+    anchor=token=nil,workspace=2059F643   ← correct target (display 2, empty ws)
+summonRight.dispatch targetWorkspace=2059F643 focusedToken=nil
+summonRight.insertPlan mode=append targetColumnsBefore=0 insertIndex=0 targetWorkspace=2059F643
+summonRight.moved targetWorkspace=2059F643 columnsAfterMove=1     ← inserted OK
+summonRight.commit path=crossWorkspace targetWorkspace=2059F643
+```
+
+Then, ~2 s later while the user 3-finger-scrolls the empty display-2 workspace:
+
+```
+workspace=6 id=2059F643 ... columns=0 layout=no-columns    ← the column FELL OUT
+```
+
+And only after the manual manipulation (~11 s after summon):
+
+```
+event=window_admitted token=w8149 workspace=2059F643 context=focused_admission
+```
+
+Throughout, the **model stayed correct** — the moved window's entry always read
+`desired=workspace=2059F643,monitor=display2`. By trace end the window is framed
+on display 2 (`liveAXFrame≈{{-909,1336},{2035,1371}}`, i.e. display-2
+coordinates). So this is **not** model/workspace-assignment corruption; it is a
+**physical-frame + niri-admission gap**: the moved window's frame is never pushed
+to the destination monitor by the summon's own refresh, so the next reconcile
+does not retain its freshly-inserted column, and it takes a focus-driven
+admission to physically move + re-admit it.
+
+### Root cause (source-backed)
+
+The cross-workspace summon commit uses the wrong refresh primitive.
+
+- Cross-workspace branch of
+  `WindowActionHandler.summonWindowRightInNiri(...)` (~`WindowActionHandler.swift:600-641`):
+  `controller.workspaceNavigationHandler.moveWindow(handle:toWorkspaceId:)`
+  then `niriLayoutHandler.insertWindowInNewColumn(...)` then
+  `commitSummonedWindowFocus(...)`.
+- `WorkspaceNavigationHandler.moveWindow(handle:toWorkspaceId:)`
+  (`WorkspaceNavigationHandler.swift:918-940`) is, **by its own contract, a
+  refresh-free primitive** — it transfers the source engine node, calls
+  `reassignManagedWindow`, and `prepareMovedWindowTargetViewport`, but does
+  **not** drive the hide/show/frame refresh. The sibling
+  `moveWindowFromBar(...)` (`:952-973`) carries the explicit doc-comment
+  (`:942-950`) that it, *unlike* the summon-shared `moveWindow`, "always drives
+  the hide/show/frame refresh itself, **so the moved window does not remain
+  physically resting on the source workspace until an unrelated refresh applies
+  the assignment**" — which is exactly our symptom.
+- The summon's own refresh, `commitSummonedWindowFocus(...)`
+  (`WindowActionHandler.swift:656-677`), issues
+  `layoutRefreshController.requestRefresh(reason: .layoutCommand)` with **empty
+  `affectedWorkspaceIds`** and focuses the summoned token. Empty
+  `affectedWorkspaceIds` falls back to `activeWorkspaceIds`
+  (`LayoutRefreshController.swift:1128`). This is sufficient for the
+  same-workspace case (the window is already admitted on that monitor) but does
+  **not** perform the cross-monitor hide-on-source / show+frame-on-target
+  admission the moved window needs.
+- The proven-correct cross-workspace/monitor move commit is
+  `commitNonFollowingWindowMove(...)`
+  (`WorkspaceNavigationHandler.swift:980-1013`): it recovers source focus, stops
+  the source scroll animation, `prepareMovedWindowTargetViewport`, then
+  `layoutRefreshController.commitWorkspaceTransition(affectedWorkspaces:{source,
+  target}, reason:.workspaceTransition)`. `commitWorkspaceTransition`
+  (`LayoutRefreshController.swift:849-860`) is an immediate relayout scoped to
+  **both** the source and target workspaces — this is what actually applies the
+  cross-monitor frame and admission.
+
+Both `.layoutCommand` and `.workspaceTransition` share
+`route == .immediateRelayout` (`RefreshReason.swift:104-106`), so the fix is
+**not** the route — it is (a) scoping the relayout to **both** source and target
+workspaces, and (b) using the workspace-transition commit that applies the
+physical frame to the destination monitor, instead of the same-workspace-oriented
+`commitSummonedWindowFocus`.
+
+### Proposed fix
+
+In the **cross-workspace** branch of `summonWindowRightInNiri` only (leave the
+same-workspace branch on `commitSummonedWindowFocus`), replace the
+`commitSummonedWindowFocus(...)` call with a workspace-transition commit that
+mirrors `commitNonFollowingWindowMove` but **focuses the summoned window** (and
+follows interaction to the target monitor) instead of recovering source focus:
+
+- Drive `layoutRefreshController.commitWorkspaceTransition(affectedWorkspaces:
+  {sourceWorkspaceId, targetWorkspaceId}, reason:.workspaceTransition)` with a
+  `postLayout` that focuses the summoned `token` on the target workspace.
+- Keep `prepareMovedWindowTargetViewport` (already done inside `moveWindow`) and
+  the `applySessionPatch(rememberedFocusToken: token)` so the summoned window is
+  the remembered focus of the target workspace.
+- Preserve `startScrollAnimation(for: targetWorkspaceId)` behaviour if still
+  needed after the transition (verify it does not fight the transition relayout).
+- Do **not** regress the same-workspace path (it must stay on
+  `commitSummonedWindowFocus`, which works today).
+
+Prefer extracting the shared commit so summon and bar-move do not duplicate the
+transition logic — but a focused, duplicated commit in `summonWindowRightInNiri`
+is acceptable if extraction widens the blast radius.
+
+### Open question for the implementer to confirm at runtime (instrumentation exists)
+
+The exact reason the freshly-inserted niri column is *dropped* by the next
+reconcile (rather than merely un-framed) is not fully pinned from static reading.
+Before finalizing, confirm with the `## Niri insertion trace` instrumentation
+(already on `19e55b90`) plus a targeted capture that, after switching to the
+workspace-transition commit: (1) `summonRight.commit path=crossWorkspace` still
+fires, (2) the destination workspace retains `columns=1` across the following
+reconcile (no `columns=0` regression), and (3) the window is framed on the target
+monitor without any manual manipulation (no dependency on
+`context=focused_admission`). If the column still drops, the culprit is the niri
+root rebuild reading observed-vs-desired monitor mismatch, and the fix must also
+ensure the destination frame is applied *before* the reconcile that rebuilds the
+target root.
+
+### Tests
+
+- Extend `Tests/NehirTests/` summon coverage (the cross-workspace summon path):
+  a synthetic 2-monitor + 2-workspace controller (reuse
+  `makeLayoutPlanPrimaryTestMonitor` / `makeLayoutPlanSecondaryTestMonitor` and
+  the `WorkspaceConfiguration(.main/.secondary)` fixture already used in
+  `RefreshRoutingTests`), summon a window from the source workspace into the
+  empty secondary workspace, and assert the destination workspace's niri engine
+  retains exactly one column **after** a follow-up relayout/reconcile (not just
+  immediately after insert), and that the moved window's entry monitor is the
+  target monitor. This is the regression guard for the "column falls out" drop.
+- Keep the existing `CommandPaletteControllerTests` display-targeting tests
+  green.
+
+### Gates & pre-existing failures
+
+- Fast: `mise run build`. Full: `mise run check`.
+- **Known pre-existing failures on this branch's base — do NOT attribute to this
+  change** (confirm they reproduce identically on a clean checkout):
+  `RefreshRoutingTests.nativeFullscreenSpaceChangeRetainsMultiColumnNiriOrderWithSameWindowId`
+  (6 issues) and
+  `AXEventHandlerTests.nativeFullscreenReplacementCreateRetriesWhenWindowServerInfoIsInitiallyUnavailable`
+  (3 issues). Everything else must be green.
+
+### Fences
+
+- Change **only** the cross-workspace branch of `summonWindowRightInNiri`.
+- Do **not** touch the same-workspace summon branch, the display-targeting
+  resolution (`paletteScreen`/`paletteMonitorId`/`resolveSummonAnchor`), the IPC
+  `summonWindowRight(handle:)` overload, or the status/hint copy.
+- Keep the diagnostic instrumentation (`19e55b90`) in place — it is the
+  verification tool.
