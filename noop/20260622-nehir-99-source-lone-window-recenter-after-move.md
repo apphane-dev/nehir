@@ -1,6 +1,11 @@
 # Nehir issue #99 — Center window doesn't work reliable when changing windows in workspace — Discovery
 
-**Status:** noop — already fixed on `main`
+> **REOPENED 2026-07-07** — reporter reproduced on rc.29. The "fixed on `main`" verdict below
+> holds only for a survivor whose width *changes*; it misses the manually-resized survivor
+> (50/50 split) case. Superseded by
+> `discovery/20260707-nehir-99-lone-window-recenter-skipped-after-manual-resize-move.md`.
+
+**Status:** ~~noop — already fixed on `main`~~ superseded — reopened (see banner above)
 **Source issue:** https://github.com/apphane-dev/nehir/issues/99 (label `bug`)
 **Reporter env:** nehir 0.6.0-rc.9, macOS 26.5.1
 
