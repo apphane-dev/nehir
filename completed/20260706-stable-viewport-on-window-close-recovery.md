@@ -1,6 +1,63 @@
 # Stable Viewport on Window-Close Focus Recovery
 
-Verified against the main Nehir source tree on 2026-07-06.
+**Status: LANDED (2026-07-06).** Shipped on `main` in commit
+`Keep viewport stable after same-app window close`
+(changeset: `nehir` patch — "Prevent close recovery from scrolling to offscreen
+same-app windows"). Verified in the real app across multiple close repros; the
+viewport no longer jumps when a same-app window (canonically Ghostty's Quick
+Terminal) closes.
+
+## What actually landed (vs. the plan below)
+
+The plan's two mechanisms shipped, but real-app trace testing surfaced a second
+race that required more than the original design. The landed version, all in
+`Sources/Nehir/Core/Controller/AXEventHandler.swift` unless noted:
+
+1. **Viewport pin during recovery** — an active close-recovery lease forces
+   `preserveActiveViewport = true` in the focus-confirm path so the recovery's
+   opening confirm never reveals/scrolls (`closeRecoveryPin`).
+2. **Stable-target focus redirect** — during recovery, focus is redirected to the
+   preserved anchor, else the tile nearest the current viewport
+   (`stableRecoveryFocusTarget` / `redirectToStableRecoveryFocusIfNeeded`;
+   nearest-tile lookup added to `NiriLayoutEngine+ViewportCommands.swift`).
+3. **Pre-arm leading-activation handling** — macOS often reports focus on a
+   parked same-app successor *before* the close signal arrives, so the lease has
+   not armed yet. Covered by: a same-app pre-confirm stale-focus suppression and
+   redirect (`shouldSuppressSameAppParkedFocusBeforeConfirm`,
+   `redirectToStableSameAppRecoveryFocusIfNeeded` with preconfirm/overlay
+   phases), a 120ms defer-and-retry of the ambiguous pre-close activation
+   (`shouldDeferSameAppActiveNativeActivationBeforeCloseRecovery`, restricted to
+   `.unrelatedNoRequest`), and pre-lease viewport pins keyed on a recency window.
+4. **Recency signals** — a per-pid "recent non-managed (overlay) focus" TTL map
+   primed at every `enterNonManagedFocus` site, plus the existing "recent
+   same-app window close" map, unified behind
+   `isWithinSameAppCloseRecoveryWindow(pid:)`. Parked follow-focus is suppressed
+   during this window so it doesn't fight the recovery.
+5. **Focus-request reason tracing** — a `FocusWindowReason` enum threaded through
+   `WMController.focusWindow(...)` and the deferred-focus path (touches several
+   controller files) so runtime traces attribute which path initiated a focus
+   request.
+
+A post-landing consolidation pass (code review follow-up) removed the accreted
+redundancy: the defer was restricted to `.unrelatedNoRequest` (was also
+swallowing `.conflictsWithPendingRequest`); the parked-follow suppression was
+extracted to the documented `isWithinSameAppCloseRecoveryWindow` predicate; the
+two redirect helpers were unified behind
+`redirectToStableSameAppRecoveryFocusIfNeeded(phase:)`; and the overlapping
+viewport pins were factored onto a shared `leaseInactive` precondition. All
+runtime-trace `reason=` records were kept observable.
+
+The landed commit also updated `Tests/NehirTests/RefreshRoutingTests.swift` to
+keep the native-fullscreen same-window-id refresh test deterministic under
+WindowServer lookup (a signature/adjustment from the enum threading), and carried
+unrelated dev-task tooling changes committed alongside.
+
+Follow-up worth tracking as its own discovery: the landed logic is broad — many
+overlapping recency-keyed signals gate the pins/redirects. If a legitimate reveal
+is ever wrongly suppressed shortly after a same-app close, revisit the union of
+triggers.
+
+---
 
 ## Overview
 

@@ -1,6 +1,16 @@
 # Summon Right into the active workspace when it has no anchor window
 
-**Status:** planned.
+**Status:** ✅ **shipped** — landed on `main` as `9cbc7db5` ("Summon Right into
+the active workspace on the palette display", 2026-07-06), squashing the whole
+`fix/summon-right-display-verify` stack (feature → palette-display targeting →
+`NSScreen` hardening → diagnostic tracing → cross-workspace admission fix). Final
+merge polish beyond the branch commits: the dead `pointerMonitorId(for:pointer:)`
+helper was removed, the three per-commit changesets were consolidated into one
+(`.changeset/…-summon-right-into-active-workspace-on-palette-display.md`), and the
+summon `describe(...)` trace formatters were extracted into
+`Sources/Nehir/Core/Diagnostics/SummonTraceFormatting.swift`. See the follow-up
+section at the end for the full landed scope and the one remaining verification
+caveat.
 **Symptom:** In the command palette (Windows mode) the status line shows
 "Enter jumps. **Shift-Enter unavailable for this session.**" and ⇧↩ (Summon
 Right) is disabled whenever the currently active workspace has no managed anchor
@@ -301,8 +311,33 @@ the active workspace when it has no anchor window."
 
 ## Follow-up (2026-07-06): fix cross-workspace summon admission drop
 
-**Status of the parent plan:** the feature + display-targeting are **shipped and
-confirmed working** on branch `fix/summon-right-display-verify`:
+**Status:** ✅ shipped in the same squashed merge `9cbc7db5` (2026-07-06). The
+cross-workspace commit now drives
+`commitWorkspaceTransition(affectedWorkspaces:{source,target},
+reason:.workspaceTransition)` focusing the summoned token, relying on
+`moveWindow`'s `prepareMovedWindowTargetViewport` for the revealed viewport +
+remembered focus (no redundant session patch). Regression test
+`RefreshRoutingTests.crossMonitorPaletteSummonRetainsTargetColumnAcrossFollowUpRelayout`
+guards the column-drop across a follow-up relayout. **Remaining caveat:** the
+synthetic 2-monitor test reproduces the drop mechanism, but real
+vertically-stacked multi-monitor AppKit coordinate mapping (`NSScreen`) could not
+be unit-tested without hardware — validate with one on-device Shift-Enter capture
+on the empty second display (expect `commit path=crossWorkspace` and no
+`context=focused_admission` dependency).
+
+**Landed branch history (squashed into `9cbc7db5`):**
+
+- `b4bc69b9` — summon into anchorless active workspace (append rightmost column).
+- `c838c9cc` — target the palette's monitor, not the interaction monitor.
+- `bfd70189` — harden: single `paletteScreen()` feeds both `positionPanel` and
+  the summon monitor mapping (AppKit-space `NSScreen` resolution, not CG-space
+  `Monitor.frame`).
+- `19e55b90` — Summon Right diagnostic tracing (kept; formatters later extracted
+  to `SummonTraceFormatting.swift`).
+- `b8994c80` — fix cross-workspace admission drop.
+
+**Original branch context (superseded — for provenance only):** the feature was
+developed and confirmed working on branch `fix/summon-right-display-verify`:
 
 - `b4bc69b9` — summon into anchorless active workspace (append rightmost column).
 - `c838c9cc` — target the palette's monitor, not the interaction monitor.
