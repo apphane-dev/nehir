@@ -1,0 +1,97 @@
+#!/usr/bin/env bash
+set -eo pipefail
+
+mode="${1:-}"
+if [ -z "$mode" ]; then
+  echo "usage: nehir-dev-run <dev|release|clean|onboarding> [--trace] [-- <Nehir args...>]" >&2
+  exit 2
+fi
+shift
+
+trace=false
+app_args=()
+
+usage() {
+  cat <<'USAGE'
+Usage: mise run dev [-- --trace] [-- <Nehir args...>]
+
+Options handled by the mise dev runner:
+  --trace, --tracing  Start Nehir with runtime trace capture enabled at bootstrap.
+                      This passes Nehir's internal --nehir-trace launch argument,
+                      which starts recording before persisted settings are applied
+                      and before services begin their startup refresh.
+  --no-trace          Disable a previously supplied --trace option.
+  -h, --help          Show this help.
+  --                  Stop parsing runner options; following args go to Nehir.
+
+Examples:
+  mise run dev -- --trace
+  mise run dev:clean -- --trace
+  mise run dev:release -- --trace
+  mise run dev -- -- --nehir-trace
+USAGE
+}
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --trace|--tracing)
+      trace=true
+      ;;
+    --no-trace)
+      trace=false
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    --)
+      shift
+      app_args+=("$@")
+      break
+      ;;
+    -*)
+      echo "unknown nehir-dev-run option: $1" >&2
+      echo "Use -- before Nehir arguments that should be forwarded." >&2
+      exit 2
+      ;;
+    *)
+      app_args+=("$1")
+      ;;
+  esac
+  shift
+done
+
+if [ "$trace" = true ]; then
+  app_args=("--nehir-trace" "${app_args[@]}")
+fi
+
+kill_running_nehir() {
+  pkill -x Nehir 2>/dev/null || true
+  pkill -f '.build/.*/Nehir' 2>/dev/null || true
+  sleep 0.5
+}
+
+state_home="${XDG_STATE_HOME:-$HOME/.local/state}"
+
+case "$mode" in
+  dev)
+    exec swift run Nehir "${app_args[@]}"
+    ;;
+  release)
+    exec .build/release/Nehir "${app_args[@]}"
+    ;;
+  clean)
+    kill_running_nehir
+    rm -f "$state_home/nehir/runtime-state.json"
+    exec swift run Nehir "${app_args[@]}"
+    ;;
+  onboarding)
+    kill_running_nehir
+    rm -f "$state_home/nehir/onboarding-version"
+    exec swift run Nehir "${app_args[@]}"
+    ;;
+  *)
+    echo "unknown nehir dev mode: $mode" >&2
+    exit 2
+    ;;
+esac

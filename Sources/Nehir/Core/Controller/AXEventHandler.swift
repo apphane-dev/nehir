@@ -70,7 +70,12 @@ struct NiriCreateFocusTraceEvent: Equatable {
         )
         case candidateTracked(token: WindowToken, workspaceId: WorkspaceDescriptor.ID)
         case relayoutActivatedWindow(token: WindowToken, workspaceId: WorkspaceDescriptor.ID)
-        case pendingFocusStarted(requestId: UInt64, token: WindowToken, workspaceId: WorkspaceDescriptor.ID)
+        case pendingFocusStarted(
+            requestId: UInt64,
+            token: WindowToken,
+            workspaceId: WorkspaceDescriptor.ID,
+            reason: FocusWindowReason
+        )
         case activationSourceObserved(pid: pid_t, source: ActivationEventSource)
         case followFocusToParkedWindow(token: WindowToken, workspaceId: WorkspaceDescriptor.ID, decision: String)
         /// The macOS-observed reality for a focus Nehir just confirmed. Emitted
@@ -251,8 +256,8 @@ extension NiriCreateFocusTraceEvent: CustomStringConvertible {
             "candidate_tracked token=\(token) workspace=\(workspaceId.uuidString)"
         case let .relayoutActivatedWindow(token, workspaceId):
             "relayout_activated_window token=\(token) workspace=\(workspaceId.uuidString)"
-        case let .pendingFocusStarted(requestId, token, workspaceId):
-            "pending_focus_started request=\(requestId) token=\(token) workspace=\(workspaceId.uuidString)"
+        case let .pendingFocusStarted(requestId, token, workspaceId, reason):
+            "pending_focus_started request=\(requestId) token=\(token) workspace=\(workspaceId.uuidString) reason=\(reason.rawValue)"
         case let .activationSourceObserved(pid, source):
             "activation_source_observed pid=\(pid) source=\(source.rawValue)"
         case let .followFocusToParkedWindow(token, workspaceId, decision):
@@ -544,7 +549,9 @@ final class AXEventHandler: CGSEventDelegate {
     // inactive-workspace activation guard is meant for (macOS re-focuses a
     // successor window of the same app after a close). Tracked per pid.
     private static let recentSameAppWindowCloseTTL: TimeInterval = 2
+    private static let recentNonManagedFocusTTL: TimeInterval = 2
     private var recentSameAppWindowCloseByPid: [pid_t: TimeInterval] = [:]
+    private var recentNonManagedFocusByPid: [pid_t: TimeInterval] = [:]
     private static let parkedFocusFollowDedupTTL: TimeInterval = 1.5
     private var recentParkedFocusFollowByToken: [WindowToken: TimeInterval] = [:]
     // After follow_focus switches an app to a parked window's workspace, hold
@@ -557,6 +564,7 @@ final class AXEventHandler: CGSEventDelegate {
     private var pendingManagedReplacementTasks: [ManagedReplacementKey: Task<Void, Never>] = [:]
     private var windowCloseFocusRecoveryContext: WindowCloseFocusRecoveryContext?
     private var deferredInactiveNativeActivationTokens: Set<WindowToken> = []
+    private var deferredSameAppActiveNativeActivationTokens: Set<WindowToken> = []
     private var pendingNativeFullscreenFollowupTasks: [WindowToken: Task<Void, Never>] = [:]
     private var pendingNativeFullscreenStaleCleanupTasks: [WindowToken: Task<Void, Never>] = [:]
     private var pendingWindowRuleReevaluationTask: Task<Void, Never>?
@@ -602,10 +610,13 @@ final class AXEventHandler: CGSEventDelegate {
         recentManagedWorkspaceByPid.removeAll()
         recentAppActivationByPid.removeAll()
         recentSameAppWindowCloseByPid.removeAll()
+        recentNonManagedFocusByPid.removeAll()
         recentParkedFocusFollowByToken.removeAll()
         parkedFollowHoldByPid.removeAll()
         recentManagedAdmissionByToken.removeAll()
         resetManagedReplacementState()
+        deferredInactiveNativeActivationTokens.removeAll()
+        deferredSameAppActiveNativeActivationTokens.removeAll()
         endWindowCloseFocusRecovery()
         resetNativeFullscreenReplacementState()
         resetWindowStabilizationState()
@@ -749,9 +760,12 @@ final class AXEventHandler: CGSEventDelegate {
         recentManagedWorkspaceByPid.removeAll()
         recentAppActivationByPid.removeAll()
         recentSameAppWindowCloseByPid.removeAll()
+        recentNonManagedFocusByPid.removeAll()
         recentParkedFocusFollowByToken.removeAll()
         parkedFollowHoldByPid.removeAll()
         recentManagedAdmissionByToken.removeAll()
+        deferredInactiveNativeActivationTokens.removeAll()
+        deferredSameAppActiveNativeActivationTokens.removeAll()
         resetActivationRetryState()
         controller?.focusBridge.reset()
         createFocusTrace.removeAll(keepingCapacity: true)
@@ -1774,6 +1788,304 @@ final class AXEventHandler: CGSEventDelegate {
         return true
     }
 
+    private func stableRecoveryFocusTarget(
+        context: WindowCloseFocusRecoveryContext,
+        workspaceId: WorkspaceDescriptor.ID
+    ) -> (token: WindowToken, reason: String)? {
+        guard context.workspaceId == workspaceId,
+              let controller
+        else {
+            return nil
+        }
+
+        if let preservedToken = context.preservedToken,
+           controller.workspaceManager.entry(for: preservedToken) != nil,
+           controller.workspaceManager.workspace(for: preservedToken) == workspaceId
+        {
+            return (preservedToken, "preserved")
+        }
+
+        guard let engine = controller.niriEngine,
+              let monitor = controller.workspaceManager.monitor(for: workspaceId)
+        else {
+            return nil
+        }
+        let state = controller.workspaceManager.niriViewportState(for: workspaceId)
+        let workingFrame = controller.insetWorkingFrame(for: monitor)
+        let gaps = controller.gapSize(for: monitor)
+        guard let nearestToken = engine.activeTileTokenNearestViewport(
+            in: workspaceId,
+            state: state,
+            workingFrame: workingFrame,
+            gaps: gaps
+        ),
+            controller.workspaceManager.entry(for: nearestToken) != nil,
+            controller.workspaceManager.workspace(for: nearestToken) == workspaceId
+        else {
+            return nil
+        }
+        return (nearestToken, "nearest")
+    }
+
+    private func redirectToStableRecoveryFocusIfNeeded(
+        observedEntry: WindowModel.Entry,
+        workspaceId: WorkspaceDescriptor.ID
+    ) -> Bool {
+        guard let context = activeWindowCloseFocusRecoveryContext(),
+              context.workspaceId == workspaceId
+        else {
+            return false
+        }
+
+        guard let target = stableRecoveryFocusTarget(context: context, workspaceId: workspaceId) else {
+            controller?.diagnostics.recordRuntimeViewportTrace(
+                workspaceId: workspaceId,
+                reason: "close_recovery_stable_target",
+                details: [
+                    "observedToken=\(observedEntry.token)",
+                    "targetToken=nil",
+                    "reason=fallback"
+                ]
+            )
+            return false
+        }
+
+        controller?.diagnostics.recordRuntimeViewportTrace(
+            workspaceId: workspaceId,
+            reason: "close_recovery_stable_target",
+            details: [
+                "observedToken=\(observedEntry.token)",
+                "targetToken=\(target.token)",
+                "reason=\(target.reason)"
+            ]
+        )
+        guard target.token != observedEntry.token else { return false }
+        controller?.focusWindow(target.token, reason: .closeRecoveryStableRedirect)
+        return true
+    }
+
+    private func stableViewportFocusTarget(
+        workspaceId: WorkspaceDescriptor.ID,
+        excluding excludedToken: WindowToken? = nil
+    ) -> WindowToken? {
+        guard let controller,
+              let engine = controller.niriEngine,
+              let monitor = controller.workspaceManager.monitor(for: workspaceId)
+        else {
+            return nil
+        }
+        let state = controller.workspaceManager.niriViewportState(for: workspaceId)
+        return engine.activeTileTokensNearestViewport(
+            in: workspaceId,
+            state: state,
+            workingFrame: controller.insetWorkingFrame(for: monitor),
+            gaps: controller.gapSize(for: monitor)
+        ).first { candidate in
+            guard candidate != excludedToken,
+                  let entry = controller.workspaceManager.entry(for: candidate),
+                  controller.workspaceManager.workspace(for: candidate) == workspaceId
+            else {
+                return false
+            }
+            return observedFrame(for: entry) != nil
+        }
+    }
+
+    private func previousSameAppFocusDisappearedSignal(
+        for observedEntry: WindowModel.Entry,
+        workspaceId: WorkspaceDescriptor.ID
+    ) -> Bool {
+        guard let controller,
+              let previousToken = controller.workspaceManager.confirmedManagedFocusToken,
+              previousToken.pid == observedEntry.pid,
+              previousToken != observedEntry.token,
+              controller.workspaceManager.workspace(for: previousToken) == workspaceId,
+              let previousEntry = controller.workspaceManager.entry(for: previousToken)
+        else {
+            return false
+        }
+        return observedFrame(for: previousEntry) == nil
+    }
+
+    private func selectedSameAppFocusDisappearedSignal(
+        for observedEntry: WindowModel.Entry,
+        workspaceId: WorkspaceDescriptor.ID
+    ) -> Bool {
+        guard let controller,
+              let engine = controller.niriEngine,
+              let selectedNodeId = controller.workspaceManager.niriViewportState(for: workspaceId).selectedNodeId,
+              let selectedWindow = engine.findNode(by: selectedNodeId) as? NiriWindow,
+              selectedWindow.token.pid == observedEntry.pid,
+              selectedWindow.token != observedEntry.token,
+              let selectedEntry = controller.workspaceManager.entry(for: selectedWindow.token),
+              selectedEntry.workspaceId == workspaceId
+        else {
+            return false
+        }
+        return observedFrame(for: selectedEntry) == nil
+    }
+
+    private func hasSameAppOverlayRecoverySignal(for entry: WindowModel
+        .Entry) -> (recentNonManaged: Bool, overlayVisible: Bool)
+    {
+        let recentNonManaged = hasRecentNonManagedFocus(for: entry.pid)
+        let overlayVisible = hasVisibleSamePidOverlayWindow(for: entry)
+        return (recentNonManaged, overlayVisible)
+    }
+
+    private struct SameAppCloseRecoveryViewportPins {
+        let closeRecoveryPin: Bool
+        let recentSameAppClosePin: Bool
+        let overlayRecoveryPin: Bool
+        let selectedSameAppFocusDisappearedPin: Bool
+        let shouldPin: Bool
+    }
+
+    private func sameAppCloseRecoveryViewportPins(
+        entry: WindowModel.Entry,
+        wsId: WorkspaceDescriptor.ID,
+        selectedSameAppFocusDisappearedBeforeConfirm: Bool,
+        overlaySignal: (recentNonManaged: Bool, overlayVisible: Bool)
+    ) -> SameAppCloseRecoveryViewportPins {
+        let closeRecoveryPin = activeWindowCloseFocusRecoveryContext()?.workspaceId == wsId
+        let outsideActiveCloseRecovery = activeWindowCloseFocusRecoveryWorkspaceId() == nil
+        let recentSameAppClosePin = outsideActiveCloseRecovery
+            && hasRecentSameAppWindowClose(for: entry.pid)
+        let overlayRecoveryPin = outsideActiveCloseRecovery
+            && (overlaySignal.recentNonManaged || overlaySignal.overlayVisible)
+        let selectedSameAppFocusDisappearedPin = outsideActiveCloseRecovery
+            && isWithinSameAppCloseRecoveryWindow(pid: entry.pid)
+            && (selectedSameAppFocusDisappearedBeforeConfirm
+                || selectedSameAppFocusDisappearedSignal(for: entry, workspaceId: wsId))
+        let shouldPin = closeRecoveryPin
+            || recentSameAppClosePin
+            || overlayRecoveryPin
+            || selectedSameAppFocusDisappearedPin
+        return .init(
+            closeRecoveryPin: closeRecoveryPin,
+            recentSameAppClosePin: recentSameAppClosePin,
+            overlayRecoveryPin: overlayRecoveryPin,
+            selectedSameAppFocusDisappearedPin: selectedSameAppFocusDisappearedPin,
+            shouldPin: shouldPin
+        )
+    }
+
+    private func shouldSuppressSameAppParkedFocusBeforeConfirm(
+        observedEntry: WindowModel.Entry,
+        workspaceId: WorkspaceDescriptor.ID,
+        requestDisposition: ActivationRequestDisposition,
+        source: ActivationEventSource
+    ) -> Bool {
+        guard source == .focusedWindowChanged,
+              activeWindowCloseFocusRecoveryWorkspaceId() == nil,
+              !isEntryOnScreen(observedEntry)
+        else { return false }
+        guard case .unrelatedNoRequest = requestDisposition,
+              let previousToken = controller?.workspaceManager.confirmedManagedFocusToken,
+              previousToken.pid == observedEntry.pid,
+              previousToken != observedEntry.token,
+              controller?.workspaceManager.workspace(for: previousToken) == workspaceId
+        else {
+            return false
+        }
+        controller?.diagnostics.recordRuntimeViewportTrace(
+            workspaceId: workspaceId,
+            reason: "same_app_parked_focus_suppressed",
+            details: [
+                "observedToken=\(observedEntry.token)",
+                "previousToken=\(previousToken)",
+                "requestDisposition=\(requestDisposition)"
+            ]
+        )
+        return true
+    }
+
+    private enum StableRecoveryRedirectPhase {
+        case preconfirm
+        case overlay
+
+        var traceReason: String {
+            switch self {
+            case .preconfirm: "close_recovery_preconfirm_stable_target"
+            case .overlay: "close_recovery_overlay_stable_target"
+            }
+        }
+
+        var focusReason: FocusWindowReason {
+            switch self {
+            case .preconfirm: .closeRecoveryPreconfirmStableRedirect
+            case .overlay: .overlayStableRecoveryRedirect
+            }
+        }
+    }
+
+    private func redirectToStableSameAppRecoveryFocusIfNeeded(
+        observedEntry: WindowModel.Entry,
+        workspaceId: WorkspaceDescriptor.ID,
+        phase: StableRecoveryRedirectPhase
+    ) -> Bool {
+        guard activeWindowCloseFocusRecoveryWorkspaceId() == nil else { return false }
+        let signal = hasSameAppOverlayRecoverySignal(for: observedEntry)
+        let recentSameAppClose = hasRecentSameAppWindowClose(for: observedEntry.pid)
+        let previousSameAppFocusDisappeared = previousSameAppFocusDisappearedSignal(
+            for: observedEntry,
+            workspaceId: workspaceId
+        )
+        let selectedSameAppFocusDisappeared = selectedSameAppFocusDisappearedSignal(
+            for: observedEntry,
+            workspaceId: workspaceId
+        )
+        let shouldRedirect = switch phase {
+        case .preconfirm:
+            previousSameAppFocusDisappeared || selectedSameAppFocusDisappeared
+        case .overlay:
+            signal.recentNonManaged || signal.overlayVisible
+                || previousSameAppFocusDisappeared || selectedSameAppFocusDisappeared
+        }
+        guard shouldRedirect else { return false }
+        let target = stableViewportFocusTarget(workspaceId: workspaceId, excluding: observedEntry.token)
+        controller?.diagnostics.recordRuntimeViewportTrace(
+            workspaceId: workspaceId,
+            reason: phase.traceReason,
+            details: [
+                "observedToken=\(observedEntry.token)",
+                "targetToken=\(target.map(String.init(describing:)) ?? "nil")",
+                "recentSameAppClose=\(recentSameAppClose)",
+                "recentNonManaged=\(signal.recentNonManaged)",
+                "overlayVisible=\(signal.overlayVisible)",
+                "previousSameAppFocusDisappeared=\(previousSameAppFocusDisappeared)",
+                "selectedSameAppFocusDisappeared=\(selectedSameAppFocusDisappeared)"
+            ]
+        )
+        guard let target, target != observedEntry.token else { return false }
+        controller?.focusWindow(target, reason: phase.focusReason)
+        return true
+    }
+
+    private func redirectToStableCloseSuccessorFocusBeforeConfirmIfNeeded(
+        observedEntry: WindowModel.Entry,
+        workspaceId: WorkspaceDescriptor.ID,
+        source: ActivationEventSource
+    ) -> Bool {
+        guard source == .focusedWindowChanged else { return false }
+        return redirectToStableSameAppRecoveryFocusIfNeeded(
+            observedEntry: observedEntry,
+            workspaceId: workspaceId,
+            phase: .preconfirm
+        )
+    }
+
+    private func redirectToStableOverlayRecoveryFocusIfNeeded(
+        observedEntry: WindowModel.Entry,
+        workspaceId: WorkspaceDescriptor.ID
+    ) -> Bool {
+        redirectToStableSameAppRecoveryFocusIfNeeded(
+            observedEntry: observedEntry,
+            workspaceId: workspaceId,
+            phase: .overlay
+        )
+    }
+
     private func shouldSuppressManagedActivationWhileNonManagedFocusAnchored(
         entry observedEntry: WindowModel.Entry,
         requestDisposition: ActivationRequestDisposition
@@ -1889,6 +2201,57 @@ final class AXEventHandler: CGSEventDelegate {
             await MainActor.run { [weak self] in
                 guard let self else { return }
                 self.deferredInactiveNativeActivationTokens.remove(token)
+                self.handleAppActivation(pid: pid, source: source, origin: .retry)
+            }
+        }
+        return true
+    }
+
+    private func shouldDeferSameAppActiveNativeActivationBeforeCloseRecovery(
+        entry observedEntry: WindowModel.Entry,
+        isWorkspaceActive: Bool,
+        requestDisposition: ActivationRequestDisposition,
+        source: ActivationEventSource,
+        origin: ActivationCallOrigin
+    ) -> Bool {
+        guard origin == .external,
+              source == .workspaceDidActivateApplication || source == .focusedWindowChanged,
+              isWorkspaceActive,
+              activeWindowCloseFocusRecoveryWorkspaceId() == nil
+        else {
+            return false
+        }
+
+        guard case .unrelatedNoRequest = requestDisposition else {
+            return false
+        }
+
+        let recentNonManaged = hasRecentNonManagedFocus(for: observedEntry.pid)
+        let overlayVisible = hasVisibleSamePidOverlayWindow(for: observedEntry)
+        guard recentNonManaged || overlayVisible else { return false }
+
+        controller?.diagnostics.recordRuntimeViewportTrace(
+            workspaceId: observedEntry.workspaceId,
+            reason: "close_recovery_predefer",
+            details: [
+                "token=\(observedEntry.token)",
+                "source=\(source.rawValue)",
+                "requestDisposition=\(requestDisposition)",
+                "recentNonManaged=\(recentNonManaged)",
+                "overlayVisible=\(overlayVisible)"
+            ]
+        )
+
+        guard !deferredSameAppActiveNativeActivationTokens.contains(observedEntry.token) else {
+            return true
+        }
+
+        deferredSameAppActiveNativeActivationTokens.insert(observedEntry.token)
+        Task { [weak self, token = observedEntry.token, pid = observedEntry.pid, source] in
+            try? await Task.sleep(nanoseconds: 120_000_000)
+            await MainActor.run { [weak self] in
+                guard let self else { return }
+                self.deferredSameAppActiveNativeActivationTokens.remove(token)
                 self.handleAppActivation(pid: pid, source: source, origin: .retry)
             }
         }
@@ -2084,6 +2447,23 @@ final class AXEventHandler: CGSEventDelegate {
                 controller.workspaceManager.activeWorkspace(on: monitor.id)?.id == wsId
             } ?? false
 
+            if shouldSuppressSameAppParkedFocusBeforeConfirm(
+                observedEntry: entry,
+                workspaceId: wsId,
+                requestDisposition: requestDisposition,
+                source: source
+            ) {
+                return
+            }
+
+            if redirectToStableCloseSuccessorFocusBeforeConfirmIfNeeded(
+                observedEntry: entry,
+                workspaceId: wsId,
+                source: source
+            ) {
+                return
+            }
+
             if shouldSuppressHiddenInactiveStickyActivation(
                 entry: entry,
                 isWorkspaceActive: isWorkspaceActive,
@@ -2119,6 +2499,16 @@ final class AXEventHandler: CGSEventDelegate {
                 return
             }
 
+            if shouldDeferSameAppActiveNativeActivationBeforeCloseRecovery(
+                entry: entry,
+                isWorkspaceActive: isWorkspaceActive,
+                requestDisposition: requestDisposition,
+                source: source,
+                origin: origin
+            ) {
+                return
+            }
+
             if shouldSuppressObservedActivationDuringWindowCloseRecovery(
                 entry: entry,
                 requestDisposition: requestDisposition,
@@ -2132,6 +2522,10 @@ final class AXEventHandler: CGSEventDelegate {
                         reason: .pendingFocusMismatch
                     )
                 }
+                return
+            }
+
+            if redirectToStableOverlayRecoveryFocusIfNeeded(observedEntry: entry, workspaceId: wsId) {
                 return
             }
 
@@ -2162,6 +2556,10 @@ final class AXEventHandler: CGSEventDelegate {
                     origin: origin,
                     isWorkspaceActive: isWorkspaceActive
                 ) else { return }
+            }
+
+            if redirectToStableRecoveryFocusIfNeeded(observedEntry: entry, workspaceId: wsId) {
+                return
             }
 
             endWindowCloseFocusRecovery(matching: wsId)
@@ -2191,6 +2589,23 @@ final class AXEventHandler: CGSEventDelegate {
                 controller.workspaceManager.activeWorkspace(on: monitor.id)?.id == wsId
             } ?? false
 
+            if shouldSuppressSameAppParkedFocusBeforeConfirm(
+                observedEntry: restoredEntry,
+                workspaceId: wsId,
+                requestDisposition: requestDisposition,
+                source: source
+            ) {
+                return
+            }
+
+            if redirectToStableCloseSuccessorFocusBeforeConfirmIfNeeded(
+                observedEntry: restoredEntry,
+                workspaceId: wsId,
+                source: source
+            ) {
+                return
+            }
+
             if shouldSuppressSameAppInactiveWorkspaceActivationBeforeCloseRecovery(
                 entry: restoredEntry,
                 isWorkspaceActive: isWorkspaceActive,
@@ -2217,6 +2632,16 @@ final class AXEventHandler: CGSEventDelegate {
                 return
             }
 
+            if shouldDeferSameAppActiveNativeActivationBeforeCloseRecovery(
+                entry: restoredEntry,
+                isWorkspaceActive: isWorkspaceActive,
+                requestDisposition: requestDisposition,
+                source: source,
+                origin: origin
+            ) {
+                return
+            }
+
             if shouldSuppressObservedActivationDuringWindowCloseRecovery(
                 entry: restoredEntry,
                 requestDisposition: requestDisposition,
@@ -2230,6 +2655,10 @@ final class AXEventHandler: CGSEventDelegate {
                         reason: .pendingFocusMismatch
                     )
                 }
+                return
+            }
+
+            if redirectToStableOverlayRecoveryFocusIfNeeded(observedEntry: restoredEntry, workspaceId: wsId) {
                 return
             }
 
@@ -2260,6 +2689,10 @@ final class AXEventHandler: CGSEventDelegate {
                     origin: origin,
                     isWorkspaceActive: isWorkspaceActive
                 ) else { return }
+            }
+
+            if redirectToStableRecoveryFocusIfNeeded(observedEntry: restoredEntry, workspaceId: wsId) {
+                return
             }
 
             endWindowCloseFocusRecovery(matching: wsId)
@@ -2339,14 +2772,7 @@ final class AXEventHandler: CGSEventDelegate {
         )
         _ = controller.focusBorderController.focusChanged(to: target, forceOrdering: true)
 
-        recordNiriCreateFocusTrace(
-            .init(
-                kind: .nonManagedFallbackEntered(
-                    pid: pid,
-                    source: source
-                )
-            )
-        )
+        recordNonManagedFallbackEntered(pid: pid, source: source)
     }
 
     private func admitFocusedWindowBeforeNonManagedFallback(
@@ -2523,6 +2949,10 @@ final class AXEventHandler: CGSEventDelegate {
         // window; without this guard the viewport scrolls back to a column the
         // user deliberately scrolled away from.
         let wasAlreadyConfirmedFocus = controller.workspaceManager.confirmedManagedFocusToken == entry.token
+        let selectedSameAppFocusDisappearedBeforeConfirm = selectedSameAppFocusDisappearedSignal(
+            for: entry,
+            workspaceId: wsId
+        )
         var confirmedRequestId: UInt64?
 
         if shouldConfirmRequest {
@@ -2620,9 +3050,33 @@ final class AXEventHandler: CGSEventDelegate {
             let settleTolerance = 1.0 / max(engine.displayScale(in: wsId), 1.0)
             let isSpringInFlight = state.viewOffsetPixels.isAnimating
                 && abs(state.viewOffsetPixels.current() - state.viewOffsetPixels.target()) > settleTolerance
+            var overlaySignal = (recentNonManaged: hasRecentNonManagedFocus(for: entry.pid), overlayVisible: false)
+            var closeRecoveryPins = sameAppCloseRecoveryViewportPins(
+                entry: entry,
+                wsId: wsId,
+                selectedSameAppFocusDisappearedBeforeConfirm: selectedSameAppFocusDisappearedBeforeConfirm,
+                overlaySignal: overlaySignal
+            )
+            if !closeRecoveryPins.shouldPin,
+               activeWindowCloseFocusRecoveryWorkspaceId() == nil,
+               isWithinSameAppCloseRecoveryWindow(pid: entry.pid)
+            {
+                overlaySignal.overlayVisible = hasVisibleSamePidOverlayWindow(for: entry)
+                closeRecoveryPins = sameAppCloseRecoveryViewportPins(
+                    entry: entry,
+                    wsId: wsId,
+                    selectedSameAppFocusDisappearedBeforeConfirm: selectedSameAppFocusDisappearedBeforeConfirm,
+                    overlaySignal: overlaySignal
+                )
+            }
+            let closeRecoveryPin = closeRecoveryPins.closeRecoveryPin
+            let recentSameAppClosePin = closeRecoveryPins.recentSameAppClosePin
+            let overlayRecoveryPin = closeRecoveryPins.overlayRecoveryPin
+            let selectedSameAppFocusDisappearedPin = closeRecoveryPins.selectedSameAppFocusDisappearedPin
             let preserveActiveViewport = state.viewOffsetPixels.isGesture
                 || isSpringInFlight
                 || (wasAlreadyConfirmedFocus && source == .focusedWindowChanged)
+                || closeRecoveryPins.shouldPin
             controller.diagnostics.recordRuntimeViewportTrace(
                 workspaceId: wsId,
                 reason: "ax_focus_confirm_before_activate",
@@ -2634,6 +3088,12 @@ final class AXEventHandler: CGSEventDelegate {
                     "recentFFMFresh=\(recentFFMIsFresh)",
                     "isFFM=\(isFFM)",
                     "preserveActiveViewport=\(preserveActiveViewport)",
+                    "closeRecoveryPin=\(closeRecoveryPin)",
+                    "recentSameAppClosePin=\(recentSameAppClosePin)",
+                    "overlayRecoveryPin=\(overlayRecoveryPin)",
+                    "selectedSameAppFocusDisappearedPin=\(selectedSameAppFocusDisappearedPin)",
+                    "recentNonManaged=\(overlaySignal.recentNonManaged)",
+                    "overlayVisible=\(overlaySignal.overlayVisible)",
                     "wasAlreadyConfirmedFocus=\(wasAlreadyConfirmedFocus)",
                     "isGesture=\(state.viewOffsetPixels.isGesture)",
                     "wasAnimating=\(state.viewOffsetPixels.isAnimating)"
@@ -3534,6 +3994,14 @@ final class AXEventHandler: CGSEventDelegate {
         fallbackAXRef: AXWindowRef?,
         createPlacementContext: WindowCreatePlacementContext?
     ) {
+        if let token,
+           let windowInfo,
+           reason == .untrackedDecision || reason == .missingAXRef,
+           isKnownSamePidOverlayWindow(windowInfo, pid: token.pid)
+        {
+            recordRecentNonManagedFocus(pid: token.pid)
+        }
+
         recordNiriCreateFocusTrace(
             .init(
                 kind: .prepareCreateRejected(
@@ -4127,6 +4595,10 @@ final class AXEventHandler: CGSEventDelegate {
         recentParkedFocusFollowByToken = recentParkedFocusFollowByToken.filter {
             now - $0.value <= Self.parkedFocusFollowDedupTTL
         }
+        // During close recovery, parked-follow would chase the offscreen same-app successor we are trying to ignore.
+        guard !isWithinSameAppCloseRecoveryWindow(pid: entry.pid) else {
+            return
+        }
         guard entry.mode == .tiling,
               !onScreen,
               !manager.hasStickyWindowSource(entry.token),
@@ -4156,6 +4628,35 @@ final class AXEventHandler: CGSEventDelegate {
         recentSameAppWindowCloseByPid[pid] = managedReplacementCurrentUptime()
     }
 
+    private func recordRecentNonManagedFocus(pid: pid_t) {
+        pruneRecentNonManagedFocus()
+        recentNonManagedFocusByPid[pid] = managedReplacementCurrentUptime()
+    }
+
+    private func hasRecentNonManagedFocus(for pid: pid_t) -> Bool {
+        pruneRecentNonManagedFocus()
+        return recentNonManagedFocusByPid[pid] != nil
+    }
+
+    private func pruneRecentNonManagedFocus(now: TimeInterval? = nil) {
+        let now = now ?? managedReplacementCurrentUptime()
+        recentNonManagedFocusByPid = recentNonManagedFocusByPid.filter { _, recordedAt in
+            now - recordedAt <= Self.recentNonManagedFocusTTL
+        }
+    }
+
+    private func recordNonManagedFallbackEntered(pid: pid_t, source: ActivationEventSource) {
+        recordRecentNonManagedFocus(pid: pid)
+        recordNiriCreateFocusTrace(
+            .init(
+                kind: .nonManagedFallbackEntered(
+                    pid: pid,
+                    source: source
+                )
+            )
+        )
+    }
+
     private func hasRecentSameAppWindowClose(for pid: pid_t) -> Bool {
         guard let at = recentSameAppWindowCloseByPid[pid] else { return false }
         guard managedReplacementCurrentUptime() - at <= Self.recentSameAppWindowCloseTTL else {
@@ -4163,6 +4664,10 @@ final class AXEventHandler: CGSEventDelegate {
             return false
         }
         return true
+    }
+
+    private func isWithinSameAppCloseRecoveryWindow(pid: pid_t) -> Bool {
+        hasRecentNonManagedFocus(for: pid) || hasRecentSameAppWindowClose(for: pid)
     }
 
     /// The workspace a recent follow_focus pinned for `pid`, if the hold has not
@@ -4819,9 +5324,7 @@ final class AXEventHandler: CGSEventDelegate {
             appFullscreen: appFullscreenForFallbackLifecyclePreservation(observedAppFullscreen: appFullscreen),
             preserveFocusedToken: true
         )
-        recordNiriCreateFocusTrace(
-            .init(kind: .nonManagedFallbackEntered(pid: entry.pid, source: source))
-        )
+        recordNonManagedFallbackEntered(pid: entry.pid, source: source)
         return true
     }
 
@@ -4882,14 +5385,7 @@ final class AXEventHandler: CGSEventDelegate {
             appFullscreen: fallbackFullscreen,
             preserveFocusedToken: false
         )
-        recordNiriCreateFocusTrace(
-            .init(
-                kind: .nonManagedFallbackEntered(
-                    pid: pid,
-                    source: source
-                )
-            )
-        )
+        recordNonManagedFallbackEntered(pid: pid, source: source)
         controller.focusBorderController.clear()
     }
 

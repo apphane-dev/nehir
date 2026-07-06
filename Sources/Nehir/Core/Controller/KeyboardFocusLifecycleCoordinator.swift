@@ -49,6 +49,7 @@ final class FocusBridgeCoordinator {
     private var nextRequestId: UInt64 = 1
     private var pendingFocusToken: WindowToken?
     private var deferredFocusToken: WindowToken?
+    private var deferredFocusReason: FocusWindowReason?
     private var isFocusOperationPending = false
     private struct ConfirmedManagedRequest {
         var token: WindowToken
@@ -191,6 +192,7 @@ final class FocusBridgeCoordinator {
         }
         if deferredFocusToken == token {
             deferredFocusToken = nil
+            deferredFocusReason = nil
         }
     }
 
@@ -211,8 +213,9 @@ final class FocusBridgeCoordinator {
 
     func focusWindow(
         _ token: WindowToken,
+        reason: FocusWindowReason,
         performFocus: () -> Void,
-        onDeferredFocus: @escaping (WindowToken) -> Void
+        onDeferredFocus: @escaping (WindowToken, FocusWindowReason) -> Void
     ) {
         let now = Date()
 
@@ -222,6 +225,7 @@ final class FocusBridgeCoordinator {
 
         if isFocusOperationPending {
             deferredFocusToken = token
+            deferredFocusReason = reason
             return
         }
 
@@ -232,9 +236,13 @@ final class FocusBridgeCoordinator {
         performFocus()
 
         isFocusOperationPending = false
-        if let deferred = deferredFocusToken, deferred != token {
+        if let deferred = deferredFocusToken {
+            let deferredReason = deferredFocusReason ?? .deferredFocus
             deferredFocusToken = nil
-            onDeferredFocus(deferred)
+            deferredFocusReason = nil
+            if deferred != token {
+                onDeferredFocus(deferred, deferredReason)
+            }
         }
     }
 
@@ -243,6 +251,7 @@ final class FocusBridgeCoordinator {
         nextRequestId = 1
         pendingFocusToken = nil
         deferredFocusToken = nil
+        deferredFocusReason = nil
         isFocusOperationPending = false
         lastFocusTime = .distantPast
         recentlyConfirmedManagedRequestsByPID.removeAll(keepingCapacity: true)

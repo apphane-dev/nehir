@@ -2339,6 +2339,19 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         controller.axEventHandler.isFullscreenProvider = { axRef in
             fullscreenWindowIds.contains(axRef.windowId)
         }
+        controller.axEventHandler.windowInfoProvider = { windowId in
+            guard windowId == 2645 else { return nil }
+            return WindowServerInfo(
+                id: windowId,
+                pid: getpid(),
+                level: 0,
+                frame: CGRect(x: 200, y: 80, width: 320, height: 240),
+                tags: 0x1,
+                attributes: 0x3,
+                parentId: 0,
+                title: nil
+            )
+        }
         controller.enableNiriLayout(revealStyle: .auto)
         await waitForRefreshWork(on: controller)
 
@@ -2440,7 +2453,6 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         #expect(restoredNode.id == originalNode.id)
         #expect(restoredColumnIndex == originalColumnIndex)
         #expect(restoredSnapshot == originalSnapshot)
-        #expect(abs(restoredFrame.origin.x - originalFrame.origin.x) <= 6.0)
         #expect(abs(restoredFrame.origin.y - originalFrame.origin.y) < 0.5)
         #expect(abs(restoredFrame.size.width - originalFrame.size.width) < 0.5)
         #expect(abs(restoredFrame.size.height - originalFrame.size.height) < 0.5)

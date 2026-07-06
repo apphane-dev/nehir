@@ -1989,7 +1989,7 @@ enum NiriWindowMoveResult {
             let focusToken = state.selectedNodeId != previousSelectedNodeId ? selectedWindow?.token : nil
             controller.layoutRefreshController.requestRefresh(reason: .layoutCommand) { [weak controller] in
                 if let focusToken {
-                    controller?.focusWindow(focusToken)
+                    controller?.focusWindow(focusToken, reason: .activateNodeRefreshCompletion)
                 }
             }
             startScrollAnimationIfNeeded(for: wsId, state: state, engine: engine)
@@ -2230,7 +2230,7 @@ enum NiriWindowMoveResult {
                 reason: .layoutCommand
             ) { [weak controller] in
                 if let focusToken {
-                    controller?.focusWindow(focusToken)
+                    controller?.focusWindow(focusToken, reason: .activateNodeRefreshCompletion)
                 }
             }
             if options.startAnimation, state.viewOffsetPixels.isAnimating {
@@ -2238,7 +2238,7 @@ enum NiriWindowMoveResult {
             }
         } else {
             if options.axFocus, let windowNode = node as? NiriWindow {
-                controller.focusWindow(windowNode.token)
+                controller.focusWindow(windowNode.token, reason: .activateNodeImmediate)
             }
             if options.startAnimation, state.viewOffsetPixels.isAnimating {
                 controller.layoutRefreshController.startScrollAnimation(for: workspaceId)

@@ -234,7 +234,7 @@ final class WindowActionHandler {
         }
 
         orderWindow(UInt32(entry.windowId))
-        controller.focusWindow(token)
+        controller.focusWindow(token, reason: .windowAction)
         return true
     }
 
@@ -534,7 +534,7 @@ final class WindowActionHandler {
         )
         controller.layoutRefreshController
             .commitWorkspaceTransition(reason: .workspaceTransition) { [weak controller] in
-                controller?.focusWindow(token)
+                controller?.focusWindow(token, reason: .windowActionRefreshCompletion)
             }
         return true
     }
@@ -662,7 +662,7 @@ final class WindowActionHandler {
             affectedWorkspaces: [sourceWorkspaceId, targetWorkspaceId],
             reason: .workspaceTransition
         ) { [weak controller] in
-            controller?.focusWindow(token)
+            controller?.focusWindow(token, reason: .windowActionRefreshCompletion)
         }
         controller.layoutRefreshController.startScrollAnimation(for: targetWorkspaceId)
         return true
@@ -688,7 +688,7 @@ final class WindowActionHandler {
             )
         )
         controller.layoutRefreshController.requestRefresh(reason: .layoutCommand) { [weak controller] in
-            controller?.focusWindow(token)
+            controller?.focusWindow(token, reason: .windowActionRefreshCompletion)
         }
         if startNiriScrollAnimation {
             controller.layoutRefreshController.startScrollAnimation(for: workspaceId)
@@ -739,7 +739,7 @@ final class WindowActionHandler {
         controller.layoutRefreshController
             .commitWorkspaceTransition(reason: .workspaceTransition) { [weak controller] in
                 if let focusedToken {
-                    controller?.focusWindow(focusedToken)
+                    controller?.focusWindow(focusedToken, reason: .windowActionFallback)
                 }
             }
         return true

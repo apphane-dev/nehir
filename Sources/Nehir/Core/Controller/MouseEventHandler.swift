@@ -2190,7 +2190,7 @@ final class MouseEventHandler {
                     forceOrdering: false
                 )
                 controller.suppressMouseMoveToFocusedWindow(for: selectedWindow.token)
-                controller.focusWindow(selectedWindow.token)
+                controller.focusWindow(selectedWindow.token, reason: .mouseScrollSelection)
                 didRequestFocus = true
             }
         }
