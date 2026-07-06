@@ -327,8 +327,16 @@ final class WindowRuleEngine {
     private static let degradedWindowServerChildSurfaceRuleName = "degradedWindowServerChildSurface"
     private static let transientSystemDialogSurfaceRuleName = "transientSystemDialogSurface"
     private static let cleanShotRecordingOverlayRuleName = "cleanShotRecordingOverlay"
+    private static let geckoTransientDialogRuleName = "geckoTransientDialog"
     private static let ghosttyQuickTerminalRuleName = "ghosttyQuickTerminalOverlay"
     private static let ghosttyBundleId = "com.mitchellh.ghostty"
+    private static let geckoBundleIds: Set<String> = [
+        "org.mozilla.thunderbird",
+        "org.mozilla.firefox",
+        "org.mozilla.firefoxdeveloperedition",
+        "app.zen-browser.zen",
+        "org.mozilla.seamonkey"
+    ]
     private static let systemTextInputPanelBundleIds: Set<String> = [
         "com.apple.characterpaletteim",
         "com.apple.emojifunctionrowitem-container",
@@ -550,6 +558,14 @@ final class WindowRuleEngine {
             return cleanShotDecision
         }
 
+        if let geckoDecision = geckoTransientDialogDecision(
+            for: facts,
+            workspaceName: workspaceName,
+            effects: effects
+        ) {
+            return geckoDecision
+        }
+
         if facts.ax.title == nil,
            requiresTitle(for: facts.ax.bundleId)
         {
@@ -712,6 +728,44 @@ final class WindowRuleEngine {
             disposition: .floating,
             source: .builtInRule(Self.cleanShotRecordingOverlayRuleName),
             layoutDecisionKind: .explicitLayout,
+            workspaceName: workspaceName,
+            ruleEffects: effects,
+            heuristicReasons: [],
+            deferredReason: nil
+        )
+    }
+
+    // Gecko apps (Thunderbird/Firefox) report transient dialogs — e.g. the
+    // Thunderbird "message sent" confirmation — as top-level AXStandardWindows
+    // with all window buttons and an enabled fullscreen button, and with a nil AX
+    // title. They are indistinguishable from real document windows by AX alone, so
+    // the heuristic tiles them (#142). The one durable discriminator is the
+    // WindowServer document tag: real Gecko windows (main, compose) carry it; the
+    // transient dialog carries neither the document nor the floating tag. Float
+    // those. Title-based user rules cannot address this (title is nil).
+    private func geckoTransientDialogDecision(
+        for facts: WindowRuleFacts,
+        workspaceName: String?,
+        effects: ManagedWindowRuleEffects
+    ) -> WindowDecision? {
+        guard let bundleId = facts.ax.bundleId?.lowercased(),
+              Self.geckoBundleIds.contains(bundleId),
+              facts.ax.attributeFetchSucceeded,
+              facts.ax.role == kAXWindowRole as String,
+              facts.ax.subrole == kAXStandardWindowSubrole as String,
+              let windowServer = facts.windowServer,
+              !windowServer.frame.isEmpty,
+              windowServer.parentId == 0,
+              !windowServer.hasDocumentTag,
+              !windowServer.hasFloatingTag
+        else {
+            return nil
+        }
+
+        return WindowDecision(
+            disposition: .floating,
+            source: .builtInRule(Self.geckoTransientDialogRuleName),
+            layoutDecisionKind: .fallbackLayout,
             workspaceName: workspaceName,
             ruleEffects: effects,
             heuristicReasons: [],

@@ -9,6 +9,21 @@ import ApplicationServices
 @testable import Nehir
 import Testing
 
+private func makeGeckoDialogWindowServerInfo(
+    tags: UInt64,
+    parentId: UInt32 = 0
+) -> WindowServerInfo {
+    var windowServer = WindowServerInfo(
+        id: 4201,
+        pid: 10123,
+        level: 0,
+        frame: CGRect(x: 100, y: 100, width: 520, height: 260)
+    )
+    windowServer.tags = tags
+    windowServer.parentId = parentId
+    return windowServer
+}
+
 private func makeWindowRuleFacts(
     bundleId: String = "com.example.app",
     appName: String? = nil,
@@ -483,6 +498,163 @@ private func makeWindowRuleFacts(
         } else {
             Issue.record("Expected CleanShot capture overlays to use the built-in floating rule")
         }
+    }
+
+    @Test func geckoTaglessTopLevelStandardWindowFloatsAsTransientDialog() {
+        let engine = WindowRuleEngine()
+
+        let decision = engine.decision(
+            for: makeWindowRuleFacts(
+                bundleId: "org.mozilla.thunderbird",
+                title: nil,
+                role: kAXWindowRole as String,
+                subrole: kAXStandardWindowSubrole as String,
+                hasCloseButton: true,
+                hasFullscreenButton: true,
+                fullscreenButtonEnabled: true,
+                hasZoomButton: true,
+                hasMinimizeButton: true,
+                windowServer: makeGeckoDialogWindowServerInfo(tags: 0)
+            ),
+            token: nil,
+            appFullscreen: false
+        )
+
+        #expect(decision.disposition == .floating)
+        #expect(decision.source == .builtInRule("geckoTransientDialog"))
+        #expect(decision.layoutDecisionKind == .fallbackLayout)
+        #expect(decision.heuristicReasons.isEmpty)
+    }
+
+    @Test func geckoDocumentTaggedTopLevelStandardWindowTilesHeuristically() {
+        let engine = WindowRuleEngine()
+
+        let decision = engine.decision(
+            for: makeWindowRuleFacts(
+                bundleId: "org.mozilla.thunderbird",
+                title: "Write: Subject",
+                role: kAXWindowRole as String,
+                subrole: kAXStandardWindowSubrole as String,
+                hasCloseButton: true,
+                hasFullscreenButton: true,
+                fullscreenButtonEnabled: true,
+                hasZoomButton: true,
+                hasMinimizeButton: true,
+                windowServer: makeGeckoDialogWindowServerInfo(tags: 0x1)
+            ),
+            token: nil,
+            appFullscreen: false
+        )
+
+        #expect(decision.disposition == .managed)
+        #expect(decision.source == .heuristic)
+        #expect(decision.heuristicReasons.isEmpty)
+    }
+
+    @Test func geckoFloatingTaggedSurfaceKeepsExistingTransientSurfaceRule() {
+        let engine = WindowRuleEngine()
+
+        let decision = engine.decision(
+            for: makeWindowRuleFacts(
+                bundleId: "org.mozilla.thunderbird",
+                title: nil,
+                role: kAXWindowRole as String,
+                subrole: kAXStandardWindowSubrole as String,
+                hasCloseButton: true,
+                hasFullscreenButton: true,
+                fullscreenButtonEnabled: true,
+                hasZoomButton: true,
+                hasMinimizeButton: true,
+                windowServer: makeGeckoDialogWindowServerInfo(tags: 0x2)
+            ),
+            token: nil,
+            appFullscreen: false
+        )
+
+        #expect(decision.disposition == .floating)
+        #expect(decision.source == .builtInRule("transientWindowServerSurface"))
+        #expect(decision.heuristicReasons.isEmpty)
+    }
+
+    @Test func geckoParentedSurfaceKeepsExistingParentedSurfaceRule() {
+        let engine = WindowRuleEngine()
+
+        let decision = engine.decision(
+            for: makeWindowRuleFacts(
+                bundleId: "org.mozilla.thunderbird",
+                title: nil,
+                role: kAXWindowRole as String,
+                subrole: kAXStandardWindowSubrole as String,
+                hasCloseButton: true,
+                hasFullscreenButton: true,
+                fullscreenButtonEnabled: true,
+                hasZoomButton: true,
+                hasMinimizeButton: true,
+                windowServer: makeGeckoDialogWindowServerInfo(tags: 0, parentId: 44)
+            ),
+            token: nil,
+            appFullscreen: false
+        )
+
+        #expect(decision.disposition == .floating)
+        #expect(decision.source == .builtInRule("parentedWindowServerSurface"))
+        #expect(decision.heuristicReasons.isEmpty)
+    }
+
+    @Test func nonGeckoTaglessTopLevelStandardWindowTilesHeuristically() {
+        let engine = WindowRuleEngine()
+
+        let decision = engine.decision(
+            for: makeWindowRuleFacts(
+                bundleId: "com.example.app",
+                title: nil,
+                role: kAXWindowRole as String,
+                subrole: kAXStandardWindowSubrole as String,
+                hasCloseButton: true,
+                hasFullscreenButton: true,
+                fullscreenButtonEnabled: true,
+                hasZoomButton: true,
+                hasMinimizeButton: true,
+                windowServer: makeGeckoDialogWindowServerInfo(tags: 0)
+            ),
+            token: nil,
+            appFullscreen: false
+        )
+
+        #expect(decision.disposition == .managed)
+        #expect(decision.source == .heuristic)
+        #expect(decision.heuristicReasons.isEmpty)
+    }
+
+    @Test func explicitUserTileRuleOverridesGeckoTransientDialogRule() {
+        let engine = WindowRuleEngine()
+        let rule = AppRule(
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000000166")!,
+            bundleId: "org.mozilla.thunderbird",
+            layout: .tile
+        )
+        engine.rebuild(rules: [rule])
+
+        let decision = engine.decision(
+            for: makeWindowRuleFacts(
+                bundleId: "org.mozilla.thunderbird",
+                title: nil,
+                role: kAXWindowRole as String,
+                subrole: kAXStandardWindowSubrole as String,
+                hasCloseButton: true,
+                hasFullscreenButton: true,
+                fullscreenButtonEnabled: true,
+                hasZoomButton: true,
+                hasMinimizeButton: true,
+                windowServer: makeGeckoDialogWindowServerInfo(tags: 0)
+            ),
+            token: nil,
+            appFullscreen: false
+        )
+
+        #expect(decision.disposition == .managed)
+        #expect(decision.source == .userRule(rule.id))
+        #expect(decision.heuristicReasons.isEmpty)
     }
 
     @Test func cleanShotDialogAtCaptureLevelStillFloats() {
