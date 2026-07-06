@@ -187,7 +187,7 @@ final class WorkspaceNavigationHandler {
         ) { [weak self, weak controller] in
             guard let controller else { return }
             if let focusToken = handoff.focusToken {
-                controller.focusWindow(focusToken)
+                controller.focusWindow(focusToken, reason: .workspaceTransitionHandoff)
                 if focusedTokenNeedsRevealRelayout {
                     controller.axManager.forceApplyNextFrame(for: focusToken.windowId)
                     controller.layoutRefreshController.requestRefresh(
@@ -248,7 +248,7 @@ final class WorkspaceNavigationHandler {
         ) { [weak self, weak controller] in
             guard let controller else { return }
             if let focusToken = handoff.focusToken {
-                controller.focusWindow(focusToken)
+                controller.focusWindow(focusToken, reason: .workspaceTransitionHandoff)
             } else if handoff.shouldClearManagedFocus {
                 self?.clearManagedFocusAfterEmptyWorkspaceSwitch(to: target)
             }
@@ -296,7 +296,7 @@ final class WorkspaceNavigationHandler {
             reason: .workspaceTransition
         ) { [weak controller] in
             if let focusToken {
-                controller?.focusWindow(focusToken)
+                controller?.focusWindow(focusToken, reason: .workspaceTransitionHandoff)
             }
         }
     }
@@ -509,7 +509,7 @@ final class WorkspaceNavigationHandler {
             affectedWorkspaces: [targetWorkspaceId],
             reason: .workspaceTransition
         ) { [weak controller] in
-            controller?.focusWindow(targetToken)
+            controller?.focusWindow(targetToken, reason: .activateWorkspace)
         }
     }
 
@@ -722,7 +722,7 @@ final class WorkspaceNavigationHandler {
             reason: .workspaceTransition
         ) { [weak controller] in
             if let focusToken {
-                controller?.focusWindow(focusToken)
+                controller?.focusWindow(focusToken, reason: .workspaceTransitionHandoff)
             }
         }
     }
@@ -786,7 +786,7 @@ final class WorkspaceNavigationHandler {
             reason: .workspaceTransition
         ) { [weak controller] in
             if let focusToken {
-                controller?.focusWindow(focusToken)
+                controller?.focusWindow(focusToken, reason: .workspaceTransitionHandoff)
             }
         }
     }
@@ -855,7 +855,7 @@ final class WorkspaceNavigationHandler {
             reason: .workspaceTransition
         ) { [weak controller] in
             if let focusToken {
-                controller?.focusWindow(focusToken)
+                controller?.focusWindow(focusToken, reason: .workspaceTransitionHandoff)
             }
         }
     }
@@ -903,7 +903,7 @@ final class WorkspaceNavigationHandler {
                 ),
                 reason: .workspaceTransition
             ) { [weak controller] in
-                controller?.focusWindow(token)
+                controller?.focusWindow(token, reason: .moveWindowToWorkspace)
             }
         } else {
             commitNonFollowingWindowMove(
@@ -1007,7 +1007,7 @@ final class WorkspaceNavigationHandler {
             reason: .workspaceTransition
         ) { [weak controller] in
             if let focusToken {
-                controller?.focusWindow(focusToken)
+                controller?.focusWindow(focusToken, reason: .workspaceTransitionHandoff)
             }
         }
     }
@@ -1070,7 +1070,7 @@ final class WorkspaceNavigationHandler {
                 ),
                 reason: .workspaceTransition
             ) { [weak controller] in
-                controller?.focusWindow(token)
+                controller?.focusWindow(token, reason: .moveWindowToWorkspace)
             }
         } else {
             let sourceState = controller.workspaceManager.niriViewportState(for: actualSourceWsId)
@@ -1086,7 +1086,7 @@ final class WorkspaceNavigationHandler {
                 reason: .workspaceTransition
             ) { [weak controller] in
                 if let focusToken {
-                    controller?.focusWindow(focusToken)
+                    controller?.focusWindow(focusToken, reason: .workspaceTransitionHandoff)
                 }
             }
         }

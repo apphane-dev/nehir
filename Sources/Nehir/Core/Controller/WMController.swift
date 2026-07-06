@@ -51,6 +51,31 @@ struct WindowFocusOperations {
     )
 }
 
+enum FocusWindowReason: String, Equatable {
+    case unknown
+    case scratchpad
+    case focusNeighborFallback
+    case cycleFocusedWindow
+    case focusRecentWindow
+    case focusNextWindow
+    case workspaceTransitionHandoff
+    case focusMonitor
+    case activateWorkspace
+    case moveWindowToWorkspace
+    case windowAction
+    case windowActionRefreshCompletion
+    case windowActionFallback
+    case scrollViewportSelection
+    case activateNodeRefreshCompletion
+    case activateNodeImmediate
+    case mouseScrollSelection
+    case layoutRefreshRememberedFocus
+    case closeRecoveryStableRedirect
+    case overlayStableRecoveryRedirect
+    case closeRecoveryPreconfirmStableRedirect
+    case deferredFocus
+}
+
 @MainActor @Observable
 final class WMController {
     private static let runtimeDebugLogger = Logger(subsystem: "com.nehir", category: "runtime-debug")
@@ -836,7 +861,7 @@ final class WMController {
             return .executed
         }
 
-        focusWindow(scratchpadToken)
+        focusWindow(scratchpadToken, reason: .scratchpad)
         return .executed
     }
 
@@ -2151,7 +2176,7 @@ final class WMController {
         on monitorId: Monitor.ID?
     ) {
         if let nextFocusToken = visibleFocusRecoveryToken(in: workspaceId, excluding: token) {
-            focusWindow(nextFocusToken)
+            focusWindow(nextFocusToken, reason: .scratchpad)
             return
         }
 
@@ -2224,7 +2249,7 @@ final class WMController {
 
         if let hiddenState = workspaceManager.hiddenState(for: entry.token) {
             let focusOnRevealSuccess: LayoutRefreshController.PostLayoutAction = { [weak self] in
-                self?.focusWindow(entry.token)
+                self?.focusWindow(entry.token, reason: .scratchpad)
             }
             if hiddenState.isScratchpad {
                 return layoutRefreshController.restoreScratchpadWindow(
@@ -2249,7 +2274,7 @@ final class WMController {
             axManager.applyFramesParallel([(entry.pid, entry.windowId, frame)])
         }
 
-        focusWindow(entry.token)
+        focusWindow(entry.token, reason: .scratchpad)
         return true
     }
 
@@ -2487,7 +2512,15 @@ final class WMController {
             return nil
         }
 
-        return axEventHandler.windowInfoProvider?(windowId) ?? SkyLight.shared.queryWindowInfo(windowId)
+        if let windowInfoProvider = axEventHandler.windowInfoProvider {
+            if let info = windowInfoProvider(windowId) {
+                return info
+            }
+            if axEventHandler.windowInfoProviderIsAuthoritativeForTests {
+                return nil
+            }
+        }
+        return SkyLight.shared.queryWindowInfo(windowId)
     }
 
     func decideWindowDisposition(
@@ -3665,7 +3698,7 @@ final class WMController {
                 in: workspaceId
             )
         }
-        focusWindow(nextFocusToken)
+        focusWindow(nextFocusToken, reason: .focusNextWindow)
     }
 
     func moveMouseToWindow(_ handle: WindowHandle, preferredFrame: CGRect? = nil, reason: String = "unspecified") {
@@ -3829,7 +3862,7 @@ extension WMController {
         return changed
     }
 
-    func focusWindow(_ token: WindowToken) {
+    func focusWindow(_ token: WindowToken, reason: FocusWindowReason = .unknown) {
         guard let entry = workspaceManager.entry(for: token) else { return }
         guard !isLockScreenActive else { return }
         if hasStartedServices {
@@ -3852,7 +3885,8 @@ extension WMController {
             .pendingFocusStarted(
                 requestId: request.requestId,
                 token: token,
-                workspaceId: entry.workspaceId
+                workspaceId: entry.workspaceId,
+                reason: reason
             )
         )
 
@@ -3862,6 +3896,7 @@ extension WMController {
 
         focusBridge.focusWindow(
             token,
+            reason: reason,
             performFocus: {
                 self.performWindowFronting(pid: pid, windowId: windowId, axRef: axRef)
                 self.axEventHandler.probeFocusedWindowAfterFronting(
@@ -3869,15 +3904,15 @@ extension WMController {
                     workspaceId: entry.workspaceId
                 )
             },
-            onDeferredFocus: { [weak self] deferred in
+            onDeferredFocus: { [weak self] deferred, deferredReason in
                 guard let self, self.workspaceManager.entry(for: deferred) != nil else { return }
-                self.focusWindow(deferred)
+                self.focusWindow(deferred, reason: deferredReason)
             }
         )
     }
 
-    func focusWindow(_ handle: WindowHandle) {
-        focusWindow(handle.id)
+    func focusWindow(_ handle: WindowHandle, reason: FocusWindowReason = .unknown) {
+        focusWindow(handle.id, reason: reason)
     }
 
     func keyboardFocusTarget(for token: WindowToken, axRef: AXWindowRef) -> KeyboardFocusTarget {

@@ -1,44 +1,22 @@
 [tasks."dev"]
-description = "Build and run Nehir"
+description = "Build and run Nehir (--trace starts runtime trace capture at bootstrap)"
 depends = ["build"]
-run = "swift run Nehir"
+run = "bash .config/mise/scripts/nehir-dev-run dev"
 
 [tasks."dev:release"]
-description = "Build and run Nehir (release)"
+description = "Build and run Nehir (release; --trace starts runtime trace capture at bootstrap)"
 depends = ["build:release"]
-run = ".build/release/Nehir"
+run = "bash .config/mise/scripts/nehir-dev-run release"
 
 [tasks."dev:clean"]
-description = "Kill any running Nehir instance, clear runtime state, then start Nehir"
+description = "Kill any running Nehir instance, clear runtime state, then start Nehir (--trace starts runtime trace capture at bootstrap)"
 depends = ["build"]
-run = '''
-set -euo pipefail
-
-pkill -x Nehir 2>/dev/null || true
-pkill -f '.build/.*/Nehir' 2>/dev/null || true
-sleep 0.5
-
-state_home="${XDG_STATE_HOME:-$HOME/.local/state}"
-rm -f "$state_home/nehir/runtime-state.json"
-
-swift run Nehir
-'''
+run = "bash .config/mise/scripts/nehir-dev-run clean"
 
 [tasks."dev:onboarding"]
-description = "Kill any running Nehir instance, clear onboarding state, then start Nehir to trigger the setup wizard"
+description = "Kill any running Nehir instance, clear onboarding state, then start Nehir to trigger the setup wizard (--trace starts runtime trace capture at bootstrap)"
 depends = ["build"]
-run = '''
-set -euo pipefail
-
-pkill -x Nehir 2>/dev/null || true
-pkill -f '.build/.*/Nehir' 2>/dev/null || true
-sleep 0.5
-
-state_home="${XDG_STATE_HOME:-$HOME/.local/state}"
-rm -f "$state_home/nehir/onboarding-version"
-
-swift run Nehir
-'''
+run = "bash .config/mise/scripts/nehir-dev-run onboarding"
 [tasks."trace:clean"]
 description = "Remove Nehir trace captures"
 run = '''

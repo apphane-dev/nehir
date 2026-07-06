@@ -153,25 +153,108 @@ extension NiriLayoutEngine {
         return selectedWindow
     }
 
+    func activeTileTokenNearestViewport(
+        in workspaceId: WorkspaceDescriptor.ID,
+        state: ViewportState,
+        workingFrame: CGRect,
+        gaps: CGFloat
+    ) -> WindowToken? {
+        activeTileTokensNearestViewport(
+            in: workspaceId,
+            state: state,
+            workingFrame: workingFrame,
+            gaps: gaps
+        ).first
+    }
+
+    func activeTileTokensNearestViewport(
+        in workspaceId: WorkspaceDescriptor.ID,
+        state: ViewportState,
+        workingFrame: CGRect,
+        gaps: CGFloat
+    ) -> [WindowToken] {
+        let columns = columns(in: workspaceId)
+        guard !columns.isEmpty else { return [] }
+        let context = makeViewportSnapContext(
+            columns: columns,
+            state: state,
+            workingFrame: workingFrame,
+            gaps: gaps,
+            intentionallyDoesNotFillViewport: loneWindowIntentionallyDoesNotFillViewport(in: workspaceId)
+        )
+        guard !context.snapPoints.isEmpty else { return [] }
+        let viewStart = context.currentViewStart(in: state)
+        return visibleColumnIndicesNearestViewport(
+            toViewportOffset: viewStart,
+            context: context,
+            state: state,
+            includeClipped: false
+        )
+        .compactMap { columnIndex in
+            guard columns.indices.contains(columnIndex) else { return nil }
+            let column = columns[columnIndex]
+            let windows = column.windowNodes
+            guard !windows.isEmpty else { return nil }
+            let activeTileIndex = column.activeTileIdx.clamped(to: 0 ... (windows.count - 1))
+            return windows[activeTileIndex].token
+        }
+    }
+
     private func nearestVisibleColumnIndex(
         to index: Int,
         viewportOffset: CGFloat,
         context: ViewportSnapContext,
         state: ViewportState
     ) -> Int? {
-        context.columns.indices
-            .filter { candidate in
-                if case .parked = context.visibility(of: candidate, viewportOffset: viewportOffset, in: state) {
-                    return false
-                }
-                return true
-            }
+        visibleColumnIndices(viewportOffset: viewportOffset, context: context, state: state)
             .min { lhs, rhs in
                 let lDistance = abs(lhs - index)
                 let rDistance = abs(rhs - index)
                 if lDistance != rDistance { return lDistance < rDistance }
                 return lhs < rhs
             }
+    }
+
+    private func visibleColumnIndicesNearestViewport(
+        toViewportOffset viewportOffset: CGFloat,
+        context: ViewportSnapContext,
+        state: ViewportState,
+        includeClipped: Bool = true
+    ) -> [Int] {
+        visibleColumnIndices(
+            viewportOffset: viewportOffset,
+            context: context,
+            state: state,
+            includeClipped: includeClipped
+        )
+        .sorted { lhs, rhs in
+            let lhsDistance = context.snapCandidates(for: lhs, in: state)
+                .map { abs($0.offset - viewportOffset) }
+                .min() ?? .greatestFiniteMagnitude
+            let rhsDistance = context.snapCandidates(for: rhs, in: state)
+                .map { abs($0.offset - viewportOffset) }
+                .min() ?? .greatestFiniteMagnitude
+            if lhsDistance != rhsDistance { return lhsDistance < rhsDistance }
+            return lhs < rhs
+        }
+    }
+
+    private func visibleColumnIndices(
+        viewportOffset: CGFloat,
+        context: ViewportSnapContext,
+        state: ViewportState,
+        includeClipped: Bool = true
+    ) -> [Int] {
+        context.columns.indices.filter { candidate in
+            switch context.visibility(of: candidate, viewportOffset: viewportOffset, in: state) {
+            case .fullyVisible:
+                return true
+            case .clipped:
+                return includeClipped
+            case .parked:
+                return false
+            }
+        }
     }
 
     func makeViewportSnapContext(

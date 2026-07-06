@@ -681,7 +681,7 @@ import QuartzCore
                         )
                     )
                 }
-                controller.focusWindow(token)
+                controller.focusWindow(token, reason: .layoutRefreshRememberedFocus)
             case .updateTabbedOverlays:
                 niriHandler.updateTabbedColumnOverlays(forceOrdering: true)
             }
