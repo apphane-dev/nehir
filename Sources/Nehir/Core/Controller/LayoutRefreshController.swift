@@ -472,6 +472,8 @@ import QuartzCore
 
         executeLayoutPlans(plan.workspacePlans)
 
+        recordWindowModelNiriDesyncIfNeeded(activeWorkspaceIds: plan.effects.visibility?.activeWorkspaceIds)
+
         // Keep the Dock-edge shield in sync on every refresh (idempotent — skips
         // AppKit work when geometry is unchanged). This is the central execution path
         // (startup, relayout, scroll, visibility all route here), so the shield
@@ -846,6 +848,21 @@ import QuartzCore
         )
     }
 
+    func pendingWindowRemovalPayload(
+        for token: WindowToken,
+        workspaceId: WorkspaceDescriptor.ID
+    ) -> WindowRemovalPayload? {
+        for refresh in [layoutState.activeRefresh, layoutState.pendingRefresh].compactMap({ $0 }) {
+            guard refresh.kind == .windowRemoval else { continue }
+            if let payload = refresh.windowRemovalPayloads.first(where: { payload in
+                payload.workspaceId == workspaceId && payload.niriOldFrames[token] != nil
+            }) {
+                return payload
+            }
+        }
+        return nil
+    }
+
     func commitWorkspaceTransition(
         affectedWorkspaces: Set<WorkspaceDescriptor.ID> = [],
         reason: RefreshReason = .workspaceTransition,
@@ -1159,6 +1176,93 @@ import QuartzCore
         return RefreshExecutionPlan(workspacePlans: workspacePlans, effects: effects)
     }
 
+    private func recordWindowModelNiriDesyncIfNeeded(activeWorkspaceIds: Set<WorkspaceDescriptor.ID>?) {
+        guard let controller, controller.diagnostics.isRuntimeTraceCaptureActive else { return }
+        guard let engine = controller.niriEngine else { return }
+
+        let workspaceIds = activeWorkspaceIds ?? currentActiveWorkspaceIds()
+        for workspaceId in workspaceIds {
+            for entry in controller.workspaceManager.tiledEntries(in: workspaceId) {
+                guard engine.findNode(for: entry.token) == nil else { continue }
+                controller.diagnostics.recordRuntimeViewportTrace(
+                    workspaceId: workspaceId,
+                    reason: "windowmodel_niri_desync",
+                    details: [
+                        "token=\(entry.token)",
+                        "workspaceId=\(workspaceId.uuidString)",
+                        "phase=\(entry.lifecyclePhase.rawValue)",
+                        "hidden=\(runtimeTraceHiddenReason(entry.visibility.hiddenReason))",
+                        "liveAXFrame=\(fastFrame(for: entry.token, axRef: entry.axRef).map(LayoutTrace.rect) ?? "nil")",
+                        "replacementFrame=\(entry.managedReplacementMetadata?.frame.map(LayoutTrace.rect) ?? "nil")",
+                        "onScreen=\(isEntryOnScreen(entry))"
+                    ]
+                )
+            }
+        }
+    }
+
+    private func recordWindowRemovalSeedCheck(_ payload: WindowRemovalPayload) {
+        guard let controller, controller.diagnostics.isRuntimeTraceCaptureActive else { return }
+        guard let seedNodeId = payload.removedNodeId else {
+            controller.diagnostics.recordRuntimeViewportTrace(
+                workspaceId: payload.workspaceId,
+                reason: "window_removal_seed_check",
+                details: [
+                    "workspaceId=\(payload.workspaceId.uuidString)",
+                    "seedNodeId=nil",
+                    "liveNodeIdForReadmittedToken=nil",
+                    "windowModelStillTracks=false"
+                ]
+            )
+            return
+        }
+
+        var liveNodeIdForReadmittedToken: NodeId?
+        var windowModelStillTracks = false
+        for token in payload.niriOldFrames.keys {
+            guard let entry = controller.workspaceManager.entry(for: token),
+                  entry.workspaceId == payload.workspaceId,
+                  entry.mode == .tiling
+            else { continue }
+            windowModelStillTracks = true
+            let liveNodeId = controller.niriEngine?.findNode(for: token)?.id
+            if liveNodeId != seedNodeId {
+                liveNodeIdForReadmittedToken = liveNodeId
+                break
+            }
+        }
+
+        controller.diagnostics.recordRuntimeViewportTrace(
+            workspaceId: payload.workspaceId,
+            reason: "window_removal_seed_check",
+            details: [
+                "workspaceId=\(payload.workspaceId.uuidString)",
+                "seedNodeId=\(seedNodeId)",
+                "liveNodeIdForReadmittedToken=\(liveNodeIdForReadmittedToken.map(String.init(describing:)) ?? "nil")",
+                "windowModelStillTracks=\(windowModelStillTracks)"
+            ]
+        )
+    }
+
+    private func isEntryOnScreen(_ entry: WindowModel.Entry) -> Bool {
+        guard let controller, let frame = fastFrame(for: entry.token, axRef: entry.axRef) else {
+            return false
+        }
+        return Monitor.isFrameOnScreen(frame, across: controller.workspaceManager.monitors)
+    }
+
+    private func runtimeTraceHiddenReason(_ reason: WindowModel.HiddenReason?) -> String {
+        guard let reason else { return "nil" }
+        switch reason {
+        case .workspaceInactive:
+            return "workspaceInactive"
+        case let .layoutTransient(side):
+            return "layoutTransient(\(side))"
+        case .scratchpad:
+            return "scratchpad"
+        }
+    }
+
     private func buildWindowRemovalExecutionPlan(
         payloads: [WindowRemovalPayload]
     ) async throws -> RefreshExecutionPlan {
@@ -1168,6 +1272,8 @@ import QuartzCore
         var niriRemovalSeeds: [WorkspaceDescriptor.ID: NiriWindowRemovalSeed] = [:]
 
         for payload in payloads {
+            recordWindowRemovalSeedCheck(payload)
+
             var removedNodeIds = niriRemovalSeeds[payload.workspaceId]?.removedNodeIds ?? []
             if let removedNodeId = payload.removedNodeId {
                 removedNodeIds.append(removedNodeId)

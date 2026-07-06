@@ -103,6 +103,23 @@ extension Monitor {
             return $0.frame.maxY > $1.frame.maxY
         }
     }
+
+    static func visibleOverlapArea(of frame: CGRect, across monitors: [Monitor]) -> CGFloat {
+        monitors.reduce(CGFloat.zero) { total, monitor in
+            let overlap = monitor.visibleFrame.intersection(frame)
+            return overlap.isNull ? total : total + overlap.width * overlap.height
+        }
+    }
+
+    static func isFrameOnScreen(
+        _ frame: CGRect,
+        across monitors: [Monitor],
+        minimumVisibleFraction: CGFloat = 0.5
+    ) -> Bool {
+        let frameArea = frame.width * frame.height
+        guard frameArea > 0 else { return false }
+        return visibleOverlapArea(of: frame, across: monitors) >= frameArea * minimumVisibleFraction
+    }
 }
 
 extension NSScreen {

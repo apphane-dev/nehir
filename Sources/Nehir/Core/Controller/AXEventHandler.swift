@@ -571,6 +571,7 @@ final class AXEventHandler: CGSEventDelegate {
     private var pendingWindowRuleReevaluationTargets: Set<WindowRuleReevaluationTarget> = []
     private var pendingWindowStabilizationTasks: [WindowToken: Task<Void, Never>] = [:]
     private var pendingPostCreateLifecycleVerificationTasks: [WindowToken: Task<Void, Never>] = [:]
+    private var pendingDestroyLivenessVerificationTasks: [WindowToken: Task<Void, Never>] = [:]
     private var pendingCreatedWindowRetryTasks: [UInt32: Task<Void, Never>] = [:]
     private var createdWindowRetryCountById: [UInt32: Int] = [:]
     private var pendingActivationRetryTask: Task<Void, Never>?
@@ -620,7 +621,7 @@ final class AXEventHandler: CGSEventDelegate {
         endWindowCloseFocusRecovery()
         resetNativeFullscreenReplacementState()
         resetWindowStabilizationState()
-        resetPostCreateLifecycleVerificationState()
+        resetLifecycleVerificationState()
         resetCreatedWindowRetryState()
         resetActivationRetryState()
         pendingWindowRuleReevaluationTask?.cancel()
@@ -754,7 +755,7 @@ final class AXEventHandler: CGSEventDelegate {
         resetManagedReplacementState()
         resetNativeFullscreenReplacementState()
         resetWindowStabilizationState()
-        resetPostCreateLifecycleVerificationState()
+        resetLifecycleVerificationState()
         resetCreatedWindowRetryState()
         resetCreatePlacementContextState()
         recentManagedWorkspaceByPid.removeAll()
@@ -1222,7 +1223,7 @@ final class AXEventHandler: CGSEventDelegate {
         cancelCreatedWindowRetry(windowId: windowId)
         discardCreatePlacementContext(windowId: windowId)
         removeDeferredCreatedWindow(windowId)
-        handleWindowDestroyed(windowId: windowId, pidHint: nil)
+        handleWindowDestroyed(windowId: windowId, pidHint: nil, verifyWindowServerLiveness: false)
     }
 
     func subscribeToManagedWindows() {
@@ -1293,6 +1294,22 @@ final class AXEventHandler: CGSEventDelegate {
         admissionContext: WindowAdmissionContext = .windowCreate
     ) {
         guard let controller else { return }
+        if controller.diagnostics.isRuntimeTraceCaptureActive {
+            let pendingRemoval = controller.layoutRefreshController.pendingWindowRemovalPayload(
+                for: candidate.token,
+                workspaceId: candidate.workspaceId
+            )
+            controller.diagnostics.recordRuntimeViewportTrace(
+                workspaceId: candidate.workspaceId,
+                reason: "readmit_pending_removal",
+                details: [
+                    "token=\(candidate.token)",
+                    "workspaceId=\(candidate.workspaceId.uuidString)",
+                    "pendingRemovalExists=\(pendingRemoval != nil)",
+                    "pendingRemovalSeedNodeId=\(pendingRemoval?.removedNodeId.map(String.init(describing:)) ?? "nil")"
+                ]
+            )
+        }
         cancelCreatedWindowRetry(windowId: candidate.windowId)
         discardCreatePlacementContext(windowId: candidate.windowId)
         recordNiriCreateFocusTrace(
@@ -1475,11 +1492,46 @@ final class AXEventHandler: CGSEventDelegate {
         pendingPostCreateLifecycleVerificationTasks[token] = nil
     }
 
-    private func resetPostCreateLifecycleVerificationState() {
+    private func scheduleDestroyLivenessVerification(for token: WindowToken) {
+        pendingDestroyLivenessVerificationTasks[token]?.cancel()
+        let task = Task { @MainActor [weak self] in
+            defer { self?.pendingDestroyLivenessVerificationTasks[token] = nil }
+            try? await Task.sleep(for: Self.postCreateLifecycleVerificationDelay)
+            guard !Task.isCancelled,
+                  let self,
+                  let controller = self.controller,
+                  controller.workspaceManager.entry(for: token) != nil,
+                  let windowId = UInt32(exactly: token.windowId)
+            else {
+                return
+            }
+            await self.warmAXContextIfNeeded(for: token.pid)
+            guard !Task.isCancelled,
+                  controller.workspaceManager.entry(for: token) != nil,
+                  self.resolveWindowInfo(windowId) == nil
+            else {
+                return
+            }
+            AXWindowService.invalidateCachedTitle(windowId: windowId)
+            self.handleRemoved(token: token)
+        }
+        pendingDestroyLivenessVerificationTasks[token] = task
+    }
+
+    private func cancelDestroyLivenessVerification(for token: WindowToken) {
+        pendingDestroyLivenessVerificationTasks[token]?.cancel()
+        pendingDestroyLivenessVerificationTasks[token] = nil
+    }
+
+    private func resetLifecycleVerificationState() {
         for (_, task) in pendingPostCreateLifecycleVerificationTasks {
             task.cancel()
         }
         pendingPostCreateLifecycleVerificationTasks.removeAll()
+        for (_, task) in pendingDestroyLivenessVerificationTasks {
+            task.cancel()
+        }
+        pendingDestroyLivenessVerificationTasks.removeAll()
     }
 
     private func scheduleFloatingCreateFrameApplication(
@@ -1563,7 +1615,7 @@ final class AXEventHandler: CGSEventDelegate {
         AXWindowService.invalidateCachedTitle(windowId: windowId)
         cancelCreatedWindowRetry(windowId: windowId)
         removeDeferredCreatedWindow(windowId)
-        handleWindowDestroyed(windowId: windowId, pidHint: pid)
+        handleWindowDestroyed(windowId: windowId, pidHint: pid, verifyWindowServerLiveness: true)
     }
 
     func handleRemoved(token: WindowToken) {
@@ -1573,6 +1625,7 @@ final class AXEventHandler: CGSEventDelegate {
         let affectedWorkspaceId = entry?.workspaceId
 
         cancelPostCreateLifecycleVerification(for: token)
+        cancelDestroyLivenessVerification(for: token)
         controller.axManager.removeWindowState(pid: token.pid, windowId: token.windowId)
         if handleNativeFullscreenDestroy(token) {
             return
@@ -4126,7 +4179,8 @@ final class AXEventHandler: CGSEventDelegate {
 
     private func handleWindowDestroyed(
         windowId: UInt32,
-        pidHint: pid_t?
+        pidHint: pid_t?,
+        verifyWindowServerLiveness: Bool
     ) {
         let resolvedToken = resolveWindowToken(windowId)
             ?? resolveTrackedToken(windowId)
@@ -4163,6 +4217,20 @@ final class AXEventHandler: CGSEventDelegate {
             }
             return
         }
+
+        if verifyWindowServerLiveness {
+            if handleNativeFullscreenDestroy(candidate.token) {
+                return
+            }
+            if resolveWindowInfo(windowId)?.pid == candidate.token.pid {
+                if pendingDestroyLivenessVerificationTasks[candidate.token] == nil {
+                    scheduleDestroyLivenessVerification(for: candidate.token)
+                }
+                return
+            }
+        }
+
+        cancelDestroyLivenessVerification(for: candidate.token)
 
         let shouldDelayDestroy = shouldDelayManagedReplacementDestroy(candidate)
         if shouldDelayDestroy, handleNativeFullscreenDestroy(candidate.token) {
@@ -4565,13 +4633,7 @@ final class AXEventHandler: CGSEventDelegate {
         guard let controller, let frame = observedFrame(for: entry) else {
             return false
         }
-        let frameArea = frame.width * frame.height
-        guard frameArea > 0 else { return false }
-        let visibleArea = controller.workspaceManager.monitors.reduce(CGFloat.zero) { total, monitor in
-            let overlap = monitor.visibleFrame.intersection(frame)
-            return overlap.isNull ? total : total + overlap.width * overlap.height
-        }
-        return visibleArea >= frameArea * 0.5
+        return Monitor.isFrameOnScreen(frame, across: controller.workspaceManager.monitors)
     }
 
     /// After a same-app focus switch, Nehir can end up with focus on one of the
