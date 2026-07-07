@@ -5087,7 +5087,10 @@ final class AXEventHandler: CGSEventDelegate {
         mode: TrackedWindowMode,
         facts: WindowRuleFacts
     ) -> ManagedReplacementMetadata {
-        ManagedReplacementMetadata(
+        let hasGeckoTransientDialogEvidence = WindowRuleEngine.isGeckoTransientDialog(facts: facts)
+            || WindowRuleEngine.isGeckoCompactTransientDialog(facts: facts)
+
+        return ManagedReplacementMetadata(
             bundleId: bundleId,
             workspaceId: workspaceId,
             mode: mode,
@@ -5097,9 +5100,12 @@ final class AXEventHandler: CGSEventDelegate {
             windowLevel: facts.windowServer?.level,
             parentWindowId: normalizedParentWindowId(facts.windowServer?.parentId),
             frame: facts.windowServer?.frame,
-            transientWindowServerEvidence: facts.windowServer?.hasTransientSurfaceEvidence ?? false,
+            transientWindowServerEvidence: hasGeckoTransientDialogEvidence
+                || (facts.windowServer?.hasTransientSurfaceEvidence ?? false),
             degradedWindowServerChildEvidence: facts.degradedWindowServerChildEvidence,
-            userAddressableTransientWindowServerSurface: facts.userAddressableTransientWindowServerSurface
+            userAddressableTransientWindowServerSurface: hasGeckoTransientDialogEvidence
+                ? false
+                : facts.userAddressableTransientWindowServerSurface
         )
     }
 
