@@ -328,6 +328,7 @@ final class WindowRuleEngine {
     private static let transientSystemDialogSurfaceRuleName = "transientSystemDialogSurface"
     private static let cleanShotRecordingOverlayRuleName = "cleanShotRecordingOverlay"
     private static let geckoTransientDialogRuleName = "geckoTransientDialog"
+    private static let geckoCompactTransientDialogRuleName = "geckoCompactTransientDialog"
     private static let ghosttyQuickTerminalRuleName = "ghosttyQuickTerminalOverlay"
     private static let ghosttyBundleId = "com.mitchellh.ghostty"
     private static let geckoBundleIds: Set<String> = [
@@ -337,6 +338,16 @@ final class WindowRuleEngine {
         "app.zen-browser.zen",
         "org.mozilla.seamonkey"
     ]
+    // Observed Gecko transient dialogs are 389×131 / 402×176 while real
+    // toplevels are ≥ ~1000 wide; keep slack narrow to avoid stacked-tile demotion.
+    private static let geckoCompactTransientDialogMaxWidth: CGFloat = 480
+    private static let geckoCompactTransientDialogMaxHeight: CGFloat = 240
+
+    static func isGeckoBundle(_ bundleId: String?) -> Bool {
+        guard let bundleId = bundleId?.lowercased() else { return false }
+        return geckoBundleIds.contains(bundleId)
+    }
+
     private static let systemTextInputPanelBundleIds: Set<String> = [
         "com.apple.characterpaletteim",
         "com.apple.emojifunctionrowitem-container",
@@ -582,6 +593,14 @@ final class WindowRuleEngine {
             return geckoDecision
         }
 
+        if let geckoDecision = geckoCompactTransientDialogDecision(
+            for: facts,
+            workspaceName: workspaceName,
+            effects: effects
+        ) {
+            return geckoDecision
+        }
+
         if appFullscreen {
             return WindowDecision(
                 disposition: stickyAdjustedDisposition(.managed, effects: effects),
@@ -737,19 +756,11 @@ final class WindowRuleEngine {
 
     // Gecko apps (Thunderbird/Firefox) report transient dialogs — e.g. the
     // Thunderbird "message sent" confirmation — as top-level AXStandardWindows
-    // with all window buttons and an enabled fullscreen button, and with a nil AX
-    // title. They are indistinguishable from real document windows by AX alone, so
-    // the heuristic tiles them (#142). The one durable discriminator is the
-    // WindowServer document tag: real Gecko windows (main, compose) carry it; the
-    // transient dialog carries neither the document nor the floating tag. Float
-    // those. Title-based user rules cannot address this (title is nil).
-    private func geckoTransientDialogDecision(
-        for facts: WindowRuleFacts,
-        workspaceName: String?,
-        effects: ManagedWindowRuleEffects
-    ) -> WindowDecision? {
-        guard let bundleId = facts.ax.bundleId?.lowercased(),
-              Self.geckoBundleIds.contains(bundleId),
+    // with all window buttons and an enabled fullscreen button. They can either
+    // omit the WindowServer document/floating tags or be born document-tagged but
+    // compact. Keep both out of tiling; title is not a durable discriminator.
+    static func isGeckoTransientDialog(facts: WindowRuleFacts) -> Bool {
+        guard Self.isGeckoBundle(facts.ax.bundleId),
               facts.ax.attributeFetchSucceeded,
               facts.ax.role == kAXWindowRole as String,
               facts.ax.subrole == kAXStandardWindowSubrole as String,
@@ -758,12 +769,56 @@ final class WindowRuleEngine {
               !windowServer.hasDocumentTag,
               !windowServer.hasFloatingTag
         else {
-            return nil
+            return false
         }
+
+        return true
+    }
+
+    private func geckoTransientDialogDecision(
+        for facts: WindowRuleFacts,
+        workspaceName: String?,
+        effects: ManagedWindowRuleEffects
+    ) -> WindowDecision? {
+        guard Self.isGeckoTransientDialog(facts: facts) else { return nil }
 
         return WindowDecision(
             disposition: .floating,
             source: .builtInRule(Self.geckoTransientDialogRuleName),
+            layoutDecisionKind: .fallbackLayout,
+            workspaceName: workspaceName,
+            ruleEffects: effects,
+            heuristicReasons: [],
+            deferredReason: nil
+        )
+    }
+
+    static func isGeckoCompactTransientDialog(facts: WindowRuleFacts) -> Bool {
+        guard Self.isGeckoBundle(facts.ax.bundleId),
+              facts.ax.attributeFetchSucceeded,
+              facts.ax.role == kAXWindowRole as String,
+              facts.ax.subrole == kAXStandardWindowSubrole as String,
+              let windowServer = facts.windowServer,
+              !windowServer.frame.isEmpty,
+              windowServer.frame.width <= Self.geckoCompactTransientDialogMaxWidth,
+              windowServer.frame.height <= Self.geckoCompactTransientDialogMaxHeight
+        else {
+            return false
+        }
+
+        return true
+    }
+
+    private func geckoCompactTransientDialogDecision(
+        for facts: WindowRuleFacts,
+        workspaceName: String?,
+        effects: ManagedWindowRuleEffects
+    ) -> WindowDecision? {
+        guard Self.isGeckoCompactTransientDialog(facts: facts) else { return nil }
+
+        return WindowDecision(
+            disposition: .floating,
+            source: .builtInRule(Self.geckoCompactTransientDialogRuleName),
             layoutDecisionKind: .fallbackLayout,
             workspaceName: workspaceName,
             ruleEffects: effects,
