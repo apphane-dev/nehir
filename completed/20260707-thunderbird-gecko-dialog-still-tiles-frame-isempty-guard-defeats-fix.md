@@ -1,14 +1,14 @@
 # Gecko-dialog fix is defeated by a `!windowServer.frame.isEmpty` guard that shipped in the fix itself
 
-Status: **actionable / regression in shipped fix**. Reopens
-apphane-dev/nehir discussion #142 ("Popup window rule?"). Supersedes the
-"resolved" verdict in
-[[20260706-thunderbird-gecko-dialog-tiled-untagged-unparented-standard-window]]
-and [[20260706-thunderbird-gecko-dialog-float-builtin]]: the built-in shipped on
-`main` as `45d3767f` but **does not float the send-confirmation dialog it was
-written for**. A fresh capture from the reporter (Thunderbird, `nehir v0.6.0`
-build carrying `45d3767f`, single monitor `ID(displayId: 4)` 5120×1440) shows the
-dialog still tiling as a full-height column.
+Status: **completed** — corrected on `main` in `d953d4d3` ("Float zero-frame Gecko transient dialogs that the first #142 fix still tiled"). Reopened
+apphane-dev/nehir discussion #142 ("Popup window rule?") after the first fix
+merged as `45d3767f` but **did not float the send-confirmation dialog it was
+written for**. The corrective merge removed the frame guard, moved the Gecko
+dialog rule after title-missing deferral so Firefox/Zen PiP still routes through
+`browserPictureInPicture`, and added zero-frame plus non-zero-frame regression
+coverage. A fresh reporter capture (Thunderbird, `nehir v0.6.0` build carrying
+`45d3767f`, single monitor `ID(displayId: 4)` 5120×1440) showed the dialog still
+tiling as a full-height column.
 
 All runtime evidence is inlined below; the document does not depend on any
 machine-local trace surviving. A durable copy of the capture is attached to
@@ -162,29 +162,31 @@ in the test and the built-in fires, turning the suite green while the real dialo
 
 ---
 
-## Fix direction (ready to promote to `planned/`)
+## Outcome
 
-1. **Delete the `!windowServer.frame.isEmpty` guard**
-   (`WindowRuleEngine.swift:757`). It contradicts the captured reality — the
-   send-confirmation dialog has a zero WindowServer frame at the instant its AX
-   attributes succeed and it is admitted, and floating a zero-frame window is
-   harmless (the layout engine assigns the floating frame). The remaining guards
-   (`bundleId`, `attributeFetchSucceeded`, `role`, `subrole`, `parentId == 0`,
-   `!hasDocumentTag`, `!hasFloatingTag`) already scope the rule tightly to the
-   Gecko transient-dialog signature.
-2. **Change the test to encode the captured reality.** Make
-   `makeGeckoDialogWindowServerInfo` default `frame: .zero` (or add an explicit
-   zero-frame case to
-   `geckoTaglessTopLevelStandardWindowFloatsAsTransientDialog`), so the float
-   test would fail with the guard present. This is the exact regression the
-   original plan intended and believed it had.
-3. Files: `Sources/Nehir/Core/Rules/WindowRuleEngine.swift`,
-   `Tests/NehirTests/WindowRuleEngineTests.swift`. Do not touch `SkyLight.swift`,
-   `AXWindow.swift`, or the `AppRule` schema.
-4. Changeset: `patch` — "Actually float Thunderbird/Firefox send-confirmation
-   dialogs (the zero-frame case the first #142 fix still tiled)."
+Shipped on `main` in `d953d4d3` ("Float zero-frame Gecko transient dialogs that
+the first #142 fix still tiled"):
 
-This is small and self-contained; it can go straight to `planned/`.
+1. **Removed the `!windowServer.frame.isEmpty` guard** from
+   `geckoTransientDialogDecision`. The remaining guards (`bundleId`,
+   `attributeFetchSucceeded`, `role`, `subrole`, `parentId == 0`,
+   `!hasDocumentTag`, `!hasFloatingTag`) scope the rule to the Gecko
+   transient-dialog signature without rejecting the captured zero-frame dialog.
+2. **Moved the Gecko transient-dialog decision after title-missing deferral.**
+   This preserves Firefox/Zen title-gated behavior: not-yet-formed PiP windows
+   still defer until their title arrives and are then claimed by the
+   `browserPictureInPicture` built-in rule rather than by the broader Gecko
+   dialog rule.
+3. **Updated regression coverage** in
+   `Tests/NehirTests/WindowRuleEngineTests.swift`: the Gecko helper now defaults
+   to `.zero`, the Thunderbird tagless dialog test covers the zero-frame case,
+   a Firefox nil-title zero-frame test locks in title deferral, and a dedicated
+   non-zero-frame Thunderbird case confirms ordinary non-empty frames still float.
+4. **Changeset:** patch release note with reporter attribution (`etrigan63`).
+
+Verification on the merge branch before landing: `swift test --filter
+WindowRuleEngine` passed with 37 tests, and `mise run check` passed with 1424
+tests.
 
 ---
 

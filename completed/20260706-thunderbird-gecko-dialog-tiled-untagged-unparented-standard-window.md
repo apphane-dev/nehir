@@ -1,10 +1,10 @@
 # Thunderbird send-confirmation dialog tiles as a column (un-parented, un-tagged AXStandardWindow)
 
-Status: **reopened — the shipped fix does not work**. The built-in merged as
+Status: **completed after follow-up correction**. The first built-in merged as
 `45d3767f` via plan [[20260706-thunderbird-gecko-dialog-float-builtin]], but a
-`!windowServer.frame.isEmpty` guard that shipped inside the fix rejects the real
-dialog (WindowServer frame `(0,0,0,0)`), so it still tiles. Regression evidence
-and corrected fix: [[20260707-thunderbird-gecko-dialog-still-tiles-frame-isempty-guard-defeats-fix]].
+`!windowServer.frame.isEmpty` guard rejected the real zero-frame dialog. The
+follow-up fix landed on `main` as `d953d4d3`; regression evidence and final
+outcome: [[20260707-thunderbird-gecko-dialog-still-tiles-frame-isempty-guard-defeats-fix]].
 The root-cause analysis below (document-tag discriminator, prior-art survey)
 remains correct. Source: apphane-dev/nehir discussion #142 ("Popup window rule?").
 
