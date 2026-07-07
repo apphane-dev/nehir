@@ -182,6 +182,10 @@ Raise all floating windows    Option+Shift+Command+R
 Cycle column width            Option+Command+Comma/Period
 Resize column                 Option+Command+-/=
 Resize window height          Option+Shift+Command+-/=
+Expand column to available    Control+Option+Command+F
+Reset window height           Control+Option+Command+R
+
+Scroll viewport left/right    Option+Command+[/]
 
 Command palette               Option+Command+Space
 Menu anywhere                 Option+Command+M
@@ -196,7 +200,7 @@ Monitor focus is deliberately separate from the workspace/window model and uses 
 
 For the best Niri scrolling experience:
 
-- Use an **auto-hide Dock**. A fixed Dock on the same physical edge used for parking hidden windows is a known degraded configuration: macOS may adjust parked external app windows to the Dock boundary and leave a Dock-width visible strip.
+- Use an **auto-hide Dock**. A fixed Dock on the same physical edge used for parking hidden windows is a degraded configuration: macOS may adjust parked external app windows to the Dock boundary and leave a Dock-width visible strip. If you need a fixed side Dock, enable the experimental **Dock Shield** (Settings → Diagnostics → Dock Shield, off by default), which masks columns parked behind a left/right fixed Dock so no strip leaks into the workspace.
 - Arrange displays **vertically** in macOS System Settings (`Displays > Arrange`) instead of side-by-side horizontally. Nehir parks transient offscreen tiled windows near the horizontal screen edge. With side-by-side monitors, those parked windows can bleed into the neighboring display because macOS does not allow fully hiding external app windows by position alone. A vertical monitor arrangement keeps the horizontal parking edges away from adjacent displays and avoids the most visible bleed artifacts.
 
 The design goal is:
@@ -303,7 +307,7 @@ Position matching uses each saved monitor's top-left anchor point, which Nehir r
 
 | File | Required | Description |
 |------|----------|-------------|
-| `settings.toml` | Yes | Core behavior: general, focus, gaps, niri, borders, workspace bar, gestures, status bar, appearance |
+| `settings.toml` | Yes | Core behavior: general, focus, mouse warp, gaps, niri, borders, workspace bar, gestures, status bar, appearance |
 | `hotkeys.toml` | No | Physical keybindings. Defaults used if missing. |
 | `workspaces.toml` | No | Workspace list. Built-in defaults used if missing. |
 | `apprules.d/*.toml` | No | Per-app window rules. Empty directory = no rules. |

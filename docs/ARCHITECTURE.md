@@ -873,7 +873,7 @@ CLIParser.parse(["command", "focus", "left"])
     │ produces IPCRequest { kind: .command, payload: .command(.focus(direction: .left)) }
     v
 IPCClient connects to Unix socket (~/.../ipc.sock)
-    │ sends NDJSON: {"version":3,"id":"...","kind":"command","authorizationToken":"...","payload":{"name":"focus","arguments":{"direction":"left"}}}\n
+    │ sends NDJSON: {"version":6,"id":"...","kind":"command","authorizationToken":"...","payload":{"name":"focus","arguments":{"direction":"left"}}}\n
     v
 IPCServer accepts connection → IPCConnection reads line
     │ deserializes to IPCRequest

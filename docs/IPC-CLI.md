@@ -20,6 +20,7 @@ This document covers the Nehir automation surface. For the docs hub, see [Docume
   - [Exit Codes](#exit-codes)
 - [Commands](#commands)
   - [Focus](#focus)
+  - [Viewport](#viewport)
   - [Move](#move)
   - [Workspace Switching](#workspace-switching)
   - [Move to Workspace](#move-to-workspace)
@@ -53,7 +54,6 @@ This document covers the Nehir automation surface. For the docs hub, see [Docume
 - [Error Codes](#error-codes)
 - [Output Formats](#output-formats)
 - [Environment Variables](#environment-variables)
-- [Aliases](#aliases)
 
 ---
 
@@ -153,7 +153,14 @@ Status values:
 
 ### Enabling IPC
 
-IPC is disabled by default. Enable it by adding `ipc_enabled = true` to `~/.config/nehir/settings.toml` and restarting Nehir. Once the server is running, you can toggle it at runtime via:
+IPC is disabled by default. Enable it in **Settings → General**, or by adding the key to `~/.config/nehir/settings.toml`:
+
+```toml
+[general]
+ipcEnabled = true
+```
+
+Config files are live-reloaded, so the server starts as soon as the file is saved — no restart needed. Once the server is running, you can toggle it at runtime via:
 
 ```
 Nehir.app/Contents/MacOS/nehirctl command toggle-ipc
@@ -267,15 +274,38 @@ nehirctl command <command-path> [arguments...]
 | `command focus previous` | — | niri | Focus the previously focused window |
 | `command focus down-or-left` | — | niri | Traverse backward through the active Niri workspace |
 | `command focus up-or-right` | — | niri | Traverse forward through the active Niri workspace |
+| `command focus-window-in-column` | `<number>` | niri | Focus a window in the focused Niri column by one-based index |
+| `command focus-window top` | — | niri | Focus the top window in the focused Niri column |
+| `command focus-window bottom` | — | niri | Focus the bottom window in the focused Niri column |
+| `command focus-window down-or-top` | — | niri | Focus down in the focused Niri column, wrapping to the top |
+| `command focus-window up-or-bottom` | — | niri | Focus up in the focused Niri column, wrapping to the bottom |
+| `command focus-window-or-workspace-down` | — | niri | Focus down in the focused Niri column, or switch to the workspace below at the column edge |
+| `command focus-window-or-workspace-up` | — | niri | Focus up in the focused Niri column, or switch to the workspace above at the column edge |
 | `command focus-column` | `<number>` | niri | Focus a Niri column by one-based index |
 | `command focus-column first` | — | niri | Focus the first Niri column |
 | `command focus-column last` | — | niri | Focus the last Niri column |
+
+### Viewport
+
+| Command | Arguments | Surface | Description |
+|---------|-----------|---------|-------------|
+| `command scroll-viewport left` | — | niri | Scroll the Niri viewport left to the previous snap point |
+| `command scroll-viewport right` | — | niri | Scroll the Niri viewport right to the next snap point |
+| `command toggle-viewport-lock` | — | niri | Toggle automatic viewport scroll lock on the active workspace |
 
 ### Move
 
 | Command | Arguments | Surface | Description |
 |---------|-----------|---------|-------------|
 | `command move` | `<left\|right\|up\|down>` | command | Move the focused window in the given direction |
+| `command move-window-down` | — | niri | Move the focused Niri window down within its column |
+| `command move-window-up` | — | niri | Move the focused Niri window up within its column |
+| `command move-window-down-or-to-workspace-down` | — | niri | Move the focused Niri window down, or to the workspace below at the column edge |
+| `command move-window-up-or-to-workspace-up` | — | niri | Move the focused Niri window up, or to the workspace above at the column edge |
+| `command consume-or-expel-window-left` | — | niri | Consume the focused Niri window into the column to the left, or expel it left from its column |
+| `command consume-or-expel-window-right` | — | niri | Consume the focused Niri window into the column to the right, or expel it right from its column |
+| `command consume-window-into-column` | — | niri | Consume the top window from the next Niri column into the focused column |
+| `command expel-window-from-column` | — | niri | Expel the bottom window from the focused Niri column into a new column to the right |
 
 ### Workspace Switching
 
@@ -312,6 +342,9 @@ Workspace IDs are positive numeric strings. Direct hotkeys stay limited to `1-9`
 | Command | Arguments | Surface | Description |
 |---------|-----------|---------|-------------|
 | `command move-column` | `<left\|right\|up\|down>` | niri | Move the focused Niri column |
+| `command move-column-to-first` | — | niri | Move the focused Niri column to the first position |
+| `command move-column-to-last` | — | niri | Move the focused Niri column to the last position |
+| `command move-column-to-index` | `<number>` | niri | Move the focused Niri column to a one-based index |
 | `command move-column-to-workspace` | `<number>` | niri | Move focused column to workspace by index |
 | `command move-column-to-workspace up` | — | niri | Move focused column to the adjacent workspace above |
 | `command move-column-to-workspace down` | — | niri | Move focused column to the adjacent workspace below |
@@ -320,18 +353,24 @@ Workspace IDs are positive numeric strings. Direct hotkeys stay limited to `1-9`
 | `command cycle-column-width forward` | — | command | Cycle column width presets forward |
 | `command cycle-column-width backward` | — | command | Cycle column width presets backward |
 
-### Niri Operations
-
-| Command | Arguments | Surface | Description |
-|---------|-----------|---------|-------------|
-
 ### Layout & Sizing
 
 | Command | Arguments | Surface | Description |
 |---------|-----------|---------|-------------|
+| `command cycle-window-width forward` | — | niri | Cycle Niri window width presets forward |
+| `command cycle-window-width backward` | — | niri | Cycle Niri window width presets backward |
+| `command cycle-window-height forward` | — | niri | Cycle Niri window height presets forward |
+| `command cycle-window-height backward` | — | niri | Cycle Niri window height presets backward |
+| `command expand-column-to-available-width` | — | niri | Expand the focused Niri column into available visible space |
+| `command reset-window-height` | — | niri | Reset the focused Niri window height |
+| `command set-column-width` | `<size-change>` | niri | Set or adjust the focused Niri column width |
+| `command set-window-width` | `<size-change>` | niri | Set or adjust the focused Niri window width |
+| `command set-window-height` | `<size-change>` | niri | Set or adjust the focused Niri window height |
 | `command balance-sizes` | — | command | Balance layout sizes in the active workspace |
 | `command toggle-fullscreen` | — | command | Toggle Nehir-managed fullscreen |
 | `command toggle-native-fullscreen` | — | command | Toggle native macOS fullscreen |
+
+`<size-change>` sets an absolute size or adjusts the current one: `100` (points), `50%` (proportion of the working area), `+10` / `-10` (relative points), `+10%` / `-10%` (relative proportion).
 
 ### Window Management
 
@@ -937,16 +976,3 @@ ow_…  5678   Safari    GitHub        web        Built-in  tiling   no       ye
 | `NEHIR_EVENT_KIND` | (watch child) Event result kind |
 | `NEHIR_EVENT_ID` | (watch child) Event ID |
 
----
-
-## Aliases
-
-The CLI accepts these aliases transparently:
-
-| Alias | Resolves to |
-|-------|-------------|
-| `query monitors` | `query displays` |
-| `query --monitor` | `query --display` |
-| `command focus-monitor previous` | `command focus-monitor prev` |
-| `command switch-workspace previous` | `command switch-workspace prev` |
-| `command switch-workspace back` | `command switch-workspace back-and-forth` |
