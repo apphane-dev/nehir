@@ -193,11 +193,49 @@ enum DockReservation {
         let sticky = stickyInset[displayId] ?? 0
         lock.unlock()
 
+        let liveLeftInset = visibleFrame.minX - frame.minX
+        let liveRightInset = frame.maxX - visibleFrame.maxX
+        let dockBar = dockBarAppKitRect()
+        let dockBarIntersectsThisDisplay = dockBar?.intersects(frame) ?? false
+        let axSideOrientationOnThisDisplay: String? = if let dockBar, dockBarIntersectsThisDisplay {
+            if dockBar.maxX <= frame.midX {
+                "left"
+            } else if dockBar.minX >= frame.midX {
+                "right"
+            } else {
+                nil
+            }
+        } else {
+            nil
+        }
+        // CFPreferences can lag or read nil while the AX bar already exposes the real
+        // side Dock geometry. In that case trust the singleton Dock bar's edge on this
+        // display; otherwise a real left/right Dock can be mistaken for the bottom
+        // fallback and have its legitimate side reservation reclaimed.
+        let effectiveOrientation = axSideOrientationOnThisDisplay ?? orientation
+        func reclaimUnconfirmedSideReservation(from rect: CGRect) -> CGRect {
+            var corrected = rect
+            if liveLeftInset > 0.5 {
+                corrected.size.width = corrected.maxX - frame.minX
+                corrected.origin.x = frame.minX
+            }
+            if liveRightInset > 0.5 {
+                corrected.size.width = frame.maxX - corrected.origin.x
+            }
+            return corrected
+        }
+
         // The Dock lives on ONE display. If its bar is genuinely on ANOTHER connected
         // display, macOS can still report a phantom side reservation on this display
         // (seen on a DELL offset next to a built-in: a bogus 200px right inset with
         // nothing there). Reclaim that space on the Dock's orientation axis, keeping the
         // orthogonal menu-bar reservation from visibleFrame.
+        //
+        // For side reservations, use the singleton Dock host as the invariant: only the
+        // display whose physical frame intersects the real AX Dock bar may keep a left or
+        // right inset. Every other display must treat a live side reservation as phantom.
+        // If the bar is unreadable, do not trust a side reservation either; a genuine side
+        // Dock will be restored once AX resolves during the startup settle refreshes.
         //
         // Require the bar to actually land on some OTHER screen: a Dock hidden by a
         // quick-terminal can report offscreen AX coords that intersect NO display, and
@@ -218,18 +256,25 @@ enum DockReservation {
                 corrected.size.height = corrected.maxY - frame.minY
                 corrected.origin.y = frame.minY
             }
-            return corrected
+            return reclaimUnconfirmedSideReservation(from: corrected)
         }
 
         // visibleFrame is AppKit bottom-left based: a right Dock shrinks width, a left
         // Dock raises minX, a bottom Dock raises minY.
-        let currentInset: CGFloat = switch orientation {
-        case "left": visibleFrame.minX - frame.minX
-        case "right": frame.maxX - visibleFrame.maxX
+        let currentInset: CGFloat = switch effectiveOrientation {
+        case "left": liveLeftInset
+        case "right": liveRightInset
         default: visibleFrame.minY - frame.minY
         }
 
-        let derivedInset = axDerivedInset(frame: frame, orientation: orientation)
+        let derivedInset = axDerivedInset(frame: frame, orientation: effectiveOrientation)
+
+        if (liveLeftInset > 0.5 || liveRightInset > 0.5), dockBar != nil, !dockBarIntersectsThisDisplay {
+            lock.lock()
+            stickyInset[displayId] = nil
+            lock.unlock()
+            return reclaimUnconfirmedSideReservation(from: visibleFrame)
+        }
 
         lock.lock()
         defer { lock.unlock() }
@@ -238,15 +283,23 @@ enum DockReservation {
         // presentationOptions) suppresses transiently — following it would re-tile every
         // toggle. Update the sticky inset only from an authoritative positive reading:
         // the Dock's AX bar geometry when available, else the live reservation to
-        // bootstrap before the bar is readable. A transient suppression (both zero)
-        // leaves the sticky value untouched. A real Dock resize updates the AX bar and
-        // thus the sticky value; an orientation change already cleared it above.
+        // bootstrap before the bar is readable. For side Docks, however, macOS can
+        // report a phantom live reservation on displays that do not host the Dock, so
+        // left/right insets are learned only from AX-confirmed bar geometry on this
+        // display. This deliberately leaves a genuine side Dock full-width for a short
+        // cold-start beat until the Dock's AX bar becomes readable, instead of briefly
+        // shielding the wrong display. A transient suppression (both zero) leaves the
+        // sticky value untouched. A real Dock resize updates the AX bar and thus the
+        // sticky value; an orientation change already cleared it above.
         // A real Dock never reserves more than a fraction of the display. Reject an
         // implausibly large inset — during display (re)configuration the frame/visibleFrame
         // can be momentarily inconsistent and yield a huge bogus inset that would otherwise
         // get learned and produce a giant shield / squished tiling on a display.
-        let dockAxisSize = (orientation == "left" || orientation == "right") ? frame.width : frame.height
+        let isSideOrientation = effectiveOrientation == "left" || effectiveOrientation == "right"
+        let dockAxisSize = isSideOrientation ? frame.width : frame.height
         let maxPlausibleInset = dockAxisSize * 0.33
+        // TODO: consider a tighter side-inset ceiling than the loose cross-orientation
+        // 0.33 cap once we have a safe upper bound for legitimately large side Docks.
 
         if let derivedInset, derivedInset > 0.5, derivedInset <= maxPlausibleInset {
             // Hysteresis: the AX Dock-bar measurement jitters a few px as it settles, so
@@ -259,7 +312,11 @@ enum DockReservation {
             } else {
                 stickyInset[displayId] = derivedInset
             }
-        } else if stickyInset[displayId] == nil, currentInset > 0.5, currentInset <= maxPlausibleInset {
+        } else if !isSideOrientation,
+                  stickyInset[displayId] == nil,
+                  currentInset > 0.5,
+                  currentInset <= maxPlausibleInset
+        {
             stickyInset[displayId] = currentInset
         }
         var inset = stickyInset[displayId] ?? sticky
@@ -267,14 +324,29 @@ enum DockReservation {
             stickyInset[displayId] = nil
             inset = 0
         }
-        guard inset > 0.5 else { return visibleFrame }
+        guard inset > 0.5 else {
+            // No AX-confirmed side inset: do NOT pass the raw reservation through.
+            // On an offset secondary display macOS bakes a phantom side inset into
+            // visibleFrame (clamped to the adjacent display's edge), and while the
+            // Dock's AX bar is unreadable (cold start, quick terminal up) the
+            // dockIsOnAnotherDisplay reclaim above cannot fire — so the phantom
+            // would leak into the working area and the Dock Shield. Reclaim the
+            // side axis to the physical frame; a genuine side Dock re-insets as
+            // soon as its AX bar becomes readable (the accepted cold-start beat). Do
+            // the same when the Dock orientation read fell back to bottom/nil: a raw
+            // side reservation is still not authoritative unless AX confirms it.
+            if liveLeftInset > 0.5 || liveRightInset > 0.5 {
+                return reclaimUnconfirmedSideReservation(from: visibleFrame)
+            }
+            return visibleFrame
+        }
 
         // Apply the inset against the STABLE physical frame edge (not the flapping
         // visibleFrame), so the working width stays constant whether or not the Dock is
         // currently reserving. Preserve visibleFrame's orthogonal edges — they carry the
         // menu-bar reservation, which is unrelated to the Dock.
         var corrected = visibleFrame
-        switch orientation {
+        switch effectiveOrientation {
         case "left":
             let newMinX = frame.minX + inset
             corrected.size.width = corrected.maxX - newMinX
@@ -286,7 +358,7 @@ enum DockReservation {
             corrected.size.height = corrected.maxY - newMinY
             corrected.origin.y = newMinY
         }
-        return corrected
+        return isSideOrientation ? corrected : reclaimUnconfirmedSideReservation(from: corrected)
     }
 
     /// Reads the Dock's bar rect (its `AXList` child) and converts it to an edge
@@ -311,22 +383,19 @@ enum DockReservation {
     }
 
     private static func axDerivedInset(frame: CGRect, orientation: String) -> CGFloat? {
-        guard let barRect = cachedDockBarRect() else { return nil }
+        guard let rawBar = cachedDockBarRect(), let appKitBar = appKitDockBarRect(from: rawBar) else { return nil }
 
         switch orientation {
         case "left":
-            guard barRect.minX >= frame.minX, barRect.maxX <= frame.midX else { return nil }
-            return barRect.maxX - frame.minX
+            guard appKitBar.minY < frame.maxY, appKitBar.maxY > frame.minY else { return nil }
+            guard appKitBar.minX >= frame.minX, appKitBar.maxX <= frame.midX else { return nil }
+            return appKitBar.maxX - frame.minX
         case "right":
-            guard barRect.maxX <= frame.maxX, barRect.minX >= frame.midX else { return nil }
-            return frame.maxX - barRect.minX
+            guard appKitBar.minY < frame.maxY, appKitBar.maxY > frame.minY else { return nil }
+            guard appKitBar.maxX <= frame.maxX, appKitBar.minX >= frame.midX else { return nil }
+            return frame.maxX - appKitBar.minX
         default:
-            // Bottom Dock: convert the bar's AX top-left y to an AppKit bottom inset.
-            let primaryHeight = NSScreen.screens.first(where: { $0.frame.origin == .zero })?.frame.height
-                ?? NSScreen.main?.frame.height
-            guard let primaryHeight else { return nil }
-            let barTopAppKit = primaryHeight - barRect.minY
-            return barTopAppKit - frame.minY
+            return appKitBar.maxY - frame.minY
         }
     }
 
@@ -335,11 +404,15 @@ enum DockReservation {
     /// uses this to avoid drawing on a display that has no Dock. Memoized ~5s.
     static func dockBarAppKitRect() -> CGRect? {
         guard let bar = cachedDockBarRect() else { return nil }
+        return appKitDockBarRect(from: bar)
+    }
+
+    private static func appKitDockBarRect(from rawBar: CGRect) -> CGRect? {
         let primaryHeight = NSScreen.screens.first(where: { $0.frame.origin == .zero })?.frame.height
             ?? NSScreen.main?.frame.height
         guard let primaryHeight else { return nil }
         // AX is global top-left; flip y to AppKit bottom-left.
-        return CGRect(x: bar.minX, y: primaryHeight - bar.maxY, width: bar.width, height: bar.height)
+        return CGRect(x: rawBar.minX, y: primaryHeight - rawBar.maxY, width: rawBar.width, height: rawBar.height)
     }
 
     /// True only when the Dock bar is genuinely on a connected display OTHER than
