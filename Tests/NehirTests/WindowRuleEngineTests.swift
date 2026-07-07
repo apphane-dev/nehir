@@ -11,13 +11,14 @@ import Testing
 
 private func makeGeckoDialogWindowServerInfo(
     tags: UInt64,
-    parentId: UInt32 = 0
+    parentId: UInt32 = 0,
+    frame: CGRect = .zero
 ) -> WindowServerInfo {
     var windowServer = WindowServerInfo(
         id: 4201,
         pid: 10123,
         level: 0,
-        frame: CGRect(x: 100, y: 100, width: 520, height: 260)
+        frame: frame
     )
     windowServer.tags = tags
     windowServer.parentId = parentId
@@ -500,6 +501,30 @@ private func makeWindowRuleFacts(
         }
     }
 
+    @Test func titleGatedGeckoWindowWithMissingTitleDefersBeforeTransientDialogRule() {
+        let engine = WindowRuleEngine()
+
+        let decision = engine.decision(
+            for: makeWindowRuleFacts(
+                bundleId: "org.mozilla.firefox",
+                title: nil,
+                role: kAXWindowRole as String,
+                subrole: kAXStandardWindowSubrole as String,
+                hasCloseButton: true,
+                hasFullscreenButton: true,
+                fullscreenButtonEnabled: true,
+                hasZoomButton: true,
+                hasMinimizeButton: true,
+                windowServer: makeGeckoDialogWindowServerInfo(tags: 0)
+            ),
+            token: nil,
+            appFullscreen: false
+        )
+
+        #expect(decision.disposition == .undecided)
+        #expect(decision.deferredReason == .requiredTitleMissing)
+    }
+
     @Test func geckoTaglessTopLevelStandardWindowFloatsAsTransientDialog() {
         let engine = WindowRuleEngine()
 
@@ -515,6 +540,35 @@ private func makeWindowRuleFacts(
                 hasZoomButton: true,
                 hasMinimizeButton: true,
                 windowServer: makeGeckoDialogWindowServerInfo(tags: 0)
+            ),
+            token: nil,
+            appFullscreen: false
+        )
+
+        #expect(decision.disposition == .floating)
+        #expect(decision.source == .builtInRule("geckoTransientDialog"))
+        #expect(decision.layoutDecisionKind == .fallbackLayout)
+        #expect(decision.heuristicReasons.isEmpty)
+    }
+
+    @Test func geckoTaglessTopLevelStandardWindowWithNonZeroFrameFloatsAsTransientDialog() {
+        let engine = WindowRuleEngine()
+
+        let decision = engine.decision(
+            for: makeWindowRuleFacts(
+                bundleId: "org.mozilla.thunderbird",
+                title: nil,
+                role: kAXWindowRole as String,
+                subrole: kAXStandardWindowSubrole as String,
+                hasCloseButton: true,
+                hasFullscreenButton: true,
+                fullscreenButtonEnabled: true,
+                hasZoomButton: true,
+                hasMinimizeButton: true,
+                windowServer: makeGeckoDialogWindowServerInfo(
+                    tags: 0,
+                    frame: CGRect(x: 100, y: 100, width: 520, height: 260)
+                )
             ),
             token: nil,
             appFullscreen: false
