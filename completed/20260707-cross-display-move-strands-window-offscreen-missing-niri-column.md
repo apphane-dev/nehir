@@ -1,21 +1,33 @@
-# Moving a window to an inactive cross-display workspace can strand it off-screen with no niri column — Discovery
+# Moving a window to an inactive cross-display workspace can strand it off-screen with no niri column — Completed
 
-Discovery (2026-07-07). **STATUS: open, actionable.** Moving the focused window
-to an **inactive** workspace that lives on **another display**, then switching to
-that workspace, can leave the workspace visibly **empty**: the window is still
-tracked as a normal tiled window but is physically parked off-screen and has **no
-column in the niri layout engine**, so nothing ever repositions it on-screen.
+Discovery 2026-07-07. **STATUS: SHIPPED 2026-07-07** on `main` in commit
+`7a025b78` ("Verify window liveness before honoring a spurious AX destroy on cold
+start"). The fix removed the **trigger** (a spurious AX destroy) rather than
+reconciling the downstream desync — see "Resolution (what actually shipped)"
+below. This document is retained as the confirmed root-cause record; its
+originally-proposed fix directions were **not** the ones taken.
 
-This survives the 2026-07-06 same-app follow-focus reveal fix (completed
+Symptom (as captured): moving the focused window to an **inactive** workspace that
+lives on **another display**, then switching to that workspace, left the workspace
+visibly **empty** — the window was still tracked as a normal tiled window but was
+physically parked off-screen with **no column in the niri layout engine**, so
+nothing repositioned it on-screen. The captured cross-display move was one
+manifestation of a broader spurious-AX-destroy problem that could also wipe
+managed windows on a cold start (see the shipped changeset, "Stop wiping all
+managed windows on a cold start when macOS fires spurious AX destroy
+notifications").
+
+This symptom survived the 2026-07-06 same-app follow-focus reveal fix (completed
 `20260706-same-app-focus-switch-reveals-inactive-workspace-window.md`): that
-reveal path **does fire** here (`follow_focus_to_parked_window decision=switch`)
-but cannot help, because a window with no niri column gets no layout frame.
+reveal path **did fire** here (`follow_focus_to_parked_window decision=switch`)
+but could not help, because a window with no niri column gets no layout frame.
 
-All source references were verified against the main Nehir source tree at
-`4f9e5682` ("Re-center lone survivor after manual-resize move to another
-workspace") — the exact build the capture ran on (`nehir v4f9e56` in the trace
-header). Line numbers drift; function names are included so the code stays
-findable. No trace-log filenames are referenced; every runtime value is inlined.
+The evidence and root-cause analysis below were verified against the main Nehir
+source tree at `4f9e5682` ("Re-center lone survivor after manual-resize move to
+another workspace") — the exact build the capture ran on (`nehir v4f9e56` in the
+trace header). The resolution below is against `7a025b78`. Line numbers drift;
+function names are included so the code stays findable. No trace-log filenames are
+referenced; every runtime value is inlined.
 
 ---
 
@@ -37,8 +49,11 @@ findable. No trace-log filenames are referenced; every runtime value is inlined.
   re-adds the same window id to WindowModel (and requests a fresh niri insert) with
   **no cancellation or reconciliation** of that in-flight niri removal. Nothing
   ties the two refresh requests together.
-- **Verdict.** Actionable. Root-cause *shape* is source-confirmed; one interleaving
-  detail (below) is worth pinning with a targeted assertion before/inside the fix.
+- **Verdict.** SHIPPED. The desync described here was a **downstream symptom** of a
+  spurious AX destroy. The fix (`7a025b78`) suppresses the spurious destroy at the
+  source, so the destroy→re-admit churn — and therefore the desync — no longer
+  happens. The reconcile-the-desync directions this doc originally proposed were not
+  needed. See "Resolution (what actually shipped)".
 
 ---
 
@@ -208,49 +223,58 @@ stranded frame land **off-screen** (parked) instead of merely mis-placed.
 
 ---
 
-## Residual question to pin before/inside the fix
+## Resolution (what actually shipped)
 
-Source confirms the divergence is *possible* (deferred niri removal not cancelled
-by same-id re-admit). The captured evidence shows the niri node id changed across
-the churn (`D0F44592…` before destroy → `8039D2BF…` after re-admit), so it is worth
-confirming **which** interleaving actually empties ws7:
+Landed on `main` in commit `7a025b78` ("Verify window liveness before honoring a
+spurious AX destroy on cold start"), together with the confirming tracing (below).
+Changeset (patch): "Stop wiping all managed windows on a cold start when macOS
+fires spurious AX destroy notifications."
 
-- (a) the deferred removal (seeded with the **old** node id) is applied *after*
-  re-insert and still drops the workspace's only column; or
-- (b) the re-insert never persists because the removal refresh and the create
-  refresh coalesce and the removal wins.
+**The trigger, not the desync, was fixed.** The `#8 window_removed phase=destroyed`
+in the evidence above was a **spurious AX destroy** — macOS reported window `7619`
+as destroyed while the WindowServer still had it alive. Every downstream problem
+(re-admission via focused-admission, the WindowModel↔niri divergence, the stranded
+off-screen frame) flowed from honoring that false destroy. Rather than reconcile the
+divergence after the fact, the fix stops honoring the spurious destroy:
 
-Confirm by adding a transient invariant check at the end of each layout refresh:
-for every WindowModel tiling entry whose workspace is active, assert the niri engine
-has a node for its token (or trace the mismatch with the removal-seed node id vs the
-live node id). This turns the "shape" into an exact, test-backed trigger.
+- `handleWindowDestroyed(windowId:pidHint:verifyWindowServerLiveness:)`
+  (`Sources/Nehir/Core/Controller/AXEventHandler.swift`) gained a
+  `verifyWindowServerLiveness` flag. **AX-observed** destroys
+  (`handleRemoved(pid:winId:)`) pass `true`; **CGS `.created`/destroyed** events
+  (the trusted source) pass `false`.
+- When `verifyWindowServerLiveness` is `true` and the WindowServer **still reports
+  the window** (`resolveWindowInfo(windowId)?.pid == token.pid`), the destroy is
+  **not** honored immediately. Instead `scheduleDestroyLivenessVerification(for:)`
+  waits `postCreateLifecycleVerificationDelay`, warms the AX context, and only calls
+  `handleRemoved(token:)` if the WindowServer confirms the window is **actually
+  gone** (`resolveWindowInfo(windowId) == nil`). A real close still removes the
+  window after the short verification; a spurious destroy is dropped.
+- Supporting refactor: `isEntryOnScreen` and the new liveness math now share
+  `Monitor.isFrameOnScreen(_:across:minimumVisibleFraction:)` /
+  `Monitor.visibleOverlapArea(of:across:)` (`Sources/Nehir/Core/Monitor/Monitor.swift`).
 
----
+Because the window is never destroyed mid-move, the focused-admission re-admit and
+the deferred-niri-removal-vs-re-admit race described under "Root cause" no longer
+occur. The reconcile/cancel-pending-removal directions this doc originally proposed
+were therefore **not implemented** and are not needed for this bug. The confirmed
+gating gap (no `cancelWindowRemoval`; a deferred niri removal is not invalidated by
+a same-id re-admit) still exists in the abstract, but with the spurious-destroy
+trigger gone it is no longer reachable by this path. If a *genuine* same-id
+destroy→re-admit race is ever observed again, reopen with those directions as the
+starting point.
 
-## Recommended direction (for a follow-up `planned/` doc)
+### Confirming tracing (also shipped in `7a025b78`)
 
-Do **not** patch the reveal path further — the layout model is the source of truth
-and it is the one that is wrong. Candidate fixes, cheapest first:
+The instrumentation used to pin this — added on branch
+`trace/niri-windowmodel-desync` and folded into `7a025b78` — is now in `main`:
 
-1. **Cancel/reconcile the pending niri removal on same-id re-admit.** When
-   `trackPreparedCreate` (or the shared admission entry) admits a window id that has
-   an in-flight `WindowRemovalPayload` for the same workspace, drop/replace that
-   payload (add a `cancelWindowRemoval(windowId:workspaceId:)` to
-   `LayoutRefreshController`). Most targeted; addresses the confirmed gating gap.
-2. **Seed removals by token, and skip the removal if WindowModel still tracks the
-   window** at execution time in `buildWindowRemovalExecutionPlan`. Defensive: makes
-   the deferred niri removal idempotent against a live re-admit regardless of node-id
-   churn.
-3. **Post-refresh invariant repair.** After a layout refresh, for any active-workspace
-   WindowModel tiling entry missing a niri node, re-insert it (and re-run placement).
-   Broadest safety net; also covers other paths that could desync the two models.
+- `reason=windowmodel_niri_desync` — post-refresh membership invariant: an
+  active-workspace WindowModel tiling entry with no niri node.
+- `reason=window_removal_seed_check` — at removal execution: whether a removal seed
+  node id is stale against a live re-admitted token.
+- `reason=readmit_pending_removal` — at focused-admission re-add: whether an
+  in-flight `WindowRemovalPayload` exists for the same workspace/token (via the new
+  read-only `LayoutRefreshController.pendingWindowRemovalPayload(for:workspaceId:)`).
 
-Prefer (1) + the invariant assertion from the residual-question section as a
-regression guard; consider (2) as belt-and-suspenders.
-
-**Do-not-touch note for whoever plans/implements:** this is adjacent to but distinct
-from the in-flight focused-admission-rekey work
-(`planned/20260625-vscode-focused-admission-skips-managed-replacement-rekey.md`,
-which folds identity churn onto the existing entry). If that lands first it may
-change the churn shape here — re-verify this repro against `main` before writing the
-plan.
+These remain useful regression instrumentation for any future WindowModel↔niri
+divergence, independent of this specific fix.
