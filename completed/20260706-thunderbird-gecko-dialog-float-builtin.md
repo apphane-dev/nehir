@@ -1,8 +1,13 @@
 # Plan: float Gecko (Thunderbird/Firefox) transient dialogs via a scoped built-in
 
-Status: **shipped** on `main` as `45d3767f`
-("Float Gecko transient dialogs (Thunderbird/Firefox) (#142)"), 2026-07-06.
-Verified against `main` on 2026-07-06 (`nehir v0.6.0`).
+Status: **shipped but INEFFECTIVE — reopened**. Merged to `main` as `45d3767f`
+("Float Gecko transient dialogs (Thunderbird/Firefox) (#142)"), 2026-07-06, but a
+`!windowServer.frame.isEmpty` guard that this doc's Outcome section claims was
+removed **actually shipped** and defeats the fix for the real dialog (whose
+WindowServer frame is `(0,0,0,0)`). A fresh reporter capture shows the dialog
+still tiling. See [[20260707-thunderbird-gecko-dialog-still-tiles-frame-isempty-guard-defeats-fix]]
+for the regression evidence and the corrected fix. The Outcome section below is
+retained as-is but is **inaccurate** about the guard removal.
 Root cause: [[20260706-thunderbird-gecko-dialog-tiled-untagged-unparented-standard-window]].
 Fixes apphane-dev/nehir discussion #142 (Thunderbird send-confirmation dialog
 tiles as a column).
