@@ -11,7 +11,7 @@ cross-referenced only where root causes touch.
 Scope of this doc: determine whether the multi-monitor bleed in #349 applies to nehir,
 and whether PR #364's `clampVisibleFramesToMonitorBounds` is needed / safe to port.
 
-All file/line references were verified against worktree `worktree-calm-meadow-6229` at
+All file/line references were verified against the Nehir source tree at
 `7f61cb3` ("docs: update four-finger gesture discovery with non-repro trace"). Re-verify
 before implementing; line numbers drift.
 

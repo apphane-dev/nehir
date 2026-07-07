@@ -8,7 +8,7 @@ Scope of this doc: determine whether nehir's Niri column-width layout already re
 per-window min-size constraints (the LAYOUT side of the min-size problem), and whether
 the PR's concept is safe/needed to port.
 
-All file/line references were verified against worktree `worktree-calm-meadow-6229` at
+All file/line references were verified against the Nehir source tree at
 `7f61cb3` ("docs: update four-finger gesture discovery with non-repro trace"). Line
 numbers drift — re-verify before implementing.
 

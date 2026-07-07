@@ -7,7 +7,7 @@ overlays) can shift/resize a managed (tiled) window in nehir, and whether the
 upstream suggested fix (OmniWM PR #385, "Suppress input during screenshot
 selection", **closed without merge**) is safe to port.
 
-All file/line references were verified against `worktree-calm-meadow-6229` at
+All file/line references were verified against the Nehir source tree at
 `7f61cb3` ("docs: update four-finger gesture discovery with non-repro trace").
 Re-verify before implementing; line numbers drift.
 

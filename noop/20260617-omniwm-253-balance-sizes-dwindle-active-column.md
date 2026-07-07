@@ -4,7 +4,7 @@ Source issue: https://github.com/BarutSRB/OmniWM/issues/253
 Scope of this doc: determine whether the `balance-sizes` "only rebalances the active column"
 bug applies to nehir, and whether the same root cause exists in nehir's Niri layout engine.
 
-All file/line references were verified against worktree `worktree-calm-meadow-6229` at `904df02`
+All file/line references were verified against the Nehir source tree at `904df02`
 ("Add bunch of discoveries mapped to issues from OmniWM"). Line numbers drift — re-verify
 before implementing.
 

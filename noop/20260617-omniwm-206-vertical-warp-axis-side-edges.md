@@ -6,7 +6,7 @@ Scope of this doc: determine whether the symptom reproduces in nehir — with th
 sides of the second monitor teleports it to the main screen (i.e. the warp fires
 on the wrong, horizontal, axis) — and whether any fix is needed.
 
-All file/line references were verified against worktree `worktree-calm-meadow-6229`
+All file/line references were verified against the Nehir source tree
 at `904df02` ("Add bunch of discoveries mapped to issues from OmniWM"). Re-verify
 before implementing; line numbers drift.
 

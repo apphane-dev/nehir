@@ -5,7 +5,7 @@ Scope of this doc: determine whether the *concept* behind the PR applies to
 nehir (clear stale focus borders when unmanaged/floating windows disappear
 without a destroy event), and whether the narrow PR diff is safe to port.
 
-All file/line references were verified against worktree `worktree-calm-meadow-6229`
+All file/line references were verified against the Nehir source tree
 at `7f61cb3` ("docs: update four-finger gesture discovery with non-repro trace").
 Re-verify before implementing; line numbers drift.
 

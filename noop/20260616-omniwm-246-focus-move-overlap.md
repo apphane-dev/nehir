@@ -4,7 +4,7 @@ Source issue: <https://github.com/BarutSRB/OmniWM/issues/246>
 Scope of this doc: determine whether the issue applies to nehir,
 and whether the suggested fix is safe to port.
 
-All file/line references were verified against worktree `worktree-calm-meadow-6229`
+All file/line references were verified against the Nehir source tree
 at `7f61cb3` ("docs: update four-finger gesture discovery with non-repro trace").
 Re-verify before implementing; line numbers drift.
 

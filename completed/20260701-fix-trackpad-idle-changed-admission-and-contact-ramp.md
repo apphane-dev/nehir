@@ -160,7 +160,7 @@ suite green.
 
 ### Validation evidence
 
-A ten-column swipe capture (`runtime-trace-…804054.log`) confirmed all four criteria:
+A ten-column swipe capture confirmed all four criteria:
 
 - 10 arms, **all `idleAdmissionKind=began`**, zero `idleAdmissionKind=changed`, zero
   retired-anomaly records;

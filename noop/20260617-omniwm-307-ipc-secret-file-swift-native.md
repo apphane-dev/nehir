@@ -5,7 +5,7 @@ Source PR: https://github.com/BarutSRB/OmniWM/pull/307
 Scope of this doc: determine whether the bug the PR fixes applies to nehir,
 and whether the PR's fix is safe/needed to port.
 
-All file/line references were verified against worktree `worktree-calm-meadow-6229`
+All file/line references were verified against the Nehir source tree
 at `904df02` ("Add bunch of discoveries mapped to issues from OmniWM").
 Re-verify before implementing; line numbers drift.
 

@@ -6,7 +6,7 @@ identical 2560×1440 HiDPI monitors, slowly crossing the boundary lands the warp
 cursor "lower than expected" main→secondary and "sometimes higher" — and whether
 any fix is needed.
 
-All file/line references were verified against worktree `worktree-calm-meadow-6229`
+All file/line references were verified against the Nehir source tree
 at `904df02` ("Add bunch of discoveries mapped to issues from OmniWM"). Re-verify
 before implementing; line numbers drift.
 

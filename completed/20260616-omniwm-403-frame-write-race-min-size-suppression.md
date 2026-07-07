@@ -9,7 +9,7 @@ never the diff.
 Scope of this doc: determine whether nehir has the AX frame-write retry/race loop for
 min-size-constrained apps, and whether the proposed one-clause suppression fix adapts.
 
-All file/line references were verified against nehir worktree `worktree-calm-meadow-6229`
+All file/line references were verified against the Nehir source tree
 at `7f61cb3` ("docs: update four-finger gesture discovery with non-repro trace"). Line
 numbers drift — re-verify before implementing.
 

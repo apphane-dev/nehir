@@ -6,7 +6,7 @@ Related PR (assessed, not assumed as the fix): https://github.com/BarutSRB/OmniW
 Scope of this doc: determine whether the Dwindle 3rd-window placement bug applies to nehir,
 and whether the related per-monitor split-orientation fix is safe/needed to port.
 
-All file/line references were verified against worktree `worktree-calm-meadow-6229` at
+All file/line references were verified against the Nehir source tree at
 `7f61cb3` ("docs: update four-finger gesture discovery with non-repro trace"). Line numbers
 drift — re-verify before implementing.
 

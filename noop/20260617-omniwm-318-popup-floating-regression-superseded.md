@@ -8,7 +8,7 @@ discovery. Targets issue #306, which upstream closed as `completed`.
 Scope of this doc: determine whether #318's proposed fix applies to nehir and
 whether it owns any repo action not already covered by the sibling #323 discovery.
 
-All file/line references were verified against worktree `worktree-calm-meadow-6229`
+All file/line references were verified against the Nehir source tree
 at `904df02` ("Add bunch of discoveries mapped to issues from OmniWM"). Line numbers
 drift — re-verify before implementing.
 

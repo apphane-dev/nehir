@@ -5,7 +5,7 @@ Scope of this doc: determine whether the "3-finger swipe gets stuck"
 report applies to nehir, whether it is a gesture-commit / scroll-snap /
 animation-state bug, and whether the upcoming upstream fix should be ported.
 
-All file/line references were verified against `worktree-calm-meadow-6229`
+All file/line references were verified against the Nehir source tree
 at `7f61cb3` ("docs: update four-finger gesture discovery with non-repro
 trace"). Re-verify before implementing; line numbers drift.
 

@@ -7,7 +7,7 @@ Related issue: OmniWM #270 (see sibling discovery
 Scope of this doc: determine whether the PR's proposed Dwindle per-monitor split-orientation fix
 applies to nehir, and whether it is safe to port.
 
-All file/line references were verified against worktree `worktree-calm-meadow-6229` at `7f61cb3`
+All file/line references were verified against the Nehir source tree at `7f61cb3`
 ("docs: update four-finger gesture discovery with non-repro trace") on 20260616. Re-verify before
 implementing; line numbers drift.
 

@@ -6,7 +6,7 @@ Scope of this doc: determine whether the *concept* this PR introduces
 falling back to the non-managed focus path) exists in nehir, and whether adapting
 it is warranted.
 
-All file/line references were verified against worktree `worktree-calm-meadow-6229`
+All file/line references were verified against the Nehir source tree
 at `7f61cb3` ("docs: update four-finger gesture discovery with non-repro trace").
 Re-verify before implementing; line numbers drift.
 

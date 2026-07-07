@@ -4,7 +4,7 @@
 **Upstream reference (idea + partial code):** <https://github.com/BarutSRB/OmniWM/issues/425> and commit <https://github.com/BarutSRB/OmniWM/commit/79067d451668dcd333bafbcf6e09acf1761fa892> (Focus Lock Modifier).
 **Attribution requirement:** the focus-lock *idea* is upstream (OmniWM, BarutSRB). The modifier enum this plan renames is already upstream-derived (`MouseResizeModifierKey.swift` carries the `Provenance=upstream-derived; Upstream-Project=OmniWM` SPDX header). Preserve that header on rename and add an SPDX/NOTICE note that the focus-lock behavior is derived from OmniWM #425. Do **not** copy OmniWM's `FocusLockModifier.swift` enum or its per-event `modifiersRawValue` threading verbatim — this plan reuses Nehir's existing modifier enum and reads live flags instead (see Design decision #2), so the code is independently implemented; attribute the idea, not the code.
 
-All file/line references were verified against the main Nehir source tree on 2026-07-05 (worktree `/Users/Aleksei_Gurianov/ghq/github.com/guria/nehir`, `main` @ `83c2234b`). Re-verify before editing; line numbers drift. Paths refer to the main repo, not this plans branch.
+All file/line references were verified against the main Nehir source tree on 2026-07-05 (`main` @ `83c2234b`). Re-verify before editing; line numbers drift. Paths refer to the main repo, not this plans branch.
 
 ## Decision (from the requester)
 

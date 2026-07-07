@@ -6,7 +6,7 @@ menu-bar tray/status-item icon (e.g. Proton Pass, Yubico Authenticator)
 unnecessarily focuses that app's window, stealing focus from the active tiled
 window — and whether any fix is needed.
 
-All file/line references were verified against worktree `worktree-calm-meadow-6229`
+All file/line references were verified against the Nehir source tree
 at `904df02` ("Add bunch of discoveries mapped to issues from OmniWM"). Re-verify
 before implementing; line numbers drift.
 

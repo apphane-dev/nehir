@@ -7,7 +7,7 @@ gesture snapped to) is relevant to nehir, whether it is distinct from the
 trackpad-gesture-detection sibling track (#53 / #301), and whether the
 proposed diff is safe to port.
 
-All file/line references were verified against `worktree-calm-meadow-6229`
+All file/line references were verified against the Nehir source tree
 at `904df02` ("Add bunch of discoveries mapped to issues from OmniWM").
 Re-verify before implementing; line numbers drift.
 

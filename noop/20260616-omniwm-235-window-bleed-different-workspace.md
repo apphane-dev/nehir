@@ -7,7 +7,7 @@ hidden columns / inactive workspaces — or whether it is a distinct bug. It is 
 **cross-workspace** face of the window-bleed family; the **cross-monitor** face is
 #349 (`noop/20260616-omniwm-349-hidden-window-bleeds-multi-monitor.md`).
 
-All file/line references were verified against worktree `worktree-calm-meadow-6229`
+All file/line references were verified against the Nehir source tree
 at `7f61cb3` ("docs: update four-finger gesture discovery with non-repro trace").
 Re-verify before implementing; line numbers drift.
 

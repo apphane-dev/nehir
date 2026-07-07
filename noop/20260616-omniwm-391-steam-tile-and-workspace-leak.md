@@ -5,7 +5,7 @@ Scope of this doc: determine whether the issue applies to nehir, whether it is a
 AX-classification gap, and whether it overlaps the workspace-bleed / stale-live-frame
 class already investigated in sibling docs.
 
-All file/line references were verified against worktree `worktree-calm-meadow-6229`
+All file/line references were verified against the Nehir source tree
 at `7f61cb3` ("docs: update four-finger gesture discovery with non-repro trace").
 Re-verify before implementing; line numbers drift.
 

@@ -10,7 +10,7 @@ contradicts that and shows the PR closed on 2026-06-15. The PR says it fixes
 OmniWM issue #254 ("Trying to take a screenshot using Cmd + Shift + 4 causes
 windows to shift.").
 
-All file/line references were verified against `worktree-calm-meadow-6229` at
+All file/line references were verified against the Nehir source tree at
 `7f61cb3` ("docs: update four-finger gesture discovery with non-repro trace").
 Re-verify before implementing; line numbers drift.
 

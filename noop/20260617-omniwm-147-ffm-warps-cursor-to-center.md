@@ -6,7 +6,7 @@ Scope of this doc: determine whether the bug applies to nehir (with both
 mouse between windows should not snap the cursor to the center of the newly
 focused window), and whether any fix is needed.
 
-All file/line references were verified against worktree `worktree-calm-meadow-6229`
+All file/line references were verified against the Nehir source tree
 at `904df02` ("Add bunch of discoveries mapped to issues from OmniWM"). Re-verify
 before implementing; line numbers drift.
 

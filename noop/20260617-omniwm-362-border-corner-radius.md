@@ -6,7 +6,7 @@ evaluate the concept, not a verbatim patch.
 Scope of this doc: determine whether nehir still hard-codes the focus-border
 corner radius, and whether PR #362's proposed wiring should be ported.
 
-All file/line references were verified against worktree `worktree-calm-meadow-6229`
+All file/line references were verified against the Nehir source tree
 at `904df02` ("Add bunch of discoveries mapped to issues from OmniWM"). Line
 numbers drift — re-verify before implementing.
 

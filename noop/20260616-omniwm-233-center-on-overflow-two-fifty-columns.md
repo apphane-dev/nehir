@@ -5,7 +5,7 @@ Scope of this doc: determine whether nehir has the "center-on-overflow"
 behavior at all, and if so whether it over-triggers on a normal two-column
 layout where the focused column still fits on screen.
 
-All file/line references were verified against worktree `worktree-calm-meadow-6229`
+All file/line references were verified against the Nehir source tree
 at `7f61cb3` ("docs: update four-finger gesture discovery with non-repro trace").
 Re-verify before implementing; line numbers drift.
 

@@ -9,7 +9,7 @@ rendered frame to its containing monitor's bounds to prevent cross-monitor overf
 applicable to nehir; judge the diff's quality (coverage + idioms); and decide whether to
 adapt the fix.
 
-All file/line references were verified against worktree `worktree-calm-meadow-6229` at
+All file/line references were verified against the Nehir source tree at
 `7f61cb3` ("docs: update four-finger gesture discovery with non-repro trace"). Re-verify
 before implementing; line numbers drift.
 

@@ -5,7 +5,7 @@ Upstream state: **closed as not planned** (per task triage/upstream state).
 Scope of this doc: determine whether the floating-window focus-border tracking
 bug applies to nehir, and whether the closed upstream item owns any repo action.
 
-All file/line references were verified against worktree `worktree-calm-meadow-6229`
+All file/line references were verified against the Nehir source tree
 at `904df02` ("Add bunch of discoveries mapped to issues from OmniWM"). Line
 numbers drift — re-verify before implementing.
 
