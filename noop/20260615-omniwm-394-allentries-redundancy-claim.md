@@ -1,6 +1,6 @@
 # OmniWM issue #394 — "redundant `allEntries()` call in full rescan" — Discovery
 
-Groom 2026-07-07: still applicable — analysis; verdict is the two allEntries() calls straddle removeMissing() and the upstream reuse-the-snapshot fix would regress per-entry teardown; do NOT port (verified against main 7a025b78).
+Verdict: no-op — the two allEntries() calls straddle removeMissing() and the upstream reuse-the-snapshot fix would regress per-entry teardown; do NOT port. Kept as a reusable analysis reference. Moved to noop/ on 2026-07-07 (verified against main 7a025b78).
 
 Source issue: <https://github.com/BarutSRB/OmniWM/issues/394>
 Scope of this doc: determine whether the issue applies to nehir, and whether
