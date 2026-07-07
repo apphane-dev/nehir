@@ -1,6 +1,6 @@
 # Cold-Start Wipe Recurs After the Liveness Fix — CGS Space Events, Not AX Destroys; Only the Focused Pid Is Re-Admitted
 
-Groom 2026-07-07: still applicable — open recurrence; the cold-start wipe still occurs via the CGS event path (`handleCGSWindowDestroyed` / `spaceWindowDestroyed`), which passes `verifyWindowServerLiveness: false` and so bypasses the `7a025b78` liveness gate that closed the AX-destroy path (see `completed/20260707-cold-start-spurious-ax-destroy-wipes-managed-windows.md`); no `completed/`/`planned/` doc yet (verified against main 7a025b78).
+Groom 2026-07-07: still applicable — open recurrence; not merged in Nehir `main` as of `201ca607`. The current Nehir source still routes CGS `.destroyed` / `spaceWindowDestroyed` through `handleCGSWindowDestroyed`, which passes `verifyWindowServerLiveness: false`, so the path still bypasses the `7a025b78` liveness gate that closed the AX-destroy path (see `completed/20260707-cold-start-spurious-ax-destroy-wipes-managed-windows.md`). An upstream OmniWM-history commit, `c836fbb0` ("Fix tabbed columns splitting: don't reap windows that left a space"), contains the same core fix direction for the old `Sources/OmniWM/...` path, but that change is not present in current `Sources/Nehir/Core/Controller/AXEventHandler.swift`; no `completed/`/`planned/` doc yet.
 
 Follow-up (2026-07-07, later the same day the fix landed) to
 `completed/20260707-cold-start-spurious-ax-destroy-wipes-managed-windows.md`.
@@ -22,7 +22,8 @@ windows remain visible-but-unmanaged through the end of the capture, one of
 them stranded at its offscreen parking position.
 
 File:line references are against `main` at `654337a0` and will drift —
-re-verify before implementing.
+re-verify before implementing. The latest status check against `main` at
+`201ca607` found the key CGS destroy call still ungated.
 
 **Verdict: actionable, three findings.**
 
