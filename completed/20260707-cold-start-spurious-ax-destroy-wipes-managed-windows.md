@@ -13,19 +13,29 @@ This document pins the mechanism to source and confirms the arming/gating
 condition. File:line references were current at the discovery date and will
 drift — re-verify before implementing.
 
-**Status: RESOLVED.** Fix landed on `main` as `7a025b78` ("Verify window
-liveness before honoring a spurious AX destroy on cold start", 2026-07-07). The
-destroy path now verifies WindowServer liveness (defer + warm AX + re-check)
-before honoring an AX-observer destroy. See the completed plan
-`completed/20260707-verify-liveness-before-honoring-ax-destroy.md` for the shipped
-shape and deviations. Runtime confirmation via a real `dev:clean` repro and
-regression tests are still outstanding (tracked in that plan's follow-ups).
+**Status: RESOLVED for the AX-observer destroy path.** Fix landed on `main` via
+PR #150 as `7a025b78` ("Verify window liveness before honoring a spurious AX
+destroy on cold start", 2026-07-07), with changeset
+`.changeset/20260707023920-stop-wiping-all-managed-windows-on-a-cold-start-.md`.
+The AX callback path now calls `handleWindowDestroyed(...,
+verifyWindowServerLiveness: true)`, and the destroy path defers + warms AX +
+re-checks WindowServer liveness before removing a still-live window. The CGS
+`spaceWindowDestroyed` / `windowClosed` path was explicitly left on
+`verifyWindowServerLiveness: false`, so PR #150 did **not** close the later CGS
+recurrence tracked in
+`discovery/20260707-cold-start-wipe-recurs-post-liveness-fix-only-focused-pid-readmitted.md`.
+Runtime confirmation via a real `dev:clean` repro and regression tests are still
+outstanding for this AX-specific fix.
 
-**Verdict: actionable.** Root cause is a real macOS AX `kAXUIElementDestroyed`
-burst against freshly-connected app AX contexts, which Nehir's destroy path
-trusted **without any liveness re-check for tiling windows** — even though it
-already fetched the WindowServer liveness fact it would need, and already had a
-liveness-verification precedent for floating windows.
+**Verdict at implementation time: actionable.** Root cause for this shipped fix
+was treated as a real macOS AX `kAXUIElementDestroyed` burst against freshly-
+connected app AX contexts, which Nehir's AX destroy path trusted **without any
+liveness re-check for tiling windows** — even though it already fetched the
+WindowServer liveness fact it would need, and already had a liveness-verification
+precedent for floating windows. Later captures with an always-on raw AX
+notification ring showed an identical cold-start wipe can also occur with no AX
+destroy notifications at all, via the ungated CGS space-event path; keep that as
+a separate open recurrence rather than expanding this completed AX-path record.
 
 ## Topology / initial state (from the capture snapshot)
 
