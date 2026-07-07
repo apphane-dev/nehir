@@ -558,14 +558,6 @@ final class WindowRuleEngine {
             return cleanShotDecision
         }
 
-        if let geckoDecision = geckoTransientDialogDecision(
-            for: facts,
-            workspaceName: workspaceName,
-            effects: effects
-        ) {
-            return geckoDecision
-        }
-
         if facts.ax.title == nil,
            requiresTitle(for: facts.ax.bundleId)
         {
@@ -580,6 +572,14 @@ final class WindowRuleEngine {
                 heuristicReasons: [],
                 deferredReason: .requiredTitleMissing
             )
+        }
+
+        if let geckoDecision = geckoTransientDialogDecision(
+            for: facts,
+            workspaceName: workspaceName,
+            effects: effects
+        ) {
+            return geckoDecision
         }
 
         if appFullscreen {
@@ -754,7 +754,6 @@ final class WindowRuleEngine {
               facts.ax.role == kAXWindowRole as String,
               facts.ax.subrole == kAXStandardWindowSubrole as String,
               let windowServer = facts.windowServer,
-              !windowServer.frame.isEmpty,
               windowServer.parentId == 0,
               !windowServer.hasDocumentTag,
               !windowServer.hasFloatingTag
