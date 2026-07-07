@@ -1,12 +1,13 @@
 # OmniWM #283 — Per-app initial column width
 
+Re-verified against main 7a025b78 on 2026-07-07.
+
 **Status:** planned
 **Source discovery:** `discovery/20260617-omniwm-283-per-app-initial-column-width.md`
 **Upstream reference:** <https://github.com/BarutSRB/OmniWM/issues/283>
 **Coordinate with:** `planned/20260621-omniwm-295-niri-window-width-preservation.md` (move path) and `noop/20260616-omniwm-384-respect-window-min-size-in-niri-column-width.md` (min-size floor, already satisfied).
 
-All file/line references were re-verified against the main Nehir source tree
-(`e7b246b6`) on 2026-06-21. Re-verify before editing; line numbers drift.
+Source references were refreshed against main `7a025b78` on 2026-07-07. `AppRule` still has no `initialColumnWidth` field (current effect fields are `minWidth`, `minHeight`, and `sticky` around `Sources/Nehir/Core/Config/AppRule.swift:42-68`).
 
 ## TL;DR
 
@@ -33,7 +34,7 @@ no rule behaves exactly as before.
 ## Discovery corrections / decisions
 
 The discovery's recommendation is correct; correct the following before
-implementing (all re-verified against `e7b246b6`):
+implementing (re-verified against main `7a025b78`):
 
 1. **Line-number drift (cosmetic):**
    - `AppRule` struct fields live at `AppRule.swift:41-68` (`var minWidth` at

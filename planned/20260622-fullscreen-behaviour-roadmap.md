@@ -1,5 +1,7 @@
 # Roadmap for Nehir fullscreen / maximize behaviours
 
+Re-verified against main 7a025b78 on 2026-07-07.
+
 **Status:** planned
 **Related plans:** `planned/20260621-niri-fullscreen-expectations-and-fix.md`,
 `planned/20260622-native-fullscreen-toggle-exit-target.md`

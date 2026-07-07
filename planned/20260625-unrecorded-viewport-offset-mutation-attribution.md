@@ -1,5 +1,7 @@
 # Unrecorded viewport offset mutation — attribution & fix — Plan
 
+Re-verified against main 7a025b78 on 2026-07-07.
+
 Picks up and promotes `discovery/20260625-precommitted-viewport-shifts-before-trackpad-gesture.md`.
 That discovery proved the viewport was already shifted *before* a trackpad gesture
 committed, and showed the shifted value was already in `ViewportState` before any
@@ -9,11 +11,7 @@ narrows the repro to the **focus-reveal / column-transition / window-arrival** p
 and confirms in source that every mutation on that path writes the viewport offset
 with **no trace record and no provenance**.
 
-All source references were verified against the main Nehir source tree at `f4adb75f`
-on 2026-06-25 (`git log -1 --format='%h %s'` → `f4adb75f Add shift+click, preview pills,
-and workspace bar settings improvements`). The discovery was validated at `8887adcb`,
-which is an ancestor of `f4adb75f`. Line numbers will drift; function names are
-included so the code stays findable.
+Source references were refreshed against main `7a025b78` on 2026-07-07. Phases 1-2 and the config/parked-edge-snap behavioral slice remain shipped; the residual planned scope is the non-config relayout recenter cases.
 
 ---
 

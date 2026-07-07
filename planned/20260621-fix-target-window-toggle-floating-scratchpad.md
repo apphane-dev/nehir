@@ -1,5 +1,7 @@
 # Fix target window for toggle floating / scratchpad commands
 
+Re-verified against main 7a025b78 on 2026-07-07.
+
 **Status:** planned (core symptom partially addressed on `main`). Update
 2026-07-01: `faa45c37` ("Prefer layout selection over same-pid floating sibling
 for commands") shipped a narrow reorder of `managedCommandTarget()` so a concrete
@@ -17,9 +19,7 @@ for commands like toggle floating / scratchpad, etc."); sibling idea **#7**
 here; commit `e5188e42` ("Fix focused-window commands to prioritize floating
 windows over tiled windows", fixing #12), whose contract this plan revises.
 
-All source references were re-verified against the main Nehir source tree (HEAD
-`42ac731f`, "Prevent stale async session patches from overwriting newer
-selection (M6)") on 2026-06-22. Re-verify before editing; line numbers drift.
+Source references were refreshed against main `7a025b78` on 2026-07-07. `WMController` still contains the command-target cascade (`managedCommandTarget(forFrontmostToken:requireFloating:)`, `samePidFloatingCommandTarget`, and `focusedManagedTokenForCommand()`, currently around `Sources/Nehir/Core/Controller/WMController.swift:1896-2063`), so the remaining behavior is not shipped.
 
 ## TL;DR
 
@@ -46,7 +46,7 @@ floating focus still wins.
 
 The discovery's product recommendation is correct; the following source
 corrections were needed (line numbers drift between the discovery's `56573ba2`
-and the current `42ac731f`, plus two structural fixes):
+and current main `7a025b78`, plus two structural fixes):
 
 1. **`confirmedManagedFocusToken` path.** The discovery cited
    `WorkspaceManager.swift:1059` under `Sources/Nehir/Core/Controller/`. The
@@ -136,7 +136,7 @@ and the current `42ac731f`, plus two structural fixes):
      In `withNiriOperationContext` (`:2042`) just before the
      `guard let currentId = state.selectedNodeId` block (`:2048`), add an
      early-return guard: if the confirmed managed focus is a `.floating` window,
-     record a compact runtime-trace event
+     record a compact runtime trace event
      (`layoutCommand.skipped reason=focusedFloating command=<name>`) and return
      without running the operation. Do **not** redirect to the tiled selection
      and do **not** surface UI (option (a) + documentation). Apply the same
@@ -242,7 +242,7 @@ exists to make Phase 3's contract read as a single concept.
 2. Mirror the guard in both `withNiriWorkspaceContext` overloads (`:2261`,
    `:2284`).
 3. Record a compact `layoutCommand.skipped reason=focusedFloating command=…`
-   runtime-trace event (use the existing `recordRuntimeInsertionTrace`-style
+   runtime trace event (use the existing `recordRuntimeInsertionTrace`-style
    helper used elsewhere in the handler; confirm the exact symbol when
    implementing). No user-visible affordance in this phase.
 

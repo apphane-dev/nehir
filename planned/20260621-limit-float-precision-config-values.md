@@ -1,5 +1,7 @@
 # Limit float precision in config values
 
+Re-verified against main 7a025b78 on 2026-07-07.
+
 **Status:** planned
 **Source discovery:** `discovery/20260621-limit-float-precision-config-values.md`
 **Prerequisite:** none live — the sibling unknown-key round-trip work it leans on is

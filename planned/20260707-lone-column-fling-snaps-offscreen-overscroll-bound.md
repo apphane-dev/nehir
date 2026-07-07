@@ -1,5 +1,7 @@
 # Stop fling-scrolling from snapping a lone/narrow column off the display
 
+Re-verified against main 7a025b78 on 2026-07-07.
+
 **Status:** planned.
 **Symptom:** On a workspace whose only column (or whose columns together) are
 **narrower than the viewport**, a fast three-finger horizontal fling can park

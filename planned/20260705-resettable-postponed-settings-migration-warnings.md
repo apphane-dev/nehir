@@ -1,5 +1,7 @@
 # Make postponed settings-migration warnings resettable from Diagnostics — Plan
 
+Re-verified against main 7a025b78 on 2026-07-07.
+
 Small UX change to the Diagnostics settings tab: once a settings-migration /
 unknown-keys warning has been **postponed**, there is currently no way to bring
 it back short of editing state on disk. The postponed state shows a disabled
@@ -7,14 +9,13 @@ it back short of editing state on disk. The postponed state shows a disabled
 lets the user un-postpone individual warnings and reset all postponed settings
 warnings at once.
 
-Status: **implemented already** — the full change exists as commit
-`ff69764e "Make postponed migration warnings resettable"`, which was authored on
-the `fix/profile-switch-cross-workspace-reveal` worktree and then dropped from
-that branch to keep it scoped to the focus-recovery fix. The commit is still
-reachable via reflog; land it on its own branch off `main` (see below). This doc
-captures it so the work is not lost.
-
-Verified against the main Nehir source tree at the branch build on 2026-07-05.
+Status: **valid, not shipped on `main`** — the full change was prototyped as
+commit `ff69764e` ("Make postponed migration warnings resettable"), but that
+commit is not an ancestor of `main` 7a025b78. Current `main` still has no
+`Show Warning Again`, `Reset Postponed Settings Warnings`, or
+`postponedSettingsIssueIds` symbols under `Sources/Nehir`, so this remains a
+planned change. If the side commit is unavailable, re-apply from the diff shape
+below.
 
 ---
 
@@ -48,18 +49,11 @@ Verified against the main Nehir source tree at the branch build on 2026-07-05.
 
 ## How to land
 
-The change is complete and passed `mise run format:check && mise run lint &&
-mise run build`. Land it independently of the focus-recovery fix:
-
-```
-git checkout -b fix/resettable-postponed-settings-warnings main
-git cherry-pick ff69764e
-mise run check
-```
-
-(If `ff69764e` has been pruned from reflog by the time this is picked up,
-re-apply from the diff described above — it is self-contained and touches only
-`DisplayDiagnosticsSettingsTab.swift` plus its changeset.)
+The side implementation was reported to pass `mise run format:check && mise run
+lint && mise run build`, but it has not shipped. Land it independently from a
+fresh branch off `main`; if `ff69764e` is unavailable, re-apply from the diff
+described above — it is self-contained and touches only
+`DisplayDiagnosticsSettingsTab.swift` plus its changeset.
 
 ## Follow-ups / tests
 

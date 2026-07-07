@@ -1,5 +1,7 @@
 # App activation with a nil AX focused window never reveals the app's managed window
 
+Re-verified against main 7a025b78 on 2026-07-07.
+
 **Status:** planned.
 **Symptom:** Clicking a notification (observed with Telegram, `ru.keepcoder.Telegram`)
 activates the app but does **not** reveal/scroll its managed window into view.

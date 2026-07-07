@@ -1,5 +1,7 @@
 # OmniWM #373 — Smart gaps (drop outer gaps for a lone window)
 
+Re-verified against main 7a025b78 on 2026-07-07.
+
 **Status:** planned
 **Source discovery:** `discovery/20260617-omniwm-373-smart-gaps-single-window.md`
 **Upstream reference:** <https://github.com/BarutSRB/OmniWM/issues/373> (feature request; Hyprland `gaps_when_only`, i3 `smart_gaps`)
@@ -36,7 +38,7 @@ needed while implementing:
 
 1. **Line-number drift everywhere.** Every citation in the discovery has moved;
    corrected line numbers are used throughout this plan (verified against `main`
-   `e7b246b6` on 2026-06-21). Notable: `singleWindowLayoutContext` is at
+   `7a025b78` on 2026-07-07). Notable: `singleWindowLayoutContext` is at
    `NiriLayoutEngine.swift:270` (not 258); `insetWorkingFrame(for:)` is at
    `WMController.swift:820` (not 747); `insetWorkingFrame(from:...)` is at
    `WMController.swift:842` (not 761).

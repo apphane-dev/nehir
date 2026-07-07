@@ -1,5 +1,7 @@
 # OmniWM #226 — Chrome extension hotkey priority
 
+Re-verified against main 7a025b78 on 2026-07-07.
+
 **Status:** planned
 **Source discovery:** `discovery/20260616-omniwm-226-chrome-extension-hotkey-priority.md`
 **Upstream reference:** <https://github.com/BarutSRB/OmniWM/issues/226> (closed `not_planned`; nehir picks it up)

@@ -1,13 +1,14 @@
 # OmniWM #311 — Exclude apps from the workspace bar
 
+Re-verified against main 7a025b78 on 2026-07-07.
+
 **Status:** planned
 **Source discovery:** `discovery/20260617-omniwm-311-exclude-apps-from-workspace-bar.md`
 **Upstream reference:** https://github.com/BarutSRB/OmniWM/issues/311 (open, no comments/labels;
 feature request, not a bug). Distinct from closed `not_planned` #281 (hide *all* app icons) —
 #311 is per-app exclusion by identity.
 
-All source references were re-verified against the main Nehir source tree at
-`e7b246b6` on 2026-06-21. Re-verify before editing; line numbers drift.
+Source references were refreshed against main `7a025b78` on 2026-07-07. `AppRule` still has no `hideFromWorkspaceBar` field and `WorkspaceBarDataSource` has no exclusion helper.
 
 ## TL;DR
 
@@ -52,7 +53,7 @@ porting it into source:
    needs the field too, because it is exercised by `SettingsMigrationStateStore` and
    `RuntimeStateStore`.
 2. **Line-number drift across the discovery's citations** (verified against
-   `e7b246b6`). The discovery's locations are all correct as *symbols*; only line
+   `7a025b78`). The discovery's locations are all correct as *symbols*; only line
    numbers moved. Corrected map used below: `WorkspaceManager.barVisibleEntries`
    `:2548→:2550`, `hasBarVisibleOccupancy` `:2565→:2562`, `barVisibleFloatingEntries`
    `:2574→:2573`; `AppInfoCache.bundleId(for:)` `:50→:54`; `SettingsStore.appRules`

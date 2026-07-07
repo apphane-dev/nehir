@@ -1,5 +1,7 @@
 # Focused-admission path skips the structural managed-replacement rekey — Plan
 
+Re-verified against main 7a025b78 on 2026-07-07.
+
 An Electron app (here: VS Code Insiders, `com.microsoft.VSCodeInsiders`, pid `49947`)
 re-creates its editor window under a **new** accessibility window id. Nehir keeps
 tracking the **stale** id as an offscreen managed window and never adopts the new
@@ -9,10 +11,7 @@ through Nehir's **focused-admission** path, which admits the window as a
 **brand-new** managed entry (a fresh column) instead of re-keying the stale
 entry onto it. The result is duplicate managed entries for one physical editor.
 
-All source references were verified against the main Nehir source tree at
-`8887adcb` on 2026-06-25 (`git log -1 --format='%h %s'` → `8887adcb Fixup
-changeset reporter contribution mention`). Line numbers will drift; functions
-are named so they remain findable.
+Source references were refreshed against main `7a025b78` on 2026-07-07. Focused admission still tracks the prepared create directly in `Sources/Nehir/Core/Controller/AXEventHandler.swift:2831-2900` without running the structural-replacement rekey helpers first.
 
 The raw finding (symptom + evidence) is captured in the companion discovery doc
 [`../discovery/20260625-vscode-editor-unmanaged-until-clicked.md`](../discovery/20260625-vscode-editor-unmanaged-until-clicked.md).

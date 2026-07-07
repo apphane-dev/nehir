@@ -1,5 +1,7 @@
 # Nehir #62 — Move workspace to next/previous monitor (workspace variant)
 
+Re-verified against main 7a025b78 on 2026-07-07.
+
 **Status:** planned (workspace variant only; column variant is a follow-up)
 **Source discovery:** `discovery/20260619-nehir-62-move-workspace-to-next-monitor.md`
 **GitHub issue:** #62

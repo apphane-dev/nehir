@@ -1,5 +1,7 @@
 # Define expectations and fix niri fullscreen
 
+Re-verified against main 7a025b78 on 2026-07-07.
+
 **Status:** planned
 **Source discovery:** `discovery/20260621-niri-fullscreen-expectations-and-fix.md`
 **Related:** `discovery/20260617-nehir-69-fullscreen-restore-on-focus.md` (owns
@@ -13,8 +15,7 @@ macOS fullscreen fix), `planned/20260622-fullscreen-behaviour-roadmap.md`
 `completed/20260616-unified-config-diagnostics-and-migration-policy.md` if any
 default binding is renamed.
 
-All source references were re-verified against the main Nehir source tree on
-2026-06-22 (HEAD `42ac731f`). Re-verify before editing; line numbers drift.
+Source references were refreshed against main `7a025b78` on 2026-07-07. The `.maximized` sizing mode still exists (`Sources/Nehir/Core/Layout/Niri/NiriNode.swift:19`), and the command remains labeled `Toggle Fullscreen` (`Sources/Nehir/Core/Input/ActionCatalog.swift:902`).
 
 ## TL;DR
 
@@ -64,7 +65,7 @@ of exiting the current native-fullscreen record.
 ## Discovery corrections / decisions
 
 The discovery's product verdict and scope stand. Corrections made while
-porting to current HEAD `42ac731f`:
+porting to current main `7a025b78`:
 
 1. **Phase-B toggle-entry site is stale in the discovery.** It cites "#69's
    `:1288-1291` guard" for the handler. At current HEAD the toggle entry is

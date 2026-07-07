@@ -1,9 +1,11 @@
 # Plan: keep the learned resize-minimum across identity-preserving lifecycle events
 
+Re-verified against main 7a025b78 on 2026-07-07.
+
 Source discovery:
 `discovery/20260707-inferred-resize-minimum-cleared-causes-refusal-thrash-recurrence.md`.
-Read it first. All source references verified against `main` @ `4f9e5682` on
-2026-07-07; re-verify line numbers before editing.
+Read it first. All source references verified against `main` @ `7a025b78` on
+2026-07-07; the planned clearing sites remain `Sources/Nehir/Core/Workspace/WindowModel.swift:457`, `:597`, and `:729`.
 
 ## Problem (one line)
 

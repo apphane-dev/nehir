@@ -1,5 +1,7 @@
 # OmniWM #326 — Allow a Niri column over 100% width
 
+Re-verified against main 7a025b78 on 2026-07-07.
+
 **Status:** planned
 **Source discovery:** `discovery/20260617-omniwm-326-niri-column-over-100-percent-width.md`
 **Upstream reference:** <https://github.com/BarutSRB/OmniWM/issues/326>
@@ -7,8 +9,7 @@
 "Follow-ups" note points here; the two compose (whatever `ProportionalSize` a column
 already has is preserved on move, so a future >100% capability rides along).
 
-All file/line references were re-verified against the main Nehir source tree
-(`e7b246b6`) on 2026-06-21. Re-verify before editing; line numbers drift.
+Source references were refreshed against main `7a025b78` on 2026-07-07. Width validation still caps at `1.0` in `Sources/Nehir/Core/Config/SettingsStore.swift:1015-1026`, and lone-window geometry still clamps to the containing frame in `Sources/Nehir/Core/Layout/Niri/NiriLayout.swift:770-787`.
 
 ## TL;DR
 
@@ -49,7 +50,7 @@ truly lone window (1 column, 1 normal window) hits the Layer-B clamp.
 
 ## Discovery corrections / decisions
 
-1. **Line-number drift (cosmetic, re-verified against `e7b246b6`).** The discovery
+1. **Line-number drift (cosmetic, re-verified against `7a025b78`).** The discovery
    was verified against an older commit; current locations:
    - `validatedPresets(_:)` → `Sources/Nehir/Core/Config/SettingsStore.swift:975`
      (discovery said `:852`); the `min(1.0, max(0.05, $0))` map is at `:976`.

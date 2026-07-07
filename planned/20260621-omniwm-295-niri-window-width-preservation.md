@@ -1,12 +1,13 @@
 # OmniWM #295 — Preserve Niri window width when moved
 
+Re-verified against main 7a025b78 on 2026-07-07.
+
 **Status:** planned
 **Source discovery:** `discovery/20260616-omniwm-295-niri-window-width-preservation.md`
 **Upstream reference:** <https://github.com/BarutSRB/OmniWM/issues/295>
 **Related (same machinery, different scenario):** `completed/20260619-workspace-assignment-lone-window-width-and-reveal.md` and `completed/20260619-workspace-assignment-lone-window-width-cache-leak.md` — these introduced the post-move `clearLoneWindowLayoutWidthOverride()` loop the fix must compose with.
 
-All file/line references were re-verified against the main Nehir source tree
-(`6ba6760f`) on 2026-06-21. Re-verify before editing; line numbers drift.
+Source references were refreshed against main `7a025b78` on 2026-07-07. The workspace-move path still reinitializes target-column width in `Sources/Nehir/Core/Layout/Niri/NiriLayoutEngine+WorkspaceOps.swift:40-47` rather than preserving the manual source width.
 
 ## TL;DR
 

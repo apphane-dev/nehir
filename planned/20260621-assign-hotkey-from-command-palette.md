@@ -1,5 +1,7 @@
 # Assign a hotkey for an action from the command palette
 
+Re-verified against main 7a025b78 on 2026-07-07.
+
 **Status:** planned
 **Source discovery:** `discovery/20260621-assign-hotkey-from-command-palette.md`
 **Related:** `planned/20260621-backlog-brainstorm.md` (idea #9; coordinate chord choice with
@@ -8,11 +10,7 @@ claiming a chord, see `completed/20260621-command-palette-fallback-all-sources.m
 `completed/20260619-nehir-48-command-palette-hotkey-conflict.md`
 (palette global-summon conflict path — shares `HotkeyBindingEditor`/`SettingsStore` pipeline).
 
-All source references were re-verified against the main Nehir source tree at
-`e7b246b6` ("Surface global-hotkey conflicts in Diagnostics (Nehir #48)") on
-2026-06-21. The tree has advanced past the discovery's `56573ba2`; several line
-numbers drifted and are corrected below. Re-verify before editing; line numbers
-drift.
+Source references were refreshed against main `7a025b78` on 2026-07-07. `CommandPaletteController` still has no `recordingCommandId` / conflict-recording symbols, and `HotkeySettingsView.isNumberedGroupMember(_:)` remains private (currently around `Sources/Nehir/UI/HotkeySettingsView.swift:530`).
 
 ## TL;DR
 
@@ -41,7 +39,7 @@ v1 because they are edited as a 1–9 pattern, not as individual rows.
 ## Discovery corrections / decisions
 
 The discovery recommendation is right at the product level. Corrections made
-while porting to the current tree (`e7b246b6`):
+while porting to current main `7a025b78`:
 
 1. **Use the `KeyBinding` overload of `HotkeyBindingEditor.capture`, not the
    `HotkeyTrigger` one.** The discovery's `commitRecording` pseudocode manually
@@ -84,7 +82,7 @@ while porting to the current tree (`e7b246b6`):
    The plan implements A and specifies the exact fallback trigger (responder
    transfer flaky inside the borderless panel) at which the worker switches to
    B. Do not implement both.
-7. **Line-number drift from the discovery (verified at `e7b246b6`):**
+7. **Line-number drift from the discovery (re-verified at `7a025b78`):**
    `CommandPaletteCommandItem` struct `:64-71` → `:63-70`; `CommandPaletteSelectionTrigger`
    `:78-81` → `:72-75`; `selectionTrigger(forKeyCode:modifierFlags:)` `:746-756`
    → `:738-748`; `CommandPaletteCommandRow` `:1474` → `:1464`; `CommandPalettePanel`

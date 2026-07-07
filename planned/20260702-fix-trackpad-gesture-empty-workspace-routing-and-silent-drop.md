@@ -1,10 +1,12 @@
 # Fix trackpad gesture empty-workspace routing and silent frame drop — Plan
 
+Re-verified against main 7a025b78 on 2026-07-07.
+
 **Status:** planned. Derived from
 `discovery/20260702-trackpad-gesture-silent-noop-on-empty-workspace-under-cursor.md`,
 which carries the full runtime evidence and source walk-through.
 
-Validated against the main Nehir source tree on 2026-07-02 at commit `61a67ba4`.
+Validated against the main Nehir source tree on 2026-07-07 at commit `7a025b78`.
 
 **Open product decision:** Phase 2 (fallback routing) implements the recommended
 behavior — retarget an empty-workspace gesture at the interaction workspace. It was
@@ -43,7 +45,7 @@ records on workspace 1 once the cursor crossed displays.
 
 ---
 
-## Source analysis (cites at `61a67ba4`)
+## Source analysis (cites refreshed at `7a025b78`)
 
 - `Sources/Nehir/Core/Controller/MouseEventHandler.swift:2289-2308` —
   `resolveScrollContext(at:)` picks `location.monitorApproximation(in:)` then

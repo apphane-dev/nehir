@@ -1,20 +1,19 @@
 # Send reports (manual report upload, network-free first slice)
 
+Re-verified against main 7a025b78 on 2026-07-07.
+
 **Status:** planned
 **Source discovery:** `discovery/20260621-send-reports.md`
 **Upstream reference:** `planned/20260621-backlog-brainstorm.md` → *Integrations /
 packaging / ops* → **#6 Send reports** (sibling to **#5 Posthog analytics**,
 `discovery/20260621-posthog-analytics.md`, kept deliberately separate)
 
-All source references were re-verified against the main Nehir source tree on
-2026-06-22. Re-verify before editing; line numbers drift.
+Source references re-verified against main `7a025b78` on 2026-07-07; the runtime trace capture implementation now lives in `Sources/Nehir/Core/Controller/RuntimeDiagnosticsCoordinator.swift`, not `WMController.swift`.
 
 ## TL;DR
 
 Nehir already produces a rich diagnostic "report" — the runtime trace capture
-(`WMController.stopRuntimeTraceCapture()` assembles a multi-section `.log` body
-and writes it under `${XDG_STATE_HOME:-$HOME/.local/state}/nehir/traces/`,
-`WMController.swift:3288`/`:3291`) — and the README codifies a fully manual
+(`RuntimeDiagnosticsCoordinator.stopRuntimeTraceCapture()` assembles a multi-section `.log` body and writes it via `RuntimeDiagnosticsCoordinator.traceCaptureDirectory` / `runtimeTraceCaptureFileURL(startedAt:endedAt:)`, currently `Sources/Nehir/Core/Controller/RuntimeDiagnosticsCoordinator.swift:1026` and `:1155-1160`) — and the README codifies a fully manual
 sharing flow for it ("Share the trace **file**, not the path — … Use **Copy
 File** in the Recent Traces list, or drag it out of the traces folder."). The
 *moment of transmission* is entirely the user's problem: copy file → open GitHub
@@ -54,28 +53,26 @@ sufficient. A toggle only becomes load-bearing for Option C (see Follow-ups).
 ## Discovery corrections / decisions
 
 The discovery recommendation stands; the following corrections/decisions were
-made while porting it (all verified against main on 2026-06-22):
+made while porting it (re-verified against main `7a025b78` on 2026-07-07):
 
-1. **Line-number drift on the two `WMController` citations.** The discovery
-   cited `runtimeTraceCaptureFileURL` at `:3261` and `runtimeStateDebugDump` at
-   `:2961`; both are ~+30 lines today. Current locations:
-   `runtimeTraceCaptureFileURL(startedAt:endedAt:)` at `WMController.swift:3291`
-   (filename `runtime-trace-…-….log` at `:3292`),
-   `traceCaptureDirectory` at `:3288`, the path-to-pasteboard call
-   (`copyDebugTextToPasteboard(fileURL.path)`) at `:3251`,
-   `copyDebugTextToPasteboard(_:)` at `:3279`, `runtimeStateDebugDump(...)`
-   at `:2992`, and `dumpRuntimeState(traceLimit:)` at `:3073`. This plan uses the
-   current numbers.
+1. **Diagnostics refactor moved the trace-capture citations.** The discovery's
+   `WMController` line references are stale after the diagnostics extraction.
+   Current locations are in `Sources/Nehir/Core/Controller/RuntimeDiagnosticsCoordinator.swift`:
+   `stopRuntimeTraceCapture()` at `:1026`, `runtimeTraceCaptureFileURL(startedAt:endedAt:)`
+   at `:1158`, `traceCaptureDirectory` at `:1155`, `copyDebugTextToPasteboard(_:)`
+   at `:1136`, `runtimeStateDebugDump(...)` at `:687`, and
+   `dumpRuntimeState(traceLimit:)` at `:778`. This plan uses those source symbols
+   rather than durable-doc-hostile trace filename examples.
 2. **`ConfigAssistancePrompt` is the body-builder precedent, not the pasteboard
    precedent.** The discovery implies `ConfigAssistancePrompt` both builds the
    body *and* copies to the pasteboard. It only builds the string
    (`ConfigAssistancePrompt.swift:26`, `prompt(kind:appVersion:affectedFile:details:backupURL:)`).
    The actual pasteboard write for that flow lives in the Diagnostics tab at
-   `DisplayDiagnosticsSettingsTab.swift:562`
+   `DisplayDiagnosticsSettingsTab.swift:798`
    (`NSPasteboard.general.setString(prompt, forType: .string)`). The new report
    body builder is modeled on `ConfigAssistancePrompt.prompt(...)`; the new UI's
    pasteboard behavior is modeled on the in-tab `copyTracePath`/`copyTraceFile`
-   helpers (`:428`/`:439`) and the `traceCopyStatus` label (`:374`).
+   helpers (`:515`/`:526`) and the `traceCopyStatus` label (`:450`).
 3. **`SpreadTheWordSheet.shareURL(...)` is `private`; do not call it directly.**
    It is a `private static func` inside the `SpreadTheWordSheet` view struct
    (`AboutSettingsTab.swift:324`, using `URLComponents`+`URLQueryItem` at
@@ -172,7 +169,7 @@ import Foundation
 
 enum DiagnosticReportBuilder {
     struct TraceReference: Equatable {
-        let filename: String      // e.g. runtime-trace-1781525802769-1781525820832.log
+        let filename: String      // runtime trace log filename, as produced by RuntimeDiagnosticsCoordinator
         let sizeBytes: Int64
     }
 
@@ -202,7 +199,7 @@ Implementation notes:
 - `body(for:)` sections: a header line ("Nehir diagnostic report"), **Nehir
   version** (`appVersion`), **macOS version** (`macOSVersion`), **Displays**
   (`displaySummary`), **Trace** (when present: `filename` + a human-readable
-  size, e.g. "runtime-trace-…-….log (412 KB)"; when absent: "no trace
+  size, e.g. "runtime trace log (412 KB)"; when absent: "no trace
   attached"), optional **Note** (`userNote`), and a footer line instructing the
   user to **attach the `.log` file** on GitHub (query bodies cap at a few KB).
   Reuse `ConfigAssistancePrompt`'s `lines: [String]` + `lines.joined(separator:
@@ -349,7 +346,7 @@ Pure unit tests, no UI, no SkyLight:
 1. `bodyContainsVersionAndOS` — given `Inputs(appVersion: "0.4.10", macOSVersion:
    "macOS 15.3", …)`, `body(for:)` contains `"0.4.10"` and `"macOS 15.3"`.
 2. `bodyReferencesTraceByNameAndSizeNotContents` — given a `TraceReference`
-   whose filename is `runtime-trace-1781525802769-1781525820832.log` and size
+   whose runtime trace log filename and size
    `421_888`, the body contains the filename and a human-readable size and does
    **not** contain any hypothetical trace contents string passed via a control
    field (assert the builder has no "contents" input at all).
@@ -409,7 +406,7 @@ swift test --filter IPCCommand             # IPCCommandName/IPCCommandRequest co
 Manual validation (Developer Mode on):
 
 1. Start a trace capture, reproduce something, stop it (a `.log` appears under
-   `~/.local/state/nehir/traces/`).
+   the app state trace directory).
 2. Settings → Diagnostics → Recent Traces → click **Send Report…** on that row.
 3. In the sheet, confirm the body shows version, macOS version, display summary,
    and the trace filename + size (not contents); confirm the "attach the .log on

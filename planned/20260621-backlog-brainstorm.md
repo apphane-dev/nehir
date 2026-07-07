@@ -1,5 +1,7 @@
 # Backlog brainstorm — 2026-06-21
 
+Re-verified against main 7a025b78 on 2026-07-07.
+
 Source: a handwritten idea list captured from a screenshot on 2026-06-21. This
 document is the canonical store of that raw list. Each idea is being triaged by
 a dedicated discovery agent (one idea per agent, max 3 in parallel, run as
@@ -19,7 +21,7 @@ each idea lands in `discovery/20260621-<slug>.md`.
 ## Command palette
 
 - **#4** Command palette: fallback to all sources if no results, or use all sources by default *(shipped Variant A — fallback on empty — commit `1aa518bc`; see `completed/20260621-command-palette-fallback-all-sources.md`. Variant B unified `.all` tab still deferred.)*
-- **#9** Assign hotkey for an action from the command palette *(related: `discovery/20260619-nehir-48-command-palette-hotkey-conflict.md`, planned `n48-command-palette-hotkey`)*
+- **#9** Assign hotkey for an action from the command palette *(related: `discovery/20260619-nehir-48-command-palette-hotkey-conflict.md`, planned `planned/20260621-assign-hotkey-from-command-palette.md`)*
 - **#11** Fuzzy search in the command palette
 - **#26** Command to create an app rule for the focused window *(shipped — commit `472f7185`; palette command + workspace-bar right-click action, assignable hotkey; see `completed/20260627-create-app-rule-for-focused-window.md`.)*
 - **#29** Command to collect all windows on the current workspace

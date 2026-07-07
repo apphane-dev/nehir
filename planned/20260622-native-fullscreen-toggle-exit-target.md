@@ -1,5 +1,7 @@
 # Fix native fullscreen toggle exit target
 
+Re-verified against main 7a025b78 on 2026-07-07.
+
 **Status:** planned
 **Source discovery:** `discovery/20260617-nehir-69-fullscreen-restore-on-focus.md`
 **Related:** `planned/20260621-niri-fullscreen-expectations-and-fix.md`,
