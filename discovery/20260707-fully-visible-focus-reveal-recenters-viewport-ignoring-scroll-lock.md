@@ -4,6 +4,8 @@
 **Status:** Root cause confirmed in source; actionable.
 **Area:** Niri viewport reveal on AX focus confirm.
 
+Cross-link cluster: [`VR-1` in `20260708-cross-discovery-relevance-clusters.md`](20260708-cross-discovery-relevance-clusters.md#vr-1--automatic-revealrecentersnap-movement-bypasses-user-intent-or-visibility-checks) groups the high-confidence automatic reveal/recenter/snap bugs.
+
 ## Symptom
 
 Clicking into (focusing) a window that is already **fully visible** scrolls the

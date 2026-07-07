@@ -6,6 +6,8 @@ A runtime capture shows the external-display move path can leave windows in a ma
 
 The likely fault line is the managed-replacement deferral path: structurally anchored replacement candidates are delayed into a `(pid, workspaceId)` burst for 150 ms, while focus-driven admission is allowed to synthesize a focused create context and call `trackPreparedCreate(..., admissionContext: .focusedAdmission)` once the user clicks the window.
 
+Related high-confidence clusters: [`LC-1`](20260708-cross-discovery-relevance-clusters.md#lc-1--lifecycleadmission-desync-false-removals-partial-enumeration-and-replacement-bursts) for replacement/admission desync and [`XD-1`](20260708-cross-discovery-relevance-clusters.md#xd-1--cross-display-moves-reveal-at-the-wrong-time-size-or-workspace-identity) for display/workspace transition ordering.
+
 ## Captured topology and starting state
 
 The capture started with two displays:

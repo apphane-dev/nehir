@@ -14,6 +14,7 @@ This matches the user symptom: Nehir is in a weird stuck state, and assigning/mo
 
 ## Related plans and discoveries
 
+- Cross-link cluster: [`NF-1` in `20260708-cross-discovery-relevance-clusters.md`](20260708-cross-discovery-relevance-clusters.md#nf-1--stale-non-managed-focus-blocks-admission-confirmation-and-command-targets) groups the high-confidence stale non-managed-focus/admission/command-target discoveries.
 - [`20260705-move-focused-window-to-workspace-noop-under-nonmanaged-focus.md`](20260705-move-focused-window-to-workspace-noop-under-nonmanaged-focus.md) is the direct predecessor for the **same command-target failure**: move-focused-window commands guard on `managedCommandTargetToken()`, which can be `nil` while stale non-managed focus is active.
 - [`20260707-workspace-bar-shift-click-command-target-stale-nonmanaged.md`](20260707-workspace-bar-shift-click-command-target-stale-nonmanaged.md) covers the workspace-bar Shift-click variant. This discovery supplies a newer capture where the niri viewport selection advances to visible managed windows while the generic command target remains nil.
 - [`20260622-dock-click-focus-does-not-reveal-column.md`](20260622-dock-click-focus-does-not-reveal-column.md) is the same suppressor in app-activation/reveal form: `shouldSuppressManagedActivationWhileNonManagedFocusAnchored(...)` can treat a stale non-managed-focus flag as overlay ownership and return before managed focus/reveal.

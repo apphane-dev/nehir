@@ -15,6 +15,8 @@ no neighbor column at all.
 Verified against the main Nehir source tree on 2026-07-07 (source line numbers
 below are durable code citations).
 
+Cross-link cluster: [`VR-1` in `20260708-cross-discovery-relevance-clusters.md`](20260708-cross-discovery-relevance-clusters.md#vr-1--automatic-revealrecentersnap-movement-bypasses-user-intent-or-visibility-checks) groups this with the other high-confidence viewport movement bugs. This one is the snap-target-generation variant, not a reveal-policy variant.
+
 ## Summary
 
 `viewportStartBounds` allows "intentional edge overscroll": at the extreme scroll

@@ -12,6 +12,8 @@ Verified against the main Nehir source tree at `7a025b78` ("Verify window
 liveness before honoring a spurious AX destroy on cold start") on 2026-07-07.
 Line numbers drift; function names are included so code stays findable.
 
+Cross-link cluster: [`OT-1` in `20260708-cross-discovery-relevance-clusters.md`](20260708-cross-discovery-relevance-clusters.md#ot-1--observability-and-tests-can-hide-the-real-path) groups this with the test-seam audit and prior diagnostics plans.
+
 ---
 
 ## TL;DR

@@ -4,6 +4,8 @@ Groom 2026-07-07: still applicable — `isNonManagedFocusActive` can stay stuck 
 
 Follow-up 2026-07-08: [`20260708-stale-nonmanaged-focus-suppresses-managed-selection-and-window-move.md`](20260708-stale-nonmanaged-focus-suppresses-managed-selection-and-window-move.md) captures the same move-command targetless state on current main, but with a stronger viewport-selection angle: the visible selected managed window changes while `confirmedManagedFocusToken` stays on an offscreen older token and `wmCommandTarget=nil`.
 
+Cross-link cluster: [`NF-1` in `20260708-cross-discovery-relevance-clusters.md`](20260708-cross-discovery-relevance-clusters.md#nf-1--stale-non-managed-focus-blocks-admission-confirmation-and-command-targets) groups the high-confidence stale non-managed-focus/admission/command-target discoveries.
+
 Discovery (2026-07-05). Trying to move the focused window to another workspace —
 both by **shift-clicking a workspace-bar pill** and by the **keyboard shortcut**
 (`Opt+Shift+N` / move-window-to-adjacent-workspace) — does nothing. No window

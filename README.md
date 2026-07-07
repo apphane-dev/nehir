@@ -20,4 +20,6 @@ planning history or implementation context.
   main Nehir repository, not to files on this branch.
 - Internal planning links use the root-level folders above rather than
   `docs/plans/...`.
+- High-confidence discovery cross-links are collected in
+  `discovery/20260708-cross-discovery-relevance-clusters.md`.
 - This branch is documentation-only by design; no source code is expected here.

@@ -11,6 +11,8 @@ or synchronization seams, but several production-source conditionals do more
 than replace macOS I/O — they skip Nehir's own reconciliation, scheduling, or
 fallback behavior.
 
+Cross-link cluster: [`OT-1` in `20260708-cross-discovery-relevance-clusters.md`](20260708-cross-discovery-relevance-clusters.md#ot-1--observability-and-tests-can-hide-the-real-path) groups this with traceability/diagnostics work. Use both together when reviewing plans that propose regression tests for silent runtime guards.
+
 ---
 
 ## TL;DR

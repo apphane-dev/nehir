@@ -5,6 +5,8 @@ Status: confirmed — runtime evidence and source mechanism both verified agains
 
 Follow-up 2026-07-08: [`20260708-stale-nonmanaged-focus-suppresses-managed-selection-and-window-move.md`](20260708-stale-nonmanaged-focus-suppresses-managed-selection-and-window-move.md) confirms the non-managed-focus no-op branch on current main with a trackpad-selection prelude: the viewport selected a visible managed VS Code window, but the stale non-managed focus flag kept `wmCommandTarget=nil`.
 
+Cross-link cluster: [`NF-1` in `20260708-cross-discovery-relevance-clusters.md`](20260708-cross-discovery-relevance-clusters.md#nf-1--stale-non-managed-focus-blocks-admission-confirmation-and-command-targets) groups the high-confidence stale non-managed-focus/admission/command-target discoveries.
+
 Workspace-bar Shift-click is documented as "move the focused window here", but
 it does not carry an explicit window token from the bar/focus state into the move
 operation. The bar only converts Shift into a generic "move focused window"

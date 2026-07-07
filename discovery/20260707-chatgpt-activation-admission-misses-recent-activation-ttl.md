@@ -166,6 +166,7 @@ snapshot time*).
 
 ## Relationship to prior findings
 
+- Cross-link cluster: [`NF-1` in `20260708-cross-discovery-relevance-clusters.md`](20260708-cross-discovery-relevance-clusters.md#nf-1--stale-non-managed-focus-blocks-admission-confirmation-and-command-targets) groups this with the stale non-managed-focus / unrequested-admission guard family. This document is the delayed-attempt variant: user intent was recorded, but no admission attempt consumed it before the TTL expired.
 - `discovery/20260703-user-activated-slack-suppressed-as-stale-under-nonmanaged-focus.md`
   — the original trap. Marked resolved by the `151f4e3a` exemption. This
   capture shows the exemption is **necessary but not sufficient**: it bridges
