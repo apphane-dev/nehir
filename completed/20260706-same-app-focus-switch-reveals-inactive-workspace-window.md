@@ -16,6 +16,13 @@ focus model rather than the observed macOS state (see "Diagnostics" below).
 Verified against the main Nehir source tree; landed on `main` via branch
 `fix/profile-switch-follow-front-window`.
 
+Follow-up: [`planned/20260707-close-last-app-window-stay-on-current-workspace.md`](../planned/20260707-close-last-app-window-stay-on-current-workspace.md)
+handles the remaining close-successor race where macOS reports another same-app
+window on a different Nehir workspace before the tracked close/removal marker is
+available. That follow-up preserves this document's deliberate same-app
+focus-switch behavior: real same-app switches still reveal the target workspace;
+window close must stay local, even if the current workspace becomes empty.
+
 ## Root cause — three layers, all fixed
 
 Trustworthy traces (added first, see below) showed three independent obstacles,
