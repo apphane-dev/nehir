@@ -1,5 +1,7 @@
 # Tab indicators: consume gap space first, shrink window only as fallback — Discovery
 
+Groom 2026-07-07: still applicable — deferred proposal (verdict: sound idea but the per-column position/scroll-dependent footprint change's maintenance burden outweighs the situational ≤12pt gain); not pursued, no `planned/` doc (verified against main 7a025b78).
+
 Proposal under review (paraphrased): when placing a tabbed-column indicator
 rail, first try to source its horizontal footprint from the adjacent gap (the
 inter-column gap, or the outer gap when the column is flush to the screen

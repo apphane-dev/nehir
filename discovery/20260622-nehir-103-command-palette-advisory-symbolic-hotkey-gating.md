@@ -1,5 +1,7 @@
 # Nehir PR #103 — Command Palette advisory gated on the live macOS symbolic-hotkey state — Discovery
 
+Groom 2026-07-07: resolved — the symbolic-hotkey-state gating shipped on main (`f8064cf0`, "Refine hotkey diagnostics refresh", PR #103 merged); the noted precision limitation (the reader checks `enabled` only, not `value.parameters` chord comparison) remains a future improvement (verified against main 7a025b78).
+
 Source PR: <https://github.com/apphane-dev/nehir/pull/103> ("Refine hotkey
 diagnostics refresh", merged as `671652c6`; changeset reads
 "fixes #48, follow-up to #97"). It refines **Prong 2** of the shipped #48 work

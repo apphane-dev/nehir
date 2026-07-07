@@ -1,5 +1,7 @@
 # VS Code editor sits outside the tiling until clicked (focused admission does not rekey a stale identity) — Discovery
 
+Groom 2026-07-07: in flight — see `planned/20260625-vscode-focused-admission-skips-managed-replacement-rekey.md`; the focused-admission stale-identity rekey has not landed on main (verified against main 7a025b78).
+
 Discovery (2026-06-25). A VS Code Insiders editor window
 (`com.microsoft.VSCodeInsiders`, pid `49947`) is visibly on screen but **not**
 part of Nehir's tiling layout — it is tracked as an unmanaged WindowServer

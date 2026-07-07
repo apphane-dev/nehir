@@ -1,5 +1,7 @@
 # Discovery — Posthog analytics (#5)
 
+Groom 2026-07-07: still applicable — deferred; no analytics/crash-reporting SDK or `analyticsEnabled` setting has landed on main, and the recommendation is to build the shared consent/upload substrate with the in-flight **#6 Send reports** first (verified against main 7a025b78).
+
 - **Status:** investigated
 - **Recommendation:** **Defer** background product analytics; coordinate the
   shared consent + install-id + upload substrate with the sibling "Send reports"

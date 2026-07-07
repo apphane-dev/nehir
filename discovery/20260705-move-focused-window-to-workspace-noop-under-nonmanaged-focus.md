@@ -1,5 +1,7 @@
 # Move-focused-window-to-workspace silently no-ops while non-managed focus is active
 
+Groom 2026-07-07: still applicable — `isNonManagedFocusActive` can stay stuck `true` after a third-party focus-suppressing overlay (e.g. Ghostty quick-terminal) is destroyed, because the clear path (`handleOwnedFocusSuppressingWindowClosed`) fires only for Nehir-owned windows; no `completed/`/`planned/` match. Re-verify the third-party-overlay clear path against current source before acting (verified against main 7a025b78).
+
 Discovery (2026-07-05). Trying to move the focused window to another workspace —
 both by **shift-clicking a workspace-bar pill** and by the **keyboard shortcut**
 (`Opt+Shift+N` / move-window-to-adjacent-workspace) — does nothing. No window

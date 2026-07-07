@@ -1,5 +1,7 @@
 # Command palette: fallback to all sources if no results, or use all sources by default
 
+Groom 2026-07-07: resolved (partial) — Variant A (fallback on empty) landed on main `1aa518bc`; Variant B (unified `.all` tab) remains deferred; see `completed/20260621-command-palette-fallback-all-sources.md`.
+
 Source: handwritten backlog list captured 2026-06-21, idea **#4** — *"Command
 palette: fallback to all sources if no results, or use all sources by default."*
 Triage doc for that idea. See `planned/20260621-backlog-brainstorm.md` for the

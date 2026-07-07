@@ -1,5 +1,7 @@
 # Discovery: SwiftUI conformance audit — ForEach identity bugs, soft-deprecated APIs, tap-gesture buttons
 
+Groom 2026-07-07: resolved (Findings 1–3) — the ForEach identity fixes (`6c3e65ce`, `c3f1856d`) and the `foregroundColor` → `foregroundStyle` migration (`ea013f2c`) shipped; see `completed/20260703-fix-foreach-index-identity-in-settings-and-onboarding.md` and `completed/20260703-migrate-foregroundcolor-to-foregroundstyle.md`. Finding 4 remains open in the split-out `discovery/20260703-command-palette-tap-gesture-accessibility-and-observable-migration.md`.
+
 Status: discovery — static audit, no runtime capture involved. Both follow-up
 plans executed and shipped on `main` 2026-07-03 (`c3f1856d` + `6c3e65ce`, and
 `ea013f2c`):

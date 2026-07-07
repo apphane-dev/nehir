@@ -1,5 +1,7 @@
 # Quick-terminal close can still reveal the managed Ghostty column
 
+Groom 2026-07-07: still applicable — remaining quick-terminal-coexistence regression; no `completed/`/`planned/` match. Related same-app-close / settled-spring viewport work (`7a8febb4`, `ca7ac372`, `196dee9a`) landed but does not specifically address Ghostty overlay post-close AX churn revealing the parked column — re-verify against current source before acting.
+
 Status: discovery + implementation plan. Verified against `main` commit `61a67ba4`
 (`nehir v61a67b*` in the captures) on 2026-07-02.
 

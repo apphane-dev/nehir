@@ -1,5 +1,7 @@
 # Move Workspace / Column to Next Monitor (i3/Aerospace-style, wrap-around)
 
+Groom 2026-07-07: in flight — see `planned/20260619-nehir-62-move-workspace-to-monitor.md`; the `moveWorkspaceToMonitor(.next/.previous)` / `moveColumnToMonitor(.next/.previous)` cyclic commands have not landed on main (verified against main 7a025b78).
+
 GitHub issue: **#62 — Move Workspace to next monitor** (no labels).
 
 ## TL;DR

@@ -1,5 +1,7 @@
 # Mega-file growth and the narrow-WMController plan, revisited — Discovery
 
+Groom 2026-07-07: partially resolved — two follow-ups shipped (`d1505910` extracted `RuntimeDiagnosticsCoordinator` (WMController 5,031→3,921 LOC), `e87bade3` added the `preferredFrame(for:)` seam); still open: `FocusCoordinator.focusedNode(for:)` has zero consumers (dead-member flag stands) and narrowing candidates #2–#5 are unactioned (verified against main 7a025b78).
+
 Extended discovery for improvement point #3 from the 2026-07-01 docs-grooming review:
 "the four mega-files keep growing." Extends
 [`20260613-codebase-review-findings.md`](20260613-codebase-review-findings.md) §7

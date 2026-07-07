@@ -1,5 +1,7 @@
 # Challenge window width vs column width (and other column-vs-window semantics) — Discovery
 
+Groom 2026-07-07: still applicable — naming/API-surface cleanup (collapse the window-width command family, rename `hasManualSingleWindowWidthOverride`, decide `NiriWindow.windowWidth`); sequenced behind the still-in-flight `#295`/`#283`/`#326` width plans, none of which have landed (verified against main 7a025b78).
+
 Source: backlog item **#19** ("Challenge window width vs column width (and other
 column-vs-window semantics)"), captured in `planned/20260621-backlog-brainstorm.md`.
 

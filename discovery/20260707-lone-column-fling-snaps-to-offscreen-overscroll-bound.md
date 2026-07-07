@@ -1,5 +1,7 @@
 # Discovery: fling-scrolling a lone column snaps it off the display edge
 
+Groom 2026-07-07: in flight — see `planned/20260707-lone-column-fling-snaps-offscreen-overscroll-bound.md`; the bad-snap-target defect (bound endpoints promoted to snap targets when the strip does not fill the viewport) has not been fixed on main (verified against main 7a025b78).
+
 Status: discovery only — root-caused and source-confirmed. A three-finger
 horizontal fling on a workspace whose **only column is narrower than the
 viewport** can snap the viewport to an overscroll *bound* that parks that sole

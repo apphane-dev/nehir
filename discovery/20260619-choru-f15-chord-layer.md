@@ -1,5 +1,7 @@
 # @choru custom F15 chord layer — Discovery
 
+Groom 2026-07-07: still applicable — external-fork (`choru-k/nehir`) evaluation; the F15 chord-layer concept has not been ported to main (no chord engine, event tap, or `f15Enabled` settings exist) (verified against main 7a025b78).
+
 Source branch: the `choru-k/nehir` fork on branch `choru` at `b47f7399` (feature commit touching this area: `7a34c1b1` — "Add custom features: native F15 chord layer, anchor zones, leader tree").
 
 Compared against: upstream `guria/nehir` `main` at `7b731a51`.
@@ -75,7 +77,7 @@ Evidence:
 - `Sources/Nehir/Core/Controller/WMController.swift:101` adds `private let f15Tap = F15EventTap()`.
 - `WMController.swift:234-236` routes F15 commands to `commandHandler.handleHotkeyCommand`, parallel to normal hotkeys.
 - `WMController.swift:392-395` installs the tap only when normal hotkeys should be enabled and `settings.f15Enabled` is true; otherwise it removes the tap.
-- `WMController.swift:400-408` writes `~/.local/state/nehir/permissions.json` with Accessibility/Input Monitoring status and whether Input Monitoring is needed.
+- `WMController.swift:400-408` writes a permissions-status JSON (Accessibility/Input Monitoring status and whether Input Monitoring is needed) into Nehir's runtime-state directory.
 - `WMController.swift:3341-3342`, `Sources/Nehir/Core/Controller/CommandHandler.swift:180-181`, and `Sources/Nehir/Core/Input/HotkeyCommand.swift:74` add the `.openLeader` command route.
 
 ### Config wiring

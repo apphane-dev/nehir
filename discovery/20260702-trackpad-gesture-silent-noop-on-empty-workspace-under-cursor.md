@@ -1,5 +1,7 @@
 # Discovery: trackpad gestures silently no-op when the cursor is over an empty workspace
 
+Groom 2026-07-07: in flight — see `planned/20260702-fix-trackpad-gesture-empty-workspace-routing-and-silent-drop.md`; the fallback-routing product decision (what a gesture over an empty workspace should do) is still open, though unconditional gesture diagnostics have since landed (`6a9a5528`) (verified against main 7a025b78).
+
 Status: discovery — the runtime evidence and the source mechanism are both fully
 confirmed; the gesture pipeline is working exactly as coded. Follow-up fix plan:
 `planned/20260702-fix-trackpad-gesture-empty-workspace-routing-and-silent-drop.md`

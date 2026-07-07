@@ -1,5 +1,7 @@
 # Workspace bar does not update during/after a trackpad column-switch gesture while a non-managed app holds focus — Discovery
 
+Groom 2026-07-07: resolved — the workspace bar was rebuilt as a reactive lens over viewport selection (`8900a436`, "Make the workspace bar a reactive lens over viewport selection"), which removes the imperative focus-projection dependency that caused the freeze; see `completed/20260623-workspace-bar-reactive-viewport-lens.md`.
+
 Discovery (2026-06-22). When the user performs a 3-finger trackpad
 column-switch gesture on a workspace whose **confirmed focus is a non-managed
 window** (e.g. a transient overlay, a native app-switcher foreground, or any

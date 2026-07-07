@@ -1,5 +1,7 @@
 # Nehir #63 — Monitor warping: want horizontal-only, not vertical
 
+**Verdict: no-op** — Nehir's mouse-warp feature already runs horizontal-only by default (`mouseWarp.axis = "horizontal"`), and that mode is structurally incapable of emitting a vertical (top/bottom-edge) warp. The residual up/down cursor jump between vertically-stacked monitors is macOS WindowServer inter-display behaviour with no public API for Nehir to suppress it; the maintainer-confirmed workaround is a diagonal monitor arrangement in System Settings. No source change is recommended or possible for the literal request. (Groom 2026-07-07: moved from `discovery/` to `noop/`; verified against main 7a025b78.)
+
 Reported issue: **with monitors logically stacked vertically in macOS System
 Settings, Nehir warps the cursor at the left/right edges of each monitor (which
 the reporter likes), but the cursor *also* jumps when going up/down between the

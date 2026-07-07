@@ -1,5 +1,7 @@
 # Discovery: relayout path recenters a fully-visible, unchanged-selection viewport
 
+Groom 2026-07-07: in flight (partially resolved) — the focus-confirmation fully-visible no-op landed (`0602387d`) and config-change parked-viewport stabilization landed (`9dd0f777`), but extending the no-op to the relayout selection-reconciliation path remains open under `planned/20260625-unrecorded-viewport-offset-mutation-attribution.md` (verified against main 7a025b78).
+
 Status: root cause found and source-attributed. Three user-reported "viewport
 moved with no trackpad input" captures, plus source analysis, pin the mover to the
 relayout selection-reconciliation path — the same recenter that `dad2e63a` ("Do

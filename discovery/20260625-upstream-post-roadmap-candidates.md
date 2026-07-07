@@ -1,5 +1,7 @@
 # Upstream post-roadmap candidates — landed-status correction + post-cutoff triage
 
+Groom 2026-07-07: still applicable — the standing open 🔴 recommendation (`b8a545f` directional cross-monitor focus, must carry `18c30dd0`'s empty-adjacent-monitor guard) still holds; superseded for newer upstream commits (post-`36461fe1`) by `20260629-upstream-post-roadmap-candidates.md` (verified against main 7a025b78).
+
 > **Superseded-for-new-commits (2026-06-29).** This sweep covered upstream through
 > `36461fe1` (2026-06-24). Commits after that — releases **0.5.2** / **0.5.2.1** —
 > are triaged in

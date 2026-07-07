@@ -1,5 +1,7 @@
 # Nehir issue #108 (follow-up) — PiP still bounces back on cross-monitor drag because the drag re-anchor fix is gated on `globalSticky`, not `sticky` — Discovery
 
+Groom 2026-07-07: still applicable — open residual #108 symptom (PiP intermittently bounces back on cross-monitor drag; the drag re-anchor fix is gated on `globalSticky`, not `sticky`); the original PiP visibility fix shipped (`ade7cd07`), this follow-up has not (verified against main 7a025b78).
+
 **Status:** discovery — open. Follow-up to `completed/20260624-nehir-108-pip-disappears-and-snaps-back-on-workspace-switch.md` (merged `ade7cd07`). The original two symptoms (PiP disappears on workspace switch; PiP snaps back) were the subject of that fix. This doc covers the **residual** symptom the reporter (`dagrlx` / "dagr1x") still hits on the RC builds: a PiP dragged from the external monitor to the MacBook **intermittently bounces back to the external monitor**.
 
 Source issue: https://github.com/apphane-dev/nehir/issues/108
@@ -7,10 +9,8 @@ Reporter browser: Vivaldi (YouTube PiP). Two displays, "Displays have separate S
 
 Source citations verified against `guria/nehir` main at `b50500bb` ("Add experimental Dock Shield for side fixed-Dock setups"). Line numbers drift — re-verify before implementing. Runtime evidence is inlined from the reporter's two RC captures (both 2026-06-28), attached to the issue:
 
-- `runtime-trace-1782606465358-1782606483190.log` — **sticky option enabled** (the bounce reproduces).
-- `runtime-trace-1782606676945-1782606719571.log` — "after deleting all rules" (the move **succeeds**).
-
-Below these are called **T1 (sticky/bounce)** and **T2 (norules/success)**.
+- **T1 (sticky/bounce)** — sticky option enabled (the bounce reproduces).
+- **T2 (norules/success)** — "after deleting all rules" (the move **succeeds**).
 
 ---
 

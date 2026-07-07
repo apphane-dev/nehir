@@ -1,5 +1,7 @@
 # Discovery: learned resize-minimum is cleared by identity-preserving lifecycle events, so min-width apps re-fight and re-thrash on the next animated resize
 
+Groom 2026-07-07: partially resolved — `3afeec81` ("Keep learned window minimum size across float, fullscreen, and rekey") preserved the minimum across the AX-ref rekey, float/mode-change, and layout-reason transitions this discovery identified as the core clearing triggers; the companion `planned/20260707-persist-inferred-resize-minimum-across-lifecycle.md` is re-verified open against main 7a025b78 and tracks the remaining clearing sites (other `inferredResizeMinimumSize = nil` sites still exist in `WindowModel.swift`). Confirm the planned doc's remaining scope before closing.
+
 Status: root cause found and source-confirmed. This is a follow-up to the M1
 refused-frame-feedback work
 (`completed/20260619-m1-refused-frame-feedback-characterization.md`,

@@ -1,5 +1,7 @@
 # Clicking a Dock icon to focus a tiled window does not scroll the viewport to its column — Discovery
 
+Groom 2026-07-07: status unclear — no `completed/`/`planned/` match; the app-activation→reveal path (`handleManagedAppActivation`, `AXEventHandler.swift:2961`) has been substantially reworked (it now records a `revealDecision` trace and still reads `isNonManagedFocusActive` at `:3012`), but whether this specific Dock-click-under-non-managed-focus case still fails to reveal was not re-verified against current source. Re-confirm with a fresh capture before acting.
+
 Discovery (2026-06-22). When the user switches focus by **clicking a Dock icon**
 for an app whose managed window is tiled in an off-screen column, the workspace
 **viewport does not scroll** to bring that column into view. The Dock activation

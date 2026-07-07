@@ -1,5 +1,7 @@
 # Shareable/installable app-rule catalog — feasibility and required format changes
 
+Groom 2026-07-07: still applicable — design exploration; no shareable/installable rule catalog has been implemented (built-in per-app hacks remain hand-coded in `WindowRuleEngine.makeBuiltInRules()`). Related app-rule work shipped (`a2055ff8` parse diagnostics, `472f7185` focused-window rule action, `df3df3cb` dropped bundled rules) but not this catalog format (verified against main 7a025b78).
+
 Status: discovery (design exploration). Verified against `main` on 2026-07-06.
 Motivated by discussion #142 (Thunderbird dialog) and the cross-WM prior art in
 [[20260706-thunderbird-gecko-dialog-tiled-untagged-unparented-standard-window]]:

@@ -1,5 +1,7 @@
 # nehir #93 / OmniWM #255 — "Vertical workspace bar" — Discovery
 
+Groom 2026-07-07: still applicable — open greenfield enhancement; `WorkspaceBarPosition` still has only the two top-edge cases (`overlappingMenuBar`/`belowMenuBar`) and no left/right-edge or orientation concept exists (verified against main 7a025b78).
+
 Source issues:
 - nehir (local tracker): <https://github.com/apphane-dev/nehir/issues/93>
 - upstream origin: <https://github.com/BarutSRB/OmniWM/issues/255>

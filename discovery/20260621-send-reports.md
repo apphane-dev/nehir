@@ -1,5 +1,7 @@
 # Send reports
 
+Groom 2026-07-07: in flight — see `planned/20260621-send-reports.md` (verified against main 7a025b78).
+
 **Status:** discovery — pursue (small, network-free first slice); defer any
 first-party upload endpoint to its own plan
 **Source:** `planned/20260621-backlog-brainstorm.md`, Integrations / packaging /

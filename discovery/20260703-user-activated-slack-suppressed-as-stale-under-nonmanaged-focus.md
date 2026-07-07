@@ -1,5 +1,7 @@
 # Discovery: unmanaged-focused window can never be admitted — non-managed focus suppresses its own admission
 
+Groom 2026-07-07: resolved — the user-activation admission trap was fixed by the non-managed-focus exemption (`151f4e3a`, "Exempt user-activated apps from the unrequested-admission guard"); see `completed/20260703-fix-unrequested-admission-guard-user-activation-exemption.md` and the companion anatomy `discovery/20260703-unrequested-admission-guard-anatomy-and-hazards.md` (remaining guard fragility is tracked there).
+
 Status: resolved — runtime evidence and source mechanism both fully confirmed
 across five captures; the admission pipeline is working exactly as coded. The
 fix has one design decision (which user-intent signal should exempt the
@@ -323,7 +325,7 @@ was admitted normally (`window_admitted … context=focused_admission`, no
 rescan gap is real and that ingredient 2 — non-managed focus at reveal time —
 is the sole discriminator between "tiles fine" and "trapped forever".
 
-Non-cause, ruled out: persisted state under `~/.local/state/nehir/`.
+Non-cause, ruled out: persisted state under Nehir's runtime-state directory.
 `runtime-state.json` holds only the window-restore catalog (per-bundle niri
 placement intents for restore); the suppression predicate never reads it, and
 in the captures it was healthy (it contains the relaunched Slack window that

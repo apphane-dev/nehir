@@ -1,5 +1,7 @@
 # @choru custom Zones anchor model — Discovery
 
+Groom 2026-07-07: still applicable — external-fork (`choru-k/nehir`) evaluation; the Zones/app-group-anchor concept has not been ported to main (no `ZoneEngine`, `ZonesConfig`, `focus-zone`, or `move-window-to-zone` exists) (verified against main 7a025b78).
+
 Source branch: the `choru-k/nehir` fork on branch `choru` at `b47f7399842211ca71151563778e679a1c4f16c9`.
 Comparison baseline: upstream `guria/nehir` `main` at `7b731a517119e7ad20c4d3953b4e5bc872717f94`.
 Primary feature doc: `custom/zones.md` in the `choru` branch.

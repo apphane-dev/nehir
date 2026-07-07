@@ -1,5 +1,7 @@
 # Discovery: Multiple scratchpad window assignments
 
+Groom 2026-07-07: in flight — see `planned/20260621-multiple-scratchpad-assignments.md` (verified against main 7a025b78).
+
 - **Idea (backlog #7):** Allow more than one window to be assigned to the
   scratchpad at the same time.
 - **Source of idea:** `planned/20260621-backlog-brainstorm.md` (item #7,

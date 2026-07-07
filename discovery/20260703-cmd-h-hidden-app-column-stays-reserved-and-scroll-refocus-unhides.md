@@ -1,5 +1,7 @@
 # Discovery: Cmd-H hidden app keeps its column reserved, and scroll snap refocuses (unhides) it
 
+Groom 2026-07-07: still applicable — Cmd-H still leaves the managed app's column reserved in the niri strip and a scroll-snap landing on it still focuses (and macOS-unhides) the hidden window; no `completed/`/`planned/` match and no fix landed (`07ce4168` reconciles stale *hidden-window live frames*, not Cmd-H column release) (verified against main 7a025b78).
+
 Status: discovery — runtime evidence and source mechanism both fully
 confirmed; behavior follows directly from the code. Found while reproducing
 the admission-suppression trap in

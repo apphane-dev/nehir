@@ -1,5 +1,7 @@
 # Upstream post-roadmap candidates — 0.5.2 / 0.5.2.1 sweep (2026-06-25 → 2026-06-29)
 
+Groom 2026-07-07: still applicable — triage sweep; the Focus Lock candidate (`79067d45`) has since shipped (`dc1f5fac`, "Add Manual Override focus lock from OmniWM"; see `completed/20260705-omniwm-425-overload-override-modifier-focus-lock.md`), but the remaining 🔴 candidates (column-width re-tile `3e26655c`, tabbed-column Space-left liveness reap `c836fbb0`, offscreen-tab hide `e82cd168`, `.layoutTransient` min-size floor `8a8ecbd8`) are still open (verified against main 7a025b78).
+
 Third post-roadmap triage of `BarutSRB/OmniWM` against Nehir `main`. It continues
 the running backport-tracking loop established by the canonical roadmap
 ([`20260618-upstream-port-roadmap.md`](20260618-upstream-port-roadmap.md)) and the

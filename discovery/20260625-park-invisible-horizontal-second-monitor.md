@@ -1,5 +1,7 @@
 # Parked-window invisibility on a horizontally-arranged 2nd monitor — Discovery
 
+Groom 2026-07-07: still applicable — the horizontal side-by-side arrangement case remains open; the shipped Dock Shield (`completed/20260704-dock-edge-shield-and-parking-lessons.md`) masks only the side fixed-Dock band, and the maintainer deferred the horizontal-arrangement fix (verified against main 7a025b78).
+
 > **STATUS UPDATE (2026-07-05): still open.** The Dock Shield work that shipped
 > (`docs/offscreen-clamp-fix.md` RESOLUTION; completed
 > `dock-edge-shield-and-parking-lessons.md`) addresses only the **side fixed-Dock** case by

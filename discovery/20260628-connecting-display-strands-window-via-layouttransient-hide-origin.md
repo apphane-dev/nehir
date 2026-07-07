@@ -1,5 +1,7 @@
 # Discovery: connecting a display strands a workspace-1 window on it
 
+Groom 2026-07-07: still applicable — the `.layoutTransient` hide-origin park formula still targets from the owning monitor's frame only, so a park onto the shared edge lands on a newly-connected display; this is the display-connect trigger of the transient-park-onto-neighbour defect also covered (still open, maintainer-deferred) by `discovery/20260625-park-invisible-horizontal-second-monitor.md` (verified against main 7a025b78).
+
 Status: root cause found and source-confirmed. The capture exposes a real
 user-visible bug — an external app window renders on a newly-connected display
 while still assigned to its original workspace — plus, separately, a trace-fidelity

@@ -1,5 +1,7 @@
 # Fix target window for commands like toggle floating / scratchpad, etc.
 
+Groom 2026-07-07: in flight — see `planned/20260621-fix-target-window-toggle-floating-scratchpad.md` (verified against main 7a025b78).
+
 Source: handwritten backlog list captured 2026-06-21, idea **#8** — *"Fix target
 window for commands like toggle floating / scratchpad, etc."* Triage doc for
 that idea. See `planned/20260621-backlog-brainstorm.md` for the full raw list.

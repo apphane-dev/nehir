@@ -1,5 +1,7 @@
 # Discovery: anatomy of the unrequested-admission guard — intent, inputs, exemption ladder, and underwater stones
 
+Groom 2026-07-07: resolved (reference) — this is the reference anatomy of the guard after its user-activation exemption shipped (`151f4e3a`); see `completed/20260703-fix-unrequested-admission-guard-user-activation-exemption.md`. The documented fragile spots (multi-state-machine invariant drift) remain as standing monitoring notes, not open fixes.
+
 Status: reference document, not a bug report. Written after the
 `fix/nonmanaged-admission-exemption` work landed on main as `151f4e3a`
 ("Exempt user-activated apps from the unrequested-admission guard"); all

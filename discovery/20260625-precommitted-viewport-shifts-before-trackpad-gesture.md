@@ -1,5 +1,7 @@
 # Discovery: viewport shifts before committed trackpad gesture
 
+Groom 2026-07-07: in flight — the pre-commit viewport-shift finding is pursued under `planned/20260625-unrecorded-viewport-offset-mutation-attribution.md`; relayout/spring-retarget viewport-mutation tracing has since landed (`4aa2c9b2`, `90a752ce`, `18a3174e`) to help attribute the mutation site (verified against main 7a025b78).
+
 Status: discovery only — the trace proves two pre-commit viewport discontinuities, and the main source tree proves those shifts were already in viewport state before the gesture handler applied user scroll delta. The captured evidence is not enough to identify the mutation site, so this is not yet a fix plan.
 
 Validated against `main` on 2026-06-25 at commit `8887adcb`.

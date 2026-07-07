@@ -1,5 +1,7 @@
 # Right-click actions in the action bar
 
+Groom 2026-07-07: resolved — landed on main `d0cf6368` ("Implement right-click context menus on the workspace bar"); see `completed/20260621-right-click-actions-action-bar.md`. (Left in `discovery/` — referenced by sibling discovery docs and the `completed/` companion already occupies the name.)
+
 Source: handwritten backlog list captured 2026-06-21, idea **#18** — *"Right-click
 actions in the action bar."* Triage doc for that idea. See
 `planned/20260621-backlog-brainstorm.md` for the full raw list.

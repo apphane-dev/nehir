@@ -1,5 +1,7 @@
 # Pre-existing test failure: RefreshRoutingTests native-fullscreen space-change niri order
 
+Groom 2026-07-07: still applicable — the failing test `RefreshRoutingTests.nativeFullscreenSpaceChangeRetainsMultiColumnNiriOrderWithSameWindowId` is still present in `Tests/NehirTests/RefreshRoutingTests.swift` and no fix or quarantine has landed, so `mise run check` remains red on this test; re-run against current main to confirm and either fix or quarantine (verified against main 7a025b78).
+
 Status: discovery (unresolved, needs investigation). Observed against `main` on
 2026-07-06 (`nehir v0.6.0`).
 

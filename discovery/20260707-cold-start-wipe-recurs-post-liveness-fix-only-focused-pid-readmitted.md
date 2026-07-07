@@ -1,5 +1,7 @@
 # Cold-Start Wipe Recurs After the Liveness Fix — CGS Space Events, Not AX Destroys; Only the Focused Pid Is Re-Admitted
 
+Groom 2026-07-07: still applicable — open recurrence; the cold-start wipe still occurs via the CGS event path (`handleCGSWindowDestroyed` / `spaceWindowDestroyed`), which passes `verifyWindowServerLiveness: false` and so bypasses the `7a025b78` liveness gate that closed the AX-destroy path (see `completed/20260707-cold-start-spurious-ax-destroy-wipes-managed-windows.md`); no `completed/`/`planned/` doc yet (verified against main 7a025b78).
+
 Follow-up (2026-07-07, later the same day the fix landed) to
 `completed/20260707-cold-start-spurious-ax-destroy-wipes-managed-windows.md`.
 A fresh 21-second cold-start runtime capture was taken on a build of `main`

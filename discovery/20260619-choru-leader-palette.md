@@ -1,5 +1,7 @@
 # choru custom Leader palette — discovery
 
+Groom 2026-07-07: still applicable — external-fork (`choru-k/nehir`) evaluation; the Leader palette concept has not been ported to main (no `.leader` palette mode, `LeaderConfig`, or `openLeader` command exists) (verified against main 7a025b78).
+
 Source branch: the `choru-k/nehir` fork on branch `choru` at `b47f7399`, compared against upstream `guria/nehir` `main` at `7b731a51`.
 
 Starting point: `custom/leader.md` in the `choru` branch.

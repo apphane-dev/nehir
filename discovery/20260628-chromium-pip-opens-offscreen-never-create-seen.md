@@ -1,5 +1,7 @@
 # Chromium-embedded PiP opens offscreen and is never seen created — Discovery
 
+Groom 2026-07-07: still applicable — open, unreproduced investigation; the shipped PiP defaults (`9ef0ae82`) and `#108` visibility (`ade7cd07`) do not address this surface's missed `create_seen`/offscreen-open path. The reporter could not reproduce after the initial captures (verified against main 7a025b78).
+
 Discovery (2026-06-28). When the user opens the Picture-in-Picture overlay in
 **Vivaldi** (`com.vivaldi.Vivaldi`, a Chromium browser), the PiP surface opens
 **offscreen, above the menu bar**, and Nehir **never receives a window-created

@@ -1,5 +1,7 @@
 # Better visual feedback on record traces
 
+Groom 2026-07-07: superseded — the in-workspace-bar trace-feedback plan was discontinued; trace recording moved out of the workspace bar into the separate DebugBar (see `completed/20260624-recent-trace-clip-buffer.md` and `completed/20260621-better-record-trace-visual-feedback-superseded.md`).
+
 **Status:** discovery — pursue (small, well-scoped slice; defer larger pieces)
 **Source:** `planned/20260621-backlog-brainstorm.md`, UI/UX items **#1** and
 **#1-related** ("Better visual feedback on record traces").

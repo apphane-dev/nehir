@@ -1,5 +1,7 @@
 # Discovery: cross-display Summon Right reveals the moved window at a different monitor size
 
+Groom 2026-07-07: still applicable — the cross-display size-reconciliation "dance" during Summon Right reveal remains open; distinct from the in-flight admission/drop work in `planned/20260706-summon-right-empty-active-workspace.md` (`9cbc7db5` shipped the active-workspace target, not the size reconciliation) (verified against main 7a025b78).
+
 Status: root cause found and source-confirmed. This is a follow-up to the
 Summon Right active-workspace work, not a replacement for
 `planned/20260706-summon-right-empty-active-workspace.md`. The earlier plan fixes

@@ -1,5 +1,7 @@
 # Assign a hotkey for an action from the command palette
 
+Groom 2026-07-07: in flight — see `planned/20260621-assign-hotkey-from-command-palette.md`; no in-palette recording entry point (`recordingCommandId`) has landed on main (verified against main 7a025b78).
+
 Source: handwritten backlog list captured 2026-06-21, idea **#9** — *"Assign
 hotkey for an action from the command palette."* Triage doc for that idea. See
 `planned/20260621-backlog-brainstorm.md` for the full raw list.

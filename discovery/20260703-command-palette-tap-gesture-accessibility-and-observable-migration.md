@@ -1,5 +1,7 @@
 # Discovery: command palette — tap-gesture activation vs VoiceOver, and `ObservableObject` → `@Observable`
 
+Groom 2026-07-07: still applicable — Finding 4 of the SwiftUI audit, split out because both sub-findings (`.onTapGesture` vs `Button` for VoiceOver; `ObservableObject` → `@Observable` migration) carry a product/risk decision rather than a mechanical fix; no `planned/` doc, gated on revisiting command-palette work (verified against main 7a025b78).
+
 Status: discovery — static audit, no runtime capture. Splits Finding 4 of
 `discovery/20260703-swiftui-conformance-audit-foreach-identity-and-deprecated-apis.md`
 into its own document because both sub-findings carry a design/risk decision

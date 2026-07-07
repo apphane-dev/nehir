@@ -1,5 +1,7 @@
 # Traceability gaps and post-extraction maintainability — Discovery
 
+Groom 2026-07-07: still applicable — audit; the `RuntimeDiagnosticsCoordinator` extraction (`d1505910`) partially addressed the maintainability axis, but the highest-leverage traceability recommendations remain open (always-on background trace buffer gated behind dev-mode/active-capture, silent guards not emitting a decline reason, free-form `key=value` trace events with no typed schema) and the `AXEventHandler` extraction is flagged overdue (verified against main 7a025b78).
+
 Codebase weak-point audit focused on two axes: (1) **traceability** — why hard
 bugs keep requiring an armed re-repro instead of being diagnosable from the
 first occurrence, and (2) **maintainability** — what changed in the five days

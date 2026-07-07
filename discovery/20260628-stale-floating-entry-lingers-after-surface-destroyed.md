@@ -1,5 +1,7 @@
 # Stale floating entry lingers in the bar after its AX surface is destroyed — Discovery
 
+Groom 2026-07-07: still applicable — the rescan-time reap of a dead-handle floating entry (phantom pill after surface close) is not confirmed landed; the related liveness work (`7a025b78` / `completed/20260707-verify-liveness-before-honoring-ax-destroy.md`) targets the inverse cold-start spurious-destroy case, and `07ce4168` reconciles stale *hidden-window* frames rather than dead-handle floating entries. Re-verify against current source before acting.
+
 Discovery (2026-06-28). After closing Vivaldi's Picture-in-Picture overlay
 (video returned to in-page playback in the browser), Nehir's **managed entry for
 the PiP persisted as a phantom**: the workspace bar kept showing a floating

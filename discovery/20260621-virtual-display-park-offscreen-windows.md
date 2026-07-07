@@ -1,5 +1,7 @@
 # Virtual display to park offscreen windows without bleed — Discovery
 
+Groom 2026-07-07: partially resolved / still open — the side fixed-Dock case shipped via the Dock Shield (see `completed/20260704-dock-edge-shield-and-parking-lessons.md`); the virtual-display true-hide integration remains in progress (single-display H1 spike confirmed, full attempt underway). No `planned/` doc yet (verified against main 7a025b78).
+
 > **STATUS UPDATE (2026-07-05): partially superseded, still open for true-hide.** The
 > side fixed-Dock case shipped a different way — a **Dock Shield** that *masks* the parked
 > band behind the Dock plus a 1pt-inside-`visibleFrame` park (see

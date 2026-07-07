@@ -1,5 +1,7 @@
 # Tiny transient auxiliary surfaces get "rescued" to floating and leak into the workspace bar — Discovery
 
+Groom 2026-07-07: resolved — app-managed transient/parented floating surfaces are now hidden from the workspace bar (`54d5dd7e`, "Hide app-managed transient and parented floating surfaces from the workspace bar", via the `layoutReason == .standard` bar filter); see also `completed/20260624-user-addressable-floating-surfaces.md`. (Left in `discovery/` — referenced by sibling completed docs.)
+
 Discovery (2026-06-22). When an app (here: Helium, `net.imput.helium`, pid `57195`)
 creates small auxiliary surfaces — a transient 43 px-tall status strip at the
 top edge, or a small 220×275 PiP/panel — Nehir **admits them as managed floating

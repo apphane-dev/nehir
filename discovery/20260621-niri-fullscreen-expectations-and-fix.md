@@ -1,5 +1,7 @@
 # Define expectations and fix niri fullscreen — Discovery
 
+Groom 2026-07-07: in flight (partially resolved) — native-fullscreen column drift was fixed (`56095965`); the broader expectations/tiling-fullscreen restore-on-focus semantics remain open; see `planned/20260621-niri-fullscreen-expectations-and-fix.md` and `planned/20260622-fullscreen-behaviour-roadmap.md` (verified against main 7a025b78).
+
 Source: backlog brainstorm idea **#20**, *"Define expectations and fix niri
 fullscreen"* (`planned/20260621-backlog-brainstorm.md`), which itself points at
 `discovery/20260617-nehir-69-fullscreen-restore-on-focus.md`. This doc is the

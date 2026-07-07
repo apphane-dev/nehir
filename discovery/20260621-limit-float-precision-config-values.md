@@ -1,5 +1,7 @@
 # Discovery — Limit float precision in config values
 
+Groom 2026-07-07: in flight — see `planned/20260621-limit-float-precision-config-values.md` (verified against main 7a025b78).
+
 Source: backlog item **#10** "Limit float precision in config values"
 (`planned/20260621-backlog-brainstorm.md`, "Config / rules / automation" section).
 

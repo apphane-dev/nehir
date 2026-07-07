@@ -1,5 +1,7 @@
 # Modifier + click on workspace number to move the active window/column — Discovery
 
+Groom 2026-07-07: resolved — landed on main `f4adb75f` ("Add shift+click, preview pills, and workspace bar settings improvements"); the column variant remains deferred; see `completed/20260621-workspace-number-modifier-click-move-window.md`. (Left in `discovery/` — referenced by sibling discovery docs and the `completed/` companion already occupies the name.)
+
 Source: backlog brainstorm item **#2**, captured in
 [`planned/20260621-backlog-brainstorm.md`](../planned/20260621-backlog-brainstorm.md)
 under *Workspaces / window management*:
