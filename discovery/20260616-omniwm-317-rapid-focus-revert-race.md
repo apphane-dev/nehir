@@ -1,5 +1,7 @@
 # OmniWM issue #317 — "Rapid focus-next/prev snaps back to the wrong window" — Discovery
 
+Groom 2026-07-07: still applicable — shouldHonorObservedFocusOverPendingRequest remains the time-blind boolean (source.isAuthoritative && origin == .external); no createdAt/grace window or IntentLedger exists in nehir (verified against main 7a025b78).
+
 Source issue: https://github.com/BarutSRB/OmniWM/issues/317 — "When moving focus to
 next/prev quickly, focus randomly goes in opposite direction"
 Companion PR: https://github.com/BarutSRB/OmniWM/pull/379 — "Fix focus reverting on
@@ -7,7 +9,7 @@ rapid next/prev key presses (→#317)"
 Scope: determine whether the
 focus-revert race applies to nehir, and which fix is safe to port.
 
-All file/line references were verified against worktree `worktree-calm-meadow-6229`
+All file/line references were verified against the Nehir source tree
 at `98f2429` ("Add more issue discoveries"). **Re-verify before implementing; line
 numbers drift.** Verdict is by code inspection; nehir has no runtime trace for this
 bug. Upstream quotes were fetched live from the GitHub web/API, not inferred from

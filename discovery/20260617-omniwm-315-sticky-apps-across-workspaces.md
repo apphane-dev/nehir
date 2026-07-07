@@ -1,5 +1,7 @@
 # OmniWM issue #315 — "Sticky apps visible across all workspaces" — Discovery
 
+Groom 2026-07-07: resolved — a sticky AppRule effect landed (AppRule + AppRuleFileStore codec + bar visibility; isStickyWindow/isGlobalStickyWindow across the runtime) (verified against main 7a025b78).
+
 Source issue: https://github.com/BarutSRB/OmniWM/issues/315
 Related discussion: https://github.com/BarutSRB/OmniWM/discussions/11 ("Sticky Windows —
 size+pos across workspaces, no SIP")
@@ -7,7 +9,7 @@ Scope of this doc: determine whether/how nehir should add "sticky/pinned" apps t
 stay visible across workspace switches, and propose an idiomatic design consistent
 with nehir's existing app-rule/settings schema.
 
-All file/line references were verified against worktree `worktree-calm-meadow-6229`
+All file/line references were verified against the Nehir source tree
 at `904df02` ("Add bunch of discoveries mapped to issues from OmniWM").
 **Re-verify before implementing; line numbers drift.** Verdict is by code inspection
 (no runtime trace). Upstream issue and discussion #11 were fetched live.

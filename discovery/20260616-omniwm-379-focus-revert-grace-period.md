@@ -1,5 +1,7 @@
 # OmniWM PR #379 — "Fix focus reverting on rapid next/prev (→#317)" — Discovery
 
+Groom 2026-07-07: still applicable — companion evaluation of upstream PR #379 (closed-unmerged); the underlying #317 race remains open in nehir, so this concept-port is still relevant (verified against main 7a025b78).
+
 Source PR: https://github.com/BarutSRB/OmniWM/pull/379 — "Fix focus direction race on
 rapid next/prev key presses", targets issue #317.
 Companion issue doc: `discovery/20260616-omniwm-317-rapid-focus-revert-race.md`
@@ -8,7 +10,7 @@ Scope of this doc: evaluate **this PR specifically** — characterize the 300 ms
 grace-period mechanism (what it guards, where in the focus-commit path), confirm it is
 absent in nehir, assess portability, and record a verdict.
 
-All file/line references were verified against worktree `worktree-calm-meadow-6229` at
+All file/line references were verified against the Nehir source tree at
 `7f61cb3` ("docs: update four-finger gesture discovery with non-repro trace"). **Re-verify
 before implementing; line numbers drift** (the #317 doc was anchored at `98f2429`, where
 the guard was at `:3553` and the five conflict sites were `:1411`/`:1490`/`:1558`/`:1651`/

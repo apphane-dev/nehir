@@ -1,5 +1,7 @@
 # M3 — Focus-request origin for FFM cursor-warp policy — Discovery
 
+Groom 2026-07-07: resolved — landed as M3 (51f86e84; see completed/20260619-m3-ffm-cursor-warp-suppression.md).
+
 Source upstream commit: [`fce3a2c`](https://github.com/BarutSRB/OmniWM/commit/fce3a2c) — "Fix cursor warp for focus follows mouse" (0.4.9.7 line; thanks @m-hauck for the idea in issue #147).
 Related: [`20260616-ffm-steals-focus-behind-overlay-on-stale-queued-mouse-moves.md`](20260616-ffm-steals-focus-behind-overlay-on-stale-queued-mouse-moves.md), [`20260616-omniwm-317-rapid-focus-revert-race.md`](20260616-omniwm-317-rapid-focus-revert-race.md).
 

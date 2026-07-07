@@ -1,5 +1,7 @@
 # Workspace bar selected app/window icon can go stale on focus changes — Discovery
 
+Groom 2026-07-07: resolved — .focusProjection now also schedules the workspace-bar projection refresh (WMController.swift requestWorkspaceProjectionRefreshScheduling at the .focusProjection case); landed on main.
+
 Symptom: the workspace bar sometimes does not update the selected window/app icon
 highlight after focus changes. The reporter observed this with
 focus-follows-mouse activation and with direct click activation.

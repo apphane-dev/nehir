@@ -1,12 +1,14 @@
 # OmniWM PR #323 — "Restore floating panel classification + bar filter" — Discovery
 
+Groom 2026-07-07: resolved — the workspace-bar layoutReason==.standard filter landed (WorkspaceManager.barVisibleFloatingEntries rejects non-standard layout reasons; d54d5dd7); the titled AXDialog/AXPanel admission part remains unverified (verified against main 7a025b78).
+
 Source PR: https://github.com/BarutSRB/OmniWM/pull/323
 Merge state: **closed without merge** upstream — evaluate the concept, not a
 verbatim patch.
 Scope of this doc: determine whether the proposed PR fix applies to nehir,
 and whether the suggested fix is safe to port.
 
-All file/line references were verified against worktree `worktree-calm-meadow-6229` at
+All file/line references were verified against the Nehir source tree at
 `7f61cb3` ("docs: update four-finger gesture discovery with non-repro trace"). Line
 numbers drift — re-verify before implementing.
 

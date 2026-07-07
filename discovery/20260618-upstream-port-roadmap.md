@@ -1,5 +1,7 @@
 # Upstream 0.4.9.7–0.4.9.9 Port Roadmap — canonical index
 
+Groom 2026-07-07: living index — all rows landed except A2–A5 (deferred); post-cutoff upstream triage lives in the 20260625/20260629 post-roadmap docs (verified against main 7a025b78).
+
 Source upstream range: `BarutSRB/OmniWM` after `ee9b4f0707668d43f73e4af8c9a4f3581b8c11ce` through current upstream `main` observed on 2026-06-18.
 
 > **Post-roadmap update (2026-06-25).** The Status column below was corrected for

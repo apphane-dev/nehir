@@ -1,12 +1,13 @@
 # OmniWM issue #283 — "Per-app initial column width rules" — Discovery
 
+Groom 2026-07-07: in flight — a plan exists (planned/20260621-omniwm-283-per-app-initial-column-width.md); no per-app initial column-width effect yet (verified against main 7a025b78).
+
 Source issue: https://github.com/BarutSRB/OmniWM/issues/283
 Scope of this doc: determine whether nehir can/should support per-app
 **initial** column-width rules (e.g. Kitty opens at 50%, Safari at 100%),
 distinct from per-app minimum size, and where such a feature would attach.
 
-All file/line references were verified against worktree
-`worktree-calm-meadow-6229` at `904df02` ("Add bunch of discoveries mapped to
+All file/line references were verified against the Nehir source tree at `904df02` ("Add bunch of discoveries mapped to
 issues from OmniWM"). Line numbers drift — re-verify before implementing.
 
 ---

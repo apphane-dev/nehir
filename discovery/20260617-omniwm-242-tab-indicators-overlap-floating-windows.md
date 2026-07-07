@@ -1,11 +1,13 @@
 # OmniWM issue #242 — "Tab indicators overlap floating windows" — Discovery
 
+Groom 2026-07-07: still applicable — partial; TabbedColumnOverlayManager.shouldShowOverlay still checks viewport intersection only (no floating-occlusion filter in tabbedColumnOverlayInfos) (verified against main 7a025b78).
+
 Source issue: <https://github.com/BarutSRB/OmniWM/issues/242>
 Scope of this doc: determine whether the symptom reproduces in nehir — the
 tabbed-column indicator rail drawing on top of a floating window that occupies
 the same screen region — and whether any fix is needed.
 
-All file/line references were verified against worktree `worktree-calm-meadow-6229`
+All file/line references were verified against the Nehir source tree
 at `904df02` ("Add bunch of discoveries mapped to issues from OmniWM"). Re-verify
 before implementing; line numbers drift.
 

@@ -1,5 +1,7 @@
 # OmniWM issue #410 — "Settings save drops unknown TOML keys (round-trip data loss)" — Discovery
 
+Groom 2026-07-07: resolved — unknown settings keys are now preserved and surfaced instead of stripped (b7cfb91e; see completed/20260621-omniwm-410-settings-toml-unknown-keys-roundtrip-loss.md).
+
 Source issue: <https://github.com/BarutSRB/OmniWM/issues/410>
 Reporter tested upstream commit `fce3a2c5` ("Fix cursor warp for focus follows mouse").
 Scope of this doc: determine whether nehir's settings persistence round-trips
@@ -8,8 +10,7 @@ exact code paths. This is treated as the **root issue** of the round-trip /
 config-recovery cluster that also includes closed #322 and closed-without-merge
 PR #169 / #346.
 
-Every symbol/line reference below was independently verified against
-`worktree-calm-meadow-6229` at `98f2429` ("Add more issue discoveries") on
+Every symbol/line reference below was independently verified against the Nehir source tree at `98f2429` ("Add more issue discoveries") on
 2026-06-16. Re-verify before implementing; line numbers drift.
 
 ---

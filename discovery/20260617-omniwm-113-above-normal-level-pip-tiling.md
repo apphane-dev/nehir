@@ -1,12 +1,14 @@
 # OmniWM PR #113 — "fix: skip above-normal-level windows from tiling (e.g. PiP)" — Discovery
 
+Groom 2026-07-07: substantially resolved — PiP is now detected by window-server level (app-agnostic, level > 0 and < 20) and given sticky defaults (9ef0ae82, ade7cd07; see completed/20260626-pip-common-defaults-no-special-mode.md); re-verify the exact floating-classifier framing against current PiP handling (verified against main 7a025b78).
+
 Source PR: https://github.com/BarutSRB/OmniWM/pull/113
 Merge state: **closed without merge** (`merged: false`, `merged_at: null`) —
 evaluate the concept, not a verbatim patch.
 Scope of this doc: determine whether Picture-in-Picture / above-normal-level
 windows get tiled in nehir, and whether the PR's level-based fix is safe to port.
 
-All file/line references were verified against worktree `worktree-calm-meadow-6229`
+All file/line references were verified against the Nehir source tree
 at `904df02` ("Add bunch of discoveries mapped to issues from OmniWM"). Line numbers
 drift — re-verify before implementing.
 

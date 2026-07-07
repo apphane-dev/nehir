@@ -1,5 +1,7 @@
 # NiriConstraintSolver Axis-Solve Loop — Discovery
 
+Groom 2026-07-07: still applicable — analysis; verdict is the loop is O(n^2) (not O(n^3)) and the upstream Set-based fix should NOT be ported; no benchmark has landed (verified against main 7a025b78).
+
 Reported issue: **[BarutSRB/OmniWM#393](https://github.com/BarutSRB/OmniWM/issues/393)** — claims
 `NiriConstraintSolver.swift` lines 93–120 contain an **O(n³)** worst-case constraint-solving
 loop driven by an O(n) `removeAll { $0 == pinnedIndex }` inside an O(n)-iteration `while`

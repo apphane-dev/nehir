@@ -1,10 +1,12 @@
 # OmniWM issue #226 — "Hotkeys overridden by Chrome extension shortcuts" — Discovery
 
+Groom 2026-07-07: in flight — a plan exists (planned/20260621-omniwm-226-chrome-extension-hotkey-priority.md); still uses Carbon RegisterEventHotKey with no priority event-tap backend (verified against main 7a025b78).
+
 Source issue: <https://github.com/BarutSRB/OmniWM/issues/226>
 Scope of this doc: determine whether the issue applies to nehir,
 and whether the suggested fix is safe to port.
 
-All file/line references were verified against `worktree-calm-meadow-6229`
+All file/line references were verified against the Nehir source tree
 at `7f61cb3` ("docs: update four-finger gesture discovery with non-repro
 trace"). Re-verify before implementing; line numbers drift.
 

@@ -1,11 +1,13 @@
 # OmniWM issue #326 — "Allow Niri layout column to be more than 100%" — Discovery
 
+Groom 2026-07-07: in flight — a plan exists (planned/20260621-omniwm-326-niri-column-over-100-percent-width.md); column width is still hard-capped at 100% (verified against main 7a025b78).
+
 Source issue: <https://github.com/BarutSRB/OmniWM/issues/326>
 Scope of this doc: determine whether nehir already allows a Niri column to be
 wider than 100% of the working area (overflow, revealed by horizontal scroll),
 and if not, scope the action nehir would own to implement it.
 
-All file/line references were verified against worktree `worktree-calm-meadow-6229`
+All file/line references were verified against the Nehir source tree
 at `904df02` ("Add bunch of discoveries mapped to issues from OmniWM"). Re-verify
 before implementing; line numbers drift.
 

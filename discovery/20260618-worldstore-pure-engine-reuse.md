@@ -1,5 +1,7 @@
 # WorldStore cluster reconsideration — Pure engine reuse for real runtime and onboarding
 
+Groom 2026-07-07: partially in flight — A1 landed (b1844dd8); A2–A5 (effect-plan boundary, revision stamps, focus ledger, Space runtime mode) remain deferred (see 20260618-upstream-port-roadmap.md).
+
 Discovery date: 2026-06-18.
 
 Scope: explain why upstream's WorldStore/EventIntake/IntentLedger/SufaceReconciler cluster should not be ported wholesale, while preserving the useful architectural direction for nehir. This doc frames a nehir-shaped major architecture track centered on a pure model/reducer/effect-plan core reusable by real windows and fake onboarding/demo windows.

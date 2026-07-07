@@ -1,5 +1,7 @@
 # Move-Mouse-to-Focused Warps Cursor Across Monitors on Quick-Terminal Close — Discovery
 
+Groom 2026-07-07: resolved — the center-warp is now suppressed while a windowCloseFocusRecovery context is active (AXEventHandler.swift warp gate checks activeWindowCloseFocusRecoveryWorkspaceId() == nil) (verified against main 7a025b78).
+
 Reported issue: **closing the Ghostty "quick terminal" makes the cursor jump to
 the 2nd monitor, where another Ghostty window lives.** The user correctly
 identifies the `moveMouseToFocusedWindow` ("Move Mouse to Focused") feature as

@@ -1,11 +1,12 @@
 # OmniWM issue #394 — "redundant `allEntries()` call in full rescan" — Discovery
 
+Groom 2026-07-07: still applicable — analysis; verdict is the two allEntries() calls straddle removeMissing() and the upstream reuse-the-snapshot fix would regress per-entry teardown; do NOT port (verified against main 7a025b78).
+
 Source issue: <https://github.com/BarutSRB/OmniWM/issues/394>
 Scope of this doc: determine whether the issue applies to nehir, and whether
 the suggested fix is safe to port.
 
-All file/line references were verified against
-`worktree-calm-meadow-6229` at `92ab0c8` ("Fix status bar Show Workspace
+All file/line references were verified against the Nehir source tree at `92ab0c8` ("Fix status bar Show Workspace
 toggle"). Re-verify before implementing; line numbers drift.
 
 ---

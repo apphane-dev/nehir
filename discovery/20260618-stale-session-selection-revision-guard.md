@@ -1,5 +1,7 @@
 # M6 — Cross-workspace stale focus/session revision guard — Discovery
 
+Groom 2026-07-07: resolved — landed as M6 (42ac731f, "Prevent stale async session patches from overwriting newer selection").
+
 Source upstream concept: `713280e` ("Clear stale pending managed focus on cross-workspace reassignment") + the WorldStore selection-sequence-mark idea.
 Authoritative bug source: [`20260615-omniwm-390-workspace-restore-and-stale-selection.md`](20260615-omniwm-390-workspace-restore-and-stale-selection.md) (Bug 2 = stale session patch overwrites newer selection).
 Related: [`20260616-omniwm-317-rapid-focus-revert-race.md`](20260616-omniwm-317-rapid-focus-revert-race.md), [`20260616-omniwm-240-focus-previous-cross-workspace.md`](20260616-omniwm-240-focus-previous-cross-workspace.md).

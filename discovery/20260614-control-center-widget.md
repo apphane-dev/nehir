@@ -1,5 +1,7 @@
 # Control Center Widget Support — Discovery
 
+Groom 2026-07-07: still applicable — feasibility study; not yet pursued (pure-SPM packaging model unchanged) (verified against main 7a025b78).
+
 Discovery (2026-06-14) into whether Nehir can ship a custom **Control Center
 widget**. Short answer: **not today, and not from the current build pipeline.**
 It is feasible to add, but it is a build-system + integration project, not a

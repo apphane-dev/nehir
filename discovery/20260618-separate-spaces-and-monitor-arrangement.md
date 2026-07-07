@@ -1,5 +1,7 @@
 # Displays-have-separate-Spaces vs vertical monitor arrangement — Discovery
 
+Groom 2026-07-07: resolved — its Stage 1 (mode detection, 4e54d4a1) and Stage 2 (Space-topology eviction exemption, 4ae5fc96) recommendations both landed; see completed/20260619-m4s1-* and completed/20260619-m4s2-*.
+
 Discovery date: 2026-06-18.
 
 Scope: clarify whether upstream's "Displays have separate Spaces" work addresses the same real-world artifact as nehir's vertical-monitor-arrangement recommendation, and what nehir should do by macOS Space mode.

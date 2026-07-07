@@ -1,5 +1,7 @@
 # AX Frame-Write Verification Readback Race — Discovery
 
+Groom 2026-07-07: still applicable — monitor-class finding; the refused-frame learner was characterized (m1/3bee984e) and frame-write suppression landed (P4/0162aab4), but the core readback-race options remain open (verified against main 7a025b78).
+
 Deep discovery (2026-06-14) into finding #10 of `20260613-codebase-review-findings.md` ("AX frame write verification can race"). The finding's wording ("can race the window server's async update") is close but imprecise about *what* races what; this doc pins the mechanism, traces how a racy readback propagates through the dedup/learn caches (the part the finding calls "real desync can persist silently"), audits the mitigations, and lays out implementation options with evidence. File:line references were current as of the discovery date and will drift — re-verify before implementing.
 
 This is a **"monitor, don't necessarily fix"** finding (per the review's Risk Hotspots header). The expected output is a characterized discovery with options, not a mandated implementation plan. Option selection is an explicit open question (§8).

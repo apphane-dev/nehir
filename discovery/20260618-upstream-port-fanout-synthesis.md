@@ -1,10 +1,15 @@
 # Upstream port fanout synthesis — historical log
 
+Groom 2026-07-07: superseded — historical fanout log; canonical priority/sequencing now lives in 20260618-upstream-port-roadmap.md; all P-track and M-track items have landed.
+
 > ⚠️ **SUPERSEDED for priority/sequencing.** The canonical tier/verdict/deliverability/dependency/status table and the sequencing DAG now live in [`20260618-upstream-port-roadmap.md`](20260618-upstream-port-roadmap.md). This doc is kept as the historical record of the 2026-06-18 read-only planner fanout: what the planners corrected, and the per-ID writer prompts they produced.
 
 Date: 2026-06-18.
 
-Inputs: read-only planner fanout outputs produced 2026-06-18 under a machine-local temp dir (`/tmp/nehir-upstream-port-fanout/`, since expired). Those outputs were distilled into the per-cluster discovery docs (P1–P4, M1, M3, M4-S1, M4-S2, M5, M6, A1) and the corrections below; they are no longer needed as inputs.
+Inputs: read-only planner fanout outputs produced 2026-06-18 under a machine-local
+temp dir (since expired). Those outputs were distilled into the per-cluster discovery
+docs (P1–P4, M1, M3, M4-S1, M4-S2, M5, M6, A1) and the corrections below; they are
+no longer needed as inputs.
 
 ## Executive summary (as of the fanout)
 
@@ -127,43 +132,43 @@ Do not proceed to A2 until A1 agreement tests are green and onboarding visual be
 
 ## Ready-to-run worker prompts
 
-> Note: the `/tmp/nehir-upstream-port-fanout/*.md` handoffs these prompts reference are expired. The per-cluster discovery docs (linked from [`20260618-upstream-port-roadmap.md`](20260618-upstream-port-roadmap.md)) are now the canonical handoffs — use the roadmap's "Handing off to a worker" template against those instead. The prompt bodies below are kept for the scope wording.
+> Note: the expired per-cluster handoff files these prompts reference are no longer available. The per-cluster discovery docs (linked from [`20260618-upstream-port-roadmap.md`](20260618-upstream-port-roadmap.md)) are now the canonical handoffs — use the roadmap's "Handing off to a worker" template against those instead. The prompt bodies below are kept for the scope wording.
 
 ### Worker prompt — P3
 
-Use output: `/tmp/nehir-upstream-port-fanout/P3-orientation-overrides.md`.
+Use output: `P3-orientation-overrides.md`.
 
-> Implement P3 orientation override preservation using `/tmp/nehir-upstream-port-fanout/P3-orientation-overrides.md` as the handoff. Scope only: update `NiriMonitor.updateOutputSize` to preserve existing orientation when `orientation` is nil; update IPC display orientation to report `settings.effectiveOrientation(for:)`; add `NiriMonitorTests`, IPC tests, and a patch changeset. Run the focused validation listed in the handoff. Do not broaden monitor orientation behavior beyond the plan.
+> Implement P3 orientation override preservation using `P3-orientation-overrides.md` as the handoff. Scope only: update `NiriMonitor.updateOutputSize` to preserve existing orientation when `orientation` is nil; update IPC display orientation to report `settings.effectiveOrientation(for:)`; add `NiriMonitorTests`, IPC tests, and a patch changeset. Run the focused validation listed in the handoff. Do not broaden monitor orientation behavior beyond the plan.
 
 ### Worker prompt — P4
 
-Use output: `/tmp/nehir-upstream-port-fanout/P4-frame-failure-suppression.md`.
+Use output: `P4-frame-failure-suppression.md`.
 
-> Implement P4 frame failure suppression using `/tmp/nehir-upstream-port-fanout/P4-frame-failure-suppression.md` as the handoff. Scope only: add the `recentFrameWriteFailures[windowId] != nil` branch to `AXManager.shouldSuppressFrameChangeRelayout`, and add the two focused `AXManagerTests` proving suppression after failure and bounded clearing after enqueue. Run `swift build`, `swift test --filter AXManagerTests`, and `swift test --filter AXEventHandlerTests` if feasible.
+> Implement P4 frame failure suppression using `P4-frame-failure-suppression.md` as the handoff. Scope only: add the `recentFrameWriteFailures[windowId] != nil` branch to `AXManager.shouldSuppressFrameChangeRelayout`, and add the two focused `AXManagerTests` proving suppression after failure and bounded clearing after enqueue. Run `swift build`, `swift test --filter AXManagerTests`, and `swift test --filter AXEventHandlerTests` if feasible.
 
 ### Worker prompt — P1/P2
 
-Use output: `/tmp/nehir-upstream-port-fanout/P1-P2-rescan-refresh.md`.
+Use output: `P1-P2-rescan-refresh.md`.
 
-> Implement P1/P2 using `/tmp/nehir-upstream-port-fanout/P1-P2-rescan-refresh.md` as the handoff. Scope P1: full-rescan `removeMissing` requires two consecutive misses and update the two controller tests that assume one-miss eviction. Scope P2: same-kind immediateRelayout/relayout refreshes merge without cancelling active work; add the cancellation-observability tests and keep escalation cancellation tests green. Run the targeted `RefreshRoutingTests`, `OptimizationCompletionTests`, and `WorkspaceManagerTests` listed in the handoff.
+> Implement P1/P2 using `P1-P2-rescan-refresh.md` as the handoff. Scope P1: full-rescan `removeMissing` requires two consecutive misses and update the two controller tests that assume one-miss eviction. Scope P2: same-kind immediateRelayout/relayout refreshes merge without cancelling active work; add the cancellation-observability tests and keep escalation cancellation tests green. Run the targeted `RefreshRoutingTests`, `OptimizationCompletionTests`, and `WorkspaceManagerTests` listed in the handoff.
 
 ### Worker prompt — M1/M2 tests + rejection memo
 
-Use output: `/tmp/nehir-upstream-port-fanout/M1-M2-frame-sizing.md`.
+Use output: `M1-M2-frame-sizing.md`.
 
-> After P4 is merged, implement the M1/M2 characterization from `/tmp/nehir-upstream-port-fanout/M1-M2-frame-sizing.md`. Do not port upstream `AXFrameApplicationLedger` or learned size quantum. Add tests for the existing resize-minimum learner and cell-quantization acceptance path; add or update a discovery/noop memo rejecting M2 with evidence. Defer the optional two-stable-observation hardening unless explicitly approved.
+> After P4 is merged, implement the M1/M2 characterization from `M1-M2-frame-sizing.md`. Do not port upstream `AXFrameApplicationLedger` or learned size quantum. Add tests for the existing resize-minimum learner and cell-quantization acceptance path; add or update a discovery/noop memo rejecting M2 with evidence. Defer the optional two-stable-observation hardening unless explicitly approved.
 
 ### Worker prompt — M4 Stage 1
 
-Use output: `/tmp/nehir-upstream-port-fanout/M4-spaces-diagnostics-topology.md`.
+Use output: `M4-spaces-diagnostics-topology.md`.
 
-> Implement only Stage 1 from `/tmp/nehir-upstream-port-fanout/M4-spaces-diagnostics-topology.md`: DisplaySpacesMode detection, mode-aware diagnostics, runtime dump, mouse-warp advisory copy, docs update, tests, and changeset. Do not implement SpaceTopology eviction hardening and do not add a startup requirement.
+> Implement only Stage 1 from `M4-spaces-diagnostics-topology.md`: DisplaySpacesMode detection, mode-aware diagnostics, runtime dump, mouse-warp advisory copy, docs update, tests, and changeset. Do not implement SpaceTopology eviction hardening and do not add a startup requirement.
 
 ### Worker prompt — A1 architecture spike
 
-Use output: `/tmp/nehir-upstream-port-fanout/A1-A5-pure-engine-worldstore.md`.
+Use output: `A1-A5-pure-engine-worldstore.md`.
 
-> Implement only A1 tasks 1-4 from `/tmp/nehir-upstream-port-fanout/A1-A5-pure-engine-worldstore.md`: add pure models, direction, reducer, and invariants under `Sources/Nehir/Core/PureLayout/`, plus pure reducer tests. Do not refactor onboarding yet unless explicitly approved. Keep pure files free of AppKit/AX/SkyLight/WindowToken/NiriNode/ViewportState references.
+> Implement only A1 tasks 1-4 from `A1-A5-pure-engine-worldstore.md`: add pure models, direction, reducer, and invariants under `Sources/Nehir/Core/PureLayout/`, plus pure reducer tests. Do not refactor onboarding yet unless explicitly approved. Keep pure files free of AppKit/AX/SkyLight/WindowToken/NiriNode/ViewportState references.
 
 ## Validation strategy by lane
 

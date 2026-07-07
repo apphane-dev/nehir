@@ -1,10 +1,12 @@
 # OmniWM issue #295 — "[Niri] Windows do not keep their current width when moved to another workspace on another screen" — Discovery
 
+Groom 2026-07-07: in flight — a plan exists (planned/20260621-omniwm-295-niri-window-width-preservation.md); individual-window cross-workspace move still resets target column width (verified against main 7a025b78).
+
 Source issue: <https://github.com/BarutSRB/OmniWM/issues/295>
 Scope of this doc: determine whether the issue applies to nehir, and identify
 the likely code path to fix.
 
-All file/line references were verified against `worktree-calm-meadow-6229` at
+All file/line references were verified against the Nehir source tree at
 `b7ac7e5` ("Add more issues dicoveries"). Re-verify before implementing; line
 numbers drift.
 

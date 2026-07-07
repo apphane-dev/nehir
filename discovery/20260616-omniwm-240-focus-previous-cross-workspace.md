@@ -1,11 +1,13 @@
 # OmniWM issue #240 — "Focus previous window command doesn't work across workspaces" — Discovery
 
+Groom 2026-07-07: resolved — Focus Previous now crosses workspaces and monitors (30faf8f3, "Focus Previous Window crosses workspaces and monitors").
+
 Source issue: https://github.com/BarutSRB/OmniWM/issues/240
 Scope of this doc: determine whether nehir's "Focus Previous Window" command
 reaches the last-focused window when it lives on a *different* workspace, or —
 like upstream OmniWM — silently falls back to a window in the current workspace.
 
-All file/line references were verified against worktree `worktree-calm-meadow-6229`
+All file/line references were verified against the Nehir source tree
 at `7f61cb3` ("docs: update four-finger gesture discovery with non-repro trace").
 **Re-verify before implementing; line numbers drift.** Verdict is by code
 inspection (no runtime trace). Upstream quotes were fetched live from the GitHub

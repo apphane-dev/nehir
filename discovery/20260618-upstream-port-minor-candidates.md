@@ -1,5 +1,7 @@
 # Upstream port candidates — Minor/runtime hardening
 
+Groom 2026-07-07: superseded — historical combined summary; the per-cluster M1–M6 discovery docs are canonical and all landed/decided (see 20260618-upstream-port-roadmap.md).
+
 > ⚠️ **SUPERSEDED.** This was the original combined minor summary. Each item now has a proper per-cluster discovery doc; read those instead:
 > - M1 — [`20260618-refused-frame-feedback-characterization.md`](20260618-refused-frame-feedback-characterization.md)
 > - M2 — [`noop/20260618-upstream-size-quantum-rejected.md`](../noop/20260618-upstream-size-quantum-rejected.md) (rejection)

@@ -1,5 +1,7 @@
 # FFM steals focus to the tile behind a foreground overlay on stale-queued mouse moves
 
+Groom 2026-07-07: substantially resolved — stale-queue window-number retention shipped (currentPointerPayload carries payload.windowUnderPointer) and FFM occlusion was further hardened (#112); the broadened-probe fallback is subsumed — verify against the current FFM occlusion path if a new repro appears (verified against main 7a025b78).
+
 Discovery (2026-06-16). While an unmanaged overlay (the user's "quick terminal")
 is in the foreground, focus-follows-mouse keeps **stealing focus to the niri
 tiles behind it**, ping-ponging between two adjacent columns as the pointer
@@ -14,10 +16,8 @@ the mouse-move coalescer re-reads the live pointer location and **discards the
 window number** (`windowUnderPointer: nil`) on every stale queued event — and in
 this capture *every* drained mouse-move (333/333) was stale.
 
-Evidence below is reproduced inline from the runtime trace
-`runtime-trace-1781562633992-1781562640078.log` (capture header `nehir v253be4*`,
-2026-06-15T22:30:33Z). The log itself is machine-local and should not be relied
-on. Code line numbers reference the working tree at commit `98f2429`; re-verify
+Evidence below is reproduced inline from the runtime capture (capture header `nehir v253be4*`,
+2026-06-15T22:30:33Z); the original trace log is machine-local and should not be relied on. Code line numbers reference the working tree at commit `98f2429`; re-verify
 before implementing.
 
 This is the **focus-steal** sibling of

@@ -1,5 +1,7 @@
 # Focus-Guard & Monitor-Topology Fragility — Discovery
 
+Groom 2026-07-07: still applicable — monitor-and-harden finding; WMController narrowing shipped (776b9559) but the four-way focus-guard coordination point remains implicit and its tests/diagram/clock-unification are not landed (verified against main 7a025b78).
+
 Discovery (2026-06-14) expanding review finding #9 ("fragility is concentrated where
 recent commits already point"). It is a **monitor-and-harden** finding, not a
 "rewrite the three big files" finding: the riskiest code already got the two

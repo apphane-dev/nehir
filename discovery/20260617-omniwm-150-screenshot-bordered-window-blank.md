@@ -1,5 +1,7 @@
 # OmniWM issue #150 — "Screenshot of bordered window is blank" — Discovery
 
+Groom 2026-07-07: still applicable — partial; border capturePolicy=.excluded protects nehir's own ScreenCaptureKit captures, but the native macOS screenshot window-picker case remains unguarded (verified against main 7a025b78).
+
 Source issue: https://github.com/BarutSRB/OmniWM/issues/150 (closed, **not planned**; cleanup close, not a code fix).
 Scope of this doc: determine whether the issue applies to nehir,
 and whether the suggested fix is safe to port.

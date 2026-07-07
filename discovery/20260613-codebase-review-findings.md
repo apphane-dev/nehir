@@ -1,5 +1,7 @@
 # Codebase Review Findings
 
+Groom 2026-07-07: partially resolved — findings #1–#7 shipped (PRs #40/#41/#42/#43/#46; WMController narrowing 776b9559); #8/#9/#10 remain open monitor-class analysis references (verified against main 7a025b78).
+
 Multi-agent review (2026-06-13) covering architecture, risk hotspots, testing, and external surfaces (IPC/CLI/config). Curated to findings worth acting on; file references should be re-verified before implementing — line numbers drift.
 
 ## Quick Wins

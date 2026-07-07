@@ -1,5 +1,7 @@
 # M5 — Raw MultitouchSupport gesture source — Investigation
 
+Groom 2026-07-07: resolved — shipped as the production gesture source, not diagnostic-only (b92a1b04; see completed/20260620-m5-raw-multitouch-gesture-source.md).
+
 Source upstream commit: [`06eb42d`](https://github.com/BarutSRB/OmniWM/commit/06eb42d) — "Fix stuck trackpad workspace gestures" (0.4.9.9 line, behind "Swipes used to occasionally get 'eaten' by the focused app").
 Related: [`20260616-nehir-53-trackpad-four-finger-swipe-gesture.md`](20260616-nehir-53-trackpad-four-finger-swipe-gesture.md) (authoritative #53 source; maintainer non-repro).
 

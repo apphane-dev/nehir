@@ -1,5 +1,7 @@
 # Viewport jumps on main screen when toggling Ghostty Quick Terminal — Discovery
 
+Groom 2026-07-07: partially resolved — the sibling FFM-overlay work shipped and the focus/reveal path has since been reworked extensively; the specific unmanaged-overlay-sibling detection for the app-activation→reveal path is unverified against current source (verified against main 7a025b78).
+
 Discovery (2026-06-15). The user reports that the **viewport position on the main
 screen changes with no obvious reason while interacting with the secondary
 screen**. The cause: toggling **Ghostty's Quick Terminal** (an *unmanaged*

@@ -1,10 +1,12 @@
 # OmniWM issue #311 — "Option to exclude specific apps from the workspace bar" — Discovery
 
+Groom 2026-07-07: in flight — a plan exists (planned/20260621-omniwm-311-exclude-apps-from-workspace-bar.md); no per-app hide-from-workspace-bar rule yet (verified against main 7a025b78).
+
 Source issue: https://github.com/BarutSRB/OmniWM/issues/311
 Scope of this doc: determine whether/how nehir should let users exclude specific
 apps (by bundle id) from the workspace bar, and where the filter plugs in.
 
-All file/line references were verified against worktree `worktree-calm-meadow-6229` at
+All file/line references were verified against the Nehir source tree at
 `904df02` ("Add bunch of discoveries mapped to issues from OmniWM"). Line numbers drift —
 re-verify before implementing.
 

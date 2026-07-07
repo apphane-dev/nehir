@@ -1,5 +1,7 @@
 # Nehir issue #69 — "Fullscreen window will not restore when switching focus to neighbours; toggle-fullscreen hotkey intermittently stops working" — Discovery
 
+Groom 2026-07-07: in flight — context-collection doc (no fix proposed); native-fullscreen column drift was fixed (56095965) and fullscreen follow-up plans exist (planned/20260622-fullscreen-behaviour-roadmap.md, planned/20260621-niri-fullscreen-expectations-and-fix.md); tiling-fullscreen restore-on-focus semantics still undecided (verified against main 7a025b78).
+
 Source issue: https://github.com/Guria/nehir/issues/69 — OPEN, label `bug`
 Reporter: `Alan-TheGentleman` (Alan Buscaglia). Confirmation + runtime trace from
 `dagrlx`. Owner (`Guria`) acknowledged and will investigate.

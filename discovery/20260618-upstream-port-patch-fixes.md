@@ -1,5 +1,7 @@
 # Upstream port candidates — Patch fixes
 
+Groom 2026-07-07: superseded — historical combined summary; the per-cluster P1–P4 discovery docs are canonical and all landed (see 20260618-upstream-port-roadmap.md).
+
 > ⚠️ **SUPERSEDED.** This was the original combined patch summary. Each item now has a proper per-cluster discovery doc; read those instead:
 > - P1 — [`20260618-upstream-rescan-eviction-hysteresis.md`](../completed/20260618-upstream-rescan-eviction-hysteresis.md)
 > - P2 — [`20260618-upstream-refresh-coalescing.md`](../completed/20260618-upstream-refresh-coalescing.md)

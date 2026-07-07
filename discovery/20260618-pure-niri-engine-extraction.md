@@ -1,5 +1,7 @@
 # A1 — Extract pure Niri model shared by real runtime and onboarding (first spike) — Discovery
 
+Groom 2026-07-07: resolved — A1 landed (b1844dd8 plus runtime-bridge follow-ups 98d00e4c/c2915f44/0547046a; see completed/20260619-pure-niri-engine-extraction-a1.md); A2–A5 still deferred.
+
 Source direction: upstream WorldStore/EventIntake/IntentLedger/SurfaceReconciler cluster (post-`ee9b4f0`).
 Full architecture analysis: [`20260618-worldstore-pure-engine-reuse.md`](20260618-worldstore-pure-engine-reuse.md) (why not to port WorldStore wholesale; A1–A5 framing).
 Scope of **this** doc: the first, safest architecture spike — extract a pure, AppKit/AX/SkyLight-free Niri model + reducer + invariants, shared by the SwiftUI onboarding demo and (initially) by tests. Do **not** refactor the real runtime in A1.

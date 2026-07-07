@@ -1,5 +1,7 @@
 # M4 Stage 1 — Displays-have-separate-Spaces mode detection & diagnostics — Discovery
 
+Groom 2026-07-07: resolved — landed as M4 Stage 1 (4e54d4a1; see completed/20260619-m4s1-displays-separate-spaces-detection.md).
+
 Source upstream commits: [`de971b6`](https://github.com/BarutSRB/OmniWM/commit/de971b6) (read-only Spaces queries to SkyLight), [`ee554c7`](https://github.com/BarutSRB/OmniWM/commit/ee554c7) (support/require Displays have separate Spaces).
 Context: [`20260618-separate-spaces-and-monitor-arrangement.md`](20260618-separate-spaces-and-monitor-arrangement.md) (analysis + maintainer manual-test findings + the OFF/ON product split).
 Stage 2 companion: [`20260618-space-topology-eviction-exemption.md`](20260618-space-topology-eviction-exemption.md).

@@ -1,5 +1,7 @@
 # Release-Mode AX Thread-Affinity Checking — Discovery
 
+Groom 2026-07-07: still applicable — monitor-class finding; no Release-mode affinity guard, benchmark target, or ThreadGuardedValue tests have landed (verified against main 7a025b78).
+
 Deep discovery (2026-06-14) into finding #8 of `20260613-codebase-review-findings.md` ("Release builds lose thread-safety checking in the AX layer"). The review finding's wording is imprecise; this doc corrects the mental model, characterizes the hot path, audits the "related" `MouseWarpHandler._instance` item, and lays out implementation options with evidence. File:line references were current as of the discovery date and will drift — re-verify before implementing.
 
 ## Scope

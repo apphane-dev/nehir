@@ -1,5 +1,7 @@
 # M1 — Refused frame-size feedback already exists in nehir (characterization + optional hardening) — Discovery
 
+Groom 2026-07-07: resolved — characterized; the refused-frame feedback loop already existed and characterization tests landed (3bee984e; see completed/20260619-m1-refused-frame-feedback-characterization.md); optional 2-stable-observation cascade hardening deferred.
+
 Source upstream commit: [`40934c5`](https://github.com/BarutSRB/OmniWM/commit/40934c5) — "Feed terminally refused frame sizes back into layout constraints" (0.4.9.8 line, behind "apps that flat-out refuse a size … are handled gracefully").
 Related: [`20260618-upstream-frame-write-failure-suppression.md`](../completed/20260618-upstream-frame-write-failure-suppression.md) (P4), [`20260614-ax-frame-write-verification-race.md`](20260614-ax-frame-write-verification-race.md) (readback race / Option D), [`20260616-omniwm-403-…`](../completed/20260616-omniwm-403-frame-write-race-min-size-suppression.md).
 

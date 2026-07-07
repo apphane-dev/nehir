@@ -1,5 +1,7 @@
 # M4 Stage 2 — Minimal Space topology eviction exemption — Discovery
 
+Groom 2026-07-07: resolved — landed as M4 Stage 2 (4ae5fc96; see completed/20260619-m4s2-space-topology-eviction-exemption.md).
+
 Source upstream commit: [`2dcab36`](https://github.com/BarutSRB/OmniWM/commit/2dcab36) — "Exempt windows on known-inactive Spaces from miss-eviction" (0.4.9.9 line, behind "stops trying to manage windows that are hidden away on an inactive native Space").
 Prerequisite: [`20260618-displays-separate-spaces-mode-detection.md`](20260618-displays-separate-spaces-mode-detection.md) (Stage 1).
 Context: [`20260618-separate-spaces-and-monitor-arrangement.md`](20260618-separate-spaces-and-monitor-arrangement.md).

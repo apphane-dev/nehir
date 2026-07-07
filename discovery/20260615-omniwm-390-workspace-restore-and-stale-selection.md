@@ -1,5 +1,7 @@
 # OmniWM issue #390 — "OmniWM can lose workspace state (restore miss + stale Niri selection)" — Discovery
 
+Groom 2026-07-07: partially resolved — Bug 2 (stale session patch overwrites newer selection) shipped via M6 (42ac731f); Bug 1 (persisted-restore metadata fallback for metadata-less windows) unverified against current source — re-confirm (verified against main 7a025b78).
+
 Source issue: <https://github.com/BarutSRB/OmniWM/issues/390>
 Suggested fix (reference fork): <https://github.com/leojplin/OmniWM/commit/bd7dba61471f2e4a79d134ecdca7c38636fa4f00>
 Scope of this doc: determine whether the issue applies to nehir, and whether

@@ -1,5 +1,7 @@
 # Upstream-release discovery loop log — OmniWM v0.4.9.7 → v0.4.9.9
 
+Groom 2026-07-07: historical — process loop log; most queued actions have since shipped (raw multitouch source m5/b92a1b04; separate-Spaces detection m4-s1/4e54d4a1) or are tracked by 20260618-upstream-port-roadmap.md; parallel overview thumbnails and the IntentLedger plan remain open (verified against main 7a025b78).
+
 Standard agentic loop — no subagents (same constraint as the per-issue
 `discovery-loop-log.md`: orchestrator + worker merged into one agent).
 
@@ -7,7 +9,7 @@ Operator directive: study the recent three upstream OmniWM releases and produce
 discovery docs about each change's applicability to the nehir codebase.
 
 Baseline (anchor, re-verified per item):
-- Worktree: `worktree/calm-meadow-6229`
+- Source tree: Nehir main
 - HEAD sha: `904df02` ("Add bunch of discoveries mapped to issues from OmniWM")
 - Date prefix: `20260617`
 - Releases in scope (the three most recent as of 2026-06-17):

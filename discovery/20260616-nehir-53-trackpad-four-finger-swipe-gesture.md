@@ -1,5 +1,7 @@
 # nehir issue #53 — "4 finger swipe gestures on built-in trackpad don't work in 0.5.0rc10" — Discovery
 
+Groom 2026-07-07: superseded — the raw MultitouchSupport gesture source shipped on main (b92a1b04; see completed/20260620-m5-raw-multitouch-gesture-source.md); re-validate issue #53 against the new source before applying the exact-count hysteresis recommendation.
+
 **Update 2026-06-20:** the input source under test has changed. The raw MultitouchSupport gesture source shipped on `main` in `b92a1b04` (see [`../completed/20260620-m5-raw-multitouch-gesture-source.md`](../completed/20260620-m5-raw-multitouch-gesture-source.md)), and the Step 1 `gesture.skip`/abort trace landed with it. The analysis below was written against the old `NSEvent.allTouches()` over `.gesture`-tap path; re-validate #53 against the raw source before deciding whether the exact-count hysteresis recommendation still applies.
 
 Source issue: <https://github.com/Guria/nehir/issues/53>
@@ -12,7 +14,7 @@ switch columns in nehir while 2- and 3-finger gestures work; confirm whether it
 is a config-parsing problem; and scope the next diagnostic/fix steps. This is a
 discovery/analysis doc — no code is changed here.
 
-All file/line references were verified against `worktree-calm-meadow-6229`
+All file/line references were verified against the Nehir source tree
 at `b7ac7e5` ("Add more issues dicoveries"). Re-verify before implementing;
 line numbers drift.
 
