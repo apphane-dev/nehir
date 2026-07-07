@@ -10128,6 +10128,151 @@ private func waitUntilAXEventTest(
         #expect(controller.workspaceManager.entry(for: liveToken) != nil)
     }
 
+    @Test @MainActor func axDestroyDeferredVerificationRemovesWhenAXEnumerationMissesWindow() async {
+        let controller = makeAXEventTestController()
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
+            Issue.record("Missing active workspace")
+            return
+        }
+
+        let token = controller.workspaceManager.addWindow(
+            AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: 906),
+            pid: getpid(),
+            windowId: 906,
+            to: workspaceId
+        )
+        controller.axEventHandler.windowInfoProvider = { windowId in
+            guard windowId == 906 else { return nil }
+            return WindowServerInfo(id: windowId, pid: token.pid, level: 0, frame: .zero)
+        }
+        controller.axManager.perAppWindowEnumerationOverrideForTests = { pid in
+            #expect(pid == token.pid)
+            return .success([])
+        }
+        defer {
+            controller.axEventHandler.windowInfoProvider = nil
+            controller.axManager.perAppWindowEnumerationOverrideForTests = nil
+        }
+
+        controller.axEventHandler.handleRemoved(pid: token.pid, winId: token.windowId)
+        #expect(controller.workspaceManager.entry(for: token) != nil)
+
+        await waitUntilAXEventTest(iterations: 250) {
+            controller.workspaceManager.entry(for: token) == nil
+        }
+
+        #expect(controller.workspaceManager.entry(for: token) == nil)
+    }
+
+    @Test @MainActor func axDestroyDeferredVerificationKeepsWindowWhenBothOraclesStillAlive() async {
+        let controller = makeAXEventTestController()
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
+            Issue.record("Missing active workspace")
+            return
+        }
+
+        let token = controller.workspaceManager.addWindow(
+            AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: 907),
+            pid: getpid(),
+            windowId: 907,
+            to: workspaceId
+        )
+        controller.axEventHandler.windowInfoProvider = { windowId in
+            guard windowId == 907 else { return nil }
+            return WindowServerInfo(id: windowId, pid: token.pid, level: 0, frame: .zero)
+        }
+        var axEnumerationCount = 0
+        controller.axManager.perAppWindowEnumerationOverrideForTests = { pid in
+            axEnumerationCount += 1
+            #expect(pid == token.pid)
+            return .success([(AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: 907), pid, 907)])
+        }
+        defer {
+            controller.axEventHandler.windowInfoProvider = nil
+            controller.axManager.perAppWindowEnumerationOverrideForTests = nil
+        }
+
+        controller.axEventHandler.handleRemoved(pid: token.pid, winId: token.windowId)
+        await waitUntilAXEventTest(iterations: 250) {
+            axEnumerationCount > 0
+        }
+
+        #expect(controller.workspaceManager.entry(for: token) != nil)
+    }
+
+    @Test @MainActor func axDestroyDeferredVerificationRemovesWhenWindowServerPidNoLongerMatches() async {
+        let controller = makeAXEventTestController()
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
+            Issue.record("Missing active workspace")
+            return
+        }
+
+        let token = controller.workspaceManager.addWindow(
+            AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: 909),
+            pid: 9_009,
+            windowId: 909,
+            to: workspaceId
+        )
+        var windowServerPid = token.pid
+        var axEnumerationCount = 0
+        controller.axEventHandler.windowInfoProvider = { windowId in
+            guard windowId == 909 else { return nil }
+            return WindowServerInfo(id: windowId, pid: windowServerPid, level: 0, frame: .zero)
+        }
+        controller.axManager.perAppWindowEnumerationOverrideForTests = { _ in
+            axEnumerationCount += 1
+            return .failed
+        }
+        defer {
+            controller.axEventHandler.windowInfoProvider = nil
+            controller.axManager.perAppWindowEnumerationOverrideForTests = nil
+        }
+
+        controller.axEventHandler.handleRemoved(pid: token.pid, winId: token.windowId)
+        windowServerPid = 9_010
+        await waitUntilAXEventTest(iterations: 250) {
+            controller.workspaceManager.entry(for: token) == nil
+        }
+
+        #expect(controller.workspaceManager.entry(for: token) == nil)
+        #expect(axEnumerationCount == 0)
+    }
+
+    @Test @MainActor func axDestroyDeferredVerificationKeepsWindowWhenAXEnumerationFailsAndWindowServerAlive() async {
+        let controller = makeAXEventTestController()
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
+            Issue.record("Missing active workspace")
+            return
+        }
+
+        let token = controller.workspaceManager.addWindow(
+            AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: 908),
+            pid: getpid(),
+            windowId: 908,
+            to: workspaceId
+        )
+        controller.axEventHandler.windowInfoProvider = { windowId in
+            guard windowId == 908 else { return nil }
+            return WindowServerInfo(id: windowId, pid: token.pid, level: 0, frame: .zero)
+        }
+        var axEnumerationCount = 0
+        controller.axManager.perAppWindowEnumerationOverrideForTests = { _ in
+            axEnumerationCount += 1
+            return .failed
+        }
+        defer {
+            controller.axEventHandler.windowInfoProvider = nil
+            controller.axManager.perAppWindowEnumerationOverrideForTests = nil
+        }
+
+        controller.axEventHandler.handleRemoved(pid: token.pid, winId: token.windowId)
+        await waitUntilAXEventTest(iterations: 250) {
+            axEnumerationCount > 0
+        }
+
+        #expect(controller.workspaceManager.entry(for: token) != nil)
+    }
+
     @Test @MainActor func handleRemovedPidPathInvalidatesCachedTitle() async {
         await withAXFrameProviderIsolationForTests {
             AXWindowService.clearTitleCacheForTests()

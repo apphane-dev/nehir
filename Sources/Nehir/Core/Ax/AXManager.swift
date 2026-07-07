@@ -34,6 +34,11 @@ final class AXManager {
         static let empty = FullRescanEnumerationSnapshot(windows: [], failedPIDs: [])
     }
 
+    enum PerAppWindowEnumeration {
+        case success([(AXWindowRef, pid_t, Int)])
+        case failed
+    }
+
     private static let systemUIBundleIds: Set<String> = [
         "com.apple.notificationcenterui",
         "com.apple.controlcenter",
@@ -51,6 +56,7 @@ final class AXManager {
     var isRuntimeTraceCaptureActive: () -> Bool = { false }
     var currentWindowsAsyncOverride: (@MainActor () async -> [(AXWindowRef, pid_t, Int)])?
     var fullRescanEnumerationOverrideForTests: (@MainActor () async -> FullRescanEnumerationSnapshot)?
+    var perAppWindowEnumerationOverrideForTests: (@MainActor (pid_t) async -> PerAppWindowEnumeration)?
     var frameApplyOverrideForTests: (([AXFrameApplicationRequest]) -> [AXFrameApplyResult])?
     var frameApplyAsyncOverrideForTests: (([AXFrameApplicationRequest], @escaping ([AXFrameApplyResult]) -> Void)
         -> Void)?
@@ -426,18 +432,52 @@ final class AXManager {
         }
     }
 
-    func windowsForApp(_ app: NSRunningApplication) async -> [(AXWindowRef, pid_t, Int)] {
-        guard shouldTrack(app) else { return [] }
+    private func rawWindowEnumerationForApp(
+        _ app: NSRunningApplication,
+        recordMismatchAgainst windowServerCount: Int? = nil
+    ) async -> PerAppWindowEnumeration {
+        guard shouldTrack(app) else { return .success([]) }
         do {
-            guard let context = try await AppAXContext.getOrCreate(app) else { return [] }
+            guard let context = try await AppAXContext.getOrCreate(app) else { return .failed }
             let appWindows = try await withTimeoutOrNil(seconds: perAppTimeout) {
                 try await context.getWindowsAsync()
             }
             if let windows = appWindows {
-                return windows.map { ($0.0, app.processIdentifier, $0.1) }
+                if let windowServerCount, windows.count < windowServerCount {
+                    AppAXContext.recordAXWindowCountMismatch(
+                        pid: app.processIdentifier,
+                        axCount: windows.count,
+                        windowServerCount: windowServerCount
+                    )
+                }
+                return .success(windows.map { ($0.0, app.processIdentifier, $0.1) })
             }
         } catch {}
-        return []
+        return .failed
+    }
+
+    func windowEnumerationForApp(_ app: NSRunningApplication) async -> PerAppWindowEnumeration {
+        if let perAppWindowEnumerationOverrideForTests {
+            return await perAppWindowEnumerationOverrideForTests(app.processIdentifier)
+        }
+        return await rawWindowEnumerationForApp(app)
+    }
+
+    func windowEnumerationForPID(_ pid: pid_t) async -> PerAppWindowEnumeration {
+        if let perAppWindowEnumerationOverrideForTests {
+            return await perAppWindowEnumerationOverrideForTests(pid)
+        }
+        guard let app = NSRunningApplication(processIdentifier: pid) else { return .failed }
+        return await windowEnumerationForApp(app)
+    }
+
+    func windowsForApp(_ app: NSRunningApplication) async -> [(AXWindowRef, pid_t, Int)] {
+        switch await windowEnumerationForApp(app) {
+        case .success(let windows):
+            return windows
+        case .failed:
+            return []
+        }
     }
 
     func requestPermission() -> Bool {
@@ -511,34 +551,16 @@ final class AXManager {
         ) { group in
             for app in apps {
                 group.addTask {
-                    do {
-                        guard let context = try await AppAXContext.getOrCreate(app) else {
-                            return (app.processIdentifier, [], true)
-                        }
-
-                        let appWindows = try await self.withTimeoutOrNil(seconds: perAppTimeout) {
-                            try await context.getWindowsAsync()
-                        }
-
-                        if let windows = appWindows {
-                            if let windowServerCount = windowServerCounts[app.processIdentifier],
-                               windows.count < windowServerCount
-                            {
-                                await AppAXContext.recordAXWindowCountMismatch(
-                                    pid: app.processIdentifier,
-                                    axCount: windows.count,
-                                    windowServerCount: windowServerCount
-                                )
-                            }
-                            return (
-                                app.processIdentifier,
-                                windows.map { ($0.0, app.processIdentifier, $0.1) },
-                                false
-                            )
-                        }
-                    } catch {
+                    let enumeration = await self.rawWindowEnumerationForApp(
+                        app,
+                        recordMismatchAgainst: windowServerCounts[app.processIdentifier]
+                    )
+                    switch enumeration {
+                    case .success(let windows):
+                        return (app.processIdentifier, windows, false)
+                    case .failed:
+                        return (app.processIdentifier, [], true)
                     }
-                    return (app.processIdentifier, [], true)
                 }
             }
 

@@ -1780,10 +1780,24 @@ final class AXEventHandler: CGSEventDelegate {
             else {
                 return
             }
-            await self.warmAXContextIfNeeded(for: token.pid)
+            let windowServerAlive = self.resolveWindowInfo(windowId)?.pid == token.pid
+            let axEnumerationSucceededAndMissingToken: Bool
+            if windowServerAlive {
+                let axEnumeration = await controller.axManager.windowEnumerationForPID(token.pid)
+                switch axEnumeration {
+                case .success(let windows):
+                    axEnumerationSucceededAndMissingToken = !windows.contains { _, pid, enumeratedWindowId in
+                        pid == token.pid && enumeratedWindowId == token.windowId
+                    }
+                case .failed:
+                    axEnumerationSucceededAndMissingToken = false
+                }
+            } else {
+                axEnumerationSucceededAndMissingToken = false
+            }
             guard !Task.isCancelled,
                   controller.workspaceManager.entry(for: token) != nil,
-                  self.resolveWindowInfo(windowId) == nil
+                  (!windowServerAlive || axEnumerationSucceededAndMissingToken)
             else {
                 return
             }
