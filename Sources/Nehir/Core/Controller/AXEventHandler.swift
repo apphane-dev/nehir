@@ -162,6 +162,36 @@ struct NiriCreateFocusTraceEvent: Equatable {
             token: WindowToken,
             reason: String
         )
+        case focusedAdmissionGuard(
+            token: WindowToken,
+            workspaceId: WorkspaceDescriptor.ID?,
+            monitorId: Monitor.ID?,
+            source: ActivationEventSource,
+            outcome: String,
+            reason: String,
+            shouldDelayManagedReplacementCreate: Bool?,
+            suppressedByUnrequestedGuard: Bool?,
+            hasStructuralReplacementWorkspaceMatch: Bool?,
+            mode: TrackedWindowMode?,
+            createContextSource: String?,
+            recentPidWorkspaceId: WorkspaceDescriptor.ID?
+        )
+        case trackPreparedCreate(
+            token: WindowToken,
+            workspaceId: WorkspaceDescriptor.ID,
+            monitorId: Monitor.ID?,
+            admissionContext: WindowAdmissionContext,
+            mode: TrackedWindowMode,
+            hasStructuralReplacementWorkspaceMatch: Bool,
+            metadataSummary: String
+        )
+        case windowAdmitted(
+            token: WindowToken,
+            workspaceId: WorkspaceDescriptor.ID,
+            monitorId: Monitor.ID?,
+            admissionContext: WindowAdmissionContext,
+            mode: TrackedWindowMode
+        )
         case windowDecision(
             token: WindowToken,
             context: String,
@@ -318,6 +348,33 @@ extension NiriCreateFocusTraceEvent: CustomStringConvertible {
             "unrequested_admission_nonmanaged_focus_decision token=\(token) suppressed=\(suppressed) reason=\(reason) context_source=\(createContextSource ?? "nil") recent_pid_workspace=\(recentPidWorkspaceId?.uuidString ?? "nil") explicit_workspace_assignment=\(hasExplicitWorkspaceAssignment) active_managed_request_token=\(String(describing: activeManagedRequestToken))"
         case let .windowDecisionSuppressed(token, reason):
             "window_decision_suppressed token=\(token) reason=\(reason)"
+        case let .focusedAdmissionGuard(
+            token,
+            workspaceId,
+            monitorId,
+            source,
+            outcome,
+            reason,
+            shouldDelayManagedReplacementCreate,
+            suppressedByUnrequestedGuard,
+            hasStructuralReplacementWorkspaceMatch,
+            mode,
+            createContextSource,
+            recentPidWorkspaceId
+        ):
+            "focused_admission_guard token=\(token) workspace=\(workspaceId?.uuidString ?? "nil") monitor=\(String(describing: monitorId)) source=\(source.rawValue) outcome=\(outcome) reason=\(reason) shouldDelayManagedReplacementCreate=\(shouldDelayManagedReplacementCreate.map(String.init) ?? "nil") suppressedByUnrequestedGuard=\(suppressedByUnrequestedGuard.map(String.init) ?? "nil") structuralWorkspaceMatch=\(hasStructuralReplacementWorkspaceMatch.map(String.init) ?? "nil") mode=\(mode.map { String(describing: $0) } ?? "nil") context_source=\(createContextSource ?? "nil") recent_pid_workspace=\(recentPidWorkspaceId?.uuidString ?? "nil")"
+        case let .trackPreparedCreate(
+            token,
+            workspaceId,
+            monitorId,
+            admissionContext,
+            mode,
+            hasStructuralReplacementWorkspaceMatch,
+            metadataSummary
+        ):
+            "track_prepared_create token=\(token) workspace=\(workspaceId.uuidString) monitor=\(String(describing: monitorId)) admissionContext=\(admissionContext) mode=\(mode) structuralWorkspaceMatch=\(hasStructuralReplacementWorkspaceMatch) \(metadataSummary)"
+        case let .windowAdmitted(token, workspaceId, monitorId, admissionContext, mode):
+            "window_admitted token=\(token) workspace=\(workspaceId.uuidString) monitor=\(String(describing: monitorId)) admissionContext=\(admissionContext) mode=\(mode)"
         case let .windowDecision(
             token,
             context,
@@ -367,12 +424,67 @@ final class AXEventHandler: CGSEventDelegate {
                 holdCount: Int,
                 deadlineReset: Bool
             )
+            case enqueueManagedReplacementCreate(
+                policy: String,
+                token: WindowToken,
+                windowId: UInt32,
+                monitorId: Monitor.ID?,
+                mode: TrackedWindowMode,
+                createCount: Int,
+                destroyCount: Int,
+                deadlineReset: Bool,
+                hasStructuralReplacementWorkspaceMatch: Bool,
+                metadataSummary: String
+            )
+            case enqueueManagedReplacementDestroy(
+                policy: String,
+                token: WindowToken,
+                windowId: Int,
+                monitorId: Monitor.ID?,
+                mode: TrackedWindowMode,
+                createCount: Int,
+                destroyCount: Int,
+                deadlineReset: Bool,
+                metadataSummary: String
+            )
+            case scheduleManagedReplacementFlush(
+                policy: String,
+                delayMillis: Int,
+                deadlineReset: Bool,
+                reusedExistingDeadline: Bool,
+                createCount: Int,
+                destroyCount: Int
+            )
             case flushed(
                 policy: String,
                 createCount: Int,
                 destroyCount: Int,
                 holdCount: Int,
                 elapsedMillis: Int
+            )
+            case flushManagedReplacementBurst(
+                policy: String,
+                createCount: Int,
+                destroyCount: Int,
+                elapsedMillis: Int,
+                matched: Bool,
+                rekeyed: Bool,
+                replayedCount: Int
+            )
+            case replayManagedReplacementEvents(count: Int, createCount: Int, destroyCount: Int, reason: String)
+            case replayManagedReplacementCreate(
+                token: WindowToken,
+                windowId: UInt32,
+                monitorId: Monitor.ID?,
+                mode: TrackedWindowMode,
+                metadataSummary: String
+            )
+            case replayManagedReplacementDestroy(
+                token: WindowToken,
+                windowId: Int,
+                monitorId: Monitor.ID?,
+                mode: TrackedWindowMode,
+                metadataSummary: String
             )
             case matched(policy: String, elapsedMillis: Int)
         }
@@ -381,6 +493,105 @@ final class AXEventHandler: CGSEventDelegate {
         let pid: pid_t
         let workspaceId: WorkspaceDescriptor.ID
         let kind: Kind
+
+        var description: String {
+            let prefix = "pid=\(pid) workspace=\(workspaceId.uuidString) key=(\(pid),\(workspaceId.uuidString))"
+            switch kind {
+            case let .enqueued(policy, createCount, destroyCount, holdCount, deadlineReset):
+                return "managedReplacement.enqueued \(prefix) policy=\(policy) creates=\(createCount) destroys=\(destroyCount) holds=\(holdCount) deadlineReset=\(deadlineReset)"
+            case let .enqueueManagedReplacementCreate(
+                policy,
+                token,
+                windowId,
+                monitorId,
+                mode,
+                createCount,
+                destroyCount,
+                deadlineReset,
+                hasStructuralReplacementWorkspaceMatch,
+                metadataSummary
+            ):
+                return "enqueueManagedReplacementCreate \(prefix) policy=\(policy) token=\(token) windowId=\(windowId) monitor=\(String(describing: monitorId)) mode=\(mode) creates=\(createCount) destroys=\(destroyCount) deadlineReset=\(deadlineReset) structuralWorkspaceMatch=\(hasStructuralReplacementWorkspaceMatch) \(metadataSummary)"
+            case let .enqueueManagedReplacementDestroy(
+                policy,
+                token,
+                windowId,
+                monitorId,
+                mode,
+                createCount,
+                destroyCount,
+                deadlineReset,
+                metadataSummary
+            ):
+                return "enqueueManagedReplacementDestroy \(prefix) policy=\(policy) token=\(token) windowId=\(windowId) monitor=\(String(describing: monitorId)) mode=\(mode) creates=\(createCount) destroys=\(destroyCount) deadlineReset=\(deadlineReset) \(metadataSummary)"
+            case let .scheduleManagedReplacementFlush(
+                policy,
+                delayMillis,
+                deadlineReset,
+                reusedExistingDeadline,
+                createCount,
+                destroyCount
+            ):
+                return "scheduleManagedReplacementFlush \(prefix) policy=\(policy) delayMillis=\(delayMillis) deadlineReset=\(deadlineReset) reusedExistingDeadline=\(reusedExistingDeadline) creates=\(createCount) destroys=\(destroyCount)"
+            case let .flushed(policy, createCount, destroyCount, holdCount, elapsedMillis):
+                return "managedReplacement.flushed \(prefix) policy=\(policy) creates=\(createCount) destroys=\(destroyCount) holds=\(holdCount) elapsedMillis=\(elapsedMillis)"
+            case let .flushManagedReplacementBurst(
+                policy,
+                createCount,
+                destroyCount,
+                elapsedMillis,
+                matched,
+                rekeyed,
+                replayedCount
+            ):
+                return "flushManagedReplacementBurst \(prefix) policy=\(policy) elapsedMillis=\(elapsedMillis) creates=\(createCount) destroys=\(destroyCount) matched=\(matched) rekeyed=\(rekeyed) replayed=\(replayedCount)"
+            case let .replayManagedReplacementEvents(count, createCount, destroyCount, reason):
+                return "replayManagedReplacementEvents \(prefix) count=\(count) creates=\(createCount) destroys=\(destroyCount) reason=\(reason)"
+            case let .replayManagedReplacementCreate(token, windowId, monitorId, mode, metadataSummary):
+                return "replayManagedReplacementEvents.create \(prefix) token=\(token) windowId=\(windowId) monitor=\(String(describing: monitorId)) mode=\(mode) \(metadataSummary)"
+            case let .replayManagedReplacementDestroy(token, windowId, monitorId, mode, metadataSummary):
+                return "replayManagedReplacementEvents.destroy \(prefix) token=\(token) windowId=\(windowId) monitor=\(String(describing: monitorId)) mode=\(mode) \(metadataSummary)"
+            case let .matched(policy, elapsedMillis):
+                return "managedReplacement.matched \(prefix) policy=\(policy) elapsedMillis=\(elapsedMillis)"
+            }
+        }
+    }
+
+    private func managedReplacementMonitorId(for workspaceId: WorkspaceDescriptor.ID) -> Monitor.ID? {
+        controller?.workspaceManager.monitor(for: workspaceId)?.id
+    }
+
+    private func managedReplacementMetadataSummary(_ metadata: ManagedReplacementMetadata) -> String {
+        var parts = [
+            "bundle=\(metadata.bundleId ?? "nil")",
+            "role=\(metadata.role ?? "nil")",
+            "subrole=\(metadata.subrole ?? "nil")",
+            "titleLength=\(metadata.title?.count.description ?? "nil")",
+            "title=\(compactTraceString(metadata.title))",
+            "frame=\(metadata.frame.map { LayoutTrace.rect($0) } ?? "nil")",
+            "transient=\(metadata.transientWindowServerEvidence)",
+            "degraded=\(metadata.degradedWindowServerChildEvidence)"
+        ]
+        if let level = metadata.windowLevel {
+            parts.append("level=\(level)")
+        }
+        if let parent = metadata.parentWindowId {
+            parts.append("parent=\(parent)")
+        }
+        return parts.joined(separator: " ")
+    }
+
+    private func compactTraceString(_ value: String?, limit: Int = 80) -> String {
+        guard let value else { return "nil" }
+        let oneLine = value
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\n", with: "\\n")
+            .replacingOccurrences(of: "\r", with: "\\r")
+        if oneLine.count <= limit {
+            return "\"\(oneLine)\""
+        }
+        let prefix = oneLine.prefix(limit)
+        return "\"\(prefix)…\""
     }
 
     private struct PreparedCreate {
@@ -804,8 +1015,40 @@ final class AXEventHandler: CGSEventDelegate {
         createFocusTraceSnapshot()
     }
 
-    func managedReplacementTraceSnapshotForTests() -> [ManagedReplacementTraceEvent] {
+    func managedReplacementTraceSnapshot() -> [ManagedReplacementTraceEvent] {
         managedReplacementTrace
+    }
+
+    func managedReplacementTraceSnapshotForTests() -> [ManagedReplacementTraceEvent] {
+        managedReplacementTraceSnapshot()
+    }
+
+    func managedReplacementTraceDump() -> String {
+        var sections: [String] = []
+        if pendingManagedReplacementBursts.isEmpty {
+            sections.append("pending managed replacement bursts empty")
+        } else {
+            let pending = pendingManagedReplacementBursts
+                .sorted { lhs, rhs in
+                    if lhs.key.pid != rhs.key.pid { return lhs.key.pid < rhs.key.pid }
+                    return lhs.key.workspaceId.uuidString < rhs.key.workspaceId.uuidString
+                }
+                .map { key, burst in
+                    let elapsedMillis = max(
+                        0,
+                        Int(((managedReplacementCurrentUptime() - burst.firstEventUptime) * 1000).rounded())
+                    )
+                    return "pending key=(\(key.pid),\(key.workspaceId.uuidString)) policy=\(managedReplacementPolicyName(burst.policy)) creates=\(burst.creates.count) destroys=\(burst.destroys.count) elapsedMillis=\(elapsedMillis) task=\(pendingManagedReplacementTasks[key] != nil)"
+                }
+            sections.append(pending.joined(separator: "\n"))
+        }
+
+        if managedReplacementTrace.isEmpty {
+            sections.append("managed replacement trace empty")
+        } else {
+            sections.append(managedReplacementTrace.map(\.description).joined(separator: "\n"))
+        }
+        return sections.joined(separator: "\n")
     }
 
     /// Renders the live `WindowCreatePlacementContext` map (the inputs captured at
@@ -1054,10 +1297,7 @@ final class AXEventHandler: CGSEventDelegate {
         managedReplacementTrace.append(event)
 
         if Self.managedReplacementTraceLoggingEnabled {
-            fputs(
-                "[ManagedReplacement] pid=\(key.pid) workspace=\(key.workspaceId.uuidString) kind=\(String(describing: kind))\n",
-                stderr
-            )
+            fputs("[ManagedReplacement] \(event.description)\n", stderr)
         }
     }
 
@@ -1321,6 +1561,20 @@ final class AXEventHandler: CGSEventDelegate {
             )
         )
 
+        recordNiriCreateFocusTrace(
+            .init(
+                kind: .trackPreparedCreate(
+                    token: candidate.token,
+                    workspaceId: candidate.workspaceId,
+                    monitorId: managedReplacementMonitorId(for: candidate.workspaceId),
+                    admissionContext: admissionContext,
+                    mode: candidate.mode,
+                    hasStructuralReplacementWorkspaceMatch: candidate.hasStructuralReplacementWorkspaceMatch,
+                    metadataSummary: managedReplacementMetadataSummary(candidate.replacementMetadata)
+                )
+            )
+        )
+
         let appFullscreen = isFullscreenProvider?(candidate.axRef) ?? AXWindowService.isFullscreen(candidate.axRef)
         let nativeFullscreenRestore = restoreNativeFullscreenReplacement(
             token: candidate.token,
@@ -1352,6 +1606,17 @@ final class AXEventHandler: CGSEventDelegate {
             scheduleAXContextWarmup(for: candidate.token.pid)
             return
         }
+        recordNiriCreateFocusTrace(
+            .init(
+                kind: .windowAdmitted(
+                    token: trackedToken,
+                    workspaceId: trackedEntry.workspaceId,
+                    monitorId: managedReplacementMonitorId(for: trackedEntry.workspaceId),
+                    admissionContext: admissionContext,
+                    mode: trackedEntry.mode
+                )
+            )
+        )
         recordRecentManagedAdmission(token: trackedToken, workspaceId: trackedEntry.workspaceId)
 
         let shouldActivateFloatingCreate = shouldActivateFloatingCreate(candidate, trackedEntry: trackedEntry)
@@ -2872,19 +3137,54 @@ final class AXEventHandler: CGSEventDelegate {
         guard candidate.token == token else { return false }
 
         cancelCreatedWindowRetry(windowId: windowId)
-        if shouldSuppressUnrequestedAdmissionDuringNonManagedFocus(
+        let suppressedByUnrequestedGuard = shouldSuppressUnrequestedAdmissionDuringNonManagedFocus(
             token: candidate.token,
             createPlacementContext: createPlacementContext,
             hasExplicitWorkspaceAssignment: candidate.hasExplicitWorkspaceAssignment
-        ) {
+        )
+        if suppressedByUnrequestedGuard {
+            recordFocusedAdmissionGuard(
+                candidate,
+                source: source,
+                origin: origin,
+                requestDisposition: requestDisposition,
+                outcome: "suppressed",
+                reason: "unrequested_nonmanaged_focus_guard",
+                shouldDelayManagedReplacementCreate: nil,
+                suppressedByUnrequestedGuard: true,
+                createPlacementContext: createPlacementContext
+            )
             discardCreatePlacementContext(windowId: windowId)
             return true
         }
-        if shouldDelayManagedReplacementCreate(candidate) {
+        let delayManagedReplacementCreate = shouldDelayManagedReplacementCreate(candidate)
+        if delayManagedReplacementCreate {
+            recordFocusedAdmissionGuard(
+                candidate,
+                source: source,
+                origin: origin,
+                requestDisposition: requestDisposition,
+                outcome: "delayed",
+                reason: "managed_replacement_create",
+                shouldDelayManagedReplacementCreate: true,
+                suppressedByUnrequestedGuard: false,
+                createPlacementContext: createPlacementContext
+            )
             enqueueManagedReplacementCreate(candidate)
             return true
         }
 
+        recordFocusedAdmissionGuard(
+            candidate,
+            source: source,
+            origin: origin,
+            requestDisposition: requestDisposition,
+            outcome: "trackPreparedCreate",
+            reason: "direct_focused_admission",
+            shouldDelayManagedReplacementCreate: false,
+            suppressedByUnrequestedGuard: false,
+            createPlacementContext: createPlacementContext
+        )
         trackPreparedCreate(candidate, admissionContext: .focusedAdmission)
         guard let entry = controller.workspaceManager.entry(for: candidate.token) else {
             return true
@@ -2956,6 +3256,37 @@ final class AXEventHandler: CGSEventDelegate {
             origin: origin
         )
         return true
+    }
+
+    private func recordFocusedAdmissionGuard(
+        _ candidate: PreparedCreate,
+        source: ActivationEventSource,
+        origin: ActivationCallOrigin,
+        requestDisposition: ActivationRequestDisposition,
+        outcome: String,
+        reason: String,
+        shouldDelayManagedReplacementCreate: Bool?,
+        suppressedByUnrequestedGuard: Bool?,
+        createPlacementContext: WindowCreatePlacementContext?
+    ) {
+        recordNiriCreateFocusTrace(
+            .init(
+                kind: .focusedAdmissionGuard(
+                    token: candidate.token,
+                    workspaceId: candidate.workspaceId,
+                    monitorId: managedReplacementMonitorId(for: candidate.workspaceId),
+                    source: source,
+                    outcome: outcome,
+                    reason: reason,
+                    shouldDelayManagedReplacementCreate: shouldDelayManagedReplacementCreate,
+                    suppressedByUnrequestedGuard: suppressedByUnrequestedGuard,
+                    hasStructuralReplacementWorkspaceMatch: candidate.hasStructuralReplacementWorkspaceMatch,
+                    mode: candidate.mode,
+                    createContextSource: createPlacementContext?.source,
+                    recentPidWorkspaceId: createPlacementContext?.recentPidWorkspaceId
+                )
+            )
+        )
     }
 
     func handleManagedAppActivation(
@@ -4299,14 +4630,30 @@ final class AXEventHandler: CGSEventDelegate {
         burst.append(create: pendingCreate)
         pendingManagedReplacementBursts[key] = burst
         let resetExistingDeadline = isNewBurst || hadPendingDestroy
+        let policyName = managedReplacementPolicyName(policy)
         recordManagedReplacementTrace(
             key: key,
             kind: .enqueued(
-                policy: managedReplacementPolicyName(policy),
+                policy: policyName,
                 createCount: burst.creates.count,
                 destroyCount: burst.destroys.count,
                 holdCount: 0,
                 deadlineReset: resetExistingDeadline
+            )
+        )
+        recordManagedReplacementTrace(
+            key: key,
+            kind: .enqueueManagedReplacementCreate(
+                policy: policyName,
+                token: candidate.token,
+                windowId: candidate.windowId,
+                monitorId: managedReplacementMonitorId(for: candidate.workspaceId),
+                mode: candidate.mode,
+                createCount: burst.creates.count,
+                destroyCount: burst.destroys.count,
+                deadlineReset: resetExistingDeadline,
+                hasStructuralReplacementWorkspaceMatch: candidate.hasStructuralReplacementWorkspaceMatch,
+                metadataSummary: managedReplacementMetadataSummary(candidate.replacementMetadata)
             )
         )
         scheduleManagedReplacementFlush(
@@ -4329,14 +4676,29 @@ final class AXEventHandler: CGSEventDelegate {
         burst.append(destroy: pendingDestroy)
         pendingManagedReplacementBursts[key] = burst
         let resetExistingDeadline = isNewBurst || hadPendingCreate
+        let policyName = managedReplacementPolicyName(policy)
         recordManagedReplacementTrace(
             key: key,
             kind: .enqueued(
-                policy: managedReplacementPolicyName(policy),
+                policy: policyName,
                 createCount: burst.creates.count,
                 destroyCount: burst.destroys.count,
                 holdCount: 0,
                 deadlineReset: resetExistingDeadline
+            )
+        )
+        recordManagedReplacementTrace(
+            key: key,
+            kind: .enqueueManagedReplacementDestroy(
+                policy: policyName,
+                token: candidate.token,
+                windowId: candidate.token.windowId,
+                monitorId: managedReplacementMonitorId(for: candidate.workspaceId),
+                mode: candidate.mode,
+                createCount: burst.creates.count,
+                destroyCount: burst.destroys.count,
+                deadlineReset: resetExistingDeadline,
+                metadataSummary: managedReplacementMetadataSummary(candidate.replacementMetadata)
             )
         )
         scheduleManagedReplacementFlush(
@@ -4382,12 +4744,51 @@ final class AXEventHandler: CGSEventDelegate {
         rekeyManagedReplacement(from: destroy.candidate.token, to: create.candidate)
     }
 
-    private func replayManagedReplacementEvents(_ events: [PendingManagedReplacementEvent]) {
-        for event in events.sorted(by: { $0.sequence < $1.sequence }) {
+    private func replayManagedReplacementEvents(
+        _ events: [PendingManagedReplacementEvent],
+        key: ManagedReplacementKey,
+        reason: String
+    ) {
+        let orderedEvents = events.sorted(by: { $0.sequence < $1.sequence })
+        let createCount = orderedEvents.reduce(0) { count, event in
+            if case .create = event { return count + 1 }
+            return count
+        }
+        let destroyCount = orderedEvents.count - createCount
+        recordManagedReplacementTrace(
+            key: key,
+            kind: .replayManagedReplacementEvents(
+                count: orderedEvents.count,
+                createCount: createCount,
+                destroyCount: destroyCount,
+                reason: reason
+            )
+        )
+        for event in orderedEvents {
             switch event {
             case let .create(create):
+                recordManagedReplacementTrace(
+                    key: key,
+                    kind: .replayManagedReplacementCreate(
+                        token: create.candidate.token,
+                        windowId: create.candidate.windowId,
+                        monitorId: managedReplacementMonitorId(for: create.candidate.workspaceId),
+                        mode: create.candidate.mode,
+                        metadataSummary: managedReplacementMetadataSummary(create.candidate.replacementMetadata)
+                    )
+                )
                 trackPreparedCreate(create.candidate)
             case let .destroy(destroy):
+                recordManagedReplacementTrace(
+                    key: key,
+                    kind: .replayManagedReplacementDestroy(
+                        token: destroy.candidate.token,
+                        windowId: destroy.candidate.token.windowId,
+                        monitorId: managedReplacementMonitorId(for: destroy.candidate.workspaceId),
+                        mode: destroy.candidate.mode,
+                        metadataSummary: managedReplacementMetadataSummary(destroy.candidate.replacementMetadata)
+                    )
+                )
                 processPreparedDestroy(destroy.candidate)
             }
         }
@@ -5041,17 +5442,48 @@ final class AXEventHandler: CGSEventDelegate {
         }
     }
 
+    private func managedReplacementGraceDelayMillis(for policy: ManagedReplacementCorrelationPolicy) -> Int {
+        switch policy {
+        case .structural:
+            150
+        }
+    }
+
     private func scheduleManagedReplacementFlush(
         for key: ManagedReplacementKey,
         policy: ManagedReplacementCorrelationPolicy,
         resetExistingDeadline: Bool
     ) {
+        let existingTask = pendingManagedReplacementTasks[key]
+        let burst = pendingManagedReplacementBursts[key]
         if resetExistingDeadline {
-            pendingManagedReplacementTasks.removeValue(forKey: key)?.cancel()
-        } else if pendingManagedReplacementTasks[key] != nil {
+            existingTask?.cancel()
+        } else if existingTask != nil {
+            recordManagedReplacementTrace(
+                key: key,
+                kind: .scheduleManagedReplacementFlush(
+                    policy: managedReplacementPolicyName(policy),
+                    delayMillis: managedReplacementGraceDelayMillis(for: policy),
+                    deadlineReset: false,
+                    reusedExistingDeadline: true,
+                    createCount: burst?.creates.count ?? 0,
+                    destroyCount: burst?.destroys.count ?? 0
+                )
+            )
             return
         }
 
+        recordManagedReplacementTrace(
+            key: key,
+            kind: .scheduleManagedReplacementFlush(
+                policy: managedReplacementPolicyName(policy),
+                delayMillis: managedReplacementGraceDelayMillis(for: policy),
+                deadlineReset: resetExistingDeadline,
+                reusedExistingDeadline: false,
+                createCount: burst?.creates.count ?? 0,
+                destroyCount: burst?.destroys.count ?? 0
+            )
+        )
         let delay = managedReplacementGraceDelay(for: policy)
         pendingManagedReplacementTasks[key] = Task { @MainActor [weak self] in
             try? await Task.sleep(for: delay)
@@ -5067,10 +5499,11 @@ final class AXEventHandler: CGSEventDelegate {
             0,
             Int(((managedReplacementCurrentUptime() - burst.firstEventUptime) * 1000).rounded())
         )
+        let policyName = managedReplacementPolicyName(burst.policy)
         recordManagedReplacementTrace(
             key: key,
             kind: .flushed(
-                policy: managedReplacementPolicyName(burst.policy),
+                policy: policyName,
                 createCount: burst.creates.count,
                 destroyCount: burst.destroys.count,
                 holdCount: 0,
@@ -5079,24 +5512,52 @@ final class AXEventHandler: CGSEventDelegate {
         )
 
         if let pair = matchedManagedReplacementPair(in: burst) {
-            if completeManagedReplacement(destroy: pair.destroy, create: pair.create) {
+            let rekeyed = completeManagedReplacement(destroy: pair.destroy, create: pair.create)
+            let replayedEvents = rekeyed
+                ? burst.orderedEvents(excludingSequences: pair.excludedSequences)
+                : burst.orderedEvents
+            recordManagedReplacementTrace(
+                key: key,
+                kind: .flushManagedReplacementBurst(
+                    policy: policyName,
+                    createCount: burst.creates.count,
+                    destroyCount: burst.destroys.count,
+                    elapsedMillis: elapsedMillis,
+                    matched: true,
+                    rekeyed: rekeyed,
+                    replayedCount: replayedEvents.count
+                )
+            )
+            if rekeyed {
                 recordManagedReplacementTrace(
                     key: key,
                     kind: .matched(
-                        policy: managedReplacementPolicyName(burst.policy),
+                        policy: policyName,
                         elapsedMillis: elapsedMillis
                     )
                 )
-                replayManagedReplacementEvents(
-                    burst.orderedEvents(excludingSequences: pair.excludedSequences)
-                )
-            } else {
-                replayManagedReplacementEvents(burst.orderedEvents)
             }
+            replayManagedReplacementEvents(
+                replayedEvents,
+                key: key,
+                reason: rekeyed ? "matched_rekeyed_remainder" : "matched_rekey_failed"
+            )
             return
         }
 
-        replayManagedReplacementEvents(burst.orderedEvents)
+        recordManagedReplacementTrace(
+            key: key,
+            kind: .flushManagedReplacementBurst(
+                policy: policyName,
+                createCount: burst.creates.count,
+                destroyCount: burst.destroys.count,
+                elapsedMillis: elapsedMillis,
+                matched: false,
+                rekeyed: false,
+                replayedCount: burst.orderedEvents.count
+            )
+        )
+        replayManagedReplacementEvents(burst.orderedEvents, key: key, reason: "no_match")
     }
 
     private func nextManagedReplacementSequence() -> UInt64 {

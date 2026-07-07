@@ -1054,6 +1054,10 @@ final class RuntimeDiagnosticsCoordinator {
         let createFocusTraceDump = createFocusTraceEvents.isEmpty
             ? "create focus trace empty"
             : createFocusTraceEvents.map(\.description).joined(separator: "\n")
+        let managedReplacementTraceEvents = controller.axEventHandler.managedReplacementTraceSnapshot()
+        let managedReplacementTraceDump = managedReplacementTraceEvents.isEmpty
+            ? "managed replacement trace empty"
+            : managedReplacementTraceEvents.map(\.description).joined(separator: "\n")
         let rawAXNotificationDump = AppAXContext.rawAXNotificationTraceDump()
         let axWindowsQueryDump = AppAXContext.axWindowsQueryTraceDump()
         let interactionMonitorWriteDump = controller.workspaceManager.interactionMonitorWriteTraceDump()
@@ -1081,6 +1085,9 @@ final class RuntimeDiagnosticsCoordinator {
             "",
             "## Niri create focus trace",
             createFocusTraceDump,
+            "",
+            "## Managed replacement trace",
+            managedReplacementTraceDump,
             "",
             "## AX notification trace",
             rawAXNotificationDump,
