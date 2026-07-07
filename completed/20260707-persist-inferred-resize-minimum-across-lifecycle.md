@@ -1,6 +1,11 @@
 # Plan: keep the learned resize-minimum across identity-preserving lifecycle events
 
-Re-verified against main 7a025b78 on 2026-07-07.
+Status: completed — landed on main `3afeec81` ("Keep learned window minimum
+size across float, fullscreen, and rekey"), which removed exactly the three
+planned clearing sites (AX-ref self-rekey, non-tiling mode change,
+non-standard layout reason) while keeping the intentionally-out-of-scope
+clears at `registerWindow` and cross-token `rekeyWindow`. Verified against
+main `5c650f67` on 2026-07-07.
 
 Source discovery:
 `discovery/20260707-inferred-resize-minimum-cleared-causes-refusal-thrash-recurrence.md`.
