@@ -2,6 +2,8 @@
 
 Re-verified against main 7a025b78 on 2026-07-07.
 
+Related 2026-07-08 discovery: [`../discovery/20260708-stale-nonmanaged-focus-suppresses-managed-selection-and-window-move.md`](../discovery/20260708-stale-nonmanaged-focus-suppresses-managed-selection-and-window-move.md) also observes `AXFocusedWindowChanged ... window=nil`, but its actionable bug is stale non-managed focus suppressing an already-known managed viewport selection and command target. Keep the fixes separate unless implementation shows the same nil-focused-window fallback is the root trigger.
+
 **Status:** planned.
 **Symptom:** Clicking a notification (observed with Telegram, `ru.keepcoder.Telegram`)
 activates the app but does **not** reveal/scroll its managed window into view.

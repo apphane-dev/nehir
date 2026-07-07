@@ -2,6 +2,8 @@
 
 Groom 2026-07-07: still applicable — `isNonManagedFocusActive` can stay stuck `true` after a third-party focus-suppressing overlay (e.g. Ghostty quick-terminal) is destroyed, because the clear path (`handleOwnedFocusSuppressingWindowClosed`) fires only for Nehir-owned windows; no `completed/`/`planned/` match. Re-verify the third-party-overlay clear path against current source before acting (verified against main 7a025b78).
 
+Follow-up 2026-07-08: [`20260708-stale-nonmanaged-focus-suppresses-managed-selection-and-window-move.md`](20260708-stale-nonmanaged-focus-suppresses-managed-selection-and-window-move.md) captures the same move-command targetless state on current main, but with a stronger viewport-selection angle: the visible selected managed window changes while `confirmedManagedFocusToken` stays on an offscreen older token and `wmCommandTarget=nil`.
+
 Discovery (2026-07-05). Trying to move the focused window to another workspace —
 both by **shift-clicking a workspace-bar pill** and by the **keyboard shortcut**
 (`Opt+Shift+N` / move-window-to-adjacent-workspace) — does nothing. No window

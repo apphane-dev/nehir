@@ -2,6 +2,8 @@
 
 Groom 2026-07-07: status unclear — no `completed/`/`planned/` match; the app-activation→reveal path (`handleManagedAppActivation`, `AXEventHandler.swift:2961`) has been substantially reworked (it now records a `revealDecision` trace and still reads `isNonManagedFocusActive` at `:3012`), but whether this specific Dock-click-under-non-managed-focus case still fails to reveal was not re-verified against current source. Re-confirm with a fresh capture before acting.
 
+Follow-up 2026-07-08: [`20260708-stale-nonmanaged-focus-suppresses-managed-selection-and-window-move.md`](20260708-stale-nonmanaged-focus-suppresses-managed-selection-and-window-move.md) confirms the same stale non-managed-focus suppressor shape on current main, though the user-visible symptom is command target loss rather than Dock-click reveal loss.
+
 Discovery (2026-06-22). When the user switches focus by **clicking a Dock icon**
 for an app whose managed window is tiled in an off-screen column, the workspace
 **viewport does not scroll** to bring that column into view. The Dock activation
