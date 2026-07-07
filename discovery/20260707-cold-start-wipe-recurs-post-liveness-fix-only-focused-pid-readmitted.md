@@ -4,6 +4,8 @@ Groom 2026-07-07: still applicable — source hazard open; not merged in Nehir `
 
 Validation 2026-07-07 against two newer `nehir v201ca6` captures: neither run reproduced the wipe. The ordinary dev run admitted 9 windows at startup and ended with `windows total=9 tiled=9 floating=0 hidden=7`; the clean-state run admitted 9 windows at startup and ended with `windows total=9 tiled=9 floating=0 hidden=6`. In both captures there were zero `window_removed` events, no raw AX destroy notification entries, and CGS activity was present by the end (`decodedEvents=250` / `143`, `clearedFrameEventsOnDestroy=0`). This reduces confidence that the recurrence is deterministic, but it does **not** close the discovery because the source path remains ungated and the prior captured recurrence still proves the bug can happen.
 
+Status check after `d4cc525c` ("Remove real AX-closed windows after liveness verification"): that follow-up completed the AX destroy liveness story by removing real AX-closed ghost slots without reopening PR #150, but it did not change the CGS `spaceWindowDestroyed` path. This discovery therefore remains open as the remaining CGS-specific source hazard.
+
 Cross-link cluster: [`LC-1` in `20260708-cross-discovery-relevance-clusters.md`](20260708-cross-discovery-relevance-clusters.md#lc-1--lifecycleadmission-desync-false-removals-partial-enumeration-and-replacement-bursts) groups the high-confidence lifecycle/admission-desync discoveries. This recurrence is the CGS-space-event variant of the cold-start wipe family.
 
 Follow-up (2026-07-07, later the same day the fix landed) to

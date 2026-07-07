@@ -24,8 +24,7 @@ re-checks WindowServer liveness before removing a still-live window. The CGS
 `verifyWindowServerLiveness: false`, so PR #150 did **not** close the later CGS
 recurrence tracked in
 `discovery/20260707-cold-start-wipe-recurs-post-liveness-fix-only-focused-pid-readmitted.md`.
-Runtime confirmation via a real `dev:clean` repro and regression tests are still
-outstanding for this AX-specific fix.
+A follow-up real-close regression caused by this liveness gate (real AX destroys could leave a ghost layout slot when WindowServer liveness lingered) was fixed later in `d4cc525c` ("Remove real AX-closed windows after liveness verification"); see `completed/20260707-final-destroy-liveness-dual-oracle.md`. Runtime confirmation via a real `dev:clean` repro remains useful for end-to-end cold-start validation.
 
 **Verdict at implementation time: actionable.** Root cause for this shipped fix
 was treated as a real macOS AX `kAXUIElementDestroyed` burst against freshly-

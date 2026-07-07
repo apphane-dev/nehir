@@ -1,6 +1,6 @@
 # Finalize Destroy Liveness: Keep Cold-Start Protection, Remove Real AX-Closed Windows
 
-Status: ready to implement on `main` in an isolated worktree.
+Status: COMPLETED. Landed on `main` as `d4cc525c` ("Remove real AX-closed windows after liveness verification", 2026-07-08). The shipped change added a distinguishable AX enumeration result in `AXManager`, uses it in the deferred destroy-liveness check, and added focused `AXEventHandlerTests` coverage for AX-missing removal, both-oracles-alive retention, WindowServer-pid-mismatch removal, and AX-enumeration-failure retention. Changeset: `.changeset/20260708015201-remove-real-ax-closed-windows-without-reopening-.md`.
 
 ## Problem
 
@@ -31,6 +31,17 @@ So the final fix must not simply revert PR #150. Reverting
 that PR #150 fixed. Instead, the deferred destroy check needs a second oracle:
 when AX re-enumeration succeeds and no longer contains the window id, the close is
 real even if the WindowServer surface was still briefly resolvable earlier.
+
+## Shipped shape
+
+Implemented files:
+
+- `Sources/Nehir/Core/Ax/AXManager.swift` — added `PerAppWindowEnumeration`, `windowEnumerationForApp(_:)`, `windowEnumerationForPID(_:)`, and a test override so callers can distinguish successful empty enumeration from failed/timeout enumeration.
+- `Sources/Nehir/Core/Controller/AXEventHandler.swift` — kept the AX callback on `verifyWindowServerLiveness: true`; in `scheduleDestroyLivenessVerification(for:)`, removes when the WindowServer no longer resolves to the same pid or when a successful AX pid enumeration no longer includes the destroyed window id; keeps the entry when AX enumeration fails while WindowServer still says the pid/window is alive.
+- `Tests/NehirTests/AXEventHandlerTests.swift` — added focused regression coverage for the dual-oracle behavior.
+- `.changeset/20260708015201-remove-real-ax-closed-windows-without-reopening-.md` — patch release note.
+
+This did not change the CGS `spaceWindowDestroyed` scope; that separate source hazard remains tracked in `discovery/20260707-cold-start-wipe-recurs-post-liveness-fix-only-focused-pid-readmitted.md`.
 
 ## Required behavior
 
@@ -87,6 +98,16 @@ needed to express `success(windowIds)` vs `failed/timeout` for this verification
 path.
 
 ## Tests / validation
+
+Shipped automated validation in `d4cc525c` includes these new tests:
+
+- `axDestroyDeferredVerificationRemovesWhenAXEnumerationMissesWindow`
+- `axDestroyDeferredVerificationKeepsWindowWhenBothOraclesStillAlive`
+- `axDestroyDeferredVerificationRemovesWhenWindowServerPidNoLongerMatches`
+- `axDestroyDeferredVerificationKeepsWindowWhenAXEnumerationFailsAndWindowServerAlive`
+
+Manual runtime validation still useful after release: reproduce a real app close and a `dev:clean -- --trace` cold start to confirm no ghost slot and no mass wipe in live conditions.
+
 
 Fast automated gates:
 
