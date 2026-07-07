@@ -13,10 +13,10 @@ Later follow-ups:
 
 - [`completed/20260706-stable-viewport-on-window-close-recovery.md`](20260706-stable-viewport-on-window-close-recovery.md)
   landed the main close-recovery viewport pin / stable-target behavior.
-- [`planned/20260707-close-last-app-window-stay-on-current-workspace.md`](../planned/20260707-close-last-app-window-stay-on-current-workspace.md)
-  plans the remaining ordering hole: if a tracked close leaves no same-app
-  window on the current workspace, Nehir should still stay on that workspace
-  (even empty) instead of following macOS to another workspace with the same app.
+- [`completed/20260707-close-last-app-window-stay-on-current-workspace.md`](20260707-close-last-app-window-stay-on-current-workspace.md)
+  shipped the remaining ordering-hole fix: if a tracked close leaves no same-app
+  window on the current workspace, Nehir still stays on that workspace (even
+  empty) instead of following macOS to another workspace with the same app.
 
 ---
 

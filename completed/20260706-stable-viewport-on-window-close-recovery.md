@@ -57,11 +57,11 @@ overlapping recency-keyed signals gate the pins/redirects. If a legitimate revea
 is ever wrongly suppressed shortly after a same-app close, revisit the union of
 triggers.
 
-Follow-up now planned:
-[`planned/20260707-close-last-app-window-stay-on-current-workspace.md`](../planned/20260707-close-last-app-window-stay-on-current-workspace.md)
+Follow-up completed:
+[`completed/20260707-close-last-app-window-stay-on-current-workspace.md`](20260707-close-last-app-window-stay-on-current-workspace.md)
 addresses an ordering hole left by this work: an inactive-workspace same-app
 successor can be reported before the tracked close/removal marker, so the
-close-recovery window is not yet reliably active. The planned policy extends the
+close-recovery window is not yet reliably active. The shipped policy extends the
 same "close is local" rule to the case where the current workspace has no
 same-app survivor, and even to an empty workspace.
 

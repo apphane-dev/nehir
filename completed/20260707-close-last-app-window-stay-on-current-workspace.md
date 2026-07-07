@@ -1,8 +1,53 @@
 # Stay on the current workspace when a close leaves no same-app window there
 
-**Status:** planned follow-up to PR #148 / the 2026-07-06 close-recovery work.
-Verified against `main` at `d953d4d3` on 2026-07-07; re-check line numbers before
-implementation.
+**Status: LANDED (2026-07-07).** Shipped on `main` in commit
+`Keep current workspace active after window close` (changeset: `nehir` patch —
+"Keep current workspace active after closing a window"). This completed the
+follow-up to PR #148 / the 2026-07-06 close-recovery work.
+
+## What actually landed
+
+The merged implementation keeps the planned close-local policy, with two
+important compatibility refinements found during runtime validation:
+
+1. **Decision tracing first.** Runtime traces now identify the close-recovery
+   branch decisions with stable markers including
+   `close_recovery_focused_window_nil`, `close_recovery_begin`,
+   `close_recovery_activation_gate`,
+   `close_recovery_inactive_successor_deferred`,
+   `close_recovery_inactive_successor_suppressed`,
+   `close_recovery_follow_parked_skip`, and
+   `close_recovery_removed_window_focus_recovery`. Parked-follow also records
+   skip reasons such as `close_recovery_window`, `on_screen`, `floating`,
+   `sticky`, `dedup`, and `no_monitor`.
+2. **Short pre-close ambiguity marker.** `AXFocusedWindowChanged(window=nil)`
+   records a short-lived focused-window-loss precursor for the pid/workspace, so
+   an inactive same-app successor that arrives before tracked removal can be
+   deferred instead of immediately switching workspaces.
+3. **Inactive same-app successor defer.** A new same-app inactive native
+   activation defer path waits briefly and retries once. If tracked close or
+   close-recovery evidence appears during that delay, the existing suppression
+   path absorbs the successor. If no close evidence appears, the retry proceeds,
+   preserving legitimate same-app focus-follow.
+4. **Removal recovery survives overwritten focus.** `handleRemoved(token:)` now
+   requests removal focus recovery when the removed token matches the active
+   close-recovery preserved token or the focused-window-loss precursor, even if
+   macOS already moved Nehir's confirmed focus to another same-app window.
+5. **Auxiliary-destroy narrowing.** Runtime validation showed browser/profile
+   style same-app focus switches can destroy auxiliary AX elements after the
+   target focus has already been observed. Auxiliary destroys are therefore not
+   allowed to convert an already-deferred same-app activation into close
+   recovery; real tracked managed-window destroys still record the close marker.
+6. **Same-workspace/offscreen focus compatibility.** Same-app menu/profile focus
+   changes to an offscreen window on the same workspace must still scroll/reveal
+   the target. The close-only parked-focus suppression and stable redirect were
+   narrowed to require overlay/close-recovery evidence instead of suppressing
+   ordinary same-app focus changes.
+
+Manual runtime validation covered the original workspace-jump close repro and
+adjacent same-app focus-switch/profile/menu cases. Tests were intentionally not
+added in this merge because the repository rule keeps runtime bug tests deferred
+until after user-confirmed real-repro validation.
 
 ## Related prior docs
 
@@ -163,7 +208,7 @@ Nehir follows it; the workspace where the close happened becomes inactive.
   same-app switches, but it only skips during `isWithinSameAppCloseRecoveryWindow`.
   The race is that the close-recovery window is not reliably active/marked yet.
 
-## Required observability before behavior changes
+## Original required observability before behavior changes
 
 Do this first. The next runtime trace should identify every decision branch so
 we can prove the fix is catching the close path, not suppressing legitimate
@@ -210,7 +255,7 @@ close_recovery_follow_parked_skip
 close_recovery_removed_window_focus_recovery
 ```
 
-## Implementation plan
+## Original implementation plan
 
 ### Step 1 — Add decision tracing only
 
@@ -311,7 +356,7 @@ policy, but tests are not source of truth for this investigation.
 - Do not make empty workspaces auto-switch away as part of focus recovery.
 - Do not edit tests before runtime confirmation.
 
-## Acceptance criteria
+## Acceptance criteria (runtime-validated before merge)
 
 Manual/runtime first:
 
@@ -325,4 +370,4 @@ Manual/runtime first:
    target workspace, preserving the #148 behavior.
 5. Trace output clearly states which close-recovery branch made the decision.
 
-Only after those pass: add regression tests around the final confirmed design.
+Regression tests remain deferred per repository policy until after user-confirmed runtime validation is explicitly followed by a test task.

@@ -16,7 +16,8 @@ focus model rather than the observed macOS state (see "Diagnostics" below).
 Verified against the main Nehir source tree; landed on `main` via branch
 `fix/profile-switch-follow-front-window`.
 
-Follow-up: [`planned/20260707-close-last-app-window-stay-on-current-workspace.md`](../planned/20260707-close-last-app-window-stay-on-current-workspace.md)
+Follow-up completed:
+[`completed/20260707-close-last-app-window-stay-on-current-workspace.md`](20260707-close-last-app-window-stay-on-current-workspace.md)
 handles the remaining close-successor race where macOS reports another same-app
 window on a different Nehir workspace before the tracked close/removal marker is
 available. That follow-up preserves this document's deliberate same-app
