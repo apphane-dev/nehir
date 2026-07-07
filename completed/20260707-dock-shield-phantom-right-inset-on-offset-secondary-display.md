@@ -1,17 +1,17 @@
-# Discovery: Dock Shield paints a full-height 283 px band on the offset secondary display (phantom right inset)
+# Completed: Dock Shield phantom right inset on offset secondary display
 
-Status: discovery only — root-caused and source-confirmed. With the experimental
-Dock Shield enabled and a **right**-oriented fixed Dock, a large opaque shield
-(≈283 px wide, full working height) appears on the **secondary** display (an
-offset `DELL P2423D` sitting next to the built-in Retina), even though the Dock
-is not on that display. The shield is masking a **phantom** side reservation that
-macOS reports on the non-Dock display — the exact "offset DELL next to a
-built-in: a bogus right inset with nothing there" case the Dock code already
-documents at `Monitor.swift:196-205` and `DisplayEnvironmentDiagnostics.swift:122-125`,
-but which the current guard fails to suppress on this topology.
+Status: completed — fixed on `main` by commit `5c650f67` (`Ignore phantom
+side-Dock reservations on non-Dock displays`) and released with changeset
+`.changeset/20260707051012-dock-shield-no-longer-paints-a-band-on-a-seconda.md`.
+With the experimental Dock Shield enabled and a **right**-oriented fixed Dock,
+a large opaque shield (≈283 px wide, full working height) appeared on the
+**secondary** display (an offset `DELL P2423D` sitting next to the built-in
+Retina), even though the Dock was not on that display. The shield masked a
+**phantom** side reservation that macOS reported on the non-Dock display.
 
-Verified against the main Nehir source tree (`nehir v7a025b`) on 2026-07-07.
-Source line numbers below are durable code citations.
+Root cause was verified against the main Nehir source tree (`nehir v7a025b`) on
+2026-07-07. The shipped implementation was verified against `main` at
+`5c650f67` on 2026-07-07; `mise run check` passed (1422 tests in 116 suites).
 
 ## Summary
 
@@ -167,26 +167,50 @@ intersecting display 2." To pin it down, add a trace line in
 `dockBarAppKitRect()` (or `nil`) and the per-display intersection outcome at each
 topology recompute, then reproduce.
 
-## Candidate fix directions (not yet a plan)
+## Landed fix (`5c650f67`)
 
-- **Reject side insets that don't correspond to a resolvable, on-this-display Dock
-  bar.** Only bootstrap `stickyInset` from the live reservation when the AX bar is
-  readable and lands on this display; treat a side reservation with an
-  unresolvable bar as unknown rather than learning it. This closes the
-  learn-the-phantom path at `Monitor.swift:262-264`.
-- **Tighten / add an absolute cap for side insets.** A right/left Dock band is
-  typically ~100–150 px; the 33 %-of-width relative cap is far too loose on wide
-  externals. An absolute side-inset ceiling (or a much smaller side-specific
-  fraction) would reject a 282 px phantom while leaving bottom insets alone.
-- **Cross-check the shield against a positive Dock signal.** Have
-  `shieldGeometry` require an affirmative "Dock bar is on *this* display" reading
-  (not merely "not provably elsewhere") before painting, so an unresolvable bar
-  never yields a shield.
-- **Re-probe / reclaim on settle even when width is unchanged.** The settle
-  refreshes only re-apply when `visibleFrame` width changed
-  (`ServiceLifecycleManager.swift:310-315`); a phantom learned before the first
-  settle stays because the width never changes. Force a phantom-reclamation check
-  once the Dock AX bar first becomes resolvable.
+The shipped fix kept the change localized to `Sources/Nehir/Core/Monitor/Monitor.swift`:
 
-Whichever direction is chosen, the invariant to restore is: **a display that does
-not host the Dock must not retain a side inset, and must never receive a shield.**
+- `stableVisibleFrame` now derives `liveLeftInset`, `liveRightInset`, the Dock AX
+  bar rect, and whether that bar intersects the current display before learning
+  or applying any side reservation (`Monitor.swift:196-215` at `5c650f67`).
+- Side Dock orientation can be inferred from AX-confirmed on-display bar geometry
+  when CFPreferences lags or reads nil, preventing a real side Dock from being
+  treated as the bottom fallback (`Monitor.swift:200-215`).
+- `reclaimUnconfirmedSideReservation` restores the physical left/right frame edge
+  while preserving orthogonal menu-bar geometry (`Monitor.swift:216-226`).
+- If the Dock bar is readable but does not intersect this display, any sticky
+  inset for this display is cleared and the live side reservation is reclaimed
+  immediately (`Monitor.swift:272-277`).
+- Left/right sticky insets are no longer bootstrapped from the live reservation;
+  side insets are learned only from `axDerivedInset`, i.e. AX-confirmed Dock bar
+  geometry on this display (`Monitor.swift:284-320`).
+- When no AX-confirmed side inset exists, raw side reservations in `visibleFrame`
+  are reclaimed instead of being passed through to tiling or Dock Shield geometry
+  (`Monitor.swift:327-340`).
+- AX bar conversion is centralized in `appKitDockBarRect(from:)`, and
+  `axDerivedInset` now uses AppKit coordinates plus vertical overlap checks for
+  left/right Docks (`Monitor.swift:385-415`).
+
+This implements the core invariant from the discovery: a display that does not
+host the Dock must not retain a side inset, and must never receive a shield. The
+accepted trade-off is that a genuine side Dock may be full-width for a short
+cold-start beat until the Dock AX bar becomes readable; startup settle refreshes
+then re-apply the AX-confirmed inset.
+
+## Follow-up state
+
+- **Fixed:** phantom side reservations on non-Dock displays are no longer learned
+  from the live AppKit reservation, and already-learned sticky side insets are
+  cleared when AX proves the Dock bar is elsewhere.
+- **Fixed:** Dock Shield no longer needs an independent positive-host check for
+  this case because `stableVisibleFrame` no longer forwards unconfirmed side
+  insets into the corrected visible frame that `shieldGeometry` consumes.
+- **Still intentionally open:** `Monitor.swift:301-302` keeps a TODO to evaluate
+  a tighter side-inset ceiling than the existing `0.33` plausibility cap. The
+  landed fix does not depend on that cap for phantom suppression; it remains a
+  possible hardening task once there is evidence for a safe upper bound on
+  legitimately large side Docks.
+- **No test edits were made before user validation, per project rule.** Regression
+  coverage can be added later if requested or if a deterministic Dock/AX seam is
+  introduced.
