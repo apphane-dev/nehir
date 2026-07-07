@@ -1,7 +1,8 @@
 # Completed: Dock Shield phantom right inset on offset secondary display
 
-Status: completed — fixed on `main` by commit `5c650f67` (`Ignore phantom
-side-Dock reservations on non-Dock displays`) and released with changeset
+Status: completed / merged — fixed on `main` by commit `5c650f67`
+(`Ignore phantom side-Dock reservations on non-Dock displays`) and present in
+current `main` at `0f785212` on 2026-07-07. Released with changeset
 `.changeset/20260707051012-dock-shield-no-longer-paints-a-band-on-a-seconda.md`.
 With the experimental Dock Shield enabled and a **right**-oriented fixed Dock,
 a large opaque shield (≈283 px wide, full working height) appeared on the
@@ -11,7 +12,8 @@ Retina), even though the Dock was not on that display. The shield masked a
 
 Root cause was verified against the main Nehir source tree (`nehir v7a025b`) on
 2026-07-07. The shipped implementation was verified against `main` at
-`5c650f67` on 2026-07-07; `mise run check` passed (1422 tests in 116 suites).
+`5c650f67` and re-checked after merge at `0f785212` on 2026-07-07;
+`mise run check` passed (1422 tests in 116 suites) before merge.
 
 ## Summary
 
@@ -200,6 +202,8 @@ then re-apply the AX-confirmed inset.
 
 ## Follow-up state
 
+- **Merged:** the completed fix is on `main`; no active `planned/` item remains for
+  this Dock Shield phantom-side-inset bug.
 - **Fixed:** phantom side reservations on non-Dock displays are no longer learned
   from the live AppKit reservation, and already-learned sticky side insets are
   cleared when AX proves the Dock bar is elsewhere.
