@@ -1,12 +1,17 @@
 # Thunderbird send-confirmation dialog tiles as a column (un-parented, un-tagged AXStandardWindow)
 
-Status: **completed after follow-up correction**. The first built-in merged as
+Status: **completed with later follow-ups**. The first built-in merged as
 `45d3767f` via plan [[20260706-thunderbird-gecko-dialog-float-builtin]], but a
 `!windowServer.frame.isEmpty` guard rejected the real zero-frame dialog. The
-follow-up fix landed on `main` as `d953d4d3`; regression evidence and final
-outcome: [[20260707-thunderbird-gecko-dialog-still-tiles-frame-isempty-guard-defeats-fix]].
-The root-cause analysis below (document-tag discriminator, prior-art survey)
-remains correct. Source: apphane-dev/nehir discussion #142 ("Popup window rule?").
+zero-frame fix landed as `d953d4d3`. Later Thunderbird reproductions showed that
+Gecko can also project a floated dialog as user-addressable content and can
+create compact document-tagged send dialogs, so the final validated fix landed as
+`579f124d` ("Keep Gecko transient dialogs floating #142"). See
+[[20260707-thunderbird-gecko-dialog-still-tiles-frame-isempty-guard-defeats-fix]],
+[[20260707-thunderbird-gecko-dialog-floats-then-tiles-projection]], and
+[[20260707-thunderbird-gecko-dialog-durable-transient-metadata]]. The root-cause
+analysis below remains correct for the tagless/zero-frame path. Source:
+apphane-dev/nehir discussion #142 ("Popup window rule?").
 
 Thunderbird's "message sent" confirmation dialog (and its compose window) open as
 a tiled column instead of floating. The user asked for a window rule to exempt

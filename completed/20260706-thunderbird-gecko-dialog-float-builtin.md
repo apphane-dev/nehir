@@ -1,14 +1,15 @@
 # Plan: float Gecko (Thunderbird/Firefox) transient dialogs via a scoped built-in
 
-Status: **completed after follow-up correction**. First merged to `main` as
+Status: **completed with later follow-ups**. First merged to `main` as
 `45d3767f` ("Float Gecko transient dialogs (Thunderbird/Firefox) (#142)"),
 2026-07-06, but that first commit accidentally shipped a
 `!windowServer.frame.isEmpty` guard and did not float the real zero-frame dialog.
-The follow-up fix landed on `main` as `d953d4d3` ("Float zero-frame Gecko
-transient dialogs that the first #142 fix still tiled"); see
+The zero-frame correction landed as `d953d4d3`; a later Thunderbird reproduction
+showed additional Gecko creation paths and the final fix landed as `579f124d`
+("Keep Gecko transient dialogs floating #142"). See
 [[20260707-thunderbird-gecko-dialog-still-tiles-frame-isempty-guard-defeats-fix]]
-for the regression evidence and final outcome. Root cause:
-[[20260706-thunderbird-gecko-dialog-tiled-untagged-unparented-standard-window]].
+and [[20260707-thunderbird-gecko-dialog-floats-then-tiles-projection]]. Root
+cause: [[20260706-thunderbird-gecko-dialog-tiled-untagged-unparented-standard-window]].
 Fixes apphane-dev/nehir discussion #142 (Thunderbird send-confirmation dialog
 tiles as a column).
 

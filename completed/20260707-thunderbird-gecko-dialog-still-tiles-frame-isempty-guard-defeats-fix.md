@@ -1,14 +1,18 @@
 # Gecko-dialog fix is defeated by a `!windowServer.frame.isEmpty` guard that shipped in the fix itself
 
-Status: **completed** — corrected on `main` in `d953d4d3` ("Float zero-frame Gecko transient dialogs that the first #142 fix still tiled"). Reopened
-apphane-dev/nehir discussion #142 ("Popup window rule?") after the first fix
-merged as `45d3767f` but **did not float the send-confirmation dialog it was
-written for**. The corrective merge removed the frame guard, moved the Gecko
-dialog rule after title-missing deferral so Firefox/Zen PiP still routes through
-`browserPictureInPicture`, and added zero-frame plus non-zero-frame regression
-coverage. A fresh reporter capture (Thunderbird, `nehir v0.6.0` build carrying
-`45d3767f`, single monitor `ID(displayId: 4)` 5120×1440) showed the dialog still
-tiling as a full-height column.
+Status: **completed, then superseded by a broader final fix** — corrected on
+`main` in `d953d4d3` ("Float zero-frame Gecko transient dialogs that the first
+#142 fix still tiled"). This document explains why the first `45d3767f` fix did
+not catch zero-frame dialogs. Later local Thunderbird reproductions showed two
+additional paths: a floated Gecko dialog could still be projected as
+user-addressable layout content, and Gecko could create a compact document-tagged
+send dialog with no transient precursor. The final validated fix landed as
+`579f124d` ("Keep Gecko transient dialogs floating #142"); see
+[[20260707-thunderbird-gecko-dialog-floats-then-tiles-projection]] and
+[[20260707-thunderbird-gecko-dialog-durable-transient-metadata]]. A fresh
+reporter capture (Thunderbird, `nehir v0.6.0` build carrying `45d3767f`, single
+monitor `ID(displayId: 4)` 5120×1440) showed the zero-frame dialog still tiling
+as a full-height column.
 
 All runtime evidence is inlined below; the document does not depend on any
 machine-local trace surviving. A durable copy of the capture is attached to
