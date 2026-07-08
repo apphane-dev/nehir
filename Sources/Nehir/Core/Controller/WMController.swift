@@ -1893,11 +1893,36 @@ final class WMController {
         return nil
     }
 
-    func managedCommandTarget() -> WMCommandTarget? {
+    func managedCommandTarget(traceDecision: Bool = true) -> WMCommandTarget? {
         let frontmostPid = commandHandler.frontmostAppPidProvider?()
             ?? NSWorkspace.shared.frontmostApplication?.processIdentifier
         let frontmostToken = commandHandler.frontmostFocusedWindowTokenProvider?()
             ?? frontmostPid.flatMap { axEventHandler.focusedWindowToken(for: $0) }
+
+        func traceResolve(
+            event: String,
+            reason: String? = nil,
+            resolvedFrontmostToken: WindowToken? = nil,
+            preservedManagedFocus: WindowToken? = nil,
+            target: WMCommandTarget? = nil,
+            stickySourceExceptionConsidered: Bool = false,
+            stickySourceExceptionAccepted: Bool = false
+        ) {
+            guard traceDecision else { return }
+            traceManagedCommandTargetResolve(
+                event: event,
+                reason: reason,
+                frontmostPid: frontmostPid,
+                frontmostToken: frontmostToken,
+                resolvedFrontmostToken: resolvedFrontmostToken,
+                preservedManagedFocus: preservedManagedFocus,
+                target: target,
+                stickySourceExceptionConsidered: stickySourceExceptionConsidered,
+                stickySourceExceptionAccepted: stickySourceExceptionAccepted
+            )
+        }
+
+        traceResolve(event: "command_target.resolve.begin")
 
         let frontmostTokenIsUntracked = frontmostToken.map { workspaceManager.entry(for: $0) == nil } == true
         let frontmostTokenIsSelfProcess = frontmostPid == getpid() && frontmostTokenIsUntracked
@@ -1906,9 +1931,22 @@ final class WMController {
             if let target = managedCommandTarget(forFrontmostToken: frontmostToken),
                workspaceManager.hasStickyWindowSource(target.token)
             {
+                traceResolve(
+                    event: "command_target.resolve.accept",
+                    reason: "recentlyLeftNonManagedFocus.stickySourceException",
+                    target: target,
+                    stickySourceExceptionConsidered: true,
+                    stickySourceExceptionAccepted: true
+                )
                 return target
             }
             if frontmostToken != nil, !frontmostTokenIsSelfProcess {
+                traceResolve(
+                    event: "command_target.resolve.decline",
+                    reason: "recentlyLeftNonManagedFocus.frontmostPresent",
+                    stickySourceExceptionConsidered: true,
+                    stickySourceExceptionAccepted: false
+                )
                 return nil
             }
         }
@@ -1918,6 +1956,11 @@ final class WMController {
             if let frontmostToken,
                workspaceManager.entry(for: frontmostToken) != nil
             {
+                traceResolve(
+                    event: "command_target.resolve.decline",
+                    reason: "nonManagedFocus.frontmostTracked",
+                    preservedManagedFocus: preservedManagedFocus
+                )
                 return nil
             }
             if let frontmostPid {
@@ -1931,9 +1974,28 @@ final class WMController {
                 if let target = managedCommandTarget(forFrontmostToken: resolvedFrontmostToken),
                    target.token != preservedManagedFocus || workspaceManager.hasStickyWindowSource(target.token)
                 {
+                    traceResolve(
+                        event: "command_target.resolve.accept",
+                        reason: "nonManagedFocus.probeReplacement",
+                        resolvedFrontmostToken: resolvedFrontmostToken,
+                        preservedManagedFocus: preservedManagedFocus,
+                        target: target
+                    )
                     return target
                 }
+                traceResolve(
+                    event: "command_target.resolve.decline",
+                    reason: "nonManagedFocus.probeNoReplacement",
+                    resolvedFrontmostToken: resolvedFrontmostToken,
+                    preservedManagedFocus: preservedManagedFocus
+                )
+                return nil
             }
+            traceResolve(
+                event: "command_target.resolve.decline",
+                reason: "nonManagedFocus.noFrontmostPid",
+                preservedManagedFocus: preservedManagedFocus
+            )
             return nil
         }
 
@@ -1949,6 +2011,12 @@ final class WMController {
             let resolvedFrontmostToken = commandHandler.frontmostFocusedWindowTokenProvider?()
                 ?? axEventHandler.focusedWindowToken(for: frontmostPid)
             if let target = managedCommandTarget(forFrontmostToken: resolvedFrontmostToken) {
+                traceResolve(
+                    event: "command_target.resolve.accept",
+                    reason: "frontmostUntracked.probeReplacement",
+                    resolvedFrontmostToken: resolvedFrontmostToken,
+                    target: target
+                )
                 return target
             }
             if resolvedFrontmostToken != nil {
@@ -1967,14 +2035,25 @@ final class WMController {
            let entry = workspaceManager.entry(for: token),
            entry.mode == .floating
         {
-            return WMCommandTarget(
+            let target = WMCommandTarget(
                 token: token,
                 workspaceId: workspaceId,
                 source: .confirmedManagedFocus
             )
+            traceResolve(
+                event: "command_target.resolve.accept",
+                reason: "confirmedManagedFocus.floating",
+                target: target
+            )
+            return target
         }
 
         if let target = managedCommandTarget(forFrontmostToken: frontmostToken, requireFloating: true) {
+            traceResolve(
+                event: "command_target.resolve.accept",
+                reason: "frontmostManagedFallback.floating",
+                target: target
+            )
             return target
         }
 
@@ -1986,12 +2065,22 @@ final class WMController {
         // focused is still resolved first (confirmed/frontmost floating branches
         // above) before reaching this point.
         if let target = layoutSelectionCommandTarget() {
+            traceResolve(
+                event: "command_target.resolve.accept",
+                reason: "layoutSelection",
+                target: target
+            )
             return target
         }
 
         if let frontmostPid,
            let target = samePidFloatingCommandTarget(pid: frontmostPid, excluding: frontmostToken)
         {
+            traceResolve(
+                event: "command_target.resolve.accept",
+                reason: "samePidFloatingFallback",
+                target: target
+            )
             return target
         }
 
@@ -1999,14 +2088,116 @@ final class WMController {
            let workspaceId = workspaceManager.workspace(for: token),
            workspaceManager.entry(for: token) != nil
         {
-            return WMCommandTarget(
+            let target = WMCommandTarget(
                 token: token,
                 workspaceId: workspaceId,
                 source: .confirmedManagedFocus
             )
+            traceResolve(
+                event: "command_target.resolve.accept",
+                reason: "confirmedManagedFocus",
+                target: target
+            )
+            return target
         }
 
-        return managedCommandTarget(forFrontmostToken: frontmostToken)
+        if let target = managedCommandTarget(forFrontmostToken: frontmostToken) {
+            traceResolve(
+                event: "command_target.resolve.accept",
+                reason: "frontmostManagedFallback",
+                target: target
+            )
+            return target
+        }
+
+        traceResolve(
+            event: "command_target.resolve.decline",
+            reason: frontmostToken == nil ? "noConfirmedNoFrontmost" : "frontmostNotManaged"
+        )
+        return nil
+    }
+
+    private func traceManagedCommandTargetResolve(
+        event: String,
+        reason: String? = nil,
+        frontmostPid: pid_t?,
+        frontmostToken: WindowToken?,
+        resolvedFrontmostToken: WindowToken? = nil,
+        preservedManagedFocus: WindowToken? = nil,
+        target: WMCommandTarget? = nil,
+        stickySourceExceptionConsidered: Bool = false,
+        stickySourceExceptionAccepted: Bool = false
+    ) {
+        diagnostics.recordRuntimeDecisionEvent(named: event, cluster: "NF-1") { [self] in
+            let confirmedToken = workspaceManager.confirmedManagedFocusToken
+            let layoutSelection = layoutSelectionCommandTarget()
+            let interactionWorkspaceId = interactionWorkspace()?.id
+            let recentlyLeftAge = workspaceManager.nonManagedFocusExitAge()
+            let recentlyLeftAgeMs = recentlyLeftAge.map { String(format: "%.1f", $0 * 1000.0) }
+            let frontmostTokenIsTracked = frontmostToken.map { workspaceManager.entry(for: $0) != nil }
+            let frontmostTokenIsUntracked = frontmostToken.map { workspaceManager.entry(for: $0) == nil }
+            let frontmostTokenIsSelfProcess = frontmostPid == getpid() && (frontmostTokenIsUntracked == true)
+
+            return [
+                RuntimeDecisionTraceField("resolver", "managedCommandTarget"),
+                RuntimeDecisionTraceField("reason", reason),
+                RuntimeDecisionTraceField("frontmostPid", frontmostPid.map(String.init)),
+                RuntimeDecisionTraceField("frontmostToken", commandTargetTokenTraceValue(frontmostToken)),
+                RuntimeDecisionTraceField(
+                    "resolvedFrontmostToken",
+                    commandTargetTokenTraceValue(resolvedFrontmostToken)
+                ),
+                RuntimeDecisionTraceField("frontmostTokenTracked", frontmostTokenIsTracked.map(String.init)),
+                RuntimeDecisionTraceField("frontmostTokenUntracked", frontmostTokenIsUntracked.map(String.init)),
+                RuntimeDecisionTraceField("frontmostTokenSelfProcess", String(frontmostTokenIsSelfProcess)),
+                RuntimeDecisionTraceField("confirmedToken", commandTargetTokenTraceValue(confirmedToken)),
+                RuntimeDecisionTraceField(
+                    "confirmedWorkspace",
+                    confirmedToken.flatMap { workspaceManager.workspace(for: $0) }.map { $0.uuidString }
+                ),
+                RuntimeDecisionTraceField("preservedManagedFocus", commandTargetTokenTraceValue(preservedManagedFocus)),
+                RuntimeDecisionTraceField("layoutSelectionToken", commandTargetTokenTraceValue(layoutSelection?.token)),
+                RuntimeDecisionTraceField("layoutSelectionWorkspace", layoutSelection?.workspaceId.uuidString),
+                RuntimeDecisionTraceField("interactionWorkspace", interactionWorkspaceId?.uuidString),
+                RuntimeDecisionTraceField(
+                    "interactionMonitor",
+                    workspaceManager.interactionMonitorId.map(String.init(describing:))
+                ),
+                RuntimeDecisionTraceField("nonManagedActive", String(workspaceManager.isNonManagedFocusActive)),
+                RuntimeDecisionTraceField(
+                    "recentlyLeftNonManagedFocus",
+                    String(workspaceManager.recentlyLeftNonManagedFocus(within: 1.0))
+                ),
+                RuntimeDecisionTraceField("recentlyLeftNonManagedFocusAgeMs", recentlyLeftAgeMs),
+                RuntimeDecisionTraceField(
+                    "stickySourceExceptionConsidered",
+                    String(stickySourceExceptionConsidered)
+                ),
+                RuntimeDecisionTraceField("stickySourceExceptionAccepted", String(stickySourceExceptionAccepted)),
+                RuntimeDecisionTraceField("targetToken", commandTargetTokenTraceValue(target?.token)),
+                RuntimeDecisionTraceField("targetWorkspace", target?.workspaceId.uuidString),
+                RuntimeDecisionTraceField("targetSource", commandTargetSourceTraceValue(target?.source))
+            ]
+        }
+    }
+
+    private func commandTargetTokenTraceValue(_ token: WindowToken?) -> String? {
+        guard let token else { return nil }
+        return "\(token.pid):\(token.windowId)"
+    }
+
+    private func commandTargetSourceTraceValue(_ source: WMCommandTarget.Source?) -> String? {
+        guard let source else { return nil }
+        switch source {
+        case .layoutSelection:
+            return "layoutSelection"
+        case .confirmedManagedFocus:
+            return "confirmedManagedFocus"
+        case .frontmostManagedFallback:
+            return "frontmostManagedFallback"
+        case .samePidFloatingFallback:
+            return "samePidFloatingFallback"
+        }
     }
 
     private func managedCommandTarget(
