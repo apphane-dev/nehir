@@ -50,6 +50,14 @@ Traced proof (inlined in the discovery): `locked=true visibility=fullyVisible
 closest=4773.9:rightEdge closestFills=false center=5434.9:center` →
 `didReveal=true`, viewport `5079.0 → 5434.9`; whereas
 `locked=true visibility=clipped` → `didReveal=false` (lock works there).
+A later two-window capture on Nehir `9ac0b9` confirms this is not merely a
+scroll-lock bypass: with lock disabled, both windows initially fully visible
+(`w26358` at x=218 width=808; `w26356` at x=1031 width=1011 in an x≈8...2048
+viewport), an automatic focus confirm of `w26358` logged
+`visibility=fullyVisible locked=false closest=-6.0:leftEdge closestFills=false
+center=-616.2:center centerFills=false`, then `didReveal=true` and animated
+`targetViewStart=-209.4 → -616.2`. The chosen target was the center snap even
+though no reveal was needed.
 
 ## Fix (approach A — gate inside `scrollToReveal`; recommended)
 
@@ -77,7 +85,9 @@ else:
    ```
 
    Rationale: a `.automatic` focus confirm of a fully visible column is already
-   satisfied — moving it is the reported bug even when unlocked. A deliberate
+   satisfied — moving it is the reported bug even when unlocked. The 2026-07-08
+   two-window capture makes this the primary acceptance rule: fully visible +
+   automatic must be a no-op even with `isScrollLocked == false`. A deliberate
    `focus-column-*` command may still center per `revealStyle == .auto`.
 
    Deliberately **kept**: the filling-group maintenance exit (~:104-121) for
@@ -132,9 +142,10 @@ Add, at minimum:
    (clipped + locked) and `scrollToRevealDoesNotMoveFullyVisibleTarget` must
    stay green unmodified.
 
-Per repo policy, land tests **after** the user confirms the fix in their real
-repro; the fix commit may ship first with tests as an immediate follow-up in
-the same branch.
+Per repo policy, do **not** add or modify tests until the user confirms the fix
+in their real repro. The first implementation pass should land the code fix and
+changeset only; add the regression tests as a follow-up after real-world
+confirmation.
 
 ### Step 3 — runtime verification hook
 

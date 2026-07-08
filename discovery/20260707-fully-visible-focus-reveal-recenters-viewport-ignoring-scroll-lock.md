@@ -14,6 +14,13 @@ enabled**. With two visible windows on screen, alternating focus between them
 makes the viewport ping-pong between each column's center snap on every focus
 change, despite neither window ever being off-screen.
 
+A later capture with scroll lock **disabled** reduced the case further: two
+windows were fully visible at the moment focus changed, and the automatic focus
+confirm still moved the viewport to the target column's center snap. So the
+primary policy is not lock-dependent: focusing a fully visible window is already
+satisfied and should be a no-op; scroll lock is an additional guard for every
+automatic reveal.
+
 Expected: focusing a fully visible window is not a reveal; nothing should move.
 With scroll lock on, even a clipped window should not trigger an automatic
 reveal (only explicit navigation may).
@@ -67,6 +74,39 @@ resting `currentViewStart=4570.5` of the session). The identical pair recurred
 at 09:22:03. An earlier occurrence at 09:21:36 with `locked=false` shows the
 same fully-visible re-center, so the movement happens regardless of lock state
 — the lock simply never enters the decision.
+
+Fresh confirmation from a later capture (Nehir runtime `9ac0b9`, 2026-07-08)
+uses a smaller two-window topology and proves the same unlocked policy breach.
+At capture start on workspace 2, both windows were fully visible in the
+2040 px-wide viewport:
+
+- `w26358` (pid 82494) was at screen x=218, width=808.
+- `w26356` (pid 82494) was at screen x=1031, width=1011.
+- The viewport x-range was approximately 8...2048, so both windows were wholly
+  inside the viewport.
+- The engine state was `currentViewStart=-209.4`, `targetViewStart=-209.4`,
+  active/selected column 1 (`w26356`).
+
+Click/focus-confirm of `w26358` while **fully visible and unlocked** produced:
+
+```
+11:42:32 reason=ax_focus_confirm_reveal_candidate token=(pid 82494, windowId 26358)
+         columnIndex=0 revealStyle=auto locked=false visibility=fullyVisible
+         viewStart=-209.4 closest=-6.0:leftEdge closestFills=false
+         center=-616.2:center centerFills=false snapCount=3
+         columns=2 activeColumnIndex=1 currentViewStart=-209.4 targetViewStart=-209.4
+11:42:32 reason=ax_focus_confirm_reveal_result   didReveal=true
+11:42:32 reason=relayout.viewportOffsetChanged   currentViewStart=-209.7 targetViewStart=-616.2
+         lastViewportMutation=animateToOffset.spring
+         beforeTargetOffset=-209.4 afterTargetOffset=-616.2
+11:42:32 reason=scroll_animation_stop            currentViewStart=-616.2 targetViewStart=-616.2
+```
+
+The target `-616.2` exactly equals the logged center snap. This capture has no
+scroll-lock ambiguity (`locked=false`): the bug is that an automatic focus
+confirm of an already fully visible window chose a center snap at all. The
+policy should be "fully visible + automatic ⇒ no viewport movement" whether
+scroll lock is enabled or disabled.
 
 For contrast, the lock **does** work in the clipped path:
 

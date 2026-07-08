@@ -189,15 +189,19 @@ token survived in the model, niri tree, AX, and WindowServer afterward**.
 
 Focus confirmation now records useful reveal candidate/result lines including
 scroll lock, visibility, snap count, closest/center snap, and `didReveal`
-(`AXEventHandler.swift:3809-3847`). But the actual reveal policy lives in
-`NiriLayoutEngine.scrollToReveal`: it can return `false` for FFM, invalid
-indices/no snap points, fully-visible no-op, scroll-lock, or missing snap; it
-can also move a fully visible filling group as viewport-position maintenance
-(`NiriLayoutEngine+ViewportCommands.swift:70-127`). Snap candidates are produced
-by `ViewportSnapContext.snapCandidates`, which stores bounded offsets without
-showing the original unbounded candidate or why candidates were retained
-(`ViewportState+Geometry.swift:98-135`). Viewport mutation audit keeps only the
-last mutation (`ViewportState.swift:203-255`).
+(`AXEventHandler.swift:3809-3847`). A 2026-07-08 two-window capture showed why
+that caller-level trace is useful but still incomplete: it proved an unlocked,
+fully visible automatic focus confirm chose `center=-616.2` and moved
+`targetViewStart=-209.4 → -616.2`, but the engine branch and no-op/apply reason
+still had to be inferred from the candidate numbers. The actual reveal policy
+lives in `NiriLayoutEngine.scrollToReveal`: it can return `false` for FFM,
+invalid indices/no snap points, fully-visible no-op, scroll-lock, or missing
+snap; it can also move a fully visible filling group as viewport-position
+maintenance (`NiriLayoutEngine+ViewportCommands.swift:70-127`). Snap candidates
+are produced by `ViewportSnapContext.snapCandidates`, which stores bounded
+offsets without showing the original unbounded candidate or why candidates were
+retained (`ViewportState+Geometry.swift:98-135`). Viewport mutation audit keeps
+only the last mutation (`ViewportState.swift:203-255`).
 
 ### Add these trace events
 
