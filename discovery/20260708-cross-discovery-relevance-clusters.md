@@ -20,6 +20,7 @@ Scale used below:
 | Cluster | User impact | Effort | Quick wins | Pain-in-arse | Regression risk | Observability need | Suggested priority |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | **NF-1** stale non-managed focus | **Very high** — commands silently no-op, windows refuse admission/reveal | **M/L** | Yes: explicit-token command paths; trace guard declines | **High** | **High** — overlay/quick-terminal protections are easy to weaken | **High** | **P0/P1** |
+| **CR-1** close-recovery focus churn | **High** — focus can visibly oscillate or follow the wrong same-app successor | **S/M** | Yes: add an oscillation latch / tighten overlay evidence | **High** | **High** — real same-app switches and close-local policy must survive | **Med/High** | **P0/P1** |
 | **LC-1** lifecycle/admission desync | **Very high** — windows disappear, merge, or are not admitted | **L/XL** | Partial: gate CGS destroy with liveness; improve burst tracing | **Very high** | **Very high** — destroy/admission is central | **Very high** | **P0 but sliced** |
 | **VR-1** automatic viewport movement | **High** — viewport moves against user intent | **S/M** for current planned fixes; **L** for full policy cleanup | **Yes**: fully-visible reveal guard; lone-column snap bound filter | **Med** | **Med** — explicit navigation must still move | **Med** | **P0 quick wins** |
 | **XD-1** cross-display move/reveal ordering | **High** for multi-display users | **M/L** | Some: make Summon Right reveal after target-frame materialization | **High** | **High** — monitor geometry and admission overlap | **High** | **P1 after LC/VR slices** |
@@ -37,6 +38,13 @@ Scale used below:
   - add a narrow stale-non-managed-focus escape when the preserved managed token is hidden/offscreen and the selected viewport token is visible.
 - **Hard part:** preserving the reason the guard exists: real unmanaged overlays, quick terminals, menus, and system UI must not cause focus bounce-back into tiled windows.
 - **Recommended slice:** the first tracing part landed in `f6078799`; next, add explicit-token command-path traces and plan the focus/admission guard narrowing separately.
+
+### CR-1 evaluation — close-recovery and same-app overlay focus churn
+
+- **Why it hurts:** the close-recovery system can become its own focus source: macOS confirms one same-app window, Nehir redirects to the spatially stable target, then the same overlay/close evidence redirects the confirmation back again.
+- **Best quick wins:** add a short per-pid/workspace redirect-pair latch, or require stronger evidence than `recentNonManaged=true` alone before the `.overlay` phase redirects between two managed same-workspace windows.
+- **Hard part:** this is a protection added for real close/quick-terminal churn. Do not regress the landed local-close policy, and do not suppress legitimate same-app profile/window switches that should reveal their target.
+- **Recommended slice:** fix the exact A → B → A oscillation first, with trace evidence that says when a reverse redirect was skipped and why.
 
 ### LC-1 evaluation — lifecycle/admission desync
 
@@ -103,6 +111,20 @@ Scale used below:
 - [`20260622-dock-click-focus-does-not-reveal-column.md`](20260622-dock-click-focus-does-not-reveal-column.md) and [`20260622-workspace-bar-freezes-on-gesture-with-non-managed-focus.md`](20260622-workspace-bar-freezes-on-gesture-with-non-managed-focus.md) — older reveal/bar-projection symptoms from the same suppressor branch.
 
 **Do not merge blindly:** NF-1 contains two fix surfaces: clearing/narrowing stale non-managed focus, and command paths that should carry an explicit token instead of asking `managedCommandTarget()` again. They are related but may need separate plans.
+
+## CR-1 — close-recovery and same-app overlay focus churn
+
+**Common issue:** close/overlay recovery deliberately overrides macOS's same-app successor to preserve the user's viewport and local workspace. The guard family is timing-sensitive: if its recency evidence is too broad or lacks an oscillation latch, recovery can either follow the wrong successor or get stuck redirecting between two same-app managed windows.
+
+**Primary links:**
+
+- [`20260708-focus-dance-stuck-same-app-recovery.md`](20260708-focus-dance-stuck-same-app-recovery.md) — current strongest capture: `close_recovery_overlay_stable_target` alternates observed/target tokens while `recentNonManaged=true` and disappeared-focus signals are false.
+- [`../completed/20260706-stable-viewport-on-window-close-recovery.md`](../completed/20260706-stable-viewport-on-window-close-recovery.md) — direct parent that added viewport pins, stable-target redirects, preconfirm/overlay phases, and recent non-managed overlay focus TTL.
+- [`../completed/20260707-close-last-app-window-stay-on-current-workspace.md`](../completed/20260707-close-last-app-window-stay-on-current-workspace.md) — follow-up that keeps close local even when the current workspace loses its same-app survivor; preserve this policy while fixing oscillation.
+- [`../completed/20260706-same-app-focus-switch-reveals-inactive-workspace-window.md`](../completed/20260706-same-app-focus-switch-reveals-inactive-workspace-window.md) — compatibility boundary: genuine same-app focus switches must still reveal/follow their target.
+- [`../completed/20260615-quick-terminal-close-switches-workspace.md`](../completed/20260615-quick-terminal-close-switches-workspace.md) and [`20260615-viewport-reveal-from-unmanaged-overlay-activation.md`](20260615-viewport-reveal-from-unmanaged-overlay-activation.md) — older quick-terminal / app-owned overlay roots for this policy family.
+
+**Do not merge blindly:** CR-1 overlaps NF-1 through non-managed/overlay evidence and VR-1 through viewport pin/reveal behavior, but the fix surface is narrower: same-app close/overlay recovery redirect policy.
 
 ## LC-1 — lifecycle/admission desync: false removals, partial enumeration, and replacement bursts
 
