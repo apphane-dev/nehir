@@ -34,6 +34,56 @@ private enum NativeFullscreenReplacementRestoreResult {
     }
 }
 
+private enum WindowDestroyOrigin: Sendable {
+    case axDestroyed
+    case cgsSpaceDestroyed(spaceId: UInt64)
+    case cgsWindowClosed
+
+    var traceName: String {
+        switch self {
+        case .axDestroyed:
+            "ax_destroyed"
+        case .cgsSpaceDestroyed:
+            "cgs_space_destroyed"
+        case .cgsWindowClosed:
+            "cgs_window_closed"
+        }
+    }
+
+    var spaceId: UInt64? {
+        if case let .cgsSpaceDestroyed(spaceId) = self {
+            return spaceId
+        }
+        return nil
+    }
+
+    var requiresAXConfirmationWhenWindowServerMissing: Bool {
+        if case .cgsSpaceDestroyed = self {
+            return true
+        }
+        return false
+    }
+}
+
+private struct DestroyLivenessDecisionTrace {
+    let windowId: UInt32
+    let token: WindowToken?
+    let origin: WindowDestroyOrigin
+    let verifyWindowServerLiveness: Bool
+    let windowServerPid: pid_t?
+    let outcome: String
+    let reason: String
+}
+
+private struct DestroyLivenessVerificationTrace {
+    let token: WindowToken
+    let origin: WindowDestroyOrigin
+    let windowServerAlive: Bool
+    let axEnumeration: String
+    let outcome: String
+    let reason: String
+}
+
 enum ActivationCallOrigin: String {
     case external
     case probe
@@ -160,6 +210,24 @@ struct NiriCreateFocusTraceEvent: Equatable {
         // the window was admitted.
         case windowDecisionSuppressed(
             token: WindowToken,
+            reason: String
+        )
+        case destroyLivenessDecision(
+            windowId: UInt32,
+            token: WindowToken?,
+            origin: String,
+            spaceId: UInt64?,
+            verifyWindowServerLiveness: Bool,
+            windowServerPid: pid_t?,
+            outcome: String,
+            reason: String
+        )
+        case destroyLivenessVerification(
+            token: WindowToken,
+            origin: String,
+            windowServerAlive: Bool,
+            axEnumeration: String,
+            outcome: String,
             reason: String
         )
         case focusedAdmissionGuard(
@@ -348,6 +416,19 @@ extension NiriCreateFocusTraceEvent: CustomStringConvertible {
             "unrequested_admission_nonmanaged_focus_decision token=\(token) suppressed=\(suppressed) reason=\(reason) context_source=\(createContextSource ?? "nil") recent_pid_workspace=\(recentPidWorkspaceId?.uuidString ?? "nil") explicit_workspace_assignment=\(hasExplicitWorkspaceAssignment) active_managed_request_token=\(String(describing: activeManagedRequestToken))"
         case let .windowDecisionSuppressed(token, reason):
             "window_decision_suppressed token=\(token) reason=\(reason)"
+        case let .destroyLivenessDecision(
+            windowId,
+            token,
+            origin,
+            spaceId,
+            verifyWindowServerLiveness,
+            windowServerPid,
+            outcome,
+            reason
+        ):
+            "destroy_liveness_decision window=\(windowId) token=\(String(describing: token)) origin=\(origin) space=\(spaceId.map(String.init) ?? "nil") verify_ws=\(verifyWindowServerLiveness) ws_pid=\(windowServerPid.map(String.init) ?? "nil") outcome=\(outcome) reason=\(reason)"
+        case let .destroyLivenessVerification(token, origin, windowServerAlive, axEnumeration, outcome, reason):
+            "destroy_liveness_verification token=\(token) origin=\(origin) ws_alive=\(windowServerAlive) ax=\(axEnumeration) outcome=\(outcome) reason=\(reason)"
         case let .focusedAdmissionGuard(
             token,
             workspaceId,
@@ -874,12 +955,16 @@ final class AXEventHandler: CGSEventDelegate {
             handleCGSWindowCreated(windowId: windowId, spaceId: spaceId)
             controller.workspaceManager.noteNativeSpace(windowId: windowId, spaceId: spaceId)
 
-        case let .destroyed(windowId, _):
-            handleCGSWindowDestroyed(windowId: windowId)
+        case let .destroyed(windowId, spaceId):
+            if spaceId == 0 {
+                handleCGSWindowClosed(windowId: windowId)
+            } else {
+                handleCGSSpaceWindowDestroyed(windowId: windowId, spaceId: spaceId)
+            }
             controller.workspaceManager.forgetNativeSpace(windowId: windowId)
 
         case let .closed(windowId):
-            handleCGSWindowDestroyed(windowId: windowId)
+            handleCGSWindowClosed(windowId: windowId)
             controller.workspaceManager.forgetNativeSpace(windowId: windowId)
 
         case let .frameChanged(windowId):
@@ -1327,6 +1412,38 @@ final class AXEventHandler: CGSEventDelegate {
         }
     }
 
+    private func recordDestroyLivenessDecision(_ trace: DestroyLivenessDecisionTrace) {
+        recordNiriCreateFocusTrace(
+            .init(
+                kind: .destroyLivenessDecision(
+                    windowId: trace.windowId,
+                    token: trace.token,
+                    origin: trace.origin.traceName,
+                    spaceId: trace.origin.spaceId,
+                    verifyWindowServerLiveness: trace.verifyWindowServerLiveness,
+                    windowServerPid: trace.windowServerPid,
+                    outcome: trace.outcome,
+                    reason: trace.reason
+                )
+            )
+        )
+    }
+
+    private func recordDestroyLivenessVerification(_ trace: DestroyLivenessVerificationTrace) {
+        recordNiriCreateFocusTrace(
+            .init(
+                kind: .destroyLivenessVerification(
+                    token: trace.token,
+                    origin: trace.origin.traceName,
+                    windowServerAlive: trace.windowServerAlive,
+                    axEnumeration: trace.axEnumeration,
+                    outcome: trace.outcome,
+                    reason: trace.reason
+                )
+            )
+        )
+    }
+
     private func handleFrameChanged(windowId: UInt32) {
         guard let controller else { return }
         guard !controller.isOwnedWindow(windowNumber: Int(windowId)) else { return }
@@ -1484,12 +1601,27 @@ final class AXEventHandler: CGSEventDelegate {
             ?? (try? AXWindowService.frame(axRef))
     }
 
-    private func handleCGSWindowDestroyed(windowId: UInt32) {
+    private func handleCGSSpaceWindowDestroyed(windowId: UInt32, spaceId: UInt64) {
+        AXWindowService.invalidateCachedTitle(windowId: windowId)
+        handleWindowDestroyed(
+            windowId: windowId,
+            pidHint: nil,
+            verifyWindowServerLiveness: true,
+            origin: .cgsSpaceDestroyed(spaceId: spaceId)
+        )
+    }
+
+    private func handleCGSWindowClosed(windowId: UInt32) {
         AXWindowService.invalidateCachedTitle(windowId: windowId)
         cancelCreatedWindowRetry(windowId: windowId)
         discardCreatePlacementContext(windowId: windowId)
         removeDeferredCreatedWindow(windowId)
-        handleWindowDestroyed(windowId: windowId, pidHint: nil, verifyWindowServerLiveness: false)
+        handleWindowDestroyed(
+            windowId: windowId,
+            pidHint: nil,
+            verifyWindowServerLiveness: false,
+            origin: .cgsWindowClosed
+        )
     }
 
     func subscribeToManagedWindows() {
@@ -1783,7 +1915,11 @@ final class AXEventHandler: CGSEventDelegate {
         pendingPostCreateLifecycleVerificationTasks[token] = nil
     }
 
-    private func scheduleDestroyLivenessVerification(for token: WindowToken) {
+    private func scheduleDestroyLivenessVerification(
+        for token: WindowToken,
+        origin: WindowDestroyOrigin = .axDestroyed,
+        confirmAXWhenWindowServerMissing: Bool = false
+    ) {
         pendingDestroyLivenessVerificationTasks[token]?.cancel()
         let task = Task { @MainActor [weak self] in
             defer { self?.pendingDestroyLivenessVerificationTasks[token] = nil }
@@ -1797,28 +1933,60 @@ final class AXEventHandler: CGSEventDelegate {
                 return
             }
             let windowServerAlive = self.resolveWindowInfo(windowId)?.pid == token.pid
-            let axEnumerationSucceededAndMissingToken: Bool
-            if windowServerAlive {
+            var axEnumerationDescription = "not_queried"
+            var axEnumerationContainsToken = false
+            var axEnumerationSucceededAndMissingToken = false
+            if windowServerAlive || confirmAXWhenWindowServerMissing {
                 let axEnumeration = await controller.axManager.windowEnumerationForPID(token.pid)
                 switch axEnumeration {
                 case .success(let windows):
-                    axEnumerationSucceededAndMissingToken = !windows.contains { _, pid, enumeratedWindowId in
+                    axEnumerationContainsToken = windows.contains { _, pid, enumeratedWindowId in
                         pid == token.pid && enumeratedWindowId == token.windowId
                     }
+                    axEnumerationSucceededAndMissingToken = !axEnumerationContainsToken
+                    axEnumerationDescription = axEnumerationContainsToken ? "contains_token" : "missing_token"
                 case .failed:
-                    axEnumerationSucceededAndMissingToken = false
+                    axEnumerationDescription = "failed"
                 }
+            }
+            let shouldRemove: Bool
+            if windowServerAlive {
+                shouldRemove = axEnumerationSucceededAndMissingToken
+            } else if confirmAXWhenWindowServerMissing, axEnumerationContainsToken {
+                shouldRemove = false
             } else {
-                axEnumerationSucceededAndMissingToken = false
+                shouldRemove = true
             }
             guard !Task.isCancelled,
-                  controller.workspaceManager.entry(for: token) != nil,
-                  (!windowServerAlive || axEnumerationSucceededAndMissingToken)
+                  controller.workspaceManager.entry(for: token) != nil
             else {
                 return
             }
-            AXWindowService.invalidateCachedTitle(windowId: windowId)
-            self.handleRemoved(token: token)
+            if shouldRemove {
+                self.recordDestroyLivenessVerification(
+                    DestroyLivenessVerificationTrace(
+                        token: token,
+                        origin: origin,
+                        windowServerAlive: windowServerAlive,
+                        axEnumeration: axEnumerationDescription,
+                        outcome: "remove",
+                        reason: windowServerAlive ? "ax_missing_token" : "window_server_missing"
+                    )
+                )
+                AXWindowService.invalidateCachedTitle(windowId: windowId)
+                self.handleRemoved(token: token)
+            } else {
+                self.recordDestroyLivenessVerification(
+                    DestroyLivenessVerificationTrace(
+                        token: token,
+                        origin: origin,
+                        windowServerAlive: windowServerAlive,
+                        axEnumeration: axEnumerationDescription,
+                        outcome: "keep",
+                        reason: axEnumerationContainsToken ? "ax_contains_token" : "window_server_alive"
+                    )
+                )
+            }
         }
         pendingDestroyLivenessVerificationTasks[token] = task
     }
@@ -1920,7 +2088,12 @@ final class AXEventHandler: CGSEventDelegate {
         AXWindowService.invalidateCachedTitle(windowId: windowId)
         cancelCreatedWindowRetry(windowId: windowId)
         removeDeferredCreatedWindow(windowId)
-        handleWindowDestroyed(windowId: windowId, pidHint: pid, verifyWindowServerLiveness: true)
+        handleWindowDestroyed(
+            windowId: windowId,
+            pidHint: pid,
+            verifyWindowServerLiveness: true,
+            origin: .axDestroyed
+        )
     }
 
     func handleRemoved(token: WindowToken) {
@@ -4897,7 +5070,8 @@ final class AXEventHandler: CGSEventDelegate {
     private func handleWindowDestroyed(
         windowId: UInt32,
         pidHint: pid_t?,
-        verifyWindowServerLiveness: Bool
+        verifyWindowServerLiveness: Bool,
+        origin: WindowDestroyOrigin
     ) {
         let resolvedToken = resolveWindowToken(windowId)
             ?? resolveTrackedToken(windowId)
@@ -4940,20 +5114,92 @@ final class AXEventHandler: CGSEventDelegate {
             return
         }
 
-        recordRecentSameAppWindowClose(pid: candidate.token.pid)
-
         if verifyWindowServerLiveness {
             if handleNativeFullscreenDestroy(candidate.token) {
+                recordDestroyLivenessDecision(
+                    DestroyLivenessDecisionTrace(
+                        windowId: windowId,
+                        token: candidate.token,
+                        origin: origin,
+                        verifyWindowServerLiveness: verifyWindowServerLiveness,
+                        windowServerPid: resolveWindowInfo(windowId).map { pid_t($0.pid) },
+                        outcome: "handled",
+                        reason: "native_fullscreen_destroy"
+                    )
+                )
                 return
             }
-            if resolveWindowInfo(windowId)?.pid == candidate.token.pid {
+            let windowServerPid = resolveWindowInfo(windowId).map { pid_t($0.pid) }
+            if windowServerPid == candidate.token.pid {
+                recordDestroyLivenessDecision(
+                    DestroyLivenessDecisionTrace(
+                        windowId: windowId,
+                        token: candidate.token,
+                        origin: origin,
+                        verifyWindowServerLiveness: verifyWindowServerLiveness,
+                        windowServerPid: windowServerPid,
+                        outcome: "defer",
+                        reason: "window_server_alive"
+                    )
+                )
                 if pendingDestroyLivenessVerificationTasks[candidate.token] == nil {
-                    scheduleDestroyLivenessVerification(for: candidate.token)
+                    scheduleDestroyLivenessVerification(
+                        for: candidate.token,
+                        origin: origin,
+                        confirmAXWhenWindowServerMissing: origin.requiresAXConfirmationWhenWindowServerMissing
+                    )
                 }
                 return
             }
+            if windowServerPid == nil,
+               origin.requiresAXConfirmationWhenWindowServerMissing
+            {
+                recordDestroyLivenessDecision(
+                    DestroyLivenessDecisionTrace(
+                        windowId: windowId,
+                        token: candidate.token,
+                        origin: origin,
+                        verifyWindowServerLiveness: verifyWindowServerLiveness,
+                        windowServerPid: nil,
+                        outcome: "defer",
+                        reason: "window_server_unresolved"
+                    )
+                )
+                if pendingDestroyLivenessVerificationTasks[candidate.token] == nil {
+                    scheduleDestroyLivenessVerification(
+                        for: candidate.token,
+                        origin: origin,
+                        confirmAXWhenWindowServerMissing: true
+                    )
+                }
+                return
+            }
+            recordDestroyLivenessDecision(
+                DestroyLivenessDecisionTrace(
+                    windowId: windowId,
+                    token: candidate.token,
+                    origin: origin,
+                    verifyWindowServerLiveness: verifyWindowServerLiveness,
+                    windowServerPid: windowServerPid,
+                    outcome: "remove",
+                    reason: windowServerPid == nil ? "window_server_missing" : "window_server_pid_mismatch"
+                )
+            )
+        } else {
+            recordDestroyLivenessDecision(
+                DestroyLivenessDecisionTrace(
+                    windowId: windowId,
+                    token: candidate.token,
+                    origin: origin,
+                    verifyWindowServerLiveness: verifyWindowServerLiveness,
+                    windowServerPid: resolveWindowInfo(windowId).map { pid_t($0.pid) },
+                    outcome: "remove",
+                    reason: "liveness_verification_disabled"
+                )
+            )
         }
 
+        recordRecentSameAppWindowClose(pid: candidate.token.pid)
         cancelDestroyLivenessVerification(for: candidate.token)
 
         let shouldDelayDestroy = shouldDelayManagedReplacementDestroy(candidate)
