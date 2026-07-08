@@ -1,8 +1,10 @@
 # Cold start destroy-only replacement bursts remove live windows; clicked pids are the only durable readmission
 
-Discovery 2026-07-08, verified against `main` at `d4cc52`. Line numbers will drift; function names are included so the source citations remain findable.
+**Status:** completed — fix shipped on `main` as `a55b4e33` ("Keep live windows through CGS space churn"). The CGS `spaceWindowDestroyed` path now carries a `spaceId`, runs liveness verification, and confirms AX membership before removing a live window. A secondary parked-hidden-window placement fix also landed. Moved from `discovery/` to `completed/` on 2026-07-08. Regression tests were intentionally not added pending user repro confirmation per the runtime-debug workflow; the implemented guard path is observable through the new `destroy_liveness_decision` / `destroy_liveness_verification` trace events.
 
-Cross-link cluster: [`LC-1` in `20260708-cross-discovery-relevance-clusters.md`](20260708-cross-discovery-relevance-clusters.md#lc-1--lifecycleadmission-desync-false-removals-partial-enumeration-and-replacement-bursts). This is the latest cold-start lifecycle/admission-desync capture and should be read with [`20260707-cold-start-wipe-recurs-post-liveness-fix-only-focused-pid-readmitted.md`](20260707-cold-start-wipe-recurs-post-liveness-fix-only-focused-pid-readmitted.md) and [`20260707-external-display-column-admission-click-required.md`](20260707-external-display-column-admission-click-required.md).
+Discovery 2026-07-08, verified against `main` at `d4cc52`. Implementation verified against `main` at `a55b4e33` on 2026-07-08. Line numbers will drift; function names are included so the source citations remain findable.
+
+Cross-link cluster: [`LC-1` in `20260708-cross-discovery-relevance-clusters.md`](../discovery/20260708-cross-discovery-relevance-clusters.md#lc-1--lifecycleadmission-desync-false-removals-partial-enumeration-and-replacement-bursts). This is the latest cold-start lifecycle/admission-desync capture and should be read with [`20260707-cold-start-wipe-recurs-post-liveness-fix-only-focused-pid-readmitted.md`](20260707-cold-start-wipe-recurs-post-liveness-fix-only-focused-pid-readmitted.md) and [`20260707-external-display-column-admission-click-required.md`](20260707-external-display-column-admission-click-required.md).
 
 ## Follow-up: clean cold start makes the failure worse, but confirms the same mechanism
 
@@ -292,7 +294,7 @@ Cold-start admission relocates/restores windows that are physically on the exter
 
 After that, only paths that re-query or focus a pid can recover it. Code and Ghostty happened to receive incidental reevaluations/focus events. Telegram and Claude did not recover until explicit app activation, and Helium remained unmanaged at the end.
 
-## Fix direction
+## Fix direction (original)
 
 - Do not treat CGS `spaceWindowDestroyed` as window death without a liveness oracle. Reuse or mirror the AX destroy liveness gate for CGS destroy events.
 - Preserve and inspect the `spaceId` from `spaceWindowDestroyed`; a window leaving one space during Nehir-driven startup relocation should be modeled as a space-membership change, not a close.
@@ -300,3 +302,37 @@ After that, only paths that re-query or focus a pid can recover it. Code and Gho
 - Add a bounded post-removal re-enumeration retry for alive pids so recovery is not dependent on the user clicking the missing window.
 
 No tests were changed for this discovery. Per runtime-debug workflow, add regression coverage only after a candidate fix is validated in the real repro.
+
+## Final implementation (shipped `a55b4e33`)
+
+The landed fix addresses the first two fix directions directly: it splits the CGS destroy origin, threads the `spaceId` through, and runs liveness verification on the space-destroy path. The third and fourth directions (cancel destroy-only bursts / bounded post-removal retry) were not needed once the upstream gate stopped producing false removes.
+
+### CGS space-destroy now carries its own origin and verifies liveness
+
+`cgsEventObserver(_:didReceive:)` no longer routes `.destroyed` and `.closed` through one handler. It branches on `spaceId`: `spaceId == 0` is treated as a real close (`handleCGSWindowClosed`), any nonzero `spaceId` is a space-membership removal (`handleCGSSpaceWindowDestroyed`, which now receives the `spaceId`) (`Sources/Nehir/Core/Controller/AXEventHandler.swift:958-967`).
+
+A new `WindowDestroyOrigin` enum (`axDestroyed`, `cgsSpaceDestroyed(spaceId:)`, `cgsWindowClosed`) tags every destroy path (`Sources/Nehir/Core/Controller/AXEventHandler.swift:37-66`). `handleWindowDestroyed` now takes an `origin` parameter, so every decision point knows whether the trigger was an AX destroy, a CGS space-destroy, or a CGS window-close (`Sources/Nehir/Core/Controller/AXEventHandler.swift:5071-5076`).
+
+The decisive change: `handleCGSSpaceWindowDestroyed` calls `handleWindowDestroyed(..., verifyWindowServerLiveness: true, origin: .cgsSpaceDestroyed(spaceId:))` (`Sources/Nehir/Core/Controller/AXEventHandler.swift:1604-1612`). Previously the CGS path hard-coded `verifyWindowServerLiveness: false`, which is exactly what bypassed the liveness gate and allowed the cold-start false wipe. `handleCGSWindowClosed` keeps the old unverified behavior (`origin: .cgsWindowClosed`) because a real close is not the cold-start failure mode.
+
+### Liveness verification confirms AX before removing a space-churned window
+
+`handleWindowDestroyed` now has two liveness deferral branches. When the WindowServer still reports the window's pid, it defers to `scheduleDestroyLivenessVerification` as before (`reason=window_server_alive`) (`Sources/Nehir/Core/Controller/AXEventHandler.swift:5135-5152`). For CGS space-destroys specifically, when the WindowServer no longer resolves the window at all (`windowServerPid == nil`), it still defers rather than removing, because a space-destroy can briefly make the window invisible to `resolveWindowInfo` during the space transition (`reason=window_server_unresolved`, gated on `origin.requiresAXConfirmationWhenWindowServerMissing`) (`Sources/Nehir/Core/Controller/AXEventHandler.swift:5156-5177`).
+
+`scheduleDestroyLivenessVerification` gained a `confirmAXWhenWindowServerMissing` flag (`Sources/Nehir/Core/Controller/AXEventHandler.swift:1918-1921`). When set (true for CGS space-destroys), the deferred task queries AX even when the WindowServer oracle is missing, and keeps the token if AX still enumerates it (`outcome=keep, reason=ax_contains_token`) (`Sources/Nehir/Core/Controller/AXEventHandler.swift:1939-1990`). A real AX-missing result still removes (`outcome=remove, reason=ax_missing_token` / `window_server_missing`). This closes the nil-oracle branch that previously fell through to immediate removal.
+
+### New trace points make the guard observable
+
+Two trace events were added so future captures can distinguish keep vs remove decisions without inference: `destroy_liveness_decision` (origin, spaceId, verify flag, WindowServer pid, outcome, reason) at the synchronous decision point, and `destroy_liveness_verification` (origin, WindowServer alive, AX enumeration result, outcome, reason) at the deferred re-check (`Sources/Nehir/Core/Controller/AXEventHandler.swift:215-229`, `:419-433`, `:1415-1449`). This directly answers the observability gap flagged in the cold-start-wipe-recurs discovery.
+
+### Secondary: parked hidden windows no longer leak onto adjacent displays
+
+The changeset also fixed `HiddenWindowPlacementResolver` so hidden/parked windows do not bleed onto a neighbor monitor. The parking origin search now iterates orthogonal candidates for both horizontal and vertical orientations (previously it only tried the requested edge and its opposite, and only generated vertical candidates for horizontal layouts), and picks the placement with the least cross-monitor overlap, breaking ties by proximity then edge preference (`Sources/Nehir/Core/Layout/SideHiding.swift:184-258`, `:280-315`). This addresses the parked-Helium-on-wrong-display symptom seen in the captures.
+
+### Changeset
+
+`.changeset/20260708171704-fix-cold-start-cgs-space-destroy-events-removing.md` — `nehir: patch` — "Fix cold-start CGS space-destroy events removing live windows and avoid parked hidden windows leaking onto adjacent displays."
+
+### Validation
+
+The worker ran `mise run format:check` (passed), `swift test --filter AXEventHandlerTests` (177 tests passed), and `mise run test` (1432 tests passed) on the worktree. No tests were added or modified, per the runtime-debug workflow. The fix awaits user repro confirmation before regression coverage is added.
