@@ -75,6 +75,7 @@ extension NiriLayoutEngine {
         motion: MotionSnapshot,
         scale: CGFloat = 2.0,
         animationConfig: SpringConfig? = nil,
+        allowFullyVisibleAutomaticRecenter: Bool = false,
         trigger: RevealTrigger = .automatic
     ) -> Bool {
         guard !isFFM else { return false }
@@ -98,9 +99,11 @@ extension NiriLayoutEngine {
         let targetSnap: SnapPoint?
         switch visibility {
         case .fullyVisible:
+            guard !trigger.respectsScrollLock || !state.isScrollLocked else { return false }
             // Re-centering a fully visible filling group is viewport-position maintenance,
             // not a reveal. Keep the proportional slack / lone-column centering contract
-            // even when no hidden content needs to be revealed.
+            // even when no hidden content needs to be revealed, while still honoring
+            // scroll lock for automatic triggers.
             if context.fillsViewport(at: viewStart, in: state) {
                 guard let centeredStart = context.centeredFillingViewportStart(
                     at: viewStart,
@@ -119,7 +122,9 @@ extension NiriLayoutEngine {
                 state.animateToOffset(targetOffset, motion: motion, config: animationConfig, scale: scale)
                 return true
             }
-            guard revealStyle == .auto else { return false }
+            guard revealStyle == .auto,
+                  trigger == .explicitNavigation || allowFullyVisibleAutomaticRecenter
+            else { return false }
             targetSnap = autoSnap()
         case .parked,
              .clipped:

@@ -241,6 +241,7 @@ extension NiriLayoutEngine {
                 motion: motion,
                 scale: scale,
                 animationConfig: animationConfig,
+                allowFullyVisibleAutomaticRecenter: revealTrigger == .explicitNavigation,
                 trigger: revealTrigger
             )
         }

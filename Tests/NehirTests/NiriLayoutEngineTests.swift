@@ -3009,7 +3009,8 @@ private func makeCenteredCrossMonitorFixture(
             in: wsId,
             state: &state,
             workingFrame: CGRect(x: 0, y: 0, width: 1200, height: 900),
-            gaps: 8
+            gaps: 8,
+            revealTrigger: .explicitNavigation
         )
 
         #expect(abs(state.viewOffsetPixels.target() + 400) < 0.1)
