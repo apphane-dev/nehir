@@ -1,6 +1,6 @@
 # Traceability gaps and post-extraction maintainability — Discovery
 
-Groom 2026-07-07: still applicable — audit; the `RuntimeDiagnosticsCoordinator` extraction (`d1505910`) partially addressed the maintainability axis, but the highest-leverage traceability recommendations remain open (always-on background trace buffer gated behind dev-mode/active-capture, silent guards not emitting a decline reason, free-form `key=value` trace events with no typed schema) and the `AXEventHandler` extraction is flagged overdue (verified against main 7a025b78).
+Groom 2026-07-08: partially addressed — `main` commit `f6078799` shipped the first internal cluster-tracing slice: developer-mode background trace retention is no longer gated by active capture, viewport events can feed the background buffer, a lazy named runtime decision-event API exists, background clips include `eventNameCounts`, and `managedCommandTarget()` emits `command_target.resolve.*` accept/decline events. Remaining traceability gaps: the buffer is still developer-mode gated rather than broadly always-on, most silent guard families are not yet instrumented, the event envelope is small rather than a full typed schema, and `AXEventHandler` extraction remains overdue.
 
 Codebase weak-point audit focused on two axes: (1) **traceability** — why hard
 bugs keep requiring an armed re-repro instead of being diagnosable from the
@@ -69,6 +69,13 @@ Structured, typed tracing exists only for the reconcile path:
 capped at 256.
 
 ### 1.2 The background buffer cannot do its job (highest leverage)
+
+Status update 2026-07-08: this section described the pre-`f6078799` state. The
+shipped internal diagnostics slice changed `isBackgroundTraceBufferEffectivelyEnabled`
+to developer-mode gating and lifted the viewport capture-session gate enough for
+viewport events to enter the background buffer. It did **not** make the buffer
+fully default-on for non-developer users, so the broader after-the-fact tracing
+recommendation remains partially open.
 
 `RuntimeDiagnosticsCoordinator.swift:61-62`:
 

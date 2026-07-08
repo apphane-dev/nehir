@@ -5,6 +5,16 @@ Discovery date: 2026-07-08. Verified against the main Nehir source tree at
 [`20260708-cross-discovery-relevance-clusters.md`](20260708-cross-discovery-relevance-clusters.md)
 and turns each relevance cluster into concrete observability work.
 
+**Status update, 2026-07-08:** the first OT-1/NF-1 slice shipped in `main` as
+`f6078799` (`Add internal cluster tracing diagnostics`). See
+[`../completed/20260708-internal-cluster-tracing-diagnostics.md`](../completed/20260708-internal-cluster-tracing-diagnostics.md)
+for the final shipped state. The completed slice added developer-mode background
+trace retention outside active capture sessions, viewport background
+participation, a lazy named runtime decision-event API, runtime decision trace
+export, `eventNameCounts`, and `managedCommandTarget()`
+`command_target.resolve.*` events. The broader LC-1, VR-1, XD-1, TF-1, and
+non-managed-focus arming traces remain open.
+
 This is an observability discovery, not a behavior-fix plan. The durable finding
 is that the current tracing surface already has useful point diagnostics, but it
 is not shaped around the cross-cluster questions investigators keep needing to
@@ -336,10 +346,15 @@ was live, cached, inherited, or lost during refresh/replacement.
 
 ## Suggested implementation slices
 
-1. **OT-1 base slice:** add lazy named-event API, always-on background enablement,
-   and viewport background participation.
-2. **NF-1 slice:** instrument `managedCommandTarget()` declines/accepts and
-   generic command callers before changing behavior.
+1. **OT-1 base slice — partially shipped in `f6078799`:** lazy named-event API,
+   developer-mode background buffer outside active capture sessions, viewport
+   background participation, runtime decision trace export, and background clip
+   `eventNameCounts` are in `main`. Still open: a broader typed event registry
+   and any non-developer-mode/default-on policy change.
+2. **NF-1 slice — partially shipped in `f6078799`:**
+   `managedCommandTarget()` declines/accepts now emit `command_target.resolve.*`
+   events. Still open: non-managed-focus enter/exit arming details and
+   explicit-token workspace-bar/context-menu move traces.
 3. **LC-1 slice:** add lifecycle oracle/liveness/action events and promote
    managed-replacement burst ids into the common envelope.
 4. **VR-1 slice:** move reveal/snap decision tracing into the engine and add a

@@ -2,6 +2,8 @@
 
 Discovery index (2026-07-08). This file cross-links discoveries and plans that are highly likely to be relevant to each other because they share a source-backed mechanism, recovery path, or guard. Cluster IDs are planning labels only; they are not source identifiers.
 
+Status update, 2026-07-08: `main` commit `f6078799` shipped the first OT-1/NF-1 observability slice. It added developer-mode background trace retention outside active capture sessions, viewport background participation, a lazy named runtime decision-event API, runtime decision trace export, background clip `eventNameCounts`, and `managedCommandTarget()` `command_target.resolve.*` accept/decline events. See [`../completed/20260708-internal-cluster-tracing-diagnostics.md`](../completed/20260708-internal-cluster-tracing-diagnostics.md). The cluster table below still tracks remaining behavior fixes and unshipped tracing slices.
+
 Use this as a navigation aid before planning fixes. It intentionally omits weak thematic similarities.
 
 ## Triage dimensions
@@ -31,10 +33,10 @@ Scale used below:
 - **Why it hurts:** it turns explicit user intent into silence: move-window commands, workspace-bar Shift-click, app activation, and reveal can all do nothing while the UI still shows a managed window selected.
 - **Best quick wins:**
   - make workspace-bar Shift-click / context-derived moves pass an explicit token instead of re-resolving through `managedCommandTarget()`;
-  - emit a trace event whenever a command target is dropped because non-managed focus is active;
+  - emit a trace event whenever a command target is dropped because non-managed focus is active (**generic `managedCommandTarget()` accept/decline tracing shipped in `f6078799`; non-managed-focus arming and explicit-token move traces remain open**);
   - add a narrow stale-non-managed-focus escape when the preserved managed token is hidden/offscreen and the selected viewport token is visible.
 - **Hard part:** preserving the reason the guard exists: real unmanaged overlays, quick terminals, menus, and system UI must not cause focus bounce-back into tiled windows.
-- **Recommended slice:** start with explicit-token command paths and tracing. Then plan the focus/admission guard narrowing separately.
+- **Recommended slice:** the first tracing part landed in `f6078799`; next, add explicit-token command-path traces and plan the focus/admission guard narrowing separately.
 
 ### LC-1 evaluation — lifecycle/admission desync
 
@@ -80,11 +82,11 @@ Scale used below:
 
 - **Why it hurts:** it is not usually the user-facing bug, but it is why the first capture often cannot explain the bug and why tests can pass without exercising production behavior.
 - **Best quick wins:**
-  - trace every silent user-visible early return with a reason and target token/pid;
-  - make the runtime trace buffer actually useful after-the-fact, not only during an armed capture;
+  - trace every silent user-visible early return with a reason and target token/pid (`managedCommandTarget()` now emits `command_target.resolve.*` events in `f6078799`; other guard families remain open);
+  - make the runtime trace buffer actually useful after-the-fact, not only during an armed capture (`f6078799` changed the background-buffer gate to developer mode and let viewport events participate; broader default-on policy remains open);
   - audit the top five test-only seams that skip production scheduling/reconciliation.
 - **Hard part:** this is broad hygiene, so it is easy to postpone. It needs to be attached to concrete bug clusters rather than run as an abstract cleanup.
-- **Recommended slice:** make OT-1 an acceptance requirement for NF-1, LC-1, VR-1, and XD-1 plans: each behavior change must add or preserve a traceable decision point and avoid test-only shortcut paths.
+- **Recommended slice:** partially shipped by `f6078799` for NF-1 generic command-target decisions. Keep OT-1 as an acceptance requirement for NF-1, LC-1, VR-1, and XD-1 plans: each behavior change must add or preserve a traceable decision point and avoid test-only shortcut paths.
 
 ## NF-1 — stale non-managed focus blocks admission, confirmation, and command targets
 
@@ -169,4 +171,4 @@ Scale used below:
 - [`../completed/20260701-add-runtime-diagnostics-for-main-gesture-and-bar-issues.md`](../completed/20260701-add-runtime-diagnostics-for-main-gesture-and-bar-issues.md), [`20260621-better-record-trace-visual-feedback.md`](20260621-better-record-trace-visual-feedback.md), and [`../completed/20260624-recent-trace-clip-buffer.md`](../completed/20260624-recent-trace-clip-buffer.md) — prior observability work.
 - [`../planned/20260625-unrecorded-viewport-offset-mutation-attribution.md`](../planned/20260625-unrecorded-viewport-offset-mutation-attribution.md) — concrete viewport mutation attribution gap related to VR-1.
 
-**Actionable review heuristic:** before accepting a new plan for NF-1, LC-1, VR-1, or XD-1, require an explicit trace point for the guard/decision being changed and verify that any proposed test follows the same production path as the runtime bug.
+**Actionable review heuristic:** before accepting a new plan for NF-1, LC-1, VR-1, or XD-1, require an explicit trace point for the guard/decision being changed and verify that any proposed test follows the same production path as the runtime bug. For NF-1 generic command-target work, reuse the `command_target.resolve.*` events shipped in `f6078799` instead of adding another parallel trace vocabulary.
