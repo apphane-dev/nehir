@@ -1,12 +1,14 @@
 # Discovery: relayout path recenters a fully-visible, unchanged-selection viewport
 
-Groom 2026-07-07: in flight (partially resolved) — the focus-confirmation fully-visible no-op landed (`0602387d`) and config-change parked-viewport stabilization landed (`9dd0f777`), but extending the no-op to the relayout selection-reconciliation path remains open under `planned/20260625-unrecorded-viewport-offset-mutation-attribution.md` (verified against main 7a025b78).
+Groom 2026-07-08: in flight (partially resolved) — the stronger focus-confirmation fully-visible no-op and scroll-lock guard shipped in `c6eaafb9`, superseding the earlier narrower `0602387d` focus-confirmation slice. Config-change parked-viewport stabilization landed (`9dd0f777`). The residual relayout selection-reconciliation scope remains under `planned/20260625-unrecorded-viewport-offset-mutation-attribution.md`, but should be revalidated against `c6eaafb9` because non-filling fully-visible automatic `scrollToReveal` now no-ops by default.
 
 Status: root cause found and source-attributed. Three user-reported "viewport
-moved with no trackpad input" captures, plus source analysis, pin the mover to the
-relayout selection-reconciliation path — the same recenter that `dad2e63a` ("Do
-not recenter viewport on activation of fully visible windows") suppressed for the
-focus-confirmation path, but which the relayout path still performs.
+moved with no trackpad input" captures, plus source analysis, pinned the mover to
+the relayout selection-reconciliation path. After `c6eaafb9`, the
+focus-confirmation variant is fixed and automatic non-filling fully-visible
+`scrollToReveal` no-ops by default; the relayout evidence remains open only for
+revalidation of active-column rebases, filling-group maintenance, and static
+`centeredViewportCorrection` movement.
 
 Validated against the `patch/unrecorded-viewport-offset-mutation-attribution`
 branch on 2026-06-28. Source paths are repository-relative.
@@ -27,12 +29,14 @@ recenter runs for any settled-viewport relayout, regardless of what caused it.
 Typing and display-connect are simply two of many ways a relayout fires while the
 viewport is settled.
 
-This is the same behavior `dad2e63a` removed from the **focus-confirmation** path
-by introducing `revealForFocusActivation` (which no-ops when the target is fully
-visible). The **relayout** path was left calling `ensureSelectionVisible` →
-`scrollToReveal`, which still snap-recenters a fully-visible target. So the
-fully-visible-no-op rule established for focus-activation is not yet applied to
-relayout-driven selection reconciliation.
+This is the same behavior earlier focus-confirmation work tried to remove from
+the **focus-confirmation** path. That boundary was strengthened by `c6eaafb9`,
+which makes fully-visible non-filling automatic `scrollToReveal` calls no-op by
+default and preserves centering only for explicit navigation / explicit caller
+opt-in. The **relayout** path still deserves separate revalidation because it
+also performs active-column rebases and can enter the filling-group maintenance
+path; this document remains open for those non-config relayout cases until a new
+capture proves they are gone or still reachable.
 
 ## Evidence — three repros, one signature
 
@@ -192,57 +196,57 @@ active workspace:
 - `:685` `state.setStaticViewOffsetPixels(..., reason: "resolveSelection.centeredViewportCorrection")`
   — a static recenter to the centered fill start, same gate.
 
-`ensureSelectionVisible` (`Sources/Nehir/Core/Layout/Niri/NiriNavigation.swift:173`)
+`ensureSelectionVisible` (`Sources/Nehir/Core/Layout/Niri/NiriNavigation.swift`)
 rebases the active column and then delegates to `scrollToReveal`
-(`Sources/Nehir/Core/Layout/Niri/NiriLayoutEngine+ViewportCommands.swift:70`).
-`scrollToReveal`'s `.fullyVisible` branch snap-recenters the target when the
-viewport is not already at a filling snap — i.e. it moves an already fully-visible
-window. Because both repros are springs (`animating=true`), the active mover is the
-`ensureSelectionVisible → scrollToReveal → animateToOffset` path, not the static
-`centeredViewportCorrection`.
+(`Sources/Nehir/Core/Layout/Niri/NiriLayoutEngine+ViewportCommands.swift`). Before
+`c6eaafb9`, `scrollToReveal`'s `.fullyVisible` branch snap-recentered the target
+when the viewport was not already at a filling snap — i.e. it moved an already
+fully-visible window. Because both repros were springs (`animating=true`), the
+active mover was the `ensureSelectionVisible → scrollToReveal → animateToOffset`
+path, not the static `centeredViewportCorrection`.
 
-### The asymmetry `dad2e63a` left behind
+### Post-`c6eaafb9` boundary
 
-`dad2e63a` added `revealForFocusActivation`
-(`Sources/Nehir/Core/Layout/Niri/NiriLayoutEngine+ViewportCommands.swift:158`),
-which returns `false` (no movement) when the target is `.fullyVisible`, and routed
-the **focus-confirmation** call site
-(`Sources/Nehir/Core/Controller/AXEventHandler.swift`) through it. That is why Repro
-B's `ax_focus_confirm_reveal_skipped preserveActiveViewport=true` correctly did not
-move the viewport. The **relayout** path (`resolveSelection` →
-`ensureSelectionVisible`) was not changed and still calls `scrollToReveal` directly,
-so it still recenters a fully-visible, unchanged-selection target. That recenter,
-triggered by any settled-viewport relayout (typing in A/B, display-connect in C), is
-the unexpected move.
+`c6eaafb9` changed `scrollToReveal` so automatic non-filling fully-visible calls
+no-op by default, and it preserved recentering only for explicit navigation or an
+explicit caller opt-in. That closes the focus-confirmation variant and may also
+remove some relayout-driven non-filling recenters. This discovery remains open
+because the relayout path still performs active-column rebases before reveal and
+can still enter filling-group maintenance / `centeredViewportCorrection` paths.
+Those residual paths need a fresh capture before implementing another behavior
+change.
 
 ## Root cause
 
-Relayout-driven selection reconciliation does not yet honor the
-"do not move a fully-visible, unchanged-selection viewport" rule that
-`dad2e63a` established for focus-activation. A relayout triggered by an unrelated
-cause — transient child surfaces from typing, a display topology change, or any
-other refresh that fires while the viewport is settled — runs `resolveSelection`,
-whose `ensureSelectionVisible → scrollToReveal` snap-recenters the viewport to a
-filling/centered snap even though nothing about the user's selection or the column
-layout actually changed. Repro C proves the recentered value need not even be a
-geometry correction: display frame and column layout were unchanged, so the move is
-away from a legitimate settled position.
+Relayout-driven selection reconciliation may still violate the broader "do not
+move a fully-visible, unchanged-selection viewport" rule, but the exact
+non-filling `scrollToReveal` mechanism documented here was narrowed by
+`c6eaafb9`. A relayout triggered by an unrelated cause — transient child surfaces
+from typing, a display topology change, or any other refresh that fires while the
+viewport is settled — still runs `resolveSelection`; remaining suspicious movers
+are active-column rebases, filling-group maintenance, and static centered-viewport
+correction when nothing about the user's selection or column layout changed.
+Repro C proves the recentered value need not even be a geometry correction:
+display frame and column layout were unchanged, so the move was away from a
+legitimate settled position.
 
 ## Fix direction
 
-Extend the `dad2e63a` principle into the relayout path:
+Revalidate and then extend the `c6eaafb9` principle into any relayout path still
+moving a fully-visible unchanged selection:
 
-1. In `resolveSelection`, gate the `ensureSelectionVisible` call (and the
+1. First capture the residual behavior on a build containing `c6eaafb9`. If the
+   old non-filling `scrollToReveal` recenter is gone, narrow this discovery to the
+   remaining mover (`moveSelectionToContainer.rebaseActiveColumn`, filling-group
+   maintenance, or `centeredViewportCorrection`).
+2. If `resolveSelection` still moves without a real selection/layout/removal
+   change, gate the `ensureSelectionVisible` call (and the
    `centeredViewportCorrection` block) on an actual change that justifies a
-   recenter — e.g. the selected node changed, the active column changed, the column
-   set changed, or a removal shifted visibility. When the selection, active column,
-   and columns are all unchanged and the selection is fully visible, skip the
-   recenter (no-op), mirroring `revealForFocusActivation`'s `.fullyVisible` early
-   return.
-2. Alternatively (or additionally), have `ensureSelectionVisible` itself take a
-   fully-visible/unchanged-selection fast-path that returns without calling
-   `scrollToReveal`, so every `ensureSelectionVisible` caller benefits rather than
-   only `resolveSelection`.
+   recenter — e.g. the selected node changed, the active column changed, the
+   column set changed, or a removal shifted visibility.
+3. Alternatively (or additionally), have `ensureSelectionVisible` itself take a
+   fully-visible/unchanged-selection fast-path for automatic relayout callers, so
+   every relevant caller benefits rather than only `resolveSelection`.
 
 The fix must preserve the legitimate recenter cases: genuine selection change,
 window arrival/removal that changes visibility, and lone-window centering
@@ -266,13 +270,16 @@ window arrival/removal that changes visibility, and lone-window centering
 
 ## References
 
-- Established fully-visible no-op (focus-confirm path):
-  `Sources/Nehir/Core/Layout/Niri/NiriLayoutEngine+ViewportCommands.swift:158`
-  (`revealForFocusActivation`, added by `dad2e63a`).
+- Strengthened fully-visible automatic no-op (focus-confirm path and generic
+  non-filling automatic `scrollToReveal`):
+  `../completed/20260707-fully-visible-focus-reveal-scroll-lock-bypass.md`
+  (`c6eaafb9`).
 - Mover (relayout path): `Sources/Nehir/Core/Controller/NiriLayoutHandler.swift:570`
   (`resolveSelection`), `:642` (`ensureSelectionVisible` call),
   `:685` (`centeredViewportCorrection`).
-- Underlying recenter: `Sources/Nehir/Core/Layout/Niri/NiriNavigation.swift:173`
-  (`ensureSelectionVisible`), `Sources/Nehir/Core/Layout/Niri/NiriLayoutEngine+ViewportCommands.swift:70`
-  (`scrollToReveal` `.fullyVisible` → `defaultSnap`).
+- Residual mover candidates after `c6eaafb9`:
+  `Sources/Nehir/Core/Layout/Niri/NiriNavigation.swift` (`ensureSelectionVisible`
+  active-column rebase), `Sources/Nehir/Core/Layout/Niri/NiriLayoutEngine+ViewportCommands.swift`
+  (`scrollToReveal` `.fullyVisible` filling-group maintenance), and
+  `NiriLayoutHandler.swift` `centeredViewportCorrection`.
 - Parent plan: `planned/20260625-unrecorded-viewport-offset-mutation-attribution.md`.

@@ -1,8 +1,8 @@
 # Stop automatic focus reveals from re-centering fully visible columns and bypassing scroll lock
 
-Re-verified against main d953d4d3 on 2026-07-07.
+Originally verified against main `d953d4d3` on 2026-07-07; final shipped state verified against `main` at `c6eaafb9` on 2026-07-08.
 
-**Status:** planned.
+**Status:** completed; merged to `main` as `c6eaafb9` (`Keep the viewport still when focusing an already visible window`).
 **Symptom:** Clicking into a window that is already fully visible scrolls the
 viewport to that column's center snap — even with viewport scroll lock enabled.
 With two visible windows, alternating clicks makes the viewport ping-pong
@@ -14,12 +14,36 @@ automatic reveals, fully-visible ones included. Explicit navigation commands
 revealing while locked.
 
 Root cause and full runtime evidence: see
-`discovery/20260707-fully-visible-focus-reveal-recenters-viewport-ignoring-scroll-lock.md`.
+`20260707-fully-visible-focus-reveal-recenters-viewport-ignoring-scroll-lock.md`.
 
-Source references verified against the main Nehir source tree at HEAD
-`d953d4d3` ("Float zero-frame Gecko transient dialogs that the first #142 fix
-still tiled") on 2026-07-07. **Re-verify line numbers before editing; they
-drift.**
+Source references in the original plan were verified against the main Nehir
+source tree at `d953d4d3` on 2026-07-07. The final merged commit is
+`c6eaafb9` on 2026-07-08.
+
+## Final shipped state
+
+`c6eaafb9` implemented the policy in the engine and landed regression tests:
+
+- `scrollToReveal` now has an `allowFullyVisibleAutomaticRecenter` escape hatch
+  defaulting to `false`, so generic automatic callers cannot re-center a fully
+  visible non-filling column.
+- The `.fullyVisible` arm now honors the trigger's scroll-lock contract before
+  either filling-group maintenance or non-filling recentering can move the
+  viewport.
+- Non-filling fully-visible recentering is allowed only for
+  `.explicitNavigation` or for callers that deliberately pass
+  `allowFullyVisibleAutomaticRecenter: true`.
+- AX focus confirmation explicitly passes
+  `allowFullyVisibleAutomaticRecenter: false`, making the runtime policy
+  unambiguous: fully visible + automatic focus confirm ⇒ no viewport movement,
+  whether locked or unlocked.
+- Explicit-navigation paths that should preserve centering behavior pass
+  `.explicitNavigation` through the selection/column-width helpers.
+- Regression tests landed in `Tests/NehirTests/ViewportSnapContextTests.swift`
+  for automatic fully-visible no-op, explicit-navigation recenter preservation,
+  and locked automatic fully-visible suppression.
+- Changeset:
+  `.changeset/20260708145017-stop-focusing-an-already-fully-visible-window-fr.md`.
 
 ## Root cause (inline recap)
 
@@ -59,10 +83,9 @@ center=-616.2:center centerFills=false`, then `didReveal=true` and animated
 `targetViewStart=-209.4 → -616.2`. The chosen target was the center snap even
 though no reveal was needed.
 
-## Fix (approach A — gate inside `scrollToReveal`; recommended)
+## Fix (approach A — gate inside `scrollToReveal`; shipped)
 
-Two changes inside the `case .fullyVisible:` arm of `scrollToReveal`, nothing
-else:
+The planned core policy shipped, with one final implementation detail added to preserve explicit/navigation call-site intent:
 
 1. **Honor scroll lock for the whole arm.** At the top of
    `case .fullyVisible:`, add the same guard the clipped arm uses:
@@ -101,16 +124,17 @@ Alternative rejected: gating at the caller
 engine primitive violating its own `RevealTrigger` contract for any future
 `.automatic` caller.
 
-### Step 1 — edit `scrollToReveal`
+### Step 1 — edit `scrollToReveal` (completed)
 
 File: `Sources/Nehir/Core/Layout/Niri/NiriLayoutEngine+ViewportCommands.swift`,
-function `scrollToReveal(columnIndex:isFFM:state:context:motion:scale:animationConfig:trigger:)`.
+function `scrollToReveal(columnIndex:isFFM:state:context:motion:scale:animationConfig:allowFullyVisibleAutomaticRecenter:trigger:)`.
 
-Apply the two guards above. Keep the existing comment about filling-group
-maintenance; extend it with one sentence noting the arm is lock-gated. Match
-surrounding style; no other logic changes.
+The merged code applies the scroll-lock guard at the top of `.fullyVisible`,
+keeps the filling-group maintenance path for unlocked automatic triggers, and
+requires explicit navigation (or an explicit caller opt-in) before the
+non-filling `autoSnap()` fall-through can center a fully visible target.
 
-### Step 2 — regression tests
+### Step 2 — regression tests (completed)
 
 File: `Tests/NehirTests/ViewportSnapContextTests.swift`, suite
 `ScrollToRevealTests` (~:524). Reuse `makeRevealFixture(viewportWidth:)`.
@@ -123,61 +147,53 @@ that geometry (wide viewport, columns narrower than it, viewStart at a
 non-center snap of the target column — mirror the traced shape: closest snap ≠
 center snap ≠ current viewStart, `closestFills == false`).
 
-Add, at minimum:
+Final coverage added in `c6eaafb9`:
 
-1. **Automatic + fully visible + non-filling closest ⇒ no movement, unlocked.**
-   `trigger` defaulted (`.automatic`), `isScrollLocked = false`,
-   target column fully visible, `revealStyle = .auto`. Assert `!revealed` and
-   `viewOffsetPixels.target()` unchanged. (Encodes the reported bug directly;
-   fails on current main.)
-2. **Automatic + fully visible + locked ⇒ no movement** — same fixture with
-   `isScrollLocked = true`, including a variant where
-   `fillsViewport(at: viewStart)` is true (filling-group maintenance must also
-   be suppressed while locked).
-3. **Explicit navigation + fully visible ⇒ may still center.** Same geometry,
-   `trigger: .explicitNavigation`, `revealStyle = .auto`: assert `revealed` and
-   the target offset equals the center snap's offset (preserves command
-   centering).
-4. **No regression on existing suppressions:** `scrollToRevealSkipsWhenLocked`
-   (clipped + locked) and `scrollToRevealDoesNotMoveFullyVisibleTarget` must
-   stay green unmodified.
+1. `scrollToRevealSuppressesFullyVisibleAutomaticRecenter` — automatic + fully
+   visible + non-filling closest + unlocked does not move, and the fixture proves
+   the old auto target would have differed from the current offset.
+2. `scrollToRevealSkipsFullyVisibleAutomaticWhenLocked` — automatic + fully
+   visible + locked does not move.
+3. `scrollToRevealAllowsFullyVisibleExplicitNavigationRecenter` — explicit
+   navigation with the same geometry may still center.
+4. Existing clipped + locked and simple fully-visible no-op coverage stayed in
+   place.
 
-Per repo policy, do **not** add or modify tests until the user confirms the fix
-in their real repro. The first implementation pass should land the code fix and
-changeset only; add the regression tests as a follow-up after real-world
-confirmation.
+The new tests cover the previously false-positive geometry where the target is
+fully visible, closest snap does not fill, and the center snap is elsewhere.
 
-### Step 3 — runtime verification hook
+### Step 3 — runtime verification hook (post-merge expectation)
 
 No new diagnostics needed. The existing
 `ax_focus_confirm_reveal_candidate` / `_result` records
-(`Sources/Nehir/Core/Controller/AXEventHandler.swift:3534-3568`) must show
+(`Sources/Nehir/Core/Controller/AXEventHandler.swift:3534-3568`) should show
 `didReveal=false` for `visibility=fullyVisible` on the automatic path (locked
 or not), with no subsequent `relayout.viewportOffsetChanged` retarget.
 
-## Do-not-touch fences
+## Do-not-touch fences / final deviations
 
 - Do **not** modify `RevealTrigger` / `respectsScrollLock`
   (`NiriLayoutEngine.swift:10-19`) — semantics are correct as documented.
-- Do **not** modify any `NiriNavigation.swift` or `WindowActionHandler.swift`
-  call sites — explicit navigation behavior is preserved by construction.
-- Do **not** modify the AX focus-confirm caller
-  (`AXEventHandler.swift:3513-3579`) or its diagnostics.
-- Do **not** touch `snapCandidates`, `fillsViewport`,
-  `centeredFillingViewportStart`, or anything in
-  `ViewportState+Geometry.swift` / `ViewportState+Gestures.swift` — parallel
-  work owns the snap-grid area
-  (`planned/20260707-lone-column-fling-snaps-offscreen-overscroll-bound.md`).
-- This change is two files (`NiriLayoutEngine+ViewportCommands.swift`,
-  `ViewportSnapContextTests.swift`) plus a changeset.
+- Final implementation did touch `NiriNavigation.swift` and related helper
+  plumbing only to preserve explicit-navigation behavior after adding
+  `allowFullyVisibleAutomaticRecenter`. `WindowActionHandler.swift` was not
+  changed.
+- Final implementation touched the AX focus-confirm caller only to pass
+  `allowFullyVisibleAutomaticRecenter: false`; diagnostics were not redesigned.
+- `snapCandidates`, `fillsViewport`, `centeredFillingViewportStart`,
+  `ViewportState+Geometry.swift`, and `ViewportState+Gestures.swift` stayed
+  untouched, preserving the parallel snap-grid fence
+  (`../planned/20260707-lone-column-fling-snaps-offscreen-overscroll-bound.md`).
+- Final change set included helper signature propagation through
+  explicit-navigation paths plus tests and changeset; the behavior core remained
+  in `NiriLayoutEngine+ViewportCommands.swift`.
 
 ## Gate
 
-- **Between steps (fast):** `mise run build`.
-- **Once at the end (full):** `mise run check` (format + lint + build + test).
-  New tests pass; existing `ScrollToRevealTests` stay green.
+- Worker and supervisor builds passed with `mise run build`.
+- Merge commit includes regression tests; run `mise run check` before release if this branch is used as the release-readiness record.
 
-## Changeset (required — user-visible bug fix)
+## Changeset (completed)
 
 ```bash
 mise run changeset patch "Stop focusing an already fully visible window from scrolling the viewport, and make viewport scroll lock suppress these automatic reveals"
@@ -186,25 +202,10 @@ mise run changeset patch "Stop focusing an already fully visible window from scr
 (Reference a nehir issue number only if one exists — none is known at plan
 time. Do not cite upstream tickets.)
 
-## Commit message shape
+## Commit
 
-Plain-English subject, no Conventional-Commits prefix, e.g.:
-
-```
-Keep the viewport still when focusing an already visible window
-
-Focusing a fully visible column re-centered the viewport whenever the closest
-snap did not fill the viewport, and the fully-visible arm of scrollToReveal
-never consulted scroll lock — so alternating focus between two visible windows
-ping-ponged the viewport even while locked. Gate the fully-visible arm on the
-reveal trigger's scroll-lock contract and reserve fully-visible re-centering
-for explicit navigation.
-
-Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
-```
+`c6eaafb9` — `Keep the viewport still when focusing an already visible window`
 
 ## Completion token
-
-On success, after the full gate is green, print exactly:
 
 `PLAN_DONE_fully_visible_reveal_lock_gated`

@@ -12,7 +12,9 @@ for the final shipped state. The completed slice added developer-mode background
 trace retention outside active capture sessions, viewport background
 participation, a lazy named runtime decision-event API, runtime decision trace
 export, `eventNameCounts`, and `managedCommandTarget()`
-`command_target.resolve.*` events. The broader LC-1, VR-1, XD-1, TF-1, and
+`command_target.resolve.*` events. A VR-1 behavior fix for fully-visible focus
+reveals later shipped in `c6eaafb9`, but the engine-level VR-1 tracing slice
+below remains open. The broader LC-1, remaining VR-1, XD-1, TF-1, and
 non-managed-focus arming traces remain open.
 
 This is an observability discovery, not a behavior-fix plan. The durable finding
@@ -187,21 +189,22 @@ token survived in the model, niri tree, AX, and WindowServer afterward**.
 
 ### Why current traces are insufficient
 
-Focus confirmation now records useful reveal candidate/result lines including
+Focus confirmation records useful reveal candidate/result lines including
 scroll lock, visibility, snap count, closest/center snap, and `didReveal`
-(`AXEventHandler.swift:3809-3847`). A 2026-07-08 two-window capture showed why
-that caller-level trace is useful but still incomplete: it proved an unlocked,
-fully visible automatic focus confirm chose `center=-616.2` and moved
+(`AXEventHandler.swift`). A 2026-07-08 two-window capture showed why that
+caller-level trace is useful but still incomplete: it proved an unlocked, fully
+visible automatic focus confirm chose `center=-616.2` and moved
 `targetViewStart=-209.4 → -616.2`, but the engine branch and no-op/apply reason
-still had to be inferred from the candidate numbers. The actual reveal policy
-lives in `NiriLayoutEngine.scrollToReveal`: it can return `false` for FFM,
-invalid indices/no snap points, fully-visible no-op, scroll-lock, or missing
-snap; it can also move a fully visible filling group as viewport-position
-maintenance (`NiriLayoutEngine+ViewportCommands.swift:70-127`). Snap candidates
-are produced by `ViewportSnapContext.snapCandidates`, which stores bounded
-offsets without showing the original unbounded candidate or why candidates were
-retained (`ViewportState+Geometry.swift:98-135`). Viewport mutation audit keeps
-only the last mutation (`ViewportState.swift:203-255`).
+still had to be inferred from the candidate numbers. `c6eaafb9` fixed that
+specific behavior, yet the tracing gap remains for future VR-1 cases because the
+actual reveal policy lives in `NiriLayoutEngine.scrollToReveal`: it can return
+`false` for FFM, invalid indices/no snap points, fully-visible no-op,
+scroll-lock, or missing snap; it can also move a fully visible filling group as
+viewport-position maintenance (`NiriLayoutEngine+ViewportCommands.swift`). Snap
+candidates are produced by `ViewportSnapContext.snapCandidates`, which stores
+bounded offsets without showing the original unbounded candidate or why
+candidates were retained (`ViewportState+Geometry.swift`). Viewport mutation
+audit keeps only the last mutation (`ViewportState.swift`).
 
 ### Add these trace events
 
@@ -361,8 +364,9 @@ was live, cached, inherited, or lost during refresh/replacement.
    explicit-token workspace-bar/context-menu move traces.
 3. **LC-1 slice:** add lifecycle oracle/liveness/action events and promote
    managed-replacement burst ids into the common envelope.
-4. **VR-1 slice:** move reveal/snap decision tracing into the engine and add a
-   small viewport mutation ring.
+4. **VR-1 slice:** still open after the `c6eaafb9` behavior fix — move
+   reveal/snap decision tracing into the engine and add a small viewport
+   mutation ring.
 5. **XD-1 slice:** add transition correlation ids and materialization checkpoints
    around Summon Right and cross-monitor workspace moves.
 6. **TF-1 slice:** promote classification metadata/projection decisions into the

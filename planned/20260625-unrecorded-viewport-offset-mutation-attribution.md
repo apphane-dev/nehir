@@ -2,7 +2,7 @@
 
 Re-verified against main 7a025b78 on 2026-07-07.
 
-Picks up and promotes `discovery/20260625-precommitted-viewport-shifts-before-trackpad-gesture.md`.
+Picks up and promotes `../discovery/20260625-precommitted-viewport-shifts-before-trackpad-gesture.md`.
 That discovery proved the viewport was already shifted *before* a trackpad gesture
 committed, and showed the shifted value was already in `ViewportState` before any
 user scroll delta was applied. It stopped short of naming the mutation site because
@@ -11,11 +11,11 @@ narrows the repro to the **focus-reveal / column-transition / window-arrival** p
 and confirms in source that every mutation on that path writes the viewport offset
 with **no trace record and no provenance**.
 
-Source references were refreshed against main `7a025b78` on 2026-07-07. Phases 1-2 and the config/parked-edge-snap behavioral slice remain shipped; the residual planned scope is the non-config relayout recenter cases.
+Source references were refreshed against main `7a025b78` on 2026-07-07. Status was updated again on 2026-07-08 after `c6eaafb9` shipped the stronger focus-confirmation fully-visible no-op. Phases 1-2 and the config/parked-edge-snap behavioral slice remain shipped; the residual planned scope is the non-config relayout recenter cases, now requiring revalidation against `c6eaafb9` because automatic non-filling fully-visible `scrollToReveal` no-ops by default.
 
 ---
 
-## Status (updated 2026-07-01)
+## Status (updated 2026-07-08)
 
 Phases 1 and 2 are now confirmed merged to `main` (the flag-gated audit +
 provenance and the relayout attribution observer shipped across `18a3174e`,
@@ -24,12 +24,16 @@ fix — now has an implementation branch for the config/parked-edge-snap case:**
 `patch/preserve-parked-edge-snap-anchor` gates relayout-driven multi-column
 `ensureSelectionVisible` and `centeredViewportCorrection` on real
 selection/layout/removal changes, preserving reachable parked snaps. It is tracked
-in `completed/20260701-preserve-parked-edge-snapped-anchor-across-config-relayout.md`
+in `../completed/20260701-preserve-parked-edge-snapped-anchor-across-config-relayout.md`
 and has since merged to `main` as `9dd0f777` ("Keep a parked viewport put when only
-config or settings change"). `0602387d` ("Do not
-recenter viewport on activation of fully visible windows") remains focus-confirmation
-only; use `discovery/20260628-relayout-path-recenters-fully-visible-unchanged-selection.md`
-for the broader non-config relayout evidence.
+config or settings change"). `c6eaafb9` ("Keep the viewport still when focusing
+an already visible window") supersedes the earlier narrower focus-confirmation
+slice by making automatic non-filling fully-visible `scrollToReveal` calls no-op
+by default and preserving centering only for explicit navigation / explicit
+caller opt-in. Use
+`../discovery/20260628-relayout-path-recenters-fully-visible-unchanged-selection.md`
+for the broader non-config relayout evidence, but revalidate it against
+`c6eaafb9` before implementing more behavior changes.
 
 Phases 1 and 2 have landed; Phase 3's shared fix site is source-attributed, and the config/parked-edge-snap slice has shipped (`9dd0f777`). Remaining Phase 3 scope: the non-config relayout recenter cases.
 
@@ -47,22 +51,24 @@ Phases 1 and 2 have landed; Phase 3's shared fix site is source-attributed, and 
   "viewport moves with no trackpad input" repros are confirmed by a live hook
   capture to the relayout path's selection reconciliation (`resolveSelection` →
   `ensureSelectionVisible` → `scrollToReveal` → `animateToOffset`), which
-  snap-recenters a fully-visible, unchanged-selection viewport. `dad2e63a` already
-  suppressed this recenter on the focus-confirmation path (`revealForFocusActivation`
-  no-ops when fully visible) but not on the relayout path. The trigger is any
+  snap-recenters a fully-visible, unchanged-selection viewport. The
+  focus-confirmation path is now covered more durably by `c6eaafb9`, which makes
+  automatic non-filling fully-visible `scrollToReveal` calls no-op by default;
+  the residual relayout scope should be revalidated because remaining movement
+  may now be limited to active-column rebases or filling-group maintenance. The trigger is any
   settled-viewport relayout — typing (transient surfaces) or display topology change
   — and a confirmed repro proves the recentered value is not a geometry correction
   (display frame and column layout unchanged). The config/parked-edge-snap branch
   extends the same rule into multi-column relayout reconciliation for pure
   config/settings relayouts, preserving parked snaps that remain reachable. See
-  `completed/20260701-preserve-parked-edge-snapped-anchor-across-config-relayout.md`
+  `../completed/20260701-preserve-parked-edge-snapped-anchor-across-config-relayout.md`
   for that implementation and
-  `discovery/20260628-relayout-path-recenters-fully-visible-unchanged-selection.md`
+  `../discovery/20260628-relayout-path-recenters-fully-visible-unchanged-selection.md`
   for the broader inlined repros and call sites.
 - **Residual attribution gap (separate follow-up, not blocking Phase 3):** when a
   single relayout pass applies multiple offset mutations to the planning copy, the
   single-slot audit collapses the intermediate step. See
-  `discovery/20260628-relayout-commit-collapses-intermediate-viewport-mutations.md`.
+  `../discovery/20260628-relayout-commit-collapses-intermediate-viewport-mutations.md`.
 
 ---
 
@@ -321,7 +327,7 @@ green.
 
 - Keep the Phase 1 audit in tree behind the trace flag (cheap, reusable for future
   viewport regressions).
-- Update `discovery/20260625-precommitted-viewport-shifts-before-trackpad-gesture.md`
+- Update `../discovery/20260625-precommitted-viewport-shifts-before-trackpad-gesture.md`
   status to "resolved / promoted" and link this plan once Phase 3 lands.
 
 ---
@@ -356,7 +362,7 @@ green.
 
 ## References
 
-- Discovery being promoted: `discovery/20260625-precommitted-viewport-shifts-before-trackpad-gesture.md`
+- Discovery being promoted: `../discovery/20260625-precommitted-viewport-shifts-before-trackpad-gesture.md`
 - Trace emission: `Sources/Nehir/Core/Controller/WMController.swift:2578`
   (`recordRuntimeViewportTrace`), viewport field computation referenced by the discovery
   at the same file.

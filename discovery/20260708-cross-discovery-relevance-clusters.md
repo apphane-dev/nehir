@@ -22,7 +22,7 @@ Scale used below:
 | **NF-1** stale non-managed focus | **Very high** — commands silently no-op, windows refuse admission/reveal | **M/L** | Yes: explicit-token command paths; trace guard declines | **High** | **High** — overlay/quick-terminal protections are easy to weaken | **High** | **P0/P1** |
 | **CR-1** close-recovery focus churn | **High** — focus can visibly oscillate or follow the wrong same-app successor | **S/M** | Landed: reverse-redirect latch in `9ac0b91c`; remaining work only if new churn appears | **High** | **High** — real same-app switches and close-local policy must survive | **Med/High** | **Completed for known bounce** |
 | **LC-1** lifecycle/admission desync | **Very high** — windows disappear, merge, or are not admitted | **L/XL** | Partial: gate CGS destroy with liveness; improve burst tracing | **Very high** | **Very high** — destroy/admission is central | **Very high** | **P0 but sliced** |
-| **VR-1** automatic viewport movement | **High** — viewport moves against user intent | **S/M** for current planned fixes; **L** for full policy cleanup | **Yes**: fully-visible reveal guard; lone-column snap bound filter | **Med** | **Med** — explicit navigation must still move | **Med** | **P0 quick wins** |
+| **VR-1** automatic viewport movement | **High** — viewport moves against user intent | **S/M** for current planned fixes; **L** for full policy cleanup | Partial: fully-visible focus reveal guard shipped in `c6eaafb9`; lone-column snap bound filter remains | **Med** | **Med** — explicit navigation must still move | **Med** | **P0 quick wins (partially shipped)** |
 | **XD-1** cross-display move/reveal ordering | **High** for multi-display users | **M/L** | Some: make Summon Right reveal after target-frame materialization | **High** | **High** — monitor geometry and admission overlap | **High** | **P1 after LC/VR slices** |
 | **TF-1** transient/floating/PiP classification | **Med/High** — app-specific, but ugly when hit | **M** | Yes: narrow built-ins + durable metadata for known offenders | **Med/High** | **Med/High** — over-broad floating rules are dangerous | **Med** | **P1/P2** |
 | **OT-1** observability/test truthfulness | **Indirect but compounding** — reduces every future bug cost | **M/L** | Yes: trace silent guards; audit highest-risk test seams | **Med** | **Low/Med** if additive | **This is the observability work** | **Parallel enabler** |
@@ -60,11 +60,11 @@ Scale used below:
 
 - **Why it hurts:** it makes the viewport feel haunted: focus, relayout, or fling moves content when the user did not ask for movement.
 - **Best quick wins:**
-  - stop automatic reveal when the target is fully visible;
-  - honor scroll lock before choosing an automatic reveal target;
-  - filter offscreen bound snaps when the column strip is narrower than the viewport.
+  - shipped in `c6eaafb9`: stop automatic focus-confirm reveal when the target is fully visible;
+  - shipped in `c6eaafb9`: honor scroll lock before choosing a fully-visible automatic reveal target;
+  - still open: filter offscreen bound snaps when the column strip is narrower than the viewport.
 - **Hard part:** preserving explicit navigation behavior. User-initiated focus/move commands still need to reveal clipped or offscreen targets.
-- **Recommended slice:** this is the cleanest near-term win cluster. The two existing planned fixes should land before broader viewport-policy work.
+- **Recommended slice:** this is the cleanest near-term win cluster. The fully-visible focus-confirm slice shipped in `c6eaafb9`; land the lone-column snap-bound slice before broader viewport-policy work.
 
 ### XD-1 evaluation — cross-display move/reveal ordering
 
@@ -148,7 +148,7 @@ Scale used below:
 
 **Primary links:**
 
-- [`20260707-fully-visible-focus-reveal-recenters-viewport-ignoring-scroll-lock.md`](20260707-fully-visible-focus-reveal-recenters-viewport-ignoring-scroll-lock.md) and [`../planned/20260707-fully-visible-focus-reveal-scroll-lock-bypass.md`](../planned/20260707-fully-visible-focus-reveal-scroll-lock-bypass.md) — automatic focus reveal recenters a fully visible column and bypasses scroll lock. A 2026-07-08 two-window capture strengthens the policy boundary: with both windows fully visible and scroll lock disabled, automatic focus still chose the center snap, so the fix must stop fully-visible automatic movement even when unlocked.
+- [`../completed/20260707-fully-visible-focus-reveal-recenters-viewport-ignoring-scroll-lock.md`](../completed/20260707-fully-visible-focus-reveal-recenters-viewport-ignoring-scroll-lock.md) and [`../completed/20260707-fully-visible-focus-reveal-scroll-lock-bypass.md`](../completed/20260707-fully-visible-focus-reveal-scroll-lock-bypass.md) — completed in `c6eaafb9`: automatic focus reveal no longer recenters a fully visible column and the fully-visible arm now honors scroll lock for automatic triggers. A 2026-07-08 two-window capture strengthened the policy boundary: with both windows fully visible and scroll lock disabled, automatic focus still chose the center snap, so the shipped fix stops fully-visible automatic movement even when unlocked.
 - [`20260707-lone-column-fling-snaps-to-offscreen-overscroll-bound.md`](20260707-lone-column-fling-snaps-to-offscreen-overscroll-bound.md) and [`../planned/20260707-lone-column-fling-snaps-offscreen-overscroll-bound.md`](../planned/20260707-lone-column-fling-snaps-offscreen-overscroll-bound.md) — snap grid includes offscreen bound candidates for a lone/narrow column.
 - [`20260628-relayout-path-recenters-fully-visible-unchanged-selection.md`](20260628-relayout-path-recenters-fully-visible-unchanged-selection.md), [`../completed/20260701-focus-confirm-skips-reveal-while-prior-spring-settles.md`](../completed/20260701-focus-confirm-skips-reveal-while-prior-spring-settles.md), and [`../completed/20260701-config-relayout-reinterprets-parked-edge-snapped-selection.md`](../completed/20260701-config-relayout-reinterprets-parked-edge-snapped-selection.md) — earlier variants where relayout or focus confirmation clobbers an already-useful viewport anchor.
 - [`../completed/20260701-preserve-parked-edge-snapped-anchor-across-config-relayout.md`](../completed/20260701-preserve-parked-edge-snapped-anchor-across-config-relayout.md) and [`../completed/20260702-reveal-style-scroll-lock-redesign.md`](../completed/20260702-reveal-style-scroll-lock-redesign.md) — shipped policy/fix background for reveal style and scroll lock.

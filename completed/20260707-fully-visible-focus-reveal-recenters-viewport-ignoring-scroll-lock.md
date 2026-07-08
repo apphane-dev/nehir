@@ -1,10 +1,17 @@
 # Focusing a fully visible window re-centers the viewport, ignoring scroll lock
 
 **Date:** 2026-07-07
-**Status:** Root cause confirmed in source; actionable.
+**Status:** Completed; fixed on `main` by `c6eaafb9` (2026-07-08).
 **Area:** Niri viewport reveal on AX focus confirm.
 
-Cross-link cluster: [`VR-1` in `20260708-cross-discovery-relevance-clusters.md`](20260708-cross-discovery-relevance-clusters.md#vr-1--automatic-revealrecentersnap-movement-bypasses-user-intent-or-visibility-checks) groups the high-confidence automatic reveal/recenter/snap bugs.
+**Final state:** `c6eaafb9` keeps automatic focus confirmation from moving
+an already fully visible column, even when scroll lock is off, and makes the
+fully-visible arm honor scroll lock for automatic triggers. Explicit navigation
+keeps its ability to center/reveal visible targets. Regression coverage landed in
+`Tests/NehirTests/ViewportSnapContextTests.swift`; the changeset is
+`.changeset/20260708145017-stop-focusing-an-already-fully-visible-window-fr.md`.
+
+Cross-link cluster: [`VR-1` in `20260708-cross-discovery-relevance-clusters.md`](../discovery/20260708-cross-discovery-relevance-clusters.md#vr-1--automatic-revealrecentersnap-movement-bypasses-user-intent-or-visibility-checks) groups the high-confidence automatic reveal/recenter/snap bugs.
 
 ## Symptom
 
@@ -124,7 +131,7 @@ Summary of the contradiction: `didReveal=true` exactly when
 capture are separately attributed (`touch_scroll_gesture_*`,
 `scroll_animation_*`) and are not involved.
 
-## Root cause (verified against `main` on 2026-07-07, d953d4d3)
+## Original root cause (verified against `main` on 2026-07-07, d953d4d3)
 
 `NiriLayoutEngine.scrollToReveal` —
 `Sources/Nehir/Core/Layout/Niri/NiriLayoutEngine+ViewportCommands.swift:70-143`.
@@ -174,32 +181,37 @@ So two invariants are violated by the same branch:
 - **Locked ⇒ no automatic movement**: `state.isScrollLocked` is checked only
   for `.parked`/`.clipped`, never for `.fullyVisible`.
 
-## Fix direction
+## Fix shipped
 
 In `scrollToReveal`'s `.fullyVisible` branch
-(`NiriLayoutEngine+ViewportCommands.swift:100-123`):
+(`NiriLayoutEngine+ViewportCommands.swift`), `c6eaafb9`:
 
-1. Gate the entire `.fullyVisible` branch (both the filling-group maintenance
-   exit and the `autoSnap()` fall-through) with the same guard the clipped path
-   uses: `guard !trigger.respectsScrollLock || !state.isScrollLocked else { return false }`.
-2. Decide whether an `.automatic` focus-confirm should re-center a fully
-   visible, non-filling column at all (lines 122–123). The niri-style
-   expectation is no: a focus confirm of a fully visible column is already
-   satisfied. Restricting the `autoSnap()` fall-through to
-   `.explicitNavigation` triggers would stop the unlocked ping-pong as well,
-   while keeping deliberate `focus-column-*` commands free to center.
+1. Gates the entire `.fullyVisible` branch (both filling-group maintenance and
+   the `autoSnap()` fall-through) with the same scroll-lock guard as the clipped
+   path.
+2. Stops automatic focus confirmation from re-centering a fully visible,
+   non-filling column. The final implementation allows that recentering only
+   for `.explicitNavigation` or for a caller that deliberately opts in via
+   `allowFullyVisibleAutomaticRecenter`.
 
-Explicit-navigation behavior (reveal while locked) must be preserved — only the
-`.automatic` trigger's fully-visible behavior changes.
+Explicit-navigation behavior (reveal while locked / deliberate centering) was
+preserved; automatic focus-confirm behavior became a no-op for fully visible
+targets.
 
-## Verification hooks
+## Verification hooks / final verification
 
+- Shipped in `c6eaafb9`:
+  `scrollToRevealSuppressesFullyVisibleAutomaticRecenter`,
+  `scrollToRevealAllowsFullyVisibleExplicitNavigationRecenter`, and
+  `scrollToRevealSkipsFullyVisibleAutomaticWhenLocked` cover the unlocked
+  automatic no-op, explicit-navigation recenter, and locked automatic no-op
+  cases.
 - The existing `ax_focus_confirm_reveal_candidate` / `_result` diagnostics
   (`Sources/Nehir/Core/Controller/AXEventHandler.swift:3534-3568`) already log
-  `locked`, `visibility`, snap candidates, and `didReveal`; a fixed build must
+  `locked`, `visibility`, snap candidates, and `didReveal`; a fixed build should
   show `didReveal=false` for `visibility=fullyVisible` on the `.automatic` path
   (locked or not), with no subsequent `relayout.viewportOffsetChanged` retarget.
-- Regression tests belong next to the engine tests for viewport commands
-  (after user-confirmed fix, per repo test policy): fully-visible + locked,
-  fully-visible + unlocked + auto style + non-filling closest snap, and
-  clipped + locked (existing correct suppression must not regress).
+- Regression tests now live next to the engine tests for viewport commands and
+  cover fully-visible + locked, fully-visible + unlocked + auto style +
+  non-filling closest snap, and explicit navigation preservation. Existing
+  clipped + locked suppression stayed covered.
