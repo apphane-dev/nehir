@@ -1163,8 +1163,13 @@ final class WorkspaceManager {
     }
 
     func recentlyLeftNonManagedFocus(within interval: TimeInterval) -> Bool {
-        guard let lastNonManagedFocusExitAt else { return false }
-        return Date().timeIntervalSince(lastNonManagedFocusExitAt) <= interval
+        guard let age = nonManagedFocusExitAge() else { return false }
+        return age <= interval
+    }
+
+    func nonManagedFocusExitAge(now: Date = Date()) -> TimeInterval? {
+        guard let lastNonManagedFocusExitAt else { return nil }
+        return now.timeIntervalSince(lastNonManagedFocusExitAt)
     }
 
     var isAppFullscreenActive: Bool {

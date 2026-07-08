@@ -14,6 +14,24 @@ struct RuntimeTraceCaptureStatus: Equatable {
     let startedAt: Date?
 }
 
+struct RuntimeDecisionTraceField {
+    let name: String
+    let value: String
+
+    init(_ name: String, _ value: String?) {
+        self.name = name
+        self.value = value ?? "nil"
+    }
+
+    init<T>(_ name: String, _ value: T?) {
+        self.init(name, value.map { String(describing: $0) })
+    }
+
+    var formatted: String {
+        "\(name)=\(value)"
+    }
+}
+
 /// Owns WMController's diagnostics and trace surface: runtime-state dump and
 /// reset, trace capture toggling and export, the background trace clip buffer,
 /// per-category runtime trace recording, viewport-mutation audit gating, and
@@ -43,6 +61,7 @@ final class RuntimeDiagnosticsCoordinator {
     private var runtimeResizeTraceRecords: [String] = []
     private var runtimeInsertionTraceRecords: [String] = []
     private var runtimeMouseTraceRecords: [String] = []
+    private var runtimeDecisionTraceRecords: [String] = []
     private var backgroundTraceBuffer = BackgroundTraceBuffer()
     private var backgroundTraceDrafts: [BackgroundTraceDraft.ID: BackgroundTraceDraft] = [:]
     private var backgroundTraceDraftOrder: [BackgroundTraceDraft.ID] = []
@@ -59,7 +78,11 @@ final class RuntimeDiagnosticsCoordinator {
     }
 
     var isBackgroundTraceBufferEffectivelyEnabled: Bool {
-        (controller?.settings.developerModeEnabled ?? false) && isRuntimeTraceCaptureActive
+        controller?.settings.developerModeEnabled ?? false
+    }
+
+    var shouldRecordRuntimeDecisionEvents: Bool {
+        isRuntimeTraceCaptureActive || isBackgroundTraceBufferEffectivelyEnabled
     }
 
     private func syncViewportMutationAuditFlag() {
@@ -99,7 +122,7 @@ final class RuntimeDiagnosticsCoordinator {
             maxBytes: controller.settings.backgroundTraceMaxBytes,
             retentionSeconds: controller.settings.backgroundTraceRetentionSeconds
         )
-        if !isRuntimeTraceCaptureActive {
+        if !controller.settings.developerModeEnabled {
             resetBackgroundTraceBuffer()
         }
         syncNiriResizeTraceSink()
@@ -278,12 +301,26 @@ final class RuntimeDiagnosticsCoordinator {
         appendBackgroundTrace(category: category, text: line, timestamp: timestamp)
     }
 
+    func recordRuntimeDecisionEvent(
+        named name: String,
+        cluster: String,
+        fields: () -> [RuntimeDecisionTraceField]
+    ) {
+        guard shouldRecordRuntimeDecisionEvents else { return }
+        let message = ([
+            "event=\(name)",
+            "cluster=\(cluster)"
+        ] + fields().map(\.formatted))
+            .joined(separator: " ")
+        recordRuntimeTrace(into: \.runtimeDecisionTraceRecords, category: .runtime, message: message)
+    }
+
     func recordRuntimeViewportTrace(
         workspaceId: WorkspaceDescriptor.ID,
         reason: String,
         details: [String] = []
     ) {
-        guard isRuntimeTraceCaptureActive else { return }
+        guard isRuntimeTraceCaptureActive || isBackgroundTraceBufferEffectivelyEnabled else { return }
         guard let controller, let engine = controller.niriEngine else { return }
 
         let gap = controller.workspaceManager.monitor(for: workspaceId).map { controller.gapSize(for: $0) }
@@ -600,7 +637,7 @@ final class RuntimeDiagnosticsCoordinator {
             nil
         }
         let borderToken = controller.currentBorderTarget()?.token
-        let commandTarget = controller.managedCommandTarget()
+        let commandTarget = controller.managedCommandTarget(traceDecision: false)
         return [
             "interactionWorkspace=\(interactionWorkspaceId.map { $0.uuidString } ?? "nil")",
             "wmCommandTarget=\(commandTarget.map { String(describing: $0.token) } ?? "nil")",
@@ -696,7 +733,7 @@ final class RuntimeDiagnosticsCoordinator {
         let axEventSnapshot = controller.axEventHandler.debugCounters
         let cgsSnapshot = CGSEventObserver.shared.cgsDebugSnapshot()
         let traceCaptureStatus = traceCaptureStatusOverride ?? runtimeTraceCaptureStatus
-        let backgroundTraceEffectiveEnabled = controller.settings.developerModeEnabled && traceCaptureStatus.isActive
+        let backgroundTraceEffectiveEnabled = controller.settings.developerModeEnabled
 
         var lines: [String] = [
             "WMController runtime state",
@@ -705,7 +742,7 @@ final class RuntimeDiagnosticsCoordinator {
             "focusFollowsMouse=\(controller.focusFollowsMouseEnabled) moveMouseToFocusedWindow=\(controller.moveMouseToFocusedWindowEnabled) mouseWarpEnabled=\(controller.settings.mouseWarpEnabled) mouseWarpPolicyEnabled=\(controller.isMouseWarpPolicyEnabled)",
             "displaySpacesMode=\(SkyLight.shared.displaySpacesMode().rawValue)",
             "isTransferringWindow=\(controller.isTransferringWindow) hiddenAppPIDs=\(controller.hiddenAppPIDs.count) workspaceBarHiddenMonitors=\(controller.hiddenWorkspaceBarMonitorIds.count)",
-            "runtimeTraceCaptureActive=\(traceCaptureStatus.isActive) runtimeTraceStartedAt=\(traceCaptureStatus.startedAt?.ISO8601Format() ?? "nil") viewportTraceRecords=\(runtimeViewportTraceRecords.count) resizeTraceRecords=\(runtimeResizeTraceRecords.count) insertionTraceRecords=\(runtimeInsertionTraceRecords.count) mouseTraceRecords=\(runtimeMouseTraceRecords.count) backgroundTraceEnabled=\(backgroundTraceEffectiveEnabled) backgroundTraceEvents=\(backgroundTraceBufferStatus.eventCount) backgroundTraceBytes=\(backgroundTraceBufferStatus.estimatedBytes) backgroundTraceMaxBytes=\(backgroundTraceBufferStatus.maxBytes) backgroundTraceRetentionSeconds=\(String(format: "%.0f", backgroundTraceBufferStatus.retentionSeconds))",
+            "runtimeTraceCaptureActive=\(traceCaptureStatus.isActive) runtimeTraceStartedAt=\(traceCaptureStatus.startedAt?.ISO8601Format() ?? "nil") viewportTraceRecords=\(runtimeViewportTraceRecords.count) resizeTraceRecords=\(runtimeResizeTraceRecords.count) insertionTraceRecords=\(runtimeInsertionTraceRecords.count) mouseTraceRecords=\(runtimeMouseTraceRecords.count) decisionTraceRecords=\(runtimeDecisionTraceRecords.count) backgroundTraceEnabled=\(backgroundTraceEffectiveEnabled) backgroundTraceEvents=\(backgroundTraceBufferStatus.eventCount) backgroundTraceBytes=\(backgroundTraceBufferStatus.estimatedBytes) backgroundTraceMaxBytes=\(backgroundTraceBufferStatus.maxBytes) backgroundTraceRetentionSeconds=\(String(format: "%.0f", backgroundTraceBufferStatus.retentionSeconds))",
             "workspaceBarRefreshDebugState requestCount=\(controller.workspaceBarRefreshDebugState.requestCount) scheduledCount=\(controller.workspaceBarRefreshDebugState.scheduledCount) executionCount=\(controller.workspaceBarRefreshDebugState.executionCount) isQueued=\(controller.workspaceBarRefreshDebugState.isQueued)",
             "-- Focus Targets --",
             focusTargetDebugDump(),
@@ -789,6 +826,7 @@ final class RuntimeDiagnosticsCoordinator {
             runtimeResizeTraceRecords.removeAll(keepingCapacity: true)
             runtimeInsertionTraceRecords.removeAll(keepingCapacity: true)
             runtimeMouseTraceRecords.removeAll(keepingCapacity: true)
+            runtimeDecisionTraceRecords.removeAll(keepingCapacity: true)
             backgroundTraceBuffer.clear()
             backgroundTraceDrafts.removeAll(keepingCapacity: true)
             backgroundTraceDraftOrder.removeAll(keepingCapacity: true)
@@ -927,6 +965,10 @@ final class RuntimeDiagnosticsCoordinator {
         let categoryCounts = BackgroundTraceCategory.allCases.map { category in
             "\(category.rawValue)=\(clip.categoryCounts[category] ?? 0)"
         }.joined(separator: " ")
+        let eventNameCounts = clip.eventNameCounts
+            .sorted { lhs, rhs in lhs.key < rhs.key }
+            .map { name, count in "\(name)=\(count)" }
+            .joined(separator: " ")
         let noteLine = (note?.isEmpty == false) ? note! : ""
         let retainedRange = "\(draft.retainedStart?.ISO8601Format() ?? "nil")..\(draft.retainedEnd?.ISO8601Format() ?? "nil")"
         let selectedRange = "\(clip.selectedStart.ISO8601Format())..\(clip.selectedEnd.ISO8601Format())"
@@ -949,6 +991,7 @@ final class RuntimeDiagnosticsCoordinator {
             "eventCount=\(clip.events.count)",
             "estimatedBytes=\(clip.estimatedBytes)",
             "categoryCounts=\(categoryCounts)",
+            "eventNameCounts=\(eventNameCounts.isEmpty ? "none" : eventNameCounts)",
             "userNote=\(noteLine)",
             "exportedAt=\(endedAt.ISO8601Format())",
             "",
@@ -998,9 +1041,7 @@ final class RuntimeDiagnosticsCoordinator {
         runtimeResizeTraceRecords.removeAll(keepingCapacity: true)
         runtimeInsertionTraceRecords.removeAll(keepingCapacity: true)
         runtimeMouseTraceRecords.removeAll(keepingCapacity: true)
-        backgroundTraceBuffer.clear()
-        backgroundTraceDrafts.removeAll(keepingCapacity: true)
-        backgroundTraceDraftOrder.removeAll(keepingCapacity: true)
+        runtimeDecisionTraceRecords.removeAll(keepingCapacity: true)
         let startedAt = Date()
         let startRuntimeStateDump = runtimeStateDebugDump(
             traceLimit: 0,
@@ -1050,6 +1091,9 @@ final class RuntimeDiagnosticsCoordinator {
         let mouseTraceDump = runtimeMouseTraceRecords.isEmpty
             ? "mouse trace empty"
             : runtimeMouseTraceRecords.joined(separator: "\n")
+        let decisionTraceDump = runtimeDecisionTraceRecords.isEmpty
+            ? "runtime decision trace empty"
+            : runtimeDecisionTraceRecords.joined(separator: "\n")
         let createFocusTraceEvents = controller.axEventHandler.createFocusTraceSnapshot()
         let createFocusTraceDump = createFocusTraceEvents.isEmpty
             ? "create focus trace empty"
@@ -1082,6 +1126,9 @@ final class RuntimeDiagnosticsCoordinator {
             "",
             "## Niri insertion trace",
             insertionTraceDump,
+            "",
+            "## Runtime decision trace",
+            decisionTraceDump,
             "",
             "## Niri create focus trace",
             createFocusTraceDump,
@@ -1128,9 +1175,7 @@ final class RuntimeDiagnosticsCoordinator {
         runtimeResizeTraceRecords.removeAll(keepingCapacity: true)
         runtimeInsertionTraceRecords.removeAll(keepingCapacity: true)
         runtimeMouseTraceRecords.removeAll(keepingCapacity: true)
-        backgroundTraceBuffer.clear()
-        backgroundTraceDrafts.removeAll(keepingCapacity: true)
-        backgroundTraceDraftOrder.removeAll(keepingCapacity: true)
+        runtimeDecisionTraceRecords.removeAll(keepingCapacity: true)
         syncNiriResizeTraceSink()
         syncViewportMutationAuditFlag()
         controller.workspaceBarManager.update()

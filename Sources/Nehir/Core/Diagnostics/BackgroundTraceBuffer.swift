@@ -59,6 +59,23 @@ struct BackgroundTraceClip: Sendable {
     var categoryCounts: [BackgroundTraceCategory: Int] {
         Dictionary(grouping: events, by: \.category).mapValues(\.count)
     }
+
+    var eventNameCounts: [String: Int] {
+        var counts: [String: Int] = [:]
+        for event in events {
+            guard let name = Self.eventName(in: event.text) else { continue }
+            counts[name, default: 0] += 1
+        }
+        return counts
+    }
+
+    private static func eventName(in text: String) -> String? {
+        text.split(separator: " ").first { field in
+            field.hasPrefix("event=")
+        }.map { field in
+            String(field.dropFirst("event=".count))
+        }
+    }
 }
 
 struct BackgroundTraceBuffer {
