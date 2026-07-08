@@ -181,71 +181,81 @@ enum HiddenWindowPlacementResolver {
         let edgeReveal = max(1.0, baseReveal / max(1.0, scale))
         let parkingFrame = monitor.visibleFrame.isNull ? monitor.frame : monitor.visibleFrame
 
-        func origin(for edge: AxisHideEdge) -> CGPoint {
+        func origin(for edge: AxisHideEdge, orthogonal: CGFloat) -> CGPoint {
             switch orientation {
             case .horizontal:
                 switch edge {
                 case .minimum:
                     return CGPoint(
                         x: parkingFrame.minX - size.width + edgeReveal,
-                        y: orthogonalOrigin
+                        y: orthogonal
                     )
                 case .maximum:
                     return CGPoint(
                         x: parkingFrame.maxX - edgeReveal,
-                        y: orthogonalOrigin
+                        y: orthogonal
                     )
                 }
             case .vertical:
                 switch edge {
                 case .minimum:
                     return CGPoint(
-                        x: orthogonalOrigin,
+                        x: orthogonal,
                         y: parkingFrame.minY - size.height + edgeReveal
                     )
                 case .maximum:
                     return CGPoint(
-                        x: orthogonalOrigin,
+                        x: orthogonal,
                         y: parkingFrame.maxY - edgeReveal
                     )
                 }
             }
         }
 
-        let primaryOrigin = origin(for: requestedEdge)
-        let primaryOverlap = overlapArea(
-            for: CGRect(origin: primaryOrigin, size: size),
+        let orthogonalCandidates = orthogonalParkingCandidates(
+            for: size,
+            target: orthogonalOrigin,
+            orientation: orientation,
             monitor: monitor,
             monitors: monitors
         )
-        if primaryOverlap == 0 {
-            return HiddenWindowPlacement(
-                requestedEdge: requestedEdge,
-                resolvedEdge: requestedEdge,
-                origin: primaryOrigin
-            )
-        }
-
-        let alternateEdge = requestedEdge.opposite
-        let alternateOrigin = origin(for: alternateEdge)
-        let alternateOverlap = overlapArea(
-            for: CGRect(origin: alternateOrigin, size: size),
-            monitor: monitor,
-            monitors: monitors
-        )
-        if alternateOverlap < primaryOverlap {
-            return HiddenWindowPlacement(
-                requestedEdge: requestedEdge,
-                resolvedEdge: alternateEdge,
-                origin: alternateOrigin
-            )
-        }
-
-        return HiddenWindowPlacement(
+        let candidateEdges = [requestedEdge, requestedEdge.opposite]
+        var bestPlacement = HiddenWindowPlacement(
             requestedEdge: requestedEdge,
             resolvedEdge: requestedEdge,
-            origin: primaryOrigin
+            origin: origin(for: requestedEdge, orthogonal: orthogonalOrigin)
         )
+        var bestOverlap = CGFloat.greatestFiniteMagnitude
+        var bestDistance = CGFloat.greatestFiniteMagnitude
+        var bestEdgePenalty = Int.max
+
+        for (edgeIndex, edge) in candidateEdges.enumerated() {
+            for orthogonal in orthogonalCandidates {
+                let candidateOrigin = origin(for: edge, orthogonal: orthogonal)
+                let candidateFrame = CGRect(origin: candidateOrigin, size: size)
+                let overlap = overlapArea(
+                    for: candidateFrame,
+                    monitor: monitor,
+                    monitors: monitors
+                )
+                let distance = abs(orthogonal - orthogonalOrigin)
+                if overlap < bestOverlap
+                    || (overlap == bestOverlap && distance < bestDistance)
+                    || (overlap == bestOverlap && distance == bestDistance && edgeIndex < bestEdgePenalty)
+                {
+                    bestPlacement = HiddenWindowPlacement(
+                        requestedEdge: requestedEdge,
+                        resolvedEdge: edge,
+                        origin: candidateOrigin
+                    )
+                    bestOverlap = overlap
+                    bestDistance = distance
+                    bestEdgePenalty = edgeIndex
+                }
+            }
+        }
+
+        return bestPlacement
     }
 
     private static func verticalOverlap(_ lhs: CGRect, _ rhs: CGRect) -> CGFloat {
@@ -258,22 +268,47 @@ enum HiddenWindowPlacementResolver {
         monitor: HiddenPlacementMonitorContext,
         monitors: [HiddenPlacementMonitorContext]
     ) -> [CGFloat] {
+        orthogonalParkingCandidates(
+            for: size,
+            target: targetY,
+            orientation: .horizontal,
+            monitor: monitor,
+            monitors: monitors
+        )
+    }
+
+    private static func orthogonalParkingCandidates(
+        for size: CGSize,
+        target: CGFloat,
+        orientation: Monitor.Orientation,
+        monitor: HiddenPlacementMonitorContext,
+        monitors: [HiddenPlacementMonitorContext]
+    ) -> [CGFloat] {
         var candidates: [CGFloat] = []
 
-        func append(_ y: CGFloat) {
-            guard y.isFinite else { return }
-            if !candidates.contains(where: { abs($0 - y) < 0.5 }) {
-                candidates.append(y)
+        func append(_ value: CGFloat) {
+            guard value.isFinite else { return }
+            if !candidates.contains(where: { abs($0 - value) < 0.5 }) {
+                candidates.append(value)
             }
         }
 
-        append(targetY)
-        append(monitor.frame.minY)
-        append(monitor.frame.maxY - size.height)
-
-        for other in monitors where other.id != monitor.id {
-            append(other.frame.minY - size.height)
-            append(other.frame.maxY)
+        append(target)
+        switch orientation {
+        case .horizontal:
+            append(monitor.frame.minY)
+            append(monitor.frame.maxY - size.height)
+            for other in monitors where other.id != monitor.id {
+                append(other.frame.minY - size.height)
+                append(other.frame.maxY)
+            }
+        case .vertical:
+            append(monitor.frame.minX)
+            append(monitor.frame.maxX - size.width)
+            for other in monitors where other.id != monitor.id {
+                append(other.frame.minX - size.width)
+                append(other.frame.maxX)
+            }
         }
 
         return candidates
