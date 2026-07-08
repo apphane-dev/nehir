@@ -4,6 +4,100 @@ Discovery 2026-07-08, verified against `main` at `d4cc52`. Line numbers will dri
 
 Cross-link cluster: [`LC-1` in `20260708-cross-discovery-relevance-clusters.md`](20260708-cross-discovery-relevance-clusters.md#lc-1--lifecycleadmission-desync-false-removals-partial-enumeration-and-replacement-bursts). This is the latest cold-start lifecycle/admission-desync capture and should be read with [`20260707-cold-start-wipe-recurs-post-liveness-fix-only-focused-pid-readmitted.md`](20260707-cold-start-wipe-recurs-post-liveness-fix-only-focused-pid-readmitted.md) and [`20260707-external-display-column-admission-click-required.md`](20260707-external-display-column-admission-click-required.md).
 
+## Follow-up: clean cold start makes the failure worse, but confirms the same mechanism
+
+A later clean cold-start capture on `nehir v8a25e7*` reproduced the same fault with higher blast radius. It did **not** simply leave two windows unmanaged. It initially enumerated nine visible windows, then destroy-only replacement bursts collapsed the model and the layout was rebuilt piecemeal only as pids received focus or pid reevaluation. At the end, eight windows were managed, six were hidden/parked, two were visible, and Ghostty `W(82494/27176)` was still a visible unmanaged WindowServer window.
+
+Initial topology matched the earlier capture: built-in Retina `displayId=1` at `(0, 0, 2056, 1329)` and DELL P2423D `displayId=2` at `(-312, 1329, 2560, 1440)`. Nehir started with `windows total=0`, but WindowServer/AX exposed these visible normal windows on the external-display coordinate band:
+
+```text
+Claude       W(46598/27069) frame={{0, -1410}, {600, 1410}}     axWindowsCount=1 axContainsWindow=true
+Code         W(53999/25718) frame={{899, -1410}, {1011, 1251}}  axWindowsCount=2 axContainsWindow=true
+Helium       W(28651/26466) frame={{899, -1410}, {1011, 1251}}  axWindowsCount=4 axContainsWindow=true
+Helium       W(28651/24872) frame={{442, -1410}, {743, 1410}}   axWindowsCount=4 axContainsWindow=true
+Helium       W(28651/26317) frame={{899, -1410}, {1011, 1251}}  axWindowsCount=4 axContainsWindow=true
+Slack        W(51532/24203) frame={{0, -1410}, {900, 1410}}     axWindowsCount=1 axContainsWindow=true
+Helium       W(28651/22680) frame={{899, -1410}, {1011, 1251}}  axWindowsCount=4 axContainsWindow=true
+Ghostty      W(82494/27176) frame={{899, -1410}, {1011, 1251}}  axWindowsCount=1 axContainsWindow=true
+Code         W(53999/23432) frame={{899, -1410}, {1011, 1251}}  axWindowsCount=2 axContainsWindow=true
+```
+
+AX enumeration was complete for those pids at startup:
+
+```text
+14:01:52 ax_windows_query pid=46598 newContext=true count=1 windowIds=[27069]
+14:01:52 ax_windows_query pid=51532 newContext=true count=1 windowIds=[24203]
+14:01:52 ax_windows_query pid=82494 newContext=true count=1 windowIds=[27176]
+14:01:52 ax_windows_query pid=53999 newContext=true count=2 windowIds=[25718, 23432]
+14:01:52 ax_windows_query pid=28651 newContext=true count=4 windowIds=[26466, 24872, 22680, 26317]
+```
+
+The first Niri insertion batch placed eight non-Ghostty windows into workspace `EDADB791-6F3A-48C0-9D28-8D7F6C77239A` from an empty workspace:
+
+```text
+14:01:52 W(51532/24203) beforeColumns=0 landedColumn=0
+14:01:52 W(46598/27069) beforeColumns=0 landedColumn=7
+14:01:52 W(53999/25718) beforeColumns=0 landedColumn=6
+14:01:52 W(53999/23432) beforeColumns=0 landedColumn=5
+14:01:52 W(28651/26466) beforeColumns=0 landedColumn=4
+14:01:52 W(28651/24872) beforeColumns=0 landedColumn=3
+14:01:52 W(28651/22680) beforeColumns=0 landedColumn=2
+14:01:52 W(28651/26317) beforeColumns=0 landedColumn=1
+```
+
+Immediately after that, the model was effectively reset. Claude was inserted again one second later with `beforeColumns=0`, proving the previous column set had been removed:
+
+```text
+14:01:53 W(46598/27069) beforeColumns=0 landedColumn=0
+14:01:59 W(28651/26317) beforeColumns=1 landedColumn=1
+14:01:59 W(28651/24872) beforeColumns=2 landedColumn=4
+14:01:59 W(28651/26317) beforeColumns=2 landedColumn=2
+14:01:59 W(28651/26466) beforeColumns=2 landedColumn=3
+14:02:03 W(51532/24203) beforeColumns=5 landedColumn=1
+14:02:20 W(53999/25718) beforeColumns=6 landedColumn=1
+14:02:20 W(53999/23432) beforeColumns=7 landedColumn=2
+```
+
+The managed-replacement trace names the destructive mechanism: all affected bursts were destroy-only (`creates=0`) and replayed as `reason=no_match`:
+
+```text
+pid=53999 key=(53999,EDADB791...) creates=0 destroys=2 matched=false rekeyed=false replayed=2
+  replay.destroy W(53999/25718)
+  replay.destroy W(53999/23432)
+pid=28651 key=(28651,EDADB791...) creates=0 destroys=3 matched=false rekeyed=false replayed=3
+  replay.destroy W(28651/26466)
+  replay.destroy W(28651/22680)
+  replay.destroy W(28651/26317)
+pid=28651 key=(28651,EDADB791...) creates=0 destroys=1 matched=false rekeyed=false replayed=1
+  replay.destroy W(28651/24872)
+pid=51532 key=(51532,EDADB791...) creates=0 destroys=1 matched=false rekeyed=false replayed=1
+  replay.destroy W(51532/24203)
+pid=46598 key=(46598,EDADB791...) creates=0 destroys=1 matched=false rekeyed=false replayed=1
+  replay.destroy W(46598/27069)
+pid=82494 key=(82494,3095283B...) creates=0 destroys=1 matched=false rekeyed=false replayed=1
+  replay.destroy W(82494/27176)
+```
+
+The Ghostty destroy was especially damaging because it was keyed to inactive workspace `3095283B-1742-4563-93FB-EE0E31823F1B`; unlike the active workspace pids, it never received a focus/pid recovery path and ended the capture unmanaged:
+
+```text
+Visible Unmanaged WindowServer Windows at end:
+  Ghostty W(82494/27176) frame={{2055, 39}, {1011, 1251}} axWindowsCount=1 axContainsWindow=true
+```
+
+AX still does not explain the destroys. The raw AX notification ring contained only focused-window changes — seventeen entries such as `AXFocusedWindowChanged pid=28651 window=nil` and `AXFocusedWindowChanged pid=53999 window=nil` — and no `AXUIElementDestroyed` notifications.
+
+End state was internally inconsistent even for recovered pids:
+
+```text
+windows total=8 tiled=8 floating=0 hidden=6
+visible columns: W(53999/23432), W(51532/24203)
+hidden parked:  W(28651/22680), W(28651/24872), W(28651/26317), W(28651/26466), W(46598/27069), W(53999/25718)
+visible unmanaged: W(82494/27176)
+```
+
+This follow-up strengthens the original hypothesis: complete AX enumeration and initial layout insertion happen first; then CGS/space-lifecycle feedback produces destroy-only replacement bursts; later focus/reevaluation partially rebuilds the active workspace, but inactive or unclicked pids can remain unmanaged.
+
 ## Summary
 
 A cold-start capture on `nehir vd4cc52` shows eight visible normal app windows. They were all seen by AX and initially inserted into the Niri column layout, but a burst of destroy-only managed-replacement events immediately removed the live windows. Some pids were later recovered by incidental pid/focus reevaluation, but two user-facing windows — Telegram `W(7665/23117)` and Claude `W(20217/23233)` — only re-entered the layout after explicit native app activation (`workspaceDidActivateApplication`), matching the observed workaround: click the missing window and it becomes a column.
