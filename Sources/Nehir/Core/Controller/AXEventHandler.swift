@@ -724,6 +724,18 @@ final class AXEventHandler: CGSEventDelegate {
         let recordedAt: TimeInterval
     }
 
+    private struct SameAppRecoveryRedirectLatchKey: Hashable {
+        let pid: pid_t
+        let workspaceId: WorkspaceDescriptor.ID
+    }
+
+    private struct SameAppRecoveryRedirectLatch {
+        let observedToken: WindowToken
+        let targetToken: WindowToken
+        let phase: StableRecoveryRedirectPhase
+        let recordedAt: TimeInterval
+    }
+
     private static let managedReplacementGraceDelay: Duration = .milliseconds(150)
     private static let nativeFullscreenFollowupDelay: Duration = .seconds(1)
     private static let nativeFullscreenStaleCleanupDelay: Duration = .seconds(
@@ -768,9 +780,11 @@ final class AXEventHandler: CGSEventDelegate {
     private static let recentSameAppWindowCloseTTL: TimeInterval = 2
     private static let recentNonManagedFocusTTL: TimeInterval = 2
     private static let focusedWindowLossClosePrecursorTTL: TimeInterval = 0.6
+    private static let sameAppRecoveryRedirectLatchTTL: TimeInterval = 2
     private var recentSameAppWindowCloseByPid: [pid_t: TimeInterval] = [:]
     private var recentNonManagedFocusByPid: [pid_t: TimeInterval] = [:]
     private var focusedWindowLossClosePrecursorByPid: [pid_t: FocusedWindowLossClosePrecursor] = [:]
+    private var sameAppRecoveryRedirectLatches: [SameAppRecoveryRedirectLatchKey: SameAppRecoveryRedirectLatch] = [:]
     private static let parkedFocusFollowDedupTTL: TimeInterval = 1.5
     private var recentParkedFocusFollowByToken: [WindowToken: TimeInterval] = [:]
     // After follow_focus switches an app to a parked window's workspace, hold
@@ -832,6 +846,7 @@ final class AXEventHandler: CGSEventDelegate {
         recentSameAppWindowCloseByPid.removeAll()
         recentNonManagedFocusByPid.removeAll()
         focusedWindowLossClosePrecursorByPid.removeAll()
+        sameAppRecoveryRedirectLatches.removeAll()
         recentParkedFocusFollowByToken.removeAll()
         parkedFollowHoldByPid.removeAll()
         recentManagedAdmissionByToken.removeAll()
@@ -983,6 +998,7 @@ final class AXEventHandler: CGSEventDelegate {
         recentSameAppWindowCloseByPid.removeAll()
         recentNonManagedFocusByPid.removeAll()
         focusedWindowLossClosePrecursorByPid.removeAll()
+        sameAppRecoveryRedirectLatches.removeAll()
         recentParkedFocusFollowByToken.removeAll()
         parkedFollowHoldByPid.removeAll()
         recentManagedAdmissionByToken.removeAll()
@@ -2421,6 +2437,62 @@ final class AXEventHandler: CGSEventDelegate {
         }
     }
 
+    private func sameAppRecoveryRedirectLatchKey(
+        pid: pid_t,
+        workspaceId: WorkspaceDescriptor.ID
+    ) -> SameAppRecoveryRedirectLatchKey {
+        .init(pid: pid, workspaceId: workspaceId)
+    }
+
+    private func pruneSameAppRecoveryRedirectLatches(now: TimeInterval? = nil) {
+        let now = now ?? managedReplacementCurrentUptime()
+        sameAppRecoveryRedirectLatches = sameAppRecoveryRedirectLatches.filter { _, latch in
+            now - latch.recordedAt <= Self.sameAppRecoveryRedirectLatchTTL
+        }
+    }
+
+    private func reverseSameAppRecoveryRedirectLatch(
+        observedEntry: WindowModel.Entry,
+        workspaceId: WorkspaceDescriptor.ID,
+        targetToken: WindowToken,
+        previousSameAppFocusDisappeared: Bool,
+        selectedSameAppFocusDisappeared: Bool
+    ) -> SameAppRecoveryRedirectLatch? {
+        guard !previousSameAppFocusDisappeared,
+              !selectedSameAppFocusDisappeared
+        else {
+            return nil
+        }
+
+        let now = managedReplacementCurrentUptime()
+        pruneSameAppRecoveryRedirectLatches(now: now)
+        let key = sameAppRecoveryRedirectLatchKey(pid: observedEntry.pid, workspaceId: workspaceId)
+        guard let latch = sameAppRecoveryRedirectLatches[key],
+              latch.targetToken == observedEntry.token,
+              latch.observedToken == targetToken,
+              now - latch.recordedAt <= Self.sameAppRecoveryRedirectLatchTTL
+        else {
+            return nil
+        }
+        return latch
+    }
+
+    private func recordSameAppRecoveryRedirectLatch(
+        observedEntry: WindowModel.Entry,
+        workspaceId: WorkspaceDescriptor.ID,
+        targetToken: WindowToken,
+        phase: StableRecoveryRedirectPhase
+    ) {
+        pruneSameAppRecoveryRedirectLatches()
+        let key = sameAppRecoveryRedirectLatchKey(pid: observedEntry.pid, workspaceId: workspaceId)
+        sameAppRecoveryRedirectLatches[key] = .init(
+            observedToken: observedEntry.token,
+            targetToken: targetToken,
+            phase: phase,
+            recordedAt: managedReplacementCurrentUptime()
+        )
+    }
+
     private func redirectToStableSameAppRecoveryFocusIfNeeded(
         observedEntry: WindowModel.Entry,
         workspaceId: WorkspaceDescriptor.ID,
@@ -2463,6 +2535,41 @@ final class AXEventHandler: CGSEventDelegate {
             ]
         )
         guard let target, target != observedEntry.token else { return false }
+        if let reverseLatch = reverseSameAppRecoveryRedirectLatch(
+            observedEntry: observedEntry,
+            workspaceId: workspaceId,
+            targetToken: target,
+            previousSameAppFocusDisappeared: previousSameAppFocusDisappeared,
+            selectedSameAppFocusDisappeared: selectedSameAppFocusDisappeared
+        ) {
+            controller?.diagnostics.recordRuntimeViewportTrace(
+                workspaceId: workspaceId,
+                reason: "close_recovery_reverse_redirect_skipped",
+                details: [
+                    "observedToken=\(observedEntry.token)",
+                    "targetToken=\(target)",
+                    "pid=\(observedEntry.pid)",
+                    "workspaceId=\(workspaceId)",
+                    "reason=reverse_redirect_latch",
+                    "phase=\(phase.traceReason)",
+                    "latchedPhase=\(reverseLatch.phase.traceReason)",
+                    "latchedObservedToken=\(reverseLatch.observedToken)",
+                    "latchedTargetToken=\(reverseLatch.targetToken)",
+                    "recentSameAppClose=\(recentSameAppClose)",
+                    "recentNonManaged=\(signal.recentNonManaged)",
+                    "overlayVisible=\(signal.overlayVisible)",
+                    "previousSameAppFocusDisappeared=\(previousSameAppFocusDisappeared)",
+                    "selectedSameAppFocusDisappeared=\(selectedSameAppFocusDisappeared)"
+                ]
+            )
+            return false
+        }
+        recordSameAppRecoveryRedirectLatch(
+            observedEntry: observedEntry,
+            workspaceId: workspaceId,
+            targetToken: target,
+            phase: phase
+        )
         controller?.focusWindow(target, reason: phase.focusReason)
         return true
     }
