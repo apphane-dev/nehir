@@ -1,18 +1,30 @@
 # Same-app close recovery can get stuck in an alternating focus dance
 
 **Date:** 2026-07-08
-**Status:** Root cause confirmed in source; actionable.
+**Status:** LANDED (2026-07-08). Shipped on `main` in commit `9ac0b91c` (`Stop same-app close recovery focus bounce`; changeset: `nehir` patch — "Prevent same-app close recovery from bouncing focus between windows").
 **Area:** AX focus lifecycle / same-app close-overlay recovery / Niri viewport focus.
+
+## What landed
+
+The merged fix adds a short same-app recovery redirect latch in `Sources/Nehir/Core/Controller/AXEventHandler.swift`:
+
+1. **Per-pid/workspace redirect-pair latch.** `SameAppRecoveryRedirectLatchKey` keys by pid and workspace, and `SameAppRecoveryRedirectLatch` stores the observed token, target token, redirect phase, and timestamp (`AXEventHandler.swift:727`, `AXEventHandler.swift:732`). The latch TTL is 2 seconds, matching the recent same-app close / recent non-managed focus recovery window (`AXEventHandler.swift:780`–`783`).
+2. **Reverse redirect guard.** Before issuing another stable same-app recovery redirect, `reverseSameAppRecoveryRedirectLatch(...)` prunes stale latches and detects the exact reverse pair: the current observed token is the previous target and the current target is the previous observed token (`AXEventHandler.swift:2447`, `AXEventHandler.swift:2454`, `AXEventHandler.swift:2470`–`2473`).
+3. **Stronger-evidence escape hatch.** The reverse guard is bypassed if `previousSameAppFocusDisappeared` or `selectedSameAppFocusDisappeared` is true, preserving real recovery cases where a prior/selected same-app focus genuinely disappeared (`AXEventHandler.swift:2461`–`2464`).
+4. **Traceable skip.** When the reverse latch blocks an oscillation, runtime viewport trace records `close_recovery_reverse_redirect_skipped` with observed/target tokens, pid, workspace id, phase, latched phase/tokens, and the recovery evidence fields (`AXEventHandler.swift:2538`–`2565`).
+5. **Latch record on real redirect.** Non-skipped redirects record the latch immediately before `focusWindow(...)` (`AXEventHandler.swift:2567`–`2573`). Cleanup and test reset clear the latch map (`AXEventHandler.swift:846`–`849`, `AXEventHandler.swift:996`–`1001`).
+
+No regression tests were added before runtime confirmation, following the repo rule for runtime bugs. The real repro should confirm that the new `close_recovery_reverse_redirect_skipped` marker appears for the former A → B → A bounce and that focus settles instead of alternating.
 
 ## Related docs
 
-- Cross-link cluster: [`CR-1` in `20260708-cross-discovery-relevance-clusters.md`](20260708-cross-discovery-relevance-clusters.md#cr-1--close-recovery-and-same-app-overlay-focus-churn) groups close-recovery / same-app overlay focus churn.
+- Cross-link cluster: [`CR-1` in `../discovery/20260708-cross-discovery-relevance-clusters.md`](../discovery/20260708-cross-discovery-relevance-clusters.md#cr-1--close-recovery-and-same-app-overlay-focus-churn) groups close-recovery / same-app overlay focus churn.
 - [`../completed/20260706-stable-viewport-on-window-close-recovery.md`](../completed/20260706-stable-viewport-on-window-close-recovery.md) is the direct parent: it introduced the stable-target redirect, preconfirm/overlay phases, and `recent non-managed (overlay) focus` TTL used by this failure.
 - [`../completed/20260707-close-last-app-window-stay-on-current-workspace.md`](../completed/20260707-close-last-app-window-stay-on-current-workspace.md) is the follow-up that narrowed same-app close recovery and added the current close-recovery decision trace markers. Keep its local-close policy intact.
 - [`../completed/20260706-same-app-focus-switch-reveals-inactive-workspace-window.md`](../completed/20260706-same-app-focus-switch-reveals-inactive-workspace-window.md) is the compatibility boundary: real same-app focus switches must still reveal/follow the intended target; only close/overlay recovery churn should be damped.
 - [`../completed/20260615-quick-terminal-close-switches-workspace.md`](../completed/20260615-quick-terminal-close-switches-workspace.md) is the older quick-terminal close-recovery root problem that led to the current recovery family.
-- [`20260615-viewport-reveal-from-unmanaged-overlay-activation.md`](20260615-viewport-reveal-from-unmanaged-overlay-activation.md) is the older unmanaged-overlay activation/reveal sibling. It is not the same loop, but it shares the app-owned overlay / managed sibling activation hazard.
-- [`20260708-stale-nonmanaged-focus-suppresses-managed-selection-and-window-move.md`](20260708-stale-nonmanaged-focus-suppresses-managed-selection-and-window-move.md) is adjacent NF-1 context: stale or recent non-managed-focus evidence can suppress/redirect managed focus paths. Do not merge its command-target fix surface with this oscillation guard.
+- [`../discovery/20260615-viewport-reveal-from-unmanaged-overlay-activation.md`](../discovery/20260615-viewport-reveal-from-unmanaged-overlay-activation.md) is the older unmanaged-overlay activation/reveal sibling. It is not the same loop, but it shares the app-owned overlay / managed sibling activation hazard.
+- [`../discovery/20260708-stale-nonmanaged-focus-suppresses-managed-selection-and-window-move.md`](../discovery/20260708-stale-nonmanaged-focus-suppresses-managed-selection-and-window-move.md) is adjacent NF-1 context: stale or recent non-managed-focus evidence can suppress/redirect managed focus paths. Do not merge its command-target fix surface with this oscillation guard.
 
 ## Symptom
 
@@ -149,34 +161,39 @@ patch, and asks layout refresh to continue.
 `redirectToStableSameAppRecoveryFocusIfNeeded` is the loop source. It runs when
 there is no active close-recovery workspace, evaluates same-app overlay evidence,
 chooses a stable viewport target excluding the currently observed token, then
-focuses that target:
+focuses that target. The landed fix keeps this recovery path but inserts the
+reverse-redirect latch before focus is reissued:
 
-- `Sources/Nehir/Core/Controller/AXEventHandler.swift:2424` defines
+- `Sources/Nehir/Core/Controller/AXEventHandler.swift:2496` defines
   `redirectToStableSameAppRecoveryFocusIfNeeded(...)`.
-- `Sources/Nehir/Core/Controller/AXEventHandler.swift:2440` computes
+- `Sources/Nehir/Core/Controller/AXEventHandler.swift:2512` computes
   `hasOverlayRecoveryEvidence = signal.recentNonManaged || signal.overlayVisible`.
-- `Sources/Nehir/Core/Controller/AXEventHandler.swift:2445` allows the `.overlay`
+- `Sources/Nehir/Core/Controller/AXEventHandler.swift:2517` allows the `.overlay`
   phase when `hasOverlayRecoveryEvidence` is true, even without disappeared-focus
   evidence.
-- `Sources/Nehir/Core/Controller/AXEventHandler.swift:2451` chooses
+- `Sources/Nehir/Core/Controller/AXEventHandler.swift:2523` chooses
   `stableViewportFocusTarget(workspaceId: excluding: observedEntry.token)`.
-- `Sources/Nehir/Core/Controller/AXEventHandler.swift:2465` only checks that the
+- `Sources/Nehir/Core/Controller/AXEventHandler.swift:2537` checks that the
   target exists and differs from the observed token.
-- `Sources/Nehir/Core/Controller/AXEventHandler.swift:2466` calls
+- `Sources/Nehir/Core/Controller/AXEventHandler.swift:2538` checks the new
+  reverse-redirect latch; `AXEventHandler.swift:2545` records
+  `close_recovery_reverse_redirect_skipped` when the latch blocks the bounce.
+- `Sources/Nehir/Core/Controller/AXEventHandler.swift:2567` records the latch for
+  a real redirect, and `AXEventHandler.swift:2573` calls
   `controller?.focusWindow(target, reason: phase.focusReason)`.
 
 The activation path invokes this overlay redirect before normal request handling
 can confirm the observed focus:
 
-- `Sources/Nehir/Core/Controller/AXEventHandler.swift:3090` checks close-recovery
+- `Sources/Nehir/Core/Controller/AXEventHandler.swift:3197` checks close-recovery
   suppression.
-- `Sources/Nehir/Core/Controller/AXEventHandler.swift:3106` invokes
+- `Sources/Nehir/Core/Controller/AXEventHandler.swift:3213` invokes
   `redirectToStableOverlayRecoveryFocusIfNeeded(...)`.
-- `Sources/Nehir/Core/Controller/AXEventHandler.swift:3110` only then switches on
+- `Sources/Nehir/Core/Controller/AXEventHandler.swift:3217` only then switches on
   `requestDisposition`.
-- `Sources/Nehir/Core/Controller/AXEventHandler.swift:3139` checks the active
+- `Sources/Nehir/Core/Controller/AXEventHandler.swift:3246` checks the active
   close-recovery stable target later.
-- `Sources/Nehir/Core/Controller/AXEventHandler.swift:3143` ends active
+- `Sources/Nehir/Core/Controller/AXEventHandler.swift:3250` ends active
   close-recovery only after those earlier redirect gates.
 
 Each redirect creates or replaces the active managed request:
@@ -203,15 +220,15 @@ requests, which is exactly what the runtime records show.
 
 The confirmation path explains the viewport side effects:
 
-- `Sources/Nehir/Core/Controller/AXEventHandler.swift:3739` computes
+- `Sources/Nehir/Core/Controller/AXEventHandler.swift:3846` computes
   `preserveActiveViewport`.
-- `Sources/Nehir/Core/Controller/AXEventHandler.swift:3742` includes
+- `Sources/Nehir/Core/Controller/AXEventHandler.swift:3849` includes
   `closeRecoveryPins.shouldPin` in that preservation decision.
-- `Sources/Nehir/Core/Controller/AXEventHandler.swift:3848` takes the skipped
+- `Sources/Nehir/Core/Controller/AXEventHandler.swift:3955` takes the skipped
   reveal branch when preservation is true.
-- `Sources/Nehir/Core/Controller/AXEventHandler.swift:3866` still requests
+- `Sources/Nehir/Core/Controller/AXEventHandler.swift:3973` still requests
   relayout for active workspaces.
-- `Sources/Nehir/Core/Controller/AXEventHandler.swift:3872` calls
+- `Sources/Nehir/Core/Controller/AXEventHandler.swift:3979` calls
   `requestRefresh(reason: .layoutCommand)`.
 
 ## Non-root observation: large viewport rebases are explained by source

@@ -57,13 +57,19 @@ overlapping recency-keyed signals gate the pins/redirects. If a legitimate revea
 is ever wrongly suppressed shortly after a same-app close, revisit the union of
 triggers.
 
-Follow-up completed:
-[`completed/20260707-close-last-app-window-stay-on-current-workspace.md`](20260707-close-last-app-window-stay-on-current-workspace.md)
-addresses an ordering hole left by this work: an inactive-workspace same-app
-successor can be reported before the tracked close/removal marker, so the
-close-recovery window is not yet reliably active. The shipped policy extends the
-same "close is local" rule to the case where the current workspace has no
-same-app survivor, and even to an empty workspace.
+Follow-ups completed:
+
+- [`completed/20260707-close-last-app-window-stay-on-current-workspace.md`](20260707-close-last-app-window-stay-on-current-workspace.md)
+  addresses an ordering hole left by this work: an inactive-workspace same-app
+  successor can be reported before the tracked close/removal marker, so the
+  close-recovery window is not yet reliably active. The shipped policy extends
+  the same "close is local" rule to the case where the current workspace has no
+  same-app survivor, and even to an empty workspace.
+- [`completed/20260708-focus-dance-stuck-same-app-recovery.md`](20260708-focus-dance-stuck-same-app-recovery.md)
+  addresses a later oscillation hole in this work: overlay-phase stable-target
+  redirects could bounce A → B → A while `recentNonManaged=true` remained active.
+  Commit `9ac0b91c` added a short reverse-redirect latch and the
+  `close_recovery_reverse_redirect_skipped` trace marker.
 
 ---
 

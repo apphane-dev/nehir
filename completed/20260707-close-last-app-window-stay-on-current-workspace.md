@@ -65,10 +65,14 @@ This plan extends, rather than replaces, the already-landed close/focus work:
   is the older discovery that established the same broad macOS pattern: closing
   or hiding a surface can produce native focus churn before Nehir has a reliable
   destroy/removal signal.
+- [`completed/20260708-focus-dance-stuck-same-app-recovery.md`](../completed/20260708-focus-dance-stuck-same-app-recovery.md)
+  is the later oscillation follow-up: after this close-local policy, overlay
+  stable-target redirects could still bounce between two same-app managed windows
+  until `9ac0b91c` added the reverse-redirect latch.
 
-The new failure is a hole between those fixes: macOS reports a same-app successor
-on another Nehir workspace before the close/removal marker that #148 uses to
-recognize close-successor churn.
+The failure fixed here was a hole between the earlier fixes: macOS reports a
+same-app successor on another Nehir workspace before the close/removal marker
+that #148 uses to recognize close-successor churn.
 
 ## User-facing policy
 

@@ -20,7 +20,7 @@ Scale used below:
 | Cluster | User impact | Effort | Quick wins | Pain-in-arse | Regression risk | Observability need | Suggested priority |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | **NF-1** stale non-managed focus | **Very high** — commands silently no-op, windows refuse admission/reveal | **M/L** | Yes: explicit-token command paths; trace guard declines | **High** | **High** — overlay/quick-terminal protections are easy to weaken | **High** | **P0/P1** |
-| **CR-1** close-recovery focus churn | **High** — focus can visibly oscillate or follow the wrong same-app successor | **S/M** | Yes: add an oscillation latch / tighten overlay evidence | **High** | **High** — real same-app switches and close-local policy must survive | **Med/High** | **P0/P1** |
+| **CR-1** close-recovery focus churn | **High** — focus can visibly oscillate or follow the wrong same-app successor | **S/M** | Landed: reverse-redirect latch in `9ac0b91c`; remaining work only if new churn appears | **High** | **High** — real same-app switches and close-local policy must survive | **Med/High** | **Completed for known bounce** |
 | **LC-1** lifecycle/admission desync | **Very high** — windows disappear, merge, or are not admitted | **L/XL** | Partial: gate CGS destroy with liveness; improve burst tracing | **Very high** | **Very high** — destroy/admission is central | **Very high** | **P0 but sliced** |
 | **VR-1** automatic viewport movement | **High** — viewport moves against user intent | **S/M** for current planned fixes; **L** for full policy cleanup | **Yes**: fully-visible reveal guard; lone-column snap bound filter | **Med** | **Med** — explicit navigation must still move | **Med** | **P0 quick wins** |
 | **XD-1** cross-display move/reveal ordering | **High** for multi-display users | **M/L** | Some: make Summon Right reveal after target-frame materialization | **High** | **High** — monitor geometry and admission overlap | **High** | **P1 after LC/VR slices** |
@@ -42,9 +42,9 @@ Scale used below:
 ### CR-1 evaluation — close-recovery and same-app overlay focus churn
 
 - **Why it hurts:** the close-recovery system can become its own focus source: macOS confirms one same-app window, Nehir redirects to the spatially stable target, then the same overlay/close evidence redirects the confirmation back again.
-- **Best quick wins:** add a short per-pid/workspace redirect-pair latch, or require stronger evidence than `recentNonManaged=true` alone before the `.overlay` phase redirects between two managed same-workspace windows.
+- **Best quick wins:** the known A → B → A oscillation is fixed by the `9ac0b91c` per-pid/workspace reverse-redirect latch. If related churn appears later, the next lever is requiring stronger evidence than `recentNonManaged=true` alone before the `.overlay` phase redirects between two managed same-workspace windows.
 - **Hard part:** this is a protection added for real close/quick-terminal churn. Do not regress the landed local-close policy, and do not suppress legitimate same-app profile/window switches that should reveal their target.
-- **Recommended slice:** fix the exact A → B → A oscillation first, with trace evidence that says when a reverse redirect was skipped and why.
+- **Recommended slice:** completed for the exact A → B → A oscillation. The new trace marker is `close_recovery_reverse_redirect_skipped`, emitted when the latch suppresses a reverse redirect.
 
 ### LC-1 evaluation — lifecycle/admission desync
 
@@ -118,13 +118,13 @@ Scale used below:
 
 **Primary links:**
 
-- [`20260708-focus-dance-stuck-same-app-recovery.md`](20260708-focus-dance-stuck-same-app-recovery.md) — current strongest capture: `close_recovery_overlay_stable_target` alternates observed/target tokens while `recentNonManaged=true` and disappeared-focus signals are false.
+- [`../completed/20260708-focus-dance-stuck-same-app-recovery.md`](../completed/20260708-focus-dance-stuck-same-app-recovery.md) — completed fix for the strongest capture: `close_recovery_overlay_stable_target` alternated observed/target tokens while `recentNonManaged=true` and disappeared-focus signals were false; `9ac0b91c` added the reverse-redirect latch.
 - [`../completed/20260706-stable-viewport-on-window-close-recovery.md`](../completed/20260706-stable-viewport-on-window-close-recovery.md) — direct parent that added viewport pins, stable-target redirects, preconfirm/overlay phases, and recent non-managed overlay focus TTL.
 - [`../completed/20260707-close-last-app-window-stay-on-current-workspace.md`](../completed/20260707-close-last-app-window-stay-on-current-workspace.md) — follow-up that keeps close local even when the current workspace loses its same-app survivor; preserve this policy while fixing oscillation.
 - [`../completed/20260706-same-app-focus-switch-reveals-inactive-workspace-window.md`](../completed/20260706-same-app-focus-switch-reveals-inactive-workspace-window.md) — compatibility boundary: genuine same-app focus switches must still reveal/follow their target.
 - [`../completed/20260615-quick-terminal-close-switches-workspace.md`](../completed/20260615-quick-terminal-close-switches-workspace.md) and [`20260615-viewport-reveal-from-unmanaged-overlay-activation.md`](20260615-viewport-reveal-from-unmanaged-overlay-activation.md) — older quick-terminal / app-owned overlay roots for this policy family.
 
-**Do not merge blindly:** CR-1 overlaps NF-1 through non-managed/overlay evidence and VR-1 through viewport pin/reveal behavior, but the fix surface is narrower: same-app close/overlay recovery redirect policy.
+**Current state:** the known CR-1 bounce is fixed and moved to completed. Do not reopen this cluster for generic non-managed-focus command failures (NF-1) or generic viewport reveal movement (VR-1) unless the new evidence again shows same-app close/overlay recovery redirects choosing opposite stable targets.
 
 ## LC-1 — lifecycle/admission desync: false removals, partial enumeration, and replacement bursts
 
