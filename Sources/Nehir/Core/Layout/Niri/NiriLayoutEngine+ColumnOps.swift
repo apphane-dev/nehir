@@ -455,7 +455,8 @@ extension NiriLayoutEngine {
             workingFrame: workingFrame,
             gaps: gaps,
             animationConfig: windowMovementAnimationConfig,
-            fromContainerIndex: currentIdx
+            fromContainerIndex: currentIdx,
+            revealTrigger: .explicitNavigation
         )
 
         return true
@@ -900,7 +901,8 @@ extension NiriLayoutEngine {
         workingFrame: CGRect,
         gaps: CGFloat,
         animationConfig: SpringConfig? = nil,
-        fromContainerIndex: Int? = nil
+        fromContainerIndex: Int? = nil,
+        revealTrigger: RevealTrigger = .automatic
     ) {
         if let firstWindow = column.windowNodes.first {
             ensureSelectionVisible(
@@ -911,7 +913,8 @@ extension NiriLayoutEngine {
                 workingFrame: workingFrame,
                 gaps: gaps,
                 animationConfig: animationConfig,
-                fromContainerIndex: fromContainerIndex
+                fromContainerIndex: fromContainerIndex,
+                revealTrigger: revealTrigger
             )
         }
     }

@@ -571,6 +571,65 @@ private func makeContext(
         #expect(fixture.state.viewOffsetPixels.target() == originalTarget)
     }
 
+    @Test func scrollToRevealSuppressesFullyVisibleAutomaticRecenter() {
+        var fixture = makeRevealFixture(viewportWidth: 1000)
+        let originalTarget = fixture.state.viewOffsetPixels.target()
+        let viewStart = fixture.context.currentViewStart(in: fixture.state)
+        let closest = fixture.context.snapCandidates(for: 0, in: fixture.state).closest(to: viewStart)
+        let expected = expectedRevealTargetOffset(style: .auto, columnIndex: 0, fixture: fixture)
+
+        #expect(fixture.context.visibility(of: 0, viewportOffset: viewStart, in: fixture.state) == .fullyVisible)
+        #expect(closest.map { fixture.context.fillsViewport(at: $0.offset, in: fixture.state) } == false)
+        #expect(expected != originalTarget)
+
+        let revealed = fixture.engine.scrollToReveal(
+            columnIndex: 0,
+            isFFM: false,
+            state: &fixture.state,
+            context: fixture.context,
+            motion: .disabled,
+            trigger: .automatic
+        )
+
+        #expect(!revealed)
+        #expect(fixture.state.viewOffsetPixels.target() == originalTarget)
+    }
+
+    @Test func scrollToRevealAllowsFullyVisibleExplicitNavigationRecenter() {
+        var fixture = makeRevealFixture(viewportWidth: 1000)
+        let expected = expectedRevealTargetOffset(style: .auto, columnIndex: 0, fixture: fixture)
+
+        let revealed = fixture.engine.scrollToReveal(
+            columnIndex: 0,
+            isFFM: false,
+            state: &fixture.state,
+            context: fixture.context,
+            motion: .disabled,
+            trigger: .explicitNavigation
+        )
+
+        #expect(revealed)
+        #expect(fixture.state.viewOffsetPixels.target() == expected)
+    }
+
+    @Test func scrollToRevealSkipsFullyVisibleAutomaticWhenLocked() {
+        var fixture = makeRevealFixture(viewportWidth: 1000)
+        fixture.state.isScrollLocked = true
+        let originalTarget = fixture.state.viewOffsetPixels.target()
+
+        let revealed = fixture.engine.scrollToReveal(
+            columnIndex: 0,
+            isFFM: false,
+            state: &fixture.state,
+            context: fixture.context,
+            motion: .disabled,
+            trigger: .automatic
+        )
+
+        #expect(!revealed)
+        #expect(fixture.state.viewOffsetPixels.target() == originalTarget)
+    }
+
     @Test func scrollToRevealUsesClosestStyleForParkedTargets() {
         var fixture = makeRevealFixture(style: .closest, viewportWidth: 800)
         let expected = expectedRevealTargetOffset(style: .closest, columnIndex: 2, fixture: fixture)

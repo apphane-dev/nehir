@@ -34,7 +34,8 @@ extension NiriLayoutEngine {
         orientation: Monitor.Orientation = .horizontal,
         animationConfig: SpringConfig? = nil,
         fromContainerIndex: Int? = nil,
-        previousActiveContainerPosition: CGFloat? = nil
+        previousActiveContainerPosition: CGFloat? = nil,
+        revealTrigger: RevealTrigger = .automatic
     ) {
         ensureSelectionVisible(
             node: node,
@@ -46,7 +47,8 @@ extension NiriLayoutEngine {
             orientation: orientation,
             animationConfig: animationConfig,
             fromContainerIndex: fromContainerIndex,
-            previousActiveContainerPosition: previousActiveContainerPosition
+            previousActiveContainerPosition: previousActiveContainerPosition,
+            revealTrigger: revealTrigger
         )
     }
 
