@@ -1,6 +1,8 @@
 # Focused-admission path skips the structural managed-replacement rekey — Plan
 
-Re-verified against main 7a025b78 on 2026-07-07.
+Re-groomed against main `d3ef41ee` on 2026-07-10.
+
+**Status:** planned; its observability prerequisite has shipped, but its behavioral fix has not. `0f785212` added focused-admission diagnostics: `admitFocusedWindowBeforeNonManagedFallback` now records the structural-workspace-match signal (`Sources/Nehir/Core/Controller/AXEventHandler.swift:3981-4030`, `:4114-4130`) and `trackPreparedCreate` emits `track_prepared_create` (`:1747-1759`). The focused path still calls `trackPreparedCreate` (`:4030`), which proceeds to `addWindow` after only the native-fullscreen restore (`:1761-1787`); it still does not call the proactive rekey gate at `:1359-1395`. `WMController.reevaluateWindowRules` remains the only route that invokes that gate (`Sources/Nehir/Core/Controller/WMController.swift:3210-3225`).
 
 An Electron app (here: VS Code Insiders, `com.microsoft.VSCodeInsiders`, pid `49947`)
 re-creates its editor window under a **new** accessibility window id. Nehir keeps
@@ -11,7 +13,7 @@ through Nehir's **focused-admission** path, which admits the window as a
 **brand-new** managed entry (a fresh column) instead of re-keying the stale
 entry onto it. The result is duplicate managed entries for one physical editor.
 
-Source references were refreshed against main `7a025b78` on 2026-07-07. Focused admission still tracks the prepared create directly in `Sources/Nehir/Core/Controller/AXEventHandler.swift:2831-2900` without running the structural-replacement rekey helpers first.
+The focused-admission result was revalidated against `main` at `d3ef41ee` on 2026-07-10. It still tracks the prepared create directly without running the structural-replacement rekey helper first (see the status note above).
 
 The raw finding (symptom + evidence) is captured in the companion discovery doc
 [`../discovery/20260625-vscode-editor-unmanaged-until-clicked.md`](../discovery/20260625-vscode-editor-unmanaged-until-clicked.md).
@@ -278,18 +280,11 @@ below `addWindow` in `reevaluateWindowRules`.
 
 ## Implementation plan
 
-### Phase 1 — Trace and diagnostics first (unblocks verification)
+### Phase 1 — Trace and diagnostics (shipped; use to validate)
 
-Add a `NiriCreateFocusTraceEvent` / managed-replacement trace record on the
-focused-admission path that records whether a structural rekey was **attempted**
-and its outcome (`rekeyed: token→token`, or `no_match`, or
-`ambiguous`). Today the focused path emits `window_decision … context=focused_admission`
-and `candidate_tracked` but nothing about rekey, which is why this bug was
-invisible in the trace. Without this, the fix cannot be validated against a
-capture.
+`0f785212` shipped focused-admission diagnostics. Before changing behavior, reproduce the Electron-style rekey and confirm the capture contains the `focused_admission_guard` and `track_prepared_create` records, including `structuralWorkspaceMatch` and the metadata summary. These records establish whether Route B saw a viable structural match before it admitted a new entry.
 
-Deliverable: a trace line on Route B equivalent to the implicit "continue /
-addWindow" decision on Route A.
+The shipped diagnostics report decision inputs, not a structural-rekey outcome; Route B still reaches `addWindow`. Phase 2 must add the behavioral decision record (`rekeyed`, `no_match`, or `ambiguous`) when it wires in the gate.
 
 ### Phase 2 — Shared rekey helper
 

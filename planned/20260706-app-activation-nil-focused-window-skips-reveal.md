@@ -1,10 +1,10 @@
 # App activation with a nil AX focused window never reveals the app's managed window
 
-Re-verified against main 7a025b78 on 2026-07-07.
+Re-groomed against main `d3ef41ee` on 2026-07-10. The current source still resolves the AX focused window in `AXEventHandler.handleAppActivation` (`Sources/Nehir/Core/Controller/AXEventHandler.swift:3457`) and passes a nil result to `handleMissingFocusedWindow` (`:3475+`). Its `.unrelatedNoRequest` arm still falls through at `:6930-6932`; after quick-terminal close-recovery bookkeeping it cancels the retry and enters non-managed focus (`:6982-6990`). `d3ef41ee` added close-recovery guards but no managed-candidate fallback, so the planned notification/app-switch behavior remains unshipped.
 
 Related 2026-07-08 discovery: [`../discovery/20260708-stale-nonmanaged-focus-suppresses-managed-selection-and-window-move.md`](../discovery/20260708-stale-nonmanaged-focus-suppresses-managed-selection-and-window-move.md) also observes `AXFocusedWindowChanged ... window=nil`, but its actionable bug is stale non-managed focus suppressing an already-known managed viewport selection and command target. Keep the fixes separate unless implementation shows the same nil-focused-window fallback is the root trigger.
 
-**Status:** planned.
+**Status:** planned; revalidated against `main` at `d3ef41ee` on 2026-07-10.
 **Symptom:** Clicking a notification (observed with Telegram, `ru.keepcoder.Telegram`)
 activates the app but does **not** reveal/scroll its managed window into view.
 The window stays parked off-screen; keyboard focus stays on the previously
@@ -16,10 +16,7 @@ is momentarily `nil` should still reveal that app's managed window when there is
 a single unambiguous candidate, instead of silently dropping to non-managed
 focus.
 
-All source references were verified against the main Nehir source tree (HEAD
-`de23c80c`, "Add reference to AGENTS.md in CLAUDE.md"; behavior introduced by
-`06c0bf4e`, "Reveal a same-app focus switch that lands on a window on an inactive
-workspace") on 2026-07-06. Re-verify before editing; line numbers drift.
+The original source walk was verified against `de23c80c` on 2026-07-06; the nil-window fallback was revalidated against `main` at `d3ef41ee` on 2026-07-10. The behavior was introduced by `06c0bf4e` ("Reveal a same-app focus switch that lands on a window on an inactive workspace"). Re-verify line numbers before editing; they drift.
 
 ## Evidence (inlined, machine-independent)
 
