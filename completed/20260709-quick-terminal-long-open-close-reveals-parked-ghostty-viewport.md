@@ -1,8 +1,75 @@
 # Quick Terminal close disturbs viewport / switches workspace (same-app focus redirect acted on instead of ignored)
 
-**Status:** discovery / source-backed root cause. Verified against `main`
-(`Sources/Nehir/Core/Controller/AXEventHandler.swift` as of this branch's
-checkout; re-verify line numbers before implementing — they drift).
+**Status: LANDED (2026-07-09).** Shipped on `main` in commit `d3ef41ee`
+("Keep active workspace when quick terminal close refocuses a window
+elsewhere"; delegated-worktree commit `83fcbecb` landed the same diff before a
+small enum cleanup on top). Changeset:
+`.changeset/20260709115443-quick-terminal-close-no-longer-switches-the-acti.md`
+(patch). Validated: `mise run build`, `mise run format:check`, `mise run lint`
+(0 serious), and `mise run test` (1435 tests, 116 suites) all green on the
+landed diff; the fix was iterated against several real captures during
+development (see the variant evidence below) until both Variant A and Variant B
+stopped reproducing.
+
+## What actually landed (vs. the discovery below)
+
+The discovery below records the investigation as it was being worked — including
+one dead-end iteration (see "Steering correction" note under Variant B) — kept
+for the reasoning trail. The landed fix, all in
+`Sources/Nehir/Core/Controller/AXEventHandler.swift`, ended up broader than
+either single-guard attempt:
+
+- **`overlayCapablePids`** — a durable, per-process-lifetime memory of "this pid
+  owns a recognized app overlay" (Ghostty quick terminal, CleanShot recording
+  overlay, system text input panel), recorded the first time the overlay is
+  classified. This replaces reliance on the racy 2-second `recentNonManagedFocus`
+  TTL / live SkyLight snapshot for *identifying* the app, closing the
+  open-duration gap the earlier investigation chased.
+- **`shouldSuppressSameAppAlreadyConfirmedOverlayRefocus`** — drops a
+  `focusedWindowChanged` re-confirmation of the already-confirmed managed window
+  for an overlay-capable pid. This is what fixed the **QT-open** scroll (macOS
+  re-focuses the app's main window when the overlay opens too, not only on
+  close).
+- **`shouldSuppressOrDeferSameAppOverlayCloseChurn`** — for an off-screen
+  (parked) managed window of an overlay-capable pid with no evidence yet, defers
+  the first `focusedWindowChanged` arrival ~120 ms so the overlay's destroy can
+  arm close-recovery / record the same-app close, then suppresses on retry once
+  that evidence lands. This directly fixes the destroy-vs-redirect **arming
+  race** (Variant A) by winning it deterministically instead of leaving it to
+  event-ordering luck.
+- **Broadened evidence gate** in
+  `shouldSuppressSameAppInactiveWorkspaceActivationBeforeCloseRecovery`: the
+  early bail now also passes on overlay-recovery evidence
+  (`recentNonManaged || overlayVisible`), not only `hasRecentSameAppWindowClose`
+  — this is the fix for **Variant B** (see the steering correction below for why
+  the first attempt at this symptom didn't work).
+- **`shouldSuppressCrossAppInactiveFocusedWindowChangedBeforeCloseRecovery`** —
+  suppresses an unrelated `focusedWindowChanged` to an inactive workspace when a
+  different app is confirmed-focused and active elsewhere.
+- Added `preserveActiveViewportReason` / richer `close_recovery_activation_gate`
+  trace fields (`recentNonManagedFocus`, `sameAppCloseOrOverlayEvidence`,
+  `currentTarget*`) for future debugging of this cluster.
+
+**Known follow-up (not blocking, not yet filed as its own discovery):**
+`overlayCapablePids` is keyed by pid and never cleared. macOS pid reuse after an
+overlay-capable app quits could in principle let a later, unrelated process
+inherit a stale "overlay-capable" marking. Low probability; worth revisiting if
+it ever surfaces (clear on app termination, or key by bundle id instead of pid).
+
+**Explicitly not covered by this fix:** the cross-app successor-activation
+scroll where closing a window on the right reveals a *different app's* parked
+first column — see
+[`20260709-window-close-successor-app-activation-reveals-far-parked-column.md`](20260709-window-close-successor-app-activation-reveals-far-parked-column.md).
+That is a distinct root cause (successor focus resolution falling back to
+`tiledEntries.first` rather than nearest-to-closed) and remains open.
+
+---
+
+**Original discovery status:** source-backed root cause, investigated across
+several iterations before the fix above landed. Verified against `main`
+(`Sources/Nehir/Core/Controller/AXEventHandler.swift` as of the investigation's
+checkout; re-verify line numbers before reusing them elsewhere — they drift, and
+the landed fix already moved several of them).
 
 **Symptom:** closing Ghostty's Quick Terminal *occasionally* disturbs the
 viewport/focus even though the user only dismissed the overlay and never
@@ -247,6 +314,24 @@ reaches back and refocuses there, forcing the switch. `recentNonManaged=true`
 here confirms the overlay memory being *armed* is what routes the close into this
 path; it is not a TTL/duration effect.
 
+**Steering correction during implementation (kept for the reasoning trail):** the
+first fix attempt added an `isWorkspaceActive` guard directly to
+`redirectToStableSameAppRecoveryFocusIfNeeded`, making it return `false` (not
+redirect) on an inactive workspace. Real-repro testing showed this made things
+*worse*: returning `false` means "not handled — continue the normal activation",
+so the switch still happened one path later — the confirm/activate path's
+`shouldActivateWorkspace = !isWorkspaceActive && …` (`AXEventHandler.swift:3875`)
+activated the inactive workspace anyway. The actual defect was in an *earlier*
+guard,
+`shouldSuppressSameAppInactiveWorkspaceActivationBeforeCloseRecovery`
+(`:3065`), which already had the correct suppression logic but bailed out early
+(`:3080`) requiring `hasRecentSameAppWindowClose` — evidence that, per the
+destroy-vs-redirect race described above, is not yet recorded at the decisive
+moment even though overlay evidence (`recentNonManaged`) already is. The landed
+fix broadens that early gate instead (see "What actually landed" at the top of
+this document), so the pre-existing suppression logic fires *before* reaching
+confirm/activate at all.
+
 ## Prerequisites for reproduction
 
 Durable topology (all required):
@@ -359,12 +444,21 @@ treated as overlay churn.
 
 Belongs to **CR-1 (close-recovery / same-app overlay focus churn)** in
 [`20260708-cross-discovery-relevance-clusters.md`](20260708-cross-discovery-relevance-clusters.md);
-Variant A also touches **VR-1 (automatic viewport movement)**. This reopens CR-1
+Variant A also touched **VR-1 (automatic viewport movement)**. This reopened CR-1
 under its own stated criterion — "new evidence again shows same-app close/overlay
-recovery redirects choosing opposite stable targets": here the overlay
-stable-recovery redirect (`close_recovery_overlay_stable_target`) fires against an
+recovery redirects choosing opposite stable targets": the overlay
+stable-recovery redirect (`close_recovery_overlay_stable_target`) fired against an
 **inactive** origin workspace with no active-workspace guard (Variant B), and the
-active-workspace reveal loses the destroy-vs-redirect arming race (Variant A).
+active-workspace reveal lost the destroy-vs-redirect arming race (Variant A).
+**Both are now fixed** by `d3ef41ee` (see "What actually landed" above); CR-1 is
+closed again for this evidence.
+
+A **sibling, still-open** CR-1/VR-1-adjacent finding from the same investigation
+session is
+[`20260709-window-close-successor-app-activation-reveals-far-parked-column.md`](20260709-window-close-successor-app-activation-reveals-far-parked-column.md)
+— a *cross-app* successor-activation scroll (closing Zoom reveals a parked
+Ghostty column via `tiledEntries.first` fallback), which this fix does not
+address and which remains unfixed.
 
 Related documents:
 

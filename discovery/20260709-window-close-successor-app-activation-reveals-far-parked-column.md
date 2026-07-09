@@ -13,10 +13,13 @@ Reported: "closed Zoom on the right side of the viewport, but it scrolled to
 Ghostty placed in the 1st column."
 
 This is **related to but distinct from** the quick-terminal-close cluster
-([`20260709-quick-terminal-long-open-close-reveals-parked-ghostty-viewport.md`](20260709-quick-terminal-long-open-close-reveals-parked-ghostty-viewport.md),
-CR-1). There the disruptor is a same-app unmanaged **overlay** close. Here it is a
-plain managed window close where macOS activates a **different application** as
-the successor, and Nehir follows that activation with a reveal.
+([`../completed/20260709-quick-terminal-long-open-close-reveals-parked-ghostty-viewport.md`](../completed/20260709-quick-terminal-long-open-close-reveals-parked-ghostty-viewport.md),
+CR-1, **landed** in `d3ef41ee`). There the disruptor is a same-app unmanaged
+**overlay** close. Here it is a plain managed window close where macOS activates
+a **different application** as the successor, and Nehir follows that activation
+with a reveal. The landed CR-1 fix does not touch this path (it only recognizes
+overlay-capable pids and same-app close/overlay evidence), so this finding is
+still open.
 
 All evidence inlined; no dependency on any trace file.
 
@@ -166,5 +169,30 @@ Adjacent to **CR-1** (close-recovery / same-app overlay focus churn) and **VR-1*
 (automatic viewport movement) in
 [`20260708-cross-discovery-relevance-clusters.md`](20260708-cross-discovery-relevance-clusters.md),
 but a separate root: cross-app successor activation on close, not same-app/overlay
-churn. See also the quick-terminal discovery
-[`20260709-quick-terminal-long-open-close-reveals-parked-ghostty-viewport.md`](20260709-quick-terminal-long-open-close-reveals-parked-ghostty-viewport.md).
+churn — none of CR-1's guards key on it, since they all require same-pid
+evidence (recent same-app window close, or overlay-capable pid). Do not fold this
+into CR-1's reopen criterion; it needs its own plan.
+
+Related documents:
+
+- [`../completed/20260709-quick-terminal-long-open-close-reveals-parked-ghostty-viewport.md`](../completed/20260709-quick-terminal-long-open-close-reveals-parked-ghostty-viewport.md)
+  — sibling finding from the same investigation session, **landed** in
+  `d3ef41ee`. Same surface symptom class (an unwanted post-close reveal/scroll to
+  a parked column) but a same-app/overlay root, not cross-app; its fix explicitly
+  does not cover this document's failure mode.
+- [`../completed/20260706-stable-viewport-on-window-close-recovery.md`](../completed/20260706-stable-viewport-on-window-close-recovery.md)
+  — parent that introduced the viewport-pin / stable-target-redirect / nearest-tile
+  machinery (`stableRecoveryFocusTarget`, `activeTileTokenNearestViewport`,
+  `AXEventHandler.swift:2390-2452`) this document's fix directions would extend to
+  the cross-app case.
+- [`../completed/20260707-close-last-app-window-stay-on-current-workspace.md`](../completed/20260707-close-last-app-window-stay-on-current-workspace.md)
+  — established that a close should keep focus/viewport local to the current
+  workspace even when the closed app's own workspace loses its survivor; this
+  document is the cross-app analogue of that same "stay local on close" intent.
+- [`../completed/20260706-same-app-focus-switch-reveals-inactive-workspace-window.md`](../completed/20260706-same-app-focus-switch-reveals-inactive-workspace-window.md)
+  — compatibility boundary any fix here must preserve: a genuine user-driven
+  app switch (Cmd-Tab / Dock) to a window on another workspace must still
+  reveal/follow it. The distinguishing signal for this document's fix is temporal
+  correlation with a just-closed managed window on the active workspace, not app
+  identity — mirroring how that document's guard distinguishes real switches from
+  close-successor churn.
