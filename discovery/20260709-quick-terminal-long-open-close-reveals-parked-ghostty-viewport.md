@@ -20,9 +20,14 @@ workspaces."
 ## Unifying root cause
 
 On QT close, macOS emits a same-app `AXFocusedWindowChanged` for the Ghostty pid
-that resolves to a **managed Ghostty window on the origin workspace**. Nehir
-*acts* on that redirect instead of ignoring it. Which disturbance you see depends
-on state and timing:
+that resolves to **one specific managed Ghostty window — whichever macOS treats as
+the app's main/frontmost window (the most-recently-focused Ghostty window)**. This
+target window is *not* necessarily on the workspace the user is currently viewing:
+if the user has Ghostty windows on several workspaces, macOS refocuses the
+last-focused one wherever it lives. Nehir then *acts* on that redirect instead of
+ignoring it. **Which Ghostty window macOS picks, and whether its workspace is
+active, is the primary lever**; the disturbance you then see depends on that plus
+timing:
 
 | Origin workspace | Overlay evidence armed | Race outcome | Symptom | Path |
 |---|---|---|---|---|
@@ -268,14 +273,27 @@ Action sequence:
    active.
 6. Close the Quick Terminal **without switching workspaces first**.
 
-Occurrence is **intermittent by nature**: it fires only when the close-time
-`AXFocusedWindowChanged`→parked-managed-Ghostty redirect is processed *before*
-the overlay `AXUIElementDestroyed` arms close-recovery. Open duration does **not**
-matter (reproduced with the overlay open for tens of seconds; a long-open close
-that happened to process the destroy first stayed stable). Repeat open/close from
-the topology above; a fraction of closes will jump the viewport to the parked
-Ghostty column. Toggling faster or slower does not change the underlying race,
-only the luck of event ordering.
+**Primary gating condition (why it is hard to reproduce):** the QT-close redirect
+targets whichever Ghostty window macOS makes frontmost — the *most-recently-focused
+Ghostty window* — not the Ghostty window on the workspace you are viewing. Variant
+A can only fire when that target window is on the **currently active** workspace
+*and* parked there. In a capture where the user viewed workspace 4 (Ghostty window
+`27176` parked there) but the last-focused Ghostty window was `29687` on the
+inactive workspace 1, **every** close redirect targeted `29687` on workspace 1 →
+`close_recovery_inactive_successor_suppressed` → no scroll, no matter how many
+times QT was toggled. The workspace-4 window was never the redirect target.
+
+To pin condition (1), make the active workspace's Ghostty window the only (or
+most-recently-focused) Ghostty window: close/move Ghostty windows on other
+workspaces so macOS is forced to refocus the active-workspace one on close.
+
+Once that is pinned, occurrence is still **intermittent by nature (condition 2)**:
+Variant A fires only when the close-time redirect is processed *before* the overlay
+`AXUIElementDestroyed` arms close-recovery. Open duration does **not** matter
+(reproduced with the overlay open for tens of seconds; a long-open close that
+processed the destroy first stayed stable). Repeat open/close; a fraction of
+closes will jump the viewport to the parked Ghostty column. Toggling faster or
+slower does not change the race, only the luck of event ordering.
 
 ### Variant B (workspace switch) prerequisites
 
