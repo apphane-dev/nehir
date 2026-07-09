@@ -34,6 +34,18 @@ private enum NativeFullscreenReplacementRestoreResult {
     }
 }
 
+private enum PreserveActiveViewportReason: String {
+    case gesture
+    case springInFlight = "spring_in_flight"
+    case alreadyConfirmedFocusedWindowChanged = "already_confirmed_focused_window_changed"
+    case closeRecoveryPin = "close_recovery_pin"
+    case none
+
+    var shouldPreserve: Bool {
+        self != .none
+    }
+}
+
 private enum WindowDestroyOrigin: Sendable {
     case axDestroyed
     case cgsSpaceDestroyed(spaceId: UInt64)
@@ -853,6 +865,11 @@ final class AXEventHandler: CGSEventDelegate {
         let recordedAt: TimeInterval
     }
 
+    private struct DeferredInactiveNativeActivationKey: Hashable {
+        let token: WindowToken
+        let sourceRawValue: String
+    }
+
     private var recentManagedWorkspaceByPid: [pid_t: RecentManagedWorkspace] = [:]
     private var recentAppActivationByPid: [pid_t: TimeInterval] = [:]
     // A same-app window that recently closed is the only case the
@@ -864,6 +881,12 @@ final class AXEventHandler: CGSEventDelegate {
     private static let sameAppRecoveryRedirectLatchTTL: TimeInterval = 2
     private var recentSameAppWindowCloseByPid: [pid_t: TimeInterval] = [:]
     private var recentNonManagedFocusByPid: [pid_t: TimeInterval] = [:]
+    // Pids that own a recognized app overlay window (e.g. the Ghostty quick
+    // terminal). Once observed, the pid stays marked for the process lifetime so
+    // the QT open/close focus churn it emits can be suppressed/deferred without
+    // relying on the overlay being visibly on screen at the churn instant (it
+    // races: the churn often leads the overlay show/hide signal).
+    private var overlayCapablePids: Set<pid_t> = []
     private var focusedWindowLossClosePrecursorByPid: [pid_t: FocusedWindowLossClosePrecursor] = [:]
     private var sameAppRecoveryRedirectLatches: [SameAppRecoveryRedirectLatchKey: SameAppRecoveryRedirectLatch] = [:]
     private static let parkedFocusFollowDedupTTL: TimeInterval = 1.5
@@ -877,7 +900,7 @@ final class AXEventHandler: CGSEventDelegate {
     private var pendingManagedReplacementBursts: [ManagedReplacementKey: PendingManagedReplacementBurst] = [:]
     private var pendingManagedReplacementTasks: [ManagedReplacementKey: Task<Void, Never>] = [:]
     private var windowCloseFocusRecoveryContext: WindowCloseFocusRecoveryContext?
-    private var deferredInactiveNativeActivationTokens: Set<WindowToken> = []
+    private var deferredInactiveNativeActivationTokens: Set<DeferredInactiveNativeActivationKey> = []
     private var deferredSameAppActiveNativeActivationTokens: Set<WindowToken> = []
     private var pendingNativeFullscreenFollowupTasks: [WindowToken: Task<Void, Never>] = [:]
     private var pendingNativeFullscreenStaleCleanupTasks: [WindowToken: Task<Void, Never>] = [:]
@@ -926,6 +949,7 @@ final class AXEventHandler: CGSEventDelegate {
         recentAppActivationByPid.removeAll()
         recentSameAppWindowCloseByPid.removeAll()
         recentNonManagedFocusByPid.removeAll()
+        overlayCapablePids.removeAll()
         focusedWindowLossClosePrecursorByPid.removeAll()
         sameAppRecoveryRedirectLatches.removeAll()
         recentParkedFocusFollowByToken.removeAll()
@@ -1082,6 +1106,7 @@ final class AXEventHandler: CGSEventDelegate {
         recentAppActivationByPid.removeAll()
         recentSameAppWindowCloseByPid.removeAll()
         recentNonManagedFocusByPid.removeAll()
+        overlayCapablePids.removeAll()
         focusedWindowLossClosePrecursorByPid.removeAll()
         sameAppRecoveryRedirectLatches.removeAll()
         recentParkedFocusFollowByToken.removeAll()
@@ -2836,10 +2861,13 @@ final class AXEventHandler: CGSEventDelegate {
             token: WindowToken(pid: pid, windowId: Int(info.id)),
             appFullscreen: false
         )
-        if case let .builtInRule(name) = decision.source {
-            return name == "ghosttyQuickTerminalOverlay"
-                || name == "cleanShotRecordingOverlay"
-                || name == "systemTextInputPanel"
+        if case let .builtInRule(name) = decision.source,
+           name == "ghosttyQuickTerminalOverlay"
+           || name == "cleanShotRecordingOverlay"
+           || name == "systemTextInputPanel"
+        {
+            overlayCapablePids.insert(pid)
+            return true
         }
         return false
     }
@@ -2850,23 +2878,35 @@ final class AXEventHandler: CGSEventDelegate {
         requestDisposition: ActivationRequestDisposition,
         source: ActivationEventSource,
         origin: ActivationCallOrigin,
-        decision: String
+        decision: String,
+        overlaySignal: (recentNonManaged: Bool, overlayVisible: Bool)? = nil,
+        sameAppCloseOrOverlayEvidence: Bool? = nil
     ) {
+        let recentSameAppClose = hasRecentSameAppWindowClose(for: observedEntry.pid)
+        let recentNonManagedFocus = overlaySignal?.recentNonManaged
+            ?? hasRecentNonManagedFocus(for: observedEntry.pid)
+        let currentTarget = controller?.currentBorderTarget()
+        let details = [
+            "token=\(observedEntry.token)",
+            "isWorkspaceActive=\(isWorkspaceActive)",
+            "source=\(source.rawValue)",
+            "origin=\(origin.rawValue)",
+            "requestDisposition=\(requestDisposition)",
+            "activeRecoveryWorkspace=\(activeWindowCloseFocusRecoveryContext()?.workspaceId.uuidString ?? "nil")",
+            "recentSameAppClose=\(recentSameAppClose)",
+            "recentNonManagedFocus=\(recentNonManagedFocus)",
+            "overlayVisible=\(overlaySignal.map { String($0.overlayVisible) } ?? "not_checked")",
+            "sameAppCloseOrOverlayEvidence=\(sameAppCloseOrOverlayEvidence.map { String($0) } ?? "not_checked")",
+            "currentTarget=\(currentTarget.map { String(describing: $0.token) } ?? "nil")",
+            "currentTargetManaged=\(currentTarget.map { String($0.isManaged) } ?? "nil")",
+            "currentTargetSamePid=\(currentTarget.map { String($0.pid == observedEntry.pid) } ?? "nil")",
+            "focusedWindowLossPrecursor=\(focusedWindowLossClosePrecursor(for: observedEntry.pid)?.workspaceId.uuidString ?? "nil")",
+            "decision=\(decision)"
+        ]
         controller?.diagnostics.recordRuntimeViewportTrace(
             workspaceId: observedEntry.workspaceId,
             reason: "close_recovery_activation_gate",
-            details: [
-                "token=\(observedEntry.token)",
-                "isWorkspaceActive=\(isWorkspaceActive)",
-                "source=\(source.rawValue)",
-                "origin=\(origin.rawValue)",
-                "requestDisposition=\(requestDisposition)",
-                "activeRecoveryWorkspace=\(activeWindowCloseFocusRecoveryContext()?.workspaceId.uuidString ?? "nil")",
-                "recentSameAppClose=\(hasRecentSameAppWindowClose(for: observedEntry.pid))",
-                "recentNonManagedFocus=\(hasRecentNonManagedFocus(for: observedEntry.pid))",
-                "focusedWindowLossPrecursor=\(focusedWindowLossClosePrecursor(for: observedEntry.pid)?.workspaceId.uuidString ?? "nil")",
-                "decision=\(decision)"
-            ]
+            details: details
         )
     }
 
@@ -2902,16 +2942,191 @@ final class AXEventHandler: CGSEventDelegate {
             return false
         }
 
-        guard !deferredInactiveNativeActivationTokens.contains(observedEntry.token) else {
+        controller.diagnostics.recordRuntimeViewportTrace(
+            workspaceId: observedEntry.workspaceId,
+            reason: "close_recovery_inactive_activation_deferred",
+            details: [
+                "token=\(observedEntry.token)",
+                "source=\(source.rawValue)",
+                "origin=\(origin.rawValue)",
+                "requestDisposition=\(requestDisposition)",
+                "activeRecoveryWorkspace=\(activeWindowCloseFocusRecoveryContext()?.workspaceId.uuidString ?? "nil")",
+                "focusedToken=\(focusedToken)",
+                "recentSameAppClose=\(hasRecentSameAppWindowClose(for: observedEntry.pid))",
+                "recentNonManagedFocus=\(hasRecentNonManagedFocus(for: observedEntry.pid))",
+                "reason=await_close_recovery_signal"
+            ]
+        )
+
+        let deferralKey = DeferredInactiveNativeActivationKey(
+            token: observedEntry.token,
+            sourceRawValue: source.rawValue
+        )
+        guard !deferredInactiveNativeActivationTokens.contains(deferralKey) else {
             return true
         }
 
-        deferredInactiveNativeActivationTokens.insert(observedEntry.token)
-        Task { [weak self, token = observedEntry.token, pid = observedEntry.pid, source] in
+        deferredInactiveNativeActivationTokens.insert(deferralKey)
+        Task { [weak self, deferralKey, pid = observedEntry.pid, source] in
             try? await Task.sleep(nanoseconds: 120_000_000)
             await MainActor.run { [weak self] in
                 guard let self else { return }
-                self.deferredInactiveNativeActivationTokens.remove(token)
+                self.deferredInactiveNativeActivationTokens.remove(deferralKey)
+                self.handleAppActivation(pid: pid, source: source, origin: .retry)
+            }
+        }
+        return true
+    }
+
+    private func shouldSuppressCrossAppInactiveFocusedWindowChangedBeforeCloseRecovery(
+        entry observedEntry: WindowModel.Entry,
+        isWorkspaceActive: Bool,
+        requestDisposition: ActivationRequestDisposition,
+        source: ActivationEventSource,
+        origin: ActivationCallOrigin
+    ) -> Bool {
+        guard origin == .external,
+              source == .focusedWindowChanged,
+              case .unrelatedNoRequest = requestDisposition,
+              !isWorkspaceActive,
+              activeWindowCloseFocusRecoveryWorkspaceId() == nil,
+              let controller,
+              let focusedToken = controller.workspaceManager.confirmedManagedFocusToken,
+              focusedToken != observedEntry.token,
+              focusedToken.pid != observedEntry.pid,
+              let focusedWorkspaceId = controller.workspaceManager.workspace(for: focusedToken),
+              let focusedMonitorId = controller.workspaceManager.monitorId(for: focusedWorkspaceId),
+              controller.workspaceManager.activeWorkspace(on: focusedMonitorId)?.id == focusedWorkspaceId
+        else {
+            return false
+        }
+
+        controller.diagnostics.recordRuntimeViewportTrace(
+            workspaceId: observedEntry.workspaceId,
+            reason: "close_recovery_inactive_focused_window_changed_suppressed",
+            details: [
+                "token=\(observedEntry.token)",
+                "source=\(source.rawValue)",
+                "origin=\(origin.rawValue)",
+                "requestDisposition=\(requestDisposition)",
+                "activeRecoveryWorkspace=\(activeWindowCloseFocusRecoveryContext()?.workspaceId.uuidString ?? "nil")",
+                "focusedToken=\(focusedToken)",
+                "reason=cross_app_inactive_focus_churn"
+            ]
+        )
+        return true
+    }
+
+    /// Suppress an unrelated re-focus of the already-confirmed managed window for
+    /// an overlay-capable app (e.g. the Ghostty quick terminal). When the QT
+    /// opens, macOS re-focuses the app's main managed window via
+    /// `focusedWindowChanged`; re-confirming it runs the column anchor rebase and
+    /// scrolls the viewport to that window's column, away from where the user
+    /// scrolled to. Since the window is already the confirmed focus, this
+    /// re-focus is a no-op that must be dropped to preserve the viewport.
+    private func shouldSuppressSameAppAlreadyConfirmedOverlayRefocus(
+        entry observedEntry: WindowModel.Entry,
+        requestDisposition: ActivationRequestDisposition,
+        source: ActivationEventSource,
+        origin: ActivationCallOrigin
+    ) -> Bool {
+        guard origin == .external,
+              source == .focusedWindowChanged,
+              case .unrelatedNoRequest = requestDisposition,
+              overlayCapablePids.contains(observedEntry.pid),
+              let controller,
+              controller.workspaceManager.confirmedManagedFocusToken == observedEntry.token
+        else {
+            return false
+        }
+        controller.diagnostics.recordRuntimeViewportTrace(
+            workspaceId: observedEntry.workspaceId,
+            reason: "overlay_refocus_already_confirmed_suppressed",
+            details: [
+                "token=\(observedEntry.token)",
+                "source=\(source.rawValue)",
+                "origin=\(origin.rawValue)",
+                "reason=already_confirmed_overlay_refocus"
+            ]
+        )
+        return true
+    }
+
+    /// Handle the same-app `focusedWindowChanged` churn an overlay-capable app
+    /// (e.g. the Ghostty quick terminal) emits around its QT close. When the QT
+    /// closes, macOS re-focuses the app's main managed window even though the
+    /// user is working in another app; if that main window is parked off-screen,
+    /// confirming it reveals/scrolls the viewport to its column. The QT close
+    /// signal (which arms `windowCloseFocusRecovery` / records the recent
+    /// same-app close) arrives a few milliseconds after this churn, so at the
+    /// first arrival there is no evidence yet.
+    ///
+    /// Defer the first arrival briefly so the close signal can land, then on the
+    /// retry suppress once close evidence is present. Only off-screen (parked)
+    /// observed windows are affected: an on-screen window needs no reveal, so a
+    /// real same-app focus switch is not delayed. The already-confirmed refocus
+    /// shape is handled separately by `shouldSuppressSameAppAlreadyConfirmedOverlayRefocus`.
+    private func shouldSuppressOrDeferSameAppOverlayCloseChurn(
+        entry observedEntry: WindowModel.Entry,
+        requestDisposition: ActivationRequestDisposition,
+        source: ActivationEventSource,
+        origin: ActivationCallOrigin
+    ) -> Bool {
+        guard source == .focusedWindowChanged,
+              case .unrelatedNoRequest = requestDisposition,
+              overlayCapablePids.contains(observedEntry.pid),
+              !isEntryOnScreen(observedEntry),
+              let controller,
+              controller.workspaceManager.confirmedManagedFocusToken != observedEntry.token
+        else {
+            return false
+        }
+
+        let recentClose = hasRecentSameAppWindowClose(for: observedEntry.pid)
+        let recoveryArmed = activeWindowCloseFocusRecoveryWorkspaceId() != nil
+        if recentClose || recoveryArmed {
+            controller.diagnostics.recordRuntimeViewportTrace(
+                workspaceId: observedEntry.workspaceId,
+                reason: "overlay_close_churn_suppressed",
+                details: [
+                    "token=\(observedEntry.token)",
+                    "source=\(source.rawValue)",
+                    "origin=\(origin.rawValue)",
+                    "recentSameAppClose=\(recentClose)",
+                    "recoveryArmed=\(recoveryArmed)",
+                    "reason=close_evidence_present"
+                ]
+            )
+            return true
+        }
+
+        // No close evidence yet (churn precedes the close signal). Defer only the
+        // first external arrival so we don't loop; the retry resolves via the
+        // evidence branch above or falls through as a real activation.
+        guard origin == .external else { return false }
+        controller.diagnostics.recordRuntimeViewportTrace(
+            workspaceId: observedEntry.workspaceId,
+            reason: "overlay_close_churn_deferred",
+            details: [
+                "token=\(observedEntry.token)",
+                "source=\(source.rawValue)",
+                "origin=\(origin.rawValue)",
+                "reason=await_close_recovery_signal"
+            ]
+        )
+        let deferralKey = DeferredInactiveNativeActivationKey(
+            token: observedEntry.token,
+            sourceRawValue: source.rawValue
+        )
+        guard !deferredInactiveNativeActivationTokens.contains(deferralKey) else {
+            return true
+        }
+        deferredInactiveNativeActivationTokens.insert(deferralKey)
+        Task { [weak self, deferralKey, pid = observedEntry.pid, source] in
+            try? await Task.sleep(nanoseconds: 120_000_000)
+            await MainActor.run { [weak self] in
+                guard let self else { return }
+                self.deferredInactiveNativeActivationTokens.remove(deferralKey)
                 self.handleAppActivation(pid: pid, source: source, origin: .retry)
             }
         }
@@ -3074,17 +3289,25 @@ final class AXEventHandler: CGSEventDelegate {
         // This guard exists only to absorb the successor-focus churn macOS emits
         // when one of the app's own windows *closes* (it re-focuses another of
         // the app's windows, possibly on an inactive workspace). It must not fire
-        // for an ordinary same-app focus switch with no close — that is a
-        // legitimate move to another of the app's windows and should reveal its
-        // workspace. Gate on a recent same-app window close.
-        guard hasRecentSameAppWindowClose(for: observedEntry.pid) else {
+        // for an ordinary same-app focus switch with no close or overlay evidence
+        // — that is a legitimate move to another of the app's windows and should
+        // reveal its workspace. Gate on a recent same-app window close or app-owned
+        // overlay recovery evidence.
+        let recentSameAppClose = hasRecentSameAppWindowClose(for: observedEntry.pid)
+        let overlaySignal = hasSameAppOverlayRecoverySignal(for: observedEntry)
+        let hasCloseOrOverlayEvidence = recentSameAppClose
+            || overlaySignal.recentNonManaged
+            || overlaySignal.overlayVisible
+        guard hasCloseOrOverlayEvidence else {
             recordCloseRecoveryActivationGate(
                 entry: observedEntry,
                 isWorkspaceActive: isWorkspaceActive,
                 requestDisposition: requestDisposition,
                 source: source,
                 origin: .external,
-                decision: "allow reason=no_recent_same_app_close"
+                decision: "allow reason=no_close_or_overlay_evidence",
+                overlaySignal: overlaySignal,
+                sameAppCloseOrOverlayEvidence: hasCloseOrOverlayEvidence
             )
             return false
         }
@@ -3112,7 +3335,9 @@ final class AXEventHandler: CGSEventDelegate {
                 requestDisposition: requestDisposition,
                 source: source,
                 origin: .external,
-                decision: shouldSuppress ? "suppress reason=current_target_same_pid" : "allow reason=workspace_active"
+                decision: shouldSuppress ? "suppress reason=current_target_same_pid" : "allow reason=workspace_active",
+                overlaySignal: overlaySignal,
+                sameAppCloseOrOverlayEvidence: hasCloseOrOverlayEvidence
             )
             if shouldSuppress {
                 controller.diagnostics.recordRuntimeViewportTrace(
@@ -3177,7 +3402,9 @@ final class AXEventHandler: CGSEventDelegate {
             requestDisposition: requestDisposition,
             source: source,
             origin: .external,
-            decision: "allow reason=no_suppression_anchor"
+            decision: "allow reason=no_suppression_anchor",
+            overlaySignal: overlaySignal,
+            sameAppCloseOrOverlayEvidence: hasCloseOrOverlayEvidence
         )
         return false
     }
@@ -3321,7 +3548,35 @@ final class AXEventHandler: CGSEventDelegate {
                 decision: "evaluate"
             )
 
+            if shouldSuppressSameAppAlreadyConfirmedOverlayRefocus(
+                entry: entry,
+                requestDisposition: requestDisposition,
+                source: source,
+                origin: origin
+            ) {
+                return
+            }
+
             if shouldDeferSameAppInactiveNativeActivationBeforeCloseRecovery(
+                entry: entry,
+                isWorkspaceActive: isWorkspaceActive,
+                requestDisposition: requestDisposition,
+                source: source,
+                origin: origin
+            ) {
+                return
+            }
+
+            if shouldSuppressOrDeferSameAppOverlayCloseChurn(
+                entry: entry,
+                requestDisposition: requestDisposition,
+                source: source,
+                origin: origin
+            ) {
+                return
+            }
+
+            if shouldSuppressCrossAppInactiveFocusedWindowChangedBeforeCloseRecovery(
                 entry: entry,
                 isWorkspaceActive: isWorkspaceActive,
                 requestDisposition: requestDisposition,
@@ -3473,7 +3728,35 @@ final class AXEventHandler: CGSEventDelegate {
                 decision: "evaluate"
             )
 
+            if shouldSuppressSameAppAlreadyConfirmedOverlayRefocus(
+                entry: restoredEntry,
+                requestDisposition: requestDisposition,
+                source: source,
+                origin: origin
+            ) {
+                return
+            }
+
             if shouldDeferSameAppInactiveNativeActivationBeforeCloseRecovery(
+                entry: restoredEntry,
+                isWorkspaceActive: isWorkspaceActive,
+                requestDisposition: requestDisposition,
+                source: source,
+                origin: origin
+            ) {
+                return
+            }
+
+            if shouldSuppressOrDeferSameAppOverlayCloseChurn(
+                entry: restoredEntry,
+                requestDisposition: requestDisposition,
+                source: source,
+                origin: origin
+            ) {
+                return
+            }
+
+            if shouldSuppressCrossAppInactiveFocusedWindowChangedBeforeCloseRecovery(
                 entry: restoredEntry,
                 isWorkspaceActive: isWorkspaceActive,
                 requestDisposition: requestDisposition,
@@ -4016,10 +4299,19 @@ final class AXEventHandler: CGSEventDelegate {
             let recentSameAppClosePin = closeRecoveryPins.recentSameAppClosePin
             let overlayRecoveryPin = closeRecoveryPins.overlayRecoveryPin
             let selectedSameAppFocusDisappearedPin = closeRecoveryPins.selectedSameAppFocusDisappearedPin
-            let preserveActiveViewport = state.viewOffsetPixels.isGesture
-                || isSpringInFlight
-                || (wasAlreadyConfirmedFocus && source == .focusedWindowChanged)
-                || closeRecoveryPins.shouldPin
+            let preserveActiveViewportReason: PreserveActiveViewportReason
+            if state.viewOffsetPixels.isGesture {
+                preserveActiveViewportReason = .gesture
+            } else if isSpringInFlight {
+                preserveActiveViewportReason = .springInFlight
+            } else if wasAlreadyConfirmedFocus && source == .focusedWindowChanged {
+                preserveActiveViewportReason = .alreadyConfirmedFocusedWindowChanged
+            } else if closeRecoveryPins.shouldPin {
+                preserveActiveViewportReason = .closeRecoveryPin
+            } else {
+                preserveActiveViewportReason = .none
+            }
+            let preserveActiveViewport = preserveActiveViewportReason.shouldPreserve
             controller.diagnostics.recordRuntimeViewportTrace(
                 workspaceId: wsId,
                 reason: "ax_focus_confirm_before_activate",
@@ -4031,6 +4323,7 @@ final class AXEventHandler: CGSEventDelegate {
                     "recentFFMFresh=\(recentFFMIsFresh)",
                     "isFFM=\(isFFM)",
                     "preserveActiveViewport=\(preserveActiveViewport)",
+                    "preserveActiveViewportReason=\(preserveActiveViewportReason.rawValue)",
                     "closeRecoveryPin=\(closeRecoveryPin)",
                     "recentSameAppClosePin=\(recentSameAppClosePin)",
                     "overlayRecoveryPin=\(overlayRecoveryPin)",
@@ -4066,7 +4359,8 @@ final class AXEventHandler: CGSEventDelegate {
                 details: [
                     "token=\(entry.token)",
                     "isFFM=\(isFFM)",
-                    "preserveActiveViewport=\(preserveActiveViewport)"
+                    "preserveActiveViewport=\(preserveActiveViewport)",
+                    "preserveActiveViewportReason=\(preserveActiveViewportReason.rawValue)"
                 ]
             )
             if !isFFM,
@@ -4133,7 +4427,10 @@ final class AXEventHandler: CGSEventDelegate {
                     details: [
                         "token=\(entry.token)",
                         "isFFM=\(isFFM)",
-                        "preserveActiveViewport=\(preserveActiveViewport)"
+                        "preserveActiveViewport=\(preserveActiveViewport)",
+                        "preserveActiveViewportReason=\(preserveActiveViewportReason.rawValue)",
+                        "skipReason=\(isFFM ? "ffm" : "preserve_active_viewport")",
+                        "isWorkspaceActive=\(isWorkspaceActive)"
                     ]
                 )
             }
@@ -6746,6 +7043,7 @@ final class AXEventHandler: CGSEventDelegate {
     func cleanupFocusStateForTerminatedApp(pid: pid_t) {
         recentManagedWorkspaceByPid.removeValue(forKey: pid)
         recentAppActivationByPid.removeValue(forKey: pid)
+        overlayCapablePids.remove(pid)
 
         guard let controller else { return }
 
