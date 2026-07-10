@@ -34,8 +34,9 @@ Slices 2 (tie the armed state to overlay liveness) and 3 (narrow the resolver
 decline on triple-agreement) were **not** needed — clearing at the suppression
 point was sufficient and is the smaller, more targeted change. The adjacent
 cold-start boundary condition this discovery's capture did not cover (Nehir
-restarting while the quick terminal is already open) is tracked separately in
-[`../discovery/20260710-quick-terminal-close-after-restart-lacks-overlay-evidence.md`](../discovery/20260710-quick-terminal-close-after-restart-lacks-overlay-evidence.md).
+restarting while the quick terminal is already open) is fixed separately in
+[`20260710-quick-terminal-close-after-restart-lacks-overlay-evidence.md`](20260710-quick-terminal-close-after-restart-lacks-overlay-evidence.md)
+(landed `efc64f1a`).
 
 ## Summary
 

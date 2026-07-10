@@ -2,24 +2,42 @@
 
 Discovery (2026-07-10). Verified against branch `fix/quick-terminal-stale-nonmanaged-focus` at `5d34d706` (one commit ahead of `main` `d3ef41ee`); every guard cited here is identical on `main`.
 
-**Status: fix implemented, not yet merged.** The proposed slice — arm
-`overlayCapablePids` from window-rule classification instead of only the live
-overlay-visibility scan — is implemented on branch
-`fix/qt-cold-start-overlay-evidence`, commit `39370eca`
-("Arm overlay close-churn protection from window-rule classification"),
-changeset `.changeset/20260710224959-arm-quick-terminal-close-churn-protection-from-w.md`
-(patch). `mise run check` (1435 tests, 116 suites) is green on that branch. The
-arming call sits directly in `WMController.evaluateWindowDisposition`
-(unconditional on trace verbosity — a first implementation attempt that piggybacked
-on the trace-event sink was reworked because it depended on an unrelated
-diagnostics-verbosity heuristic and did not reliably cover all three overlay
-rules). Awaiting a real-repro confirmation (cold start under an open quick
-terminal) before merge to `main`.
+**Status: LANDED (2026-07-10).** Shipped on `main` in commit `efc64f1a`
+("Arm overlay close-churn protection from window-rule classification").
+Changeset: `.changeset/20260710224959-arm-quick-terminal-close-churn-protection-from-w.md`
+(patch).
+
+## What actually landed (vs. the discovery below)
+
+Slice 1 from "Fix direction" shipped, with the arming call placed directly in
+`WMController.evaluateWindowDisposition` (unconditional on trace verbosity) —
+not through the trace-event sink. A first implementation attempt piggybacked
+`overlayCapablePids` insertion on `recordNiriCreateFocusTrace`'s
+`.windowDecision` event; that was reworked before landing because it depended
+on an unrelated diagnostics-verbosity heuristic
+(`RuntimeDiagnosticsCoordinator.shouldTraceWindowDecision`) and did not
+reliably cover all three overlay rules (`cleanShotRecordingOverlay` has
+`disposition: .floating`, not `.unmanaged`; `systemTextInputPanel` has no
+windowServer-level guard) — both only happened to get traced via that
+heuristic's separate `level != 0` fallback, not by design.
+
+Two refinements landed beyond that rework:
+
+- **Manual-override ordering fix.** `WMController.evaluateWindowDisposition`
+  arms overlay capability from `baseDecision.source` — the rule engine's
+  decision *before* a manual layout override can replace `decision.source` —
+  so a window a user has manually forced to tile still gets recorded as
+  overlay-capable if the underlying rule classified it as one. Without this,
+  a manual override on an overlay-capable window (e.g. forcing a Ghostty quick
+  terminal to tile) would have silently dropped its arming.
+- **Regression coverage.** `Tests/NehirTests/AXEventHandlerTests.swift` gained
+  `overlayDecisionArmsPidBeforeManualOverrideWithoutTraceContext`, exercising
+  exactly that manual-override-plus-untraced-decision case end to end via
+  `evaluateWindowDisposition`.
 
 The distinct NF-1 discovery this one is adjacent to —
-[`../completed/20260710-ghostty-quick-terminal-arms-stale-nonmanaged-focus.md`](../completed/20260710-ghostty-quick-terminal-arms-stale-nonmanaged-focus.md)
-— has already landed on `main` as `31c8b851`; this cold-start discovery's fix
-is separate and still unmerged.
+[`20260710-ghostty-quick-terminal-arms-stale-nonmanaged-focus.md`](20260710-ghostty-quick-terminal-arms-stale-nonmanaged-focus.md)
+— landed separately on `main` as `31c8b851`, one commit before this fix.
 
 ## Summary
 
@@ -65,19 +83,19 @@ Ghostty columns among others. Ghostty quick terminal enabled.
 
 ## Related plans and discoveries
 
-- Cross-link cluster: [`CR-1` in `20260708-cross-discovery-relevance-clusters.md`](20260708-cross-discovery-relevance-clusters.md#cr-1--close-recovery-and-same-app-overlay-focus-churn).
-  This is a CR-1 boundary condition, not a reopen of the fixed oscillation or the
-  `d3ef41ee` quick-terminal close reveal: the guards behave as designed; their
-  evidence inputs are empty after a restart.
-- [`../completed/20260709-quick-terminal-long-open-close-reveals-parked-ghostty-viewport.md`](../completed/20260709-quick-terminal-long-open-close-reveals-parked-ghostty-viewport.md)
-  — the `d3ef41ee` fix whose `overlayCapablePids` memory this discovery shows is
+- Cross-link cluster: [`CR-1` in `20260708-cross-discovery-relevance-clusters.md`](../discovery/20260708-cross-discovery-relevance-clusters.md#cr-1--close-recovery-and-same-app-overlay-focus-churn).
+  This was a CR-1 boundary condition, not a reopen of the fixed oscillation or the
+  `d3ef41ee` quick-terminal close reveal: the guards behaved as designed; their
+  evidence inputs were empty after a restart.
+- [`20260709-quick-terminal-long-open-close-reveals-parked-ghostty-viewport.md`](20260709-quick-terminal-long-open-close-reveals-parked-ghostty-viewport.md)
+  — the `d3ef41ee` fix whose `overlayCapablePids` memory this discovery showed was
   populated too lazily to cover the cold-start case.
-- [`../completed/20260710-ghostty-quick-terminal-arms-stale-nonmanaged-focus.md`](../completed/20260710-ghostty-quick-terminal-arms-stale-nonmanaged-focus.md)
+- [`20260710-ghostty-quick-terminal-arms-stale-nonmanaged-focus.md`](20260710-ghostty-quick-terminal-arms-stale-nonmanaged-focus.md)
   — the adjacent NF-1 discovery from the same day. Its fix (clear stale
   non-managed focus at the churn-suppression point) landed as `31c8b851` and is
   unaffected by and did not cause this behavior; in this capture the suppression branch never
   ran, so the clear never ran either.
-- [`20260709-window-close-successor-app-activation-reveals-far-parked-column.md`](20260709-window-close-successor-app-activation-reveals-far-parked-column.md)
+- [`../discovery/20260709-window-close-successor-app-activation-reveals-far-parked-column.md`](../discovery/20260709-window-close-successor-app-activation-reveals-far-parked-column.md)
   — different root cause (cross-app successor selection) but the same user-facing
   symptom family: a close reveals a far parked column.
 
