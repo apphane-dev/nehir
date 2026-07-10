@@ -2862,14 +2862,31 @@ final class AXEventHandler: CGSEventDelegate {
             appFullscreen: false
         )
         if case let .builtInRule(name) = decision.source,
-           name == "ghosttyQuickTerminalOverlay"
-           || name == "cleanShotRecordingOverlay"
-           || name == "systemTextInputPanel"
+           Self.isOverlayCapableRuleName(name)
         {
             overlayCapablePids.insert(pid)
             return true
         }
         return false
+    }
+
+    func armOverlayCapabilityIfNeeded(source: WindowDecisionSource, pid: pid_t) {
+        guard case let .builtInRule(name) = source,
+              Self.isOverlayCapableRuleName(name)
+        else {
+            return
+        }
+        overlayCapablePids.insert(pid)
+    }
+
+    func isOverlayCapablePidForTests(_ pid: pid_t) -> Bool {
+        overlayCapablePids.contains(pid)
+    }
+
+    private static func isOverlayCapableRuleName(_ name: String) -> Bool {
+        name == "ghosttyQuickTerminalOverlay"
+            || name == "cleanShotRecordingOverlay"
+            || name == "systemTextInputPanel"
     }
 
     private func recordCloseRecoveryActivationGate(
