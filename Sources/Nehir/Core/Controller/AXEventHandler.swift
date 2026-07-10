@@ -3085,6 +3085,10 @@ final class AXEventHandler: CGSEventDelegate {
         let recentClose = hasRecentSameAppWindowClose(for: observedEntry.pid)
         let recoveryArmed = activeWindowCloseFocusRecoveryWorkspaceId() != nil
         if recentClose || recoveryArmed {
+            let clearedStaleNonManagedFocus =
+                controller.clearStaleNonManagedFocusAfterOverlaySuppressed(
+                    refreshFocusFollowsMouse: recoveryArmed
+                )
             controller.diagnostics.recordRuntimeViewportTrace(
                 workspaceId: observedEntry.workspaceId,
                 reason: "overlay_close_churn_suppressed",
@@ -3094,6 +3098,7 @@ final class AXEventHandler: CGSEventDelegate {
                     "origin=\(origin.rawValue)",
                     "recentSameAppClose=\(recentClose)",
                     "recoveryArmed=\(recoveryArmed)",
+                    "clearedStaleNonManagedFocus=\(clearedStaleNonManagedFocus)",
                     "reason=close_evidence_present"
                 ]
             )

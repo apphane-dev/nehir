@@ -3994,14 +3994,25 @@ extension WMController {
     }
 
     func handleOwnedFocusSuppressingWindowClosed() {
-        guard workspaceManager.isNonManagedFocusActive, !hasVisibleOwnedWindow else { return }
+        guard !hasVisibleOwnedWindow else { return }
+        _ = clearStaleNonManagedFocusAfterOverlaySuppressed(refreshFocusFollowsMouse: true)
+    }
+
+    @discardableResult
+    func clearStaleNonManagedFocusAfterOverlaySuppressed(
+        refreshFocusFollowsMouse: Bool
+    ) -> Bool {
+        guard workspaceManager.isNonManagedFocusActive, !hasVisibleOwnedWindow else { return false }
         let preservedToken = workspaceManager.confirmedManagedFocusToken
-        guard workspaceManager.leaveNonManagedFocus(preserveFocusedToken: true) else { return }
+        guard workspaceManager.leaveNonManagedFocus(preserveFocusedToken: true) else { return false }
         if let preservedToken {
             suppressMouseMoveToFocusedWindow(for: preservedToken)
         }
         _ = focusBorderController.refresh(forceOrdering: true)
-        mouseEventHandler.refreshFocusFollowsMouseAtCurrentPointer()
+        if refreshFocusFollowsMouse {
+            mouseEventHandler.refreshFocusFollowsMouseAtCurrentPointer()
+        }
+        return true
     }
 
     func isOwnedWindow(windowNumber: Int) -> Bool {
