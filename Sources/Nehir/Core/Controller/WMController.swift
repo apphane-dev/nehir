@@ -2673,6 +2673,7 @@ final class WMController {
         let decision = applyingManualOverride
             ? decisionApplyingManualOverride(baseDecision, manualOverride: manualOverride)
             : baseDecision
+        axEventHandler.armOverlayCapabilityIfNeeded(source: baseDecision.source, pid: token.pid)
         let evaluation = WindowDecisionEvaluation(
             token: token,
             facts: facts,

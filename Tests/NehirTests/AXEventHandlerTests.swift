@@ -9402,6 +9402,48 @@ private func waitUntilAXEventTest(
         #expect(events == [.order(825), .activate(getpid()), .focus(getpid(), 825), .raise])
     }
 
+    @Test @MainActor func overlayDecisionArmsPidBeforeManualOverrideWithoutTraceContext() {
+        let controller = makeAXEventTestController()
+        guard let workspaceId = controller.interactionWorkspace()?.id else {
+            Issue.record("Missing active workspace")
+            return
+        }
+
+        let pid: pid_t = 5_821
+        let windowId = 824
+        let axRef = AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: windowId)
+        let token = controller.workspaceManager.addWindow(
+            axRef,
+            pid: pid,
+            windowId: windowId,
+            to: workspaceId
+        )
+        controller.workspaceManager.setManualLayoutOverride(.forceTile, for: token)
+        controller.axEventHandler.windowFactsProvider = { _, _ in
+            makeAXEventWindowRuleFacts(
+                bundleId: "com.mitchellh.ghostty",
+                windowServer: WindowServerInfo(
+                    id: UInt32(windowId),
+                    pid: pid,
+                    level: 1,
+                    frame: .zero
+                )
+            )
+        }
+        defer { controller.axEventHandler.windowFactsProvider = nil }
+
+        #expect(!controller.axEventHandler.isOverlayCapablePidForTests(pid))
+        let evaluation = controller.evaluateWindowDisposition(
+            axRef: axRef,
+            pid: pid,
+            appFullscreen: false
+        )
+
+        #expect(evaluation.decision.source == .manualOverride)
+        #expect(evaluation.manualOverride == .forceTile)
+        #expect(controller.axEventHandler.isOverlayCapablePidForTests(pid))
+    }
+
     @Test @MainActor func cleanShotCaptureOverlayCreateIsTrackedAsFloating() async {
         let controller = makeAXEventTestController()
         let pid: pid_t = 5821
