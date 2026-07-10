@@ -1,6 +1,41 @@
 # Ghostty quick terminal arms stale non-managed focus; close-churn suppression swallows the only recovery signal
 
+**Status: LANDED (2026-07-10).** Shipped on `main` in commit `31c8b851`
+("Clear stale non-managed focus after quick terminal dismissal"). Changeset:
+`.changeset/20260710222654-clear-stale-non-managed-focus-after-quick-termin.md`
+(patch). Validated: `mise run check` (build + lint + test, 1435 tests, 116
+suites) green on the landed diff, and confirmed against a real repro by the
+reporting user before landing.
+
 Discovery (2026-07-10). Verified against the main Nehir source tree at `d3ef41ee` (the same build that produced the capture, `nehir vd3ef41`).
+
+## What actually landed (vs. the discovery below)
+
+The discovery below proposed three fix slices (see "Working hypothesis / fix
+direction"). Slice 1 shipped, with two refinements made during implementation:
+
+- `WMController.handleOwnedFocusSuppressingWindowClosed()` and the new
+  `overlay_close_churn_suppressed` call site both now go through a shared
+  `WMController.clearStaleNonManagedFocusAfterOverlaySuppressed(refreshFocusFollowsMouse:)`
+  — `leaveNonManagedFocus(preserveFocusedToken: true)` plus mouse-suppress and
+  border refresh, **no** `confirmManagedFocus`, **no** workspace
+  activation/reveal, matching the "clear without the viewport side effects"
+  constraint from the discovery.
+- The shared helper re-checks `!hasVisibleOwnedWindow` itself (not just at the
+  original owned-window call site), and the churn-suppression call site passes
+  `refreshFocusFollowsMouse: recoveryArmed` rather than unconditionally
+  refreshing FFM — a tighter condition than the discovery's slice 1 sketch.
+- `AXEventHandler.shouldSuppressOrDeferSameAppOverlayCloseChurn`'s
+  `close_evidence_present` branch now records `clearedStaleNonManagedFocus=…`
+  in the `overlay_close_churn_suppressed` runtime viewport trace, exactly as
+  proposed.
+
+Slices 2 (tie the armed state to overlay liveness) and 3 (narrow the resolver
+decline on triple-agreement) were **not** needed — clearing at the suppression
+point was sufficient and is the smaller, more targeted change. The adjacent
+cold-start boundary condition this discovery's capture did not cover (Nehir
+restarting while the quick terminal is already open) is tracked separately in
+[`../discovery/20260710-quick-terminal-close-after-restart-lacks-overlay-evidence.md`](../discovery/20260710-quick-terminal-close-after-restart-lacks-overlay-evidence.md).
 
 ## Summary
 
@@ -68,27 +103,27 @@ Recovery requires an action that still produces a managed focus confirmation:
 
 ## Related plans and discoveries
 
-- Cross-link cluster: [`NF-1` in `20260708-cross-discovery-relevance-clusters.md`](20260708-cross-discovery-relevance-clusters.md#nf-1--stale-non-managed-focus-blocks-admission-confirmation-and-command-targets).
-  This discovery supplies the missing **arming mechanism** for the cluster: a
+- Cross-link cluster: [`NF-1` in `20260708-cross-discovery-relevance-clusters.md`](../discovery/20260708-cross-discovery-relevance-clusters.md#nf-1--stale-non-managed-focus-blocks-admission-confirmation-and-command-targets).
+  This discovery supplied the missing **arming mechanism** for the cluster: a
   concrete overlay (quick terminal) plus the CR-1 close-churn suppression that
-  swallows the clearing confirmation.
-- [`20260708-assign-to-workspace-7-nonmanaged-command-target-decline.md`](20260708-assign-to-workspace-7-nonmanaged-command-target-decline.md)
+  swallowed the clearing confirmation.
+- [`../discovery/20260708-assign-to-workspace-7-nonmanaged-command-target-decline.md`](../discovery/20260708-assign-to-workspace-7-nonmanaged-command-target-decline.md)
   — same resolver decline, but transient (recovered in ~3 s) and with
-  `confirmedToken=nil`. Here the decline fires with confirmed focus and layout
-  selection present, and never recovers on its own.
-- [`20260708-stale-nonmanaged-focus-suppresses-managed-selection-and-window-move.md`](20260708-stale-nonmanaged-focus-suppresses-managed-selection-and-window-move.md)
+  `confirmedToken=nil`. Here the decline fired with confirmed focus and layout
+  selection present, and never recovered on its own.
+- [`../discovery/20260708-stale-nonmanaged-focus-suppresses-managed-selection-and-window-move.md`](../discovery/20260708-stale-nonmanaged-focus-suppresses-managed-selection-and-window-move.md)
   — the broader stuck-state consequences (suppressed scroll selection, targetless
-  moves). This discovery adds where the staleness comes from.
-- [`../completed/20260709-quick-terminal-long-open-close-reveals-parked-ghostty-viewport.md`](../completed/20260709-quick-terminal-long-open-close-reveals-parked-ghostty-viewport.md)
+  moves). This discovery added where the staleness comes from.
+- [`20260709-quick-terminal-long-open-close-reveals-parked-ghostty-viewport.md`](20260709-quick-terminal-long-open-close-reveals-parked-ghostty-viewport.md)
   — the CR-1 fix (`d3ef41ee`) whose `overlayCapablePids` memory and close-churn
   suppression correctly keep the viewport still on quick-terminal close. This
-  discovery documents its NF-1 side effect: the suppressed activation was also the
-  only signal that would have cleared non-managed focus. Any fix must keep the
-  viewport behavior.
-- [`20260702-quick-terminal-close-reveals-managed-ghostty-column.md`](20260702-quick-terminal-close-reveals-managed-ghostty-column.md)
-  and [`../completed/20260615-quick-terminal-close-switches-workspace.md`](../completed/20260615-quick-terminal-close-switches-workspace.md)
+  discovery documented its NF-1 side effect: the suppressed activation was also
+  the only signal that would have cleared non-managed focus. The landed fix
+  above preserves the viewport behavior.
+- [`../discovery/20260702-quick-terminal-close-reveals-managed-ghostty-column.md`](../discovery/20260702-quick-terminal-close-reveals-managed-ghostty-column.md)
+  and [`20260615-quick-terminal-close-switches-workspace.md`](20260615-quick-terminal-close-switches-workspace.md)
   — earlier quick-terminal close/overlay lineage.
-- [`20260705-move-focused-window-to-workspace-noop-under-nonmanaged-focus.md`](20260705-move-focused-window-to-workspace-noop-under-nonmanaged-focus.md)
+- [`../discovery/20260705-move-focused-window-to-workspace-noop-under-nonmanaged-focus.md`](../discovery/20260705-move-focused-window-to-workspace-noop-under-nonmanaged-focus.md)
   — predecessor of the same silent move-command guard.
 
 ## Inline runtime evidence

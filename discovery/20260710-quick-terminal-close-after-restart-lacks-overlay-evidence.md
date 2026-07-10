@@ -2,6 +2,25 @@
 
 Discovery (2026-07-10). Verified against branch `fix/quick-terminal-stale-nonmanaged-focus` at `5d34d706` (one commit ahead of `main` `d3ef41ee`); every guard cited here is identical on `main`.
 
+**Status: fix implemented, not yet merged.** The proposed slice — arm
+`overlayCapablePids` from window-rule classification instead of only the live
+overlay-visibility scan — is implemented on branch
+`fix/qt-cold-start-overlay-evidence`, commit `39370eca`
+("Arm overlay close-churn protection from window-rule classification"),
+changeset `.changeset/20260710224959-arm-quick-terminal-close-churn-protection-from-w.md`
+(patch). `mise run check` (1435 tests, 116 suites) is green on that branch. The
+arming call sits directly in `WMController.evaluateWindowDisposition`
+(unconditional on trace verbosity — a first implementation attempt that piggybacked
+on the trace-event sink was reworked because it depended on an unrelated
+diagnostics-verbosity heuristic and did not reliably cover all three overlay
+rules). Awaiting a real-repro confirmation (cold start under an open quick
+terminal) before merge to `main`.
+
+The distinct NF-1 discovery this one is adjacent to —
+[`../completed/20260710-ghostty-quick-terminal-arms-stale-nonmanaged-focus.md`](../completed/20260710-ghostty-quick-terminal-arms-stale-nonmanaged-focus.md)
+— has already landed on `main` as `31c8b851`; this cold-start discovery's fix
+is separate and still unmerged.
+
 ## Summary
 
 Closing the Ghostty quick terminal made the viewport scroll to Ghostty's parked
@@ -53,10 +72,10 @@ Ghostty columns among others. Ghostty quick terminal enabled.
 - [`../completed/20260709-quick-terminal-long-open-close-reveals-parked-ghostty-viewport.md`](../completed/20260709-quick-terminal-long-open-close-reveals-parked-ghostty-viewport.md)
   — the `d3ef41ee` fix whose `overlayCapablePids` memory this discovery shows is
   populated too lazily to cover the cold-start case.
-- [`20260710-ghostty-quick-terminal-arms-stale-nonmanaged-focus.md`](20260710-ghostty-quick-terminal-arms-stale-nonmanaged-focus.md)
+- [`../completed/20260710-ghostty-quick-terminal-arms-stale-nonmanaged-focus.md`](../completed/20260710-ghostty-quick-terminal-arms-stale-nonmanaged-focus.md)
   — the adjacent NF-1 discovery from the same day. Its fix (clear stale
-  non-managed focus at the churn-suppression point, `5d34d706`) is unaffected by
-  and did not cause this behavior; in this capture the suppression branch never
+  non-managed focus at the churn-suppression point) landed as `31c8b851` and is
+  unaffected by and did not cause this behavior; in this capture the suppression branch never
   ran, so the clear never ran either.
 - [`20260709-window-close-successor-app-activation-reveals-far-parked-column.md`](20260709-window-close-successor-app-activation-reveals-far-parked-column.md)
   — different root cause (cross-app successor selection) but the same user-facing
