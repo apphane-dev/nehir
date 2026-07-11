@@ -61,16 +61,17 @@ FFM cursor-warp suppression shipped in
 boundary ping-pong exists. **Verdict: no action without a Nehir repro; if one
 arrives, treat as a warp-axis/FFM-suppression interaction at display seams.**
 
-### BarutSRB/OmniWM#236 — Natural scrolling option in overview — 🟡 open feature candidate
+### BarutSRB/OmniWM#236 — Natural scrolling option in overview — 🟢 already present
 
 Request: an option to invert scroll direction in the overview.
 
-Nehir has an overview
-(`Sources/Nehir/Core/Layout/Niri/NiriOverviewSnapshot.swift`), and grep for
-`naturalScroll` / `scrollDirection` / `invertScroll` across `Sources/Nehir` is
-empty — no such option exists. Small, well-bounded settings feature.
-**Verdict: legitimate small feature candidate; open a Nehir ticket if overview
-scroll-direction complaints arrive.**
+Nehir's overview already follows the system natural-scrolling setting:
+`OverviewWindow.normalizedScrollDelta`
+(`Sources/Nehir/Core/Overview/OverviewWindow.swift:273-281`) negates the
+dominant scroll delta when `event.isDirectionInvertedFromDevice` is set, so
+the direction matches whatever the user configured system-wide. **Verdict:
+behaviour already correct; deliberately no separate overview scroll-direction
+option until someone requests one.**
 
 ### BarutSRB/OmniWM#225 — Workspace bar mispositioned after wake (multi-monitor) — 🟡 verify
 
@@ -161,16 +162,19 @@ groundwork in `discovery/20260615-omniwm-390-workspace-restore-and-stale-selecti
 **Verdict: substantially solved in Nehir; only gaps found via real repro
 should reopen it.**
 
-### BarutSRB/OmniWM#131 — Menubar menu not keyboard-navigable — 🟢 N/A by construction
+### BarutSRB/OmniWM#131 — Menubar menu not keyboard-navigable — 🔴 reproduces in Nehir; owns a discovery
 
 Upstream's status-item menu could not be driven by Tab/arrows/Space/Enter.
 
-Nehir's status menu is a native AppKit `NSMenu` built from `NSMenuItem`s
-(`Sources/Nehir/UI/StatusBar/StatusBarMenu.swift:50-57`,
-`StatusBarController.swift:15`), which inherits macOS's standard menu keyboard
-navigation (arrows, Return, Escape, type-select). **Verdict: not applicable —
-the accessibility gap was in upstream's custom menu implementation. Re-check
-only if custom hosted views are ever added to the menu.**
+**Nehir reproduces this in full.** The status menu is an `NSMenu`, but every
+row is a custom-view `NSMenuItem` (`item.view = …` throughout
+`Sources/Nehir/UI/StatusBar/StatusBarMenu.swift:58-336`), and AppKit's menu
+keyboard loop skips custom-view items — no arrow highlight, no
+Return/Space activation, no type-select. Interaction is mouse-only
+(`MenuToggleSwitchView.mouseDown` at `:529`, `MenuActionRowView.mouseUp` at
+`:778`). Most apps' status menus have arrow navigation, some at least Tab;
+Nehir has nothing. **Verdict: open, subject to fix — tracked in
+`discovery/20260712-omniwm-131-status-menu-keyboard-navigation.md`.**
 
 ---
 
@@ -183,13 +187,17 @@ only if custom hosted views are ever added to the menu.**
 - **Fixed upstream before the fork (not reproduced in Nehir):** 4 —
   BarutSRB/OmniWM#242, BarutSRB/OmniWM#218, BarutSRB/OmniWM#216,
   BarutSRB/OmniWM#206.
-- 🟢 **present / tracked / N/A-by-construction (new verdicts):** 4 —
-  BarutSRB/OmniWM#214 (nehir #62 planned), BarutSRB/OmniWM#181 momentum, BarutSRB/OmniWM#180 restore
-  catalog, BarutSRB/OmniWM#131 native menu.
-- 🟡 **verify / fold-in / decision (new verdicts):** 5 — BarutSRB/OmniWM#247,
-  BarutSRB/OmniWM#236, BarutSRB/OmniWM#225, BarutSRB/OmniWM#217, BarutSRB/OmniWM#192. Of these, **BarutSRB/OmniWM#192 (shortcut defaults) is the only one
-  with confirmed live exposure in Nehir source** and deserves its own
-  follow-up discovery.
+- 🟢 **present / tracked (new verdicts):** 4 —
+  BarutSRB/OmniWM#214 (nehir #62 planned), BarutSRB/OmniWM#181 momentum,
+  BarutSRB/OmniWM#180 restore catalog, BarutSRB/OmniWM#236 overview scroll
+  already follows system natural scrolling (no option until requested).
+- 🔴 **reproduces in Nehir — owns a discovery:** 1 — BarutSRB/OmniWM#131
+  status-menu keyboard navigation
+  (`discovery/20260712-omniwm-131-status-menu-keyboard-navigation.md`).
+- 🟡 **verify / fold-in / decision (new verdicts):** 4 — BarutSRB/OmniWM#247,
+  BarutSRB/OmniWM#225, BarutSRB/OmniWM#217, BarutSRB/OmniWM#192. Of these,
+  **BarutSRB/OmniWM#192 (shortcut defaults) is the only one with confirmed
+  live exposure in Nehir source** and deserves its own follow-up discovery.
 - ⚪ **N/A (new verdicts):** 2 — BarutSRB/OmniWM#195 (no Quake terminal),
   BarutSRB/OmniWM#189 (meta-thread).
 - **Previously groomed (June rounds), still open or noop:** 8 remaining
