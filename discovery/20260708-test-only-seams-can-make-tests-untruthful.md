@@ -13,6 +13,8 @@ fallback behavior.
 
 Cross-link cluster: [`OT-1` in `20260708-cross-discovery-relevance-clusters.md`](20260708-cross-discovery-relevance-clusters.md#ot-1--observability-and-tests-can-hide-the-real-path) groups this with traceability/diagnostics work. Use both together when reviewing plans that propose regression tests for silent runtime guards.
 
+Direction: [`20260712-upstream-test-purge-and-nehir-test-direction.md`](20260712-upstream-test-purge-and-nehir-test-direction.md) adopts this audit's rubric as the acceptance bar for all new Nehir tests and sets the suite-wide policy (no purge, per-behavior files, rolling judged deletion).
+
 ---
 
 ## TL;DR
