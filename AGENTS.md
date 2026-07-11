@@ -9,13 +9,24 @@ read that worktree's `AGENTS.md` first and follow it. The plans branch has its
 own document layout and stricter durable-doc rules (for example, no local
 machine-specific paths in discovery/planning docs).
 
-## Tests: wait for user-confirmed fix before editing
+## Tests
 
-When debugging a runtime bug, **do not add, modify, or rewrite tests until the
-user has confirmed the fix works in their real repro**. Runtime traces and the
-user's validation are the acceptance signal. Touching tests before that
-confirmation wastes tokens and creates churn. After the user confirms the fix,
-then add or update regression tests if requested or clearly useful.
+Read `docs/TESTING.md` before adding, moving, or deleting tests. The hard
+rules, in short:
+
+- **Wait for the user-confirmed fix before editing tests.** When debugging a
+  runtime bug, do not add, modify, or rewrite tests until the user has
+  confirmed the fix works in their real repro. Runtime traces and the user's
+  validation are the acceptance signal; touching tests before that wastes
+  tokens and creates churn.
+- **New tests go into small per-behavior files.** The legacy monoliths
+  (`AXEventHandlerTests.swift`, `NiriLayoutEngineTests.swift`, and the others
+  listed in `docs/TESTING.md`) are frozen — never append tests to them.
+- **Test hooks observe; they do not decide.** Do not add `ForTests`
+  conditionals in `Sources/` that change a Nehir-owned decision (skip
+  reconciliation, lifecycle, scheduling, fallback, or cleanup). Fake the OS
+  boundary, not the algorithm.
+- Run the suite with `mise run test`; keep it gated in CI.
 
 ## Changesets
 

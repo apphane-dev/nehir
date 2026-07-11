@@ -13,4 +13,5 @@ title: Nehir Documentation
 - [Offscreen Window Clamp Fix](offscreen-clamp-fix.md) — macOS offscreen-parking limitations and the failure log of attempted hide strategies
 - [Recipes](recipes/README.md) — companion setup snippets
 - [Contributing](CONTRIBUTING.md) — how to contribute
+- [Testing](TESTING.md) — running the suite, test placement policy, and truthfulness rules for test seams
 - [Homebrew Release Flow](HOMEBREW.md) — release automation, changesets, and tap updates
