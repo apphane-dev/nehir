@@ -164,6 +164,86 @@ The exact hide mechanism is not recoverable from this capture
 (`hiddenAppPIDs=0` at both snapshots only proves it was not Cmd-H hidden *at
 snapshot time*).
 
+## Exact reproduction steps
+
+Derived from the failing capture plus a 2026-07-11 **negative control** capture
+(build `v602ab4`, single display, workspace
+`D4793EC9-F9EF-4E5B-96AC-AF30FCD43C50`) in which the same first-activation AX
+race occurred for Codex (`com.openai.codex`, pid 67284, windowId 34090 — two
+`non_managed_fallback_entered` records, one per activation source) and the
+window was nevertheless admitted seconds later. The control run pins which
+conditions are load-bearing: every step below that says "must not happen" is
+something that *did* happen in the control run and rescued the window.
+
+Two preconditions, both required:
+
+- **P1 — untracked window.** The target window must have no workspace entry
+  this session: it was hidden/minimized/closed-into-hidden at nehir start and
+  at every full rescan since. ChatGPT (`com.openai.chat`) and other
+  keep-window-alive-on-close apps are ideal; the failing capture's window kept
+  a windowId (1815) four generations older than the session's current ids.
+- **P2 — no AX context for the pid.** Nothing from this app may have been
+  tracked this session (no other window of it tiled or floated). Otherwise the
+  app has an `AXFocusedWindowChanged` observer and the admission retries
+  arrive within a second — this is why all five Slack/Teams captures failed
+  *fast* and stayed inside the TTL, and why the fix `151f4e3a` covered them.
+
+Steps:
+
+1. With the target window managed, hide it (Cmd-H, or close the window if the
+   app keeps it alive), then restart nehir so every full rescan runs while it
+   is not AX-enumerable. **Checkpoint:** the rescan `window_admitted …
+   context=startup_full_rescan` burst does not include the target; there are
+   no trace events at all for its pid.
+2. Activate the app **once** from the Dock (or Cmd-Tab / launcher).
+   **Checkpoint — the AX race must hit:** the trace must show
+   `activation_source_observed … source=workspaceDidActivateApplication`
+   immediately followed by `non_managed_fallback_entered` for the pid with
+   **no** `window_decision` in between — i.e. the direct
+   `kAXFocusedWindowAttribute` query returned nil mid-unhide, so no admission
+   was attempted and the intent map entry starts aging. This step also **arms
+   the guard by itself**: `handleMissingFocusedWindow` calls
+   `enterNonManagedFocus(preserveFocusedToken: false)` — no overlay is needed
+   (unlike the original Slack recipe). If instead a
+   `window_decision`/`window_admitted` appears, the app won the race; rehide,
+   restart, retry (revealing from hidden makes the nil result the common
+   case — it hit on the first try in both the 07-07 and 07-11 captures).
+3. **Wait more than 10 seconds touching nothing.** Each of the following
+   rescues the window or disarms the guard and voids the run — the 07-11
+   control capture demonstrates all three:
+   - **No second activation of the target app.** A fresh
+     `workspaceDidActivateApplication` re-records the 10 s intent and re-runs
+     the admission; in the control run a second activation arrived within
+     ~2 s, the AX query resolved this time, and the window was admitted
+     cleanly (`focused_admission_guard … outcome=trackPreparedCreate
+     reason=direct_focused_admission suppressedByUnrequestedGuard=false`
+     followed by `window_admitted … mode=tiling`).
+   - **No focus contact with any managed window.** `managed_focus_confirmed`
+     on any managed token disarms `isNonManagedFocusActive`; in the control
+     run the SuperCmd palette (pid 1867, windowId 59) was destroyed and
+     window-close focus recovery confirmed a managed token
+     (`managed_focus_confirmed token=WindowToken(pid: 7805, windowId: 36944)`)
+     right before the target's second activation — with the guard disarmed the
+     suppression predicate never even runs.
+   - **No new window from the target pid.** A CGS create for the pid takes the
+     `cgs_created_context` exemption.
+4. With the target window still frontmost, floating over the layout, issue
+   **any** WM command (focus-direction, toggle-float — or simply stop the
+   runtime trace capture, whose command dispatch is enough). The
+   frontmost-probe in `managedCommandTarget()` synthesizes the focused
+   admission. **Expected failure signature:** `window_decision …
+   disposition=managed outcome=trackedTiling` followed by
+   `unrequested_admission_nonmanaged_focus_decision suppressed=true
+   reason=stale_unrequested_nonmanaged_focus
+   context_source=ax_focused_admission_synthesized` — the window stays
+   unmanaged.
+5. Loop confirmation: repeat step 4 — every further command reproduces the
+   same suppression, because the window's own focus keeps re-entering
+   non-managed fallback. Recovery only via the known workarounds: quit and
+   relaunch the app, drag it to another display (manufactures a CGS create),
+   or focus a managed window first and then re-activate the target within
+   10 s.
+
 ## Relationship to prior findings
 
 - Cross-link cluster: [`NF-1` in `20260708-cross-discovery-relevance-clusters.md`](20260708-cross-discovery-relevance-clusters.md#nf-1--stale-non-managed-focus-blocks-admission-confirmation-and-command-targets) groups this with the stale non-managed-focus / unrequested-admission guard family. This document is the delayed-attempt variant: user intent was recorded, but no admission attempt consumed it before the TTL expired.
