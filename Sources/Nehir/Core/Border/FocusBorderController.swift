@@ -37,6 +37,7 @@ final class FocusBorderController {
     private var visualFocusTarget: KeyboardFocusTarget?
     private var requiresFocusValidationBeforeRender = false
     private var suppressedManagedTargets: Set<WindowToken> = []
+    private var isScreenshotCaptureSuppressed = false
 
     init(
         controller: WMController,
@@ -71,6 +72,11 @@ final class FocusBorderController {
         preferredFrameSource: BorderFrameSource = .layout,
         forceOrdering: Bool = false
     ) -> Bool {
+        if isScreenshotCaptureSuppressed {
+            borderManager.hideBorder()
+            return false
+        }
+
         guard let target = visualFocusTarget else {
             borderManager.hideBorder()
             return false
@@ -184,6 +190,32 @@ final class FocusBorderController {
         )
     }
 
+    func setScreenshotCaptureSuppressed(_ suppressed: Bool) {
+        guard isScreenshotCaptureSuppressed != suppressed else {
+            if suppressed {
+                borderManager.hideBorder()
+            }
+            return
+        }
+
+        isScreenshotCaptureSuppressed = suppressed
+        if suppressed {
+            borderManager.hideBorder()
+            return
+        }
+
+        if visualFocusTarget != nil {
+            _ = refresh(forceOrdering: true)
+            return
+        }
+        guard let controller,
+              !controller.workspaceManager.isNonManagedFocusActive,
+              let token = controller.workspaceManager.confirmedManagedFocusToken,
+              let target = controller.managedKeyboardFocusTarget(for: token)
+        else { return }
+        _ = focusChanged(to: target, forceOrdering: true)
+    }
+
     func setEnabled(_ enabled: Bool) {
         borderManager.setEnabled(enabled)
         if enabled {
@@ -202,6 +234,7 @@ final class FocusBorderController {
         visualFocusTarget = nil
         requiresFocusValidationBeforeRender = false
         suppressedManagedTargets.removeAll()
+        isScreenshotCaptureSuppressed = false
         borderManager.cleanup()
     }
 
