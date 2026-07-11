@@ -33,6 +33,9 @@ final class ServiceLifecycleManager {
     private var permissionCheckerTask: Task<Void, Never>?
     private var dockReservationSettleTasks: [Task<Void, Never>] = []
     private var monitorConfigurationCoalesceTask: Task<Void, Never>?
+    private var screenshotCaptureVisibilityTask: Task<Void, Never>?
+    private var screenshotShortcutSuppressionActive = false
+    private var screenshotShortcutSuppressionGeneration: UInt64 = 0
     var accessibilityPermissionStreamProviderForTests: ((Bool) -> AsyncStream<Bool>)?
     var accessibilityPermissionStateProviderForTests: (() -> Bool)?
     var accessibilityPermissionRequestHandlerForTests: (() -> Bool)?
@@ -267,6 +270,122 @@ final class ServiceLifecycleManager {
         controller?.layoutRefreshController.requestRefresh(reason: .appLaunched)
     }
 
+    /// Hide focus borders before macOS handles its standard screenshot shortcuts.
+    /// `screencaptureui` remains resident between captures, so process lifecycle is
+    /// not a reliable signal for the interactive picker's lifetime.
+    func handleSystemScreenshotShortcut(keyCode: Int64) {
+        guard Self.screenshotShortcutKeyCodes.contains(keyCode) else { return }
+        screenshotShortcutSuppressionGeneration &+= 1
+        let generation = screenshotShortcutSuppressionGeneration
+        screenshotShortcutSuppressionActive = true
+        controller?.focusBorderController.setScreenshotCaptureSuppressed(true)
+        recordScreenshotBorderSuppression(state: "entered", trigger: "shortcut-\(keyCode)")
+        screenshotCaptureVisibilityTask?.cancel()
+
+        if keyCode == Self.fullScreenScreenshotKeyCode {
+            screenshotCaptureVisibilityTask = Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .milliseconds(750))
+                guard !Task.isCancelled else { return }
+                self?.endScreenshotShortcutSuppression(
+                    trigger: "full-screen-timeout",
+                    generation: generation
+                )
+            }
+            return
+        }
+
+        screenshotCaptureVisibilityTask = Task { @MainActor [weak self] in
+            var observedPickerWindow = false
+            let deadline = Date().addingTimeInterval(Self.interactiveScreenshotSuppressionTimeout)
+            while !Task.isCancelled {
+                guard let self,
+                      self.screenshotShortcutSuppressionActive,
+                      self.screenshotShortcutSuppressionGeneration == generation
+                else { return }
+
+                let pickerVisible = self.isScreenshotPickerWindowVisible
+                observedPickerWindow = observedPickerWindow || pickerVisible
+                if observedPickerWindow, !pickerVisible {
+                    self.endScreenshotShortcutSuppression(
+                        trigger: "picker-window-hidden",
+                        generation: generation
+                    )
+                    return
+                }
+                if Date() >= deadline {
+                    self.endScreenshotShortcutSuppression(
+                        trigger: "picker-window-timeout",
+                        generation: generation
+                    )
+                    return
+                }
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+        }
+    }
+
+    func handlePotentialScreenshotInteractionCompletion() {
+        guard screenshotShortcutSuppressionActive else { return }
+        let generation = screenshotShortcutSuppressionGeneration
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(300))
+            guard !Task.isCancelled,
+                  let self,
+                  self.screenshotShortcutSuppressionActive,
+                  self.screenshotShortcutSuppressionGeneration == generation,
+                  !self.isScreenshotPickerWindowVisible
+            else { return }
+            self.endScreenshotShortcutSuppression(
+                trigger: "interaction-completed",
+                generation: generation
+            )
+        }
+    }
+
+    private func endScreenshotShortcutSuppression(trigger: String, generation: UInt64) {
+        guard screenshotShortcutSuppressionActive,
+              screenshotShortcutSuppressionGeneration == generation
+        else { return }
+        screenshotShortcutSuppressionActive = false
+        screenshotCaptureVisibilityTask?.cancel()
+        screenshotCaptureVisibilityTask = nil
+        controller?.focusBorderController.setScreenshotCaptureSuppressed(false)
+        recordScreenshotBorderSuppression(state: "exited", trigger: trigger)
+    }
+
+    private func recordScreenshotBorderSuppression(state: String, trigger: String) {
+        controller?.diagnostics.recordRuntimeDecisionEvent(
+            named: "screenshot_border_suppression",
+            cluster: "border-capture"
+        ) {
+            [
+                RuntimeDecisionTraceField("state", state),
+                RuntimeDecisionTraceField("trigger", trigger)
+            ]
+        }
+    }
+
+    private var isScreenshotPickerWindowVisible: Bool {
+        let pids = Set(
+            NSRunningApplication.runningApplications(
+                withBundleIdentifier: Self.screenshotCaptureUIBundleIdentifier
+            ).map(\.processIdentifier)
+        )
+        guard !pids.isEmpty,
+              let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly], 0) as? [[String: Any]]
+        else { return false }
+
+        return windows.contains { window in
+            guard let ownerPid = (window[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value,
+                  pids.contains(ownerPid),
+                  let layer = (window[kCGWindowLayer as String] as? NSNumber)?.intValue
+            else { return false }
+            // The persistent transparent backing window is at layer 24. The
+            // interactive controls are transient high-level windows (1000+).
+            return layer >= 1_000
+        }
+    }
+
     func handleUnlockDetected() {
         guard let controller else { return }
         controller.layoutRefreshController.requestRefresh(reason: .unlock)
@@ -443,6 +562,10 @@ final class ServiceLifecycleManager {
         controller.axManager.onAppTerminated = nil
         controller.axManager.isRuntimeTraceCaptureActive = { false }
         controller.workspaceManager.onGapsChanged = nil
+        screenshotShortcutSuppressionActive = false
+        screenshotShortcutSuppressionGeneration &+= 1
+        screenshotCaptureVisibilityTask?.cancel()
+        screenshotCaptureVisibilityTask = nil
 
         controller.layoutRefreshController.resetState()
         controller.mouseEventHandler.cleanup()
@@ -500,6 +623,12 @@ final class ServiceLifecycleManager {
         monitorConfigurationCoalesceTask = nil
         controller.reconcileEnabledAndHotkeysState()
     }
+
+    private static let screenshotCaptureUIBundleIdentifier = "com.apple.screencaptureui"
+    private static let interactiveScreenshotSuppressionTimeout: TimeInterval = 30
+    // Hardware key codes for 3, 4, and 5 in macOS's standard screenshot chords.
+    private static let fullScreenScreenshotKeyCode: Int64 = 20
+    private static let screenshotShortcutKeyCodes: Set<Int64> = [20, 21, 23]
 
     private func accessibilityPermissionStream(initial: Bool) -> AsyncStream<Bool> {
         accessibilityPermissionStreamProviderForTests?(initial)

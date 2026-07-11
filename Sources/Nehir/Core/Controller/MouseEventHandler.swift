@@ -260,6 +260,7 @@ final class MouseEventHandler {
     }
 
     nonisolated(unsafe) weak static var _instance: MouseEventHandler?
+    private nonisolated static let escapeKeyCode: Int64 = 53
 
     weak var controller: WMController?
     var state = State()
@@ -285,7 +286,8 @@ final class MouseEventHandler {
             (1 << CGEventType.rightMouseDown.rawValue) |
             (1 << CGEventType.rightMouseDragged.rawValue) |
             (1 << CGEventType.rightMouseUp.rawValue) |
-            (1 << CGEventType.scrollWheel.rawValue)
+            (1 << CGEventType.scrollWheel.rawValue) |
+            (1 << CGEventType.keyDown.rawValue)
 
         let callback: CGEventTapCallBack = { _, type, event, _ in
             if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
@@ -2394,6 +2396,22 @@ final class MouseEventHandler {
     ) -> Bool {
         guard isMainThread else { return false }
 
+        if type == .keyDown {
+            let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
+            let modifiers = event.flags
+            let requiredModifiers: CGEventFlags = [.maskCommand, .maskShift]
+            guard modifiers.contains(requiredModifiers) || keyCode == Self.escapeKeyCode else { return false }
+            MainActor.assumeIsolated {
+                guard let handler = MouseEventHandler._instance else { return }
+                if modifiers.contains(requiredModifiers) {
+                    handler.controller?.serviceLifecycleManager.handleSystemScreenshotShortcut(keyCode: keyCode)
+                } else if keyCode == Self.escapeKeyCode {
+                    handler.controller?.serviceLifecycleManager.handlePotentialScreenshotInteractionCompletion()
+                }
+            }
+            return false
+        }
+
         let location = event.location
         let screenLocation = ScreenCoordinateSpace.toAppKit(point: location)
         let modifiers = event.flags
@@ -2442,6 +2460,7 @@ final class MouseEventHandler {
                 handler.receiveTapMouseDragged(at: screenLocation, windowUnderPointer: windowUnderPointer)
             case .leftMouseUp:
                 handler.receiveTapMouseUp(at: screenLocation, windowUnderPointer: windowUnderPointer)
+                handler.controller?.serviceLifecycleManager.handlePotentialScreenshotInteractionCompletion()
             case .rightMouseDown:
                 suppressEvent = handler.receiveTapMouseDown(
                     at: screenLocation,
