@@ -49,6 +49,12 @@ upstream tickets (e.g. OmniWM `#240`, `BarutSRB/OmniWM#240`) in changesets or
 commit messages; track upstream provenance in the nehir ticket body instead,
 where it belongs.
 
+In places where upstream tickets *are* cited (issue bodies, discovery and
+planning documents), always use the full cross-repo form `BarutSRB/OmniWM#nnn`
+— never `OmniWM #nnn` or bare `#nnn`. Bare `#nnn` means this repo's own
+tracker; the two trackers share overlapping number ranges, so only the
+`owner/repo#nnn` form is unambiguous.
+
 ## Commit messages
 
 Do not use Conventional Commits formatting (`fix:`, `feat:`, `chore:`, etc.).
