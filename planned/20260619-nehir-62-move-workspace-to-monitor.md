@@ -5,6 +5,9 @@ Re-verified against main 7a025b78 on 2026-07-07.
 **Status:** planned (workspace variant only; column variant is a follow-up)
 **Source discovery:** `discovery/20260619-nehir-62-move-workspace-to-next-monitor.md`
 **GitHub issue:** #62
+**Upstream origin:** BarutSRB/OmniWM#214 (closed `not planned` in upstream's
+2026-05-05 cleanup sweep; see
+`discovery/20260712-omniwm-cleanup-sweep-20260505-regroom.md`)
 
 All file/line references re-verified against
 the main Nehir source tree on 2026-06-19. Re-verify
