@@ -178,13 +178,13 @@ only if custom hosted views are ever added to the menu.**
 
 - **✅ solved in Nehir:** 1 — BarutSRB/OmniWM#150 (screenshot border, `d88a5da2`).
 - 🟢 **present / tracked / N/A-by-construction (new verdicts):** 4 —
-  BarutSRB/OmniWM#214 (nehir #62 planned), #181 momentum, #180 restore
-  catalog, #131 native menu.
+  BarutSRB/OmniWM#214 (nehir #62 planned), BarutSRB/OmniWM#181 momentum, BarutSRB/OmniWM#180 restore
+  catalog, BarutSRB/OmniWM#131 native menu.
 - 🟡 **verify / fold-in / decision (new verdicts):** 5 — BarutSRB/OmniWM#247,
-  #236, #225, #217, #192. Of these, **#192 (shortcut defaults) is the only one
+  BarutSRB/OmniWM#236, BarutSRB/OmniWM#225, BarutSRB/OmniWM#217, BarutSRB/OmniWM#192. Of these, **BarutSRB/OmniWM#192 (shortcut defaults) is the only one
   with confirmed live exposure in Nehir source** and deserves its own
   follow-up discovery.
 - ⚪ **N/A (new verdicts):** 2 — BarutSRB/OmniWM#195 (no Quake terminal),
-  #189 (meta-thread).
+  BarutSRB/OmniWM#189 (meta-thread).
 - **Previously groomed (June rounds):** 15 remaining tracked issues per the
   table above (11 noop, 3 open/planned discoveries, 1 open feature).

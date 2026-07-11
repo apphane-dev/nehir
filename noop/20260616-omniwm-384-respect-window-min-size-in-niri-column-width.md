@@ -1,8 +1,8 @@
-# OmniWM PR #384 — "Respect window min-size constraints in Niri column width" — Discovery
+# OmniWM PR BarutSRB/OmniWM#384 — "Respect window min-size constraints in Niri column width" — Discovery
 
 Source PR: https://github.com/BarutSRB/OmniWM/pull/384
 Author: @biswadip-paul (co-authored by "Claude Opus 4.6"); one source commit + tests, single file.
-Fixes issue: https://github.com/BarutSRB/OmniWM/issues/383 (related to #268/#283).
+Fixes issue: https://github.com/BarutSRB/OmniWM/issues/383 (related to #268/BarutSRB/OmniWM#283).
 Merge state: **closed without merge** upstream — so judge the *concept*, never the diff.
 Scope of this doc: determine whether nehir's Niri column-width layout already respects
 per-window min-size constraints (the LAYOUT side of the min-size problem), and whether
@@ -24,7 +24,7 @@ numbers drift — re-verify before implementing.
 > concept is therefore a no-op, and porting the diff verbatim is impossible (the gated symbol
 > does not exist). Owns no new repo action. The paired AX side lives in the sibling discovery
 > `20260616-omniwm-403-frame-write-race-min-size-suppression.md`; see the final section for why
-> #384 does **not** close #403's loop and why a premise in #403's write-up needs revisiting.
+> BarutSRB/OmniWM#384 does **not** close BarutSRB/OmniWM#403's loop and why a premise in BarutSRB/OmniWM#403's write-up needs revisiting.
 
 ---
 
@@ -177,7 +177,7 @@ min-size window always gets its minimum.)
 
 ## Why it doesn't apply (and porting would be a no-op or impossible)
 
-### 1. The relaxation #384 removes does not exist in nehir
+### 1. The relaxation BarutSRB/OmniWM#384 removes does not exist in nehir
 
 OmniWM's bug is `mergedConstraints.relaxedForResizePlaceholder()` applied to **every** window,
 unconditionally. nehir has no `relaxedForResizePlaceholder` and no `resizePlaceholderState`
@@ -193,7 +193,7 @@ gating. Its sole relaxation, `relaxedForLayoutFeasibility()` (`NiriNode.swift:14
 
 In the exact scenario #383 reports — a visible, standard-layout, on-monitor app whose preset is
 narrower than its enforced minimum — none of those branches fire, so `layoutConstraints` carries
-the **full** `minSize`, exactly what PR #384 restores upstream.
+the **full** `minSize`, exactly what PR BarutSRB/OmniWM#384 restores upstream.
 
 ### 2. nehir's column math already clamps up to min-width
 
@@ -225,33 +225,33 @@ has nehir equivalents already on the books:
   Applying the patch would not compile. Adapting the concept means "don't unconditionally relax min-
   size" — which nehir already does not do.
 
-## Distinction from the sibling #403 discovery (and a correction to its premise)
+## Distinction from the sibling BarutSRB/OmniWM#403 discovery (and a correction to its premise)
 
 The triage note pairs this PR with `20260616-omniwm-403-frame-write-race-min-size-suppression.md`
-(the AX frame-write race side). #403 is valid and stands: its loop (failed write → unsuppressed
+(the AX frame-write race side). BarutSRB/OmniWM#403 is valid and stands: its loop (failed write → unsuppressed
 app snap-back → identical re-write) reproduces in nehir and its one-clause suppression fix ports
-cleanly. **But one premise in #403's write-up needs revisiting in light of this doc:**
+cleanly. **But one premise in BarutSRB/OmniWM#403's write-up needs revisiting in light of this doc:**
 
-> *#403, §"Why it applies" step 1: "nehir's column-width math does **not** yet respect that minimum
-> (that is the separate #384 layout-side pairing) … so it computes a target smaller than the app's
+> *BarutSRB/OmniWM#403, §"Why it applies" step 1: "nehir's column-width math does **not** yet respect that minimum
+> (that is the separate BarutSRB/OmniWM#384 layout-side pairing) … so it computes a target smaller than the app's
 > enforced minimum."*
 
 That conflates two distinct axes. nehir's column math **does** respect a known min-size (this doc,
-§2). The "sub-minimum target" that fuels #403's loop does not come from the *propagation* gap #384
+§2). The "sub-minimum target" that fuels BarutSRB/OmniWM#403's loop does not come from the *propagation* gap BarutSRB/OmniWM#384
 fixes (unconditional relaxation) — nehir has no such gap. It comes from a different axis: **constraint
 discovery**. On a window's early layouts, before the app's min-size has been cached/inferred,
 `cachedConstraints(for:)` returns `nil` → `mergedConstraints` is `.unconstrained` (`minSize = 1`)
 (`LayoutRefreshController.swift:500`–`:504`) → `resolveSpan` has `minConstraint = 1` → a sub-minimum
-target is computed and written, the app clamps it back, and #403's race engages. That transient is
+target is computed and written, the app clamps it back, and BarutSRB/OmniWM#403's race engages. That transient is
 closed by the **resize-minimum learner / `inferredResizeMinimumSize`** path
-(`LayoutRefreshController.swift:512`–`:516`), which #403 itself cites — not by #384.
+(`LayoutRefreshController.swift:512`–`:516`), which BarutSRB/OmniWM#403 itself cites — not by BarutSRB/OmniWM#384.
 
 Consequences for the orchestrator:
 
-- **Porting #384 would NOT close #403's loop.** nehir already propagates min-size; there is nothing
-  for #384 to add. #403's "pair this fix with a #384 port" caveat should be read as "pair it with
-  the *constraint-learning* path" — which nehir already has — not with an #384 port.
-- #403's own verdict (🔴 Applies, port the suppression clause) is unaffected; only its
+- **Porting BarutSRB/OmniWM#384 would NOT close BarutSRB/OmniWM#403's loop.** nehir already propagates min-size; there is nothing
+  for BarutSRB/OmniWM#384 to add. BarutSRB/OmniWM#403's "pair this fix with a BarutSRB/OmniWM#384 port" caveat should be read as "pair it with
+  the *constraint-learning* path" — which nehir already has — not with an BarutSRB/OmniWM#384 port.
+- BarutSRB/OmniWM#403's own verdict (🔴 Applies, port the suppression clause) is unaffected; only its
   *root-cause framing* of the bad target (attributed to missing column-width min-size respect)
   should be corrected to "uncached/undiscovered min-size on early layouts." The fix (suppress the
   snap-back while a recent failure is recorded) is correct regardless, because it bounds the loop
@@ -259,17 +259,17 @@ Consequences for the orchestrator:
 
 ## Recommendation
 
-**Do not port/adapt PR #384.** Concretely:
+**Do not port/adapt PR BarutSRB/OmniWM#384.** Concretely:
 
 1. Do **not** introduce a `resizePlaceholderState`-gated relaxation in nehir — there is no
    `resizePlaceholderState` subsystem to gate on, and no unconditional relaxation to gate.
 2. nehir's `resolvedLayoutConstraints` (`LayoutRefreshController.swift:543`) is already the
-   correct, stricter, earlier-layer version of what #384 restores upstream. Leave it.
+   correct, stricter, earlier-layer version of what BarutSRB/OmniWM#384 restores upstream. Leave it.
 3. The min-size respect that #383 asks for is already provided by
    `resolveSpan`/`widthBounds` (`NiriNode.swift:526`/`:551`) + the inference path
    (`LayoutRefreshController.swift:512`). No additional clamp site is warranted.
-4. (Cross-doc) Update #403's root-cause note when it is actioned: the bad target is a
-   constraint-**discovery** transient, not a constraint-**propagation** gap — #384 is not the
+4. (Cross-doc) Update BarutSRB/OmniWM#403's root-cause note when it is actioned: the bad target is a
+   constraint-**discovery** transient, not a constraint-**propagation** gap — BarutSRB/OmniWM#384 is not the
    structural pair for it.
 
 ## Suggested tests

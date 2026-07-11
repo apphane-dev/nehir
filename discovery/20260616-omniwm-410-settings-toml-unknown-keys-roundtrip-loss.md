@@ -1,4 +1,4 @@
-# OmniWM issue #410 — "Settings save drops unknown TOML keys (round-trip data loss)" — Discovery
+# OmniWM issue BarutSRB/OmniWM#410 — "Settings save drops unknown TOML keys (round-trip data loss)" — Discovery
 
 Groom 2026-07-07: resolved — unknown settings keys are now preserved and surfaced instead of stripped (b7cfb91e; see completed/20260621-omniwm-410-settings-toml-unknown-keys-roundtrip-loss.md).
 
@@ -7,8 +7,8 @@ Reporter tested upstream commit `fce3a2c5` ("Fix cursor warp for focus follows m
 Scope of this doc: determine whether nehir's settings persistence round-trips
 (preserves) unknown/unmapped TOML keys or drops them on re-write, and locate the
 exact code paths. This is treated as the **root issue** of the round-trip /
-config-recovery cluster that also includes closed #322 and closed-without-merge
-PR #169 / #346.
+config-recovery cluster that also includes closed BarutSRB/OmniWM#322 and closed-without-merge
+PR BarutSRB/OmniWM#169 / BarutSRB/OmniWM#346.
 
 Every symbol/line reference below was independently verified against the Nehir source tree at `98f2429` ("Add more issue discoveries") on
 2026-06-16. Re-verify before implementing; line numbers drift.
@@ -22,19 +22,19 @@ Every symbol/line reference below was independently verified against the Nehir s
   in-memory `SettingsExport` (`Sources/Nehir/Core/Config/SettingsTOMLCodec.swift:6-11`);
   the hand-written `init(from:)` only ever reads its own `CodingKeys`
   (`Sources/Nehir/Core/Config/CanonicalTOMLConfig.swift:296-306`), so unknown keys
-  are gone the instant `decode` returns. The exact load→mutate→save repro in #410
+  are gone the instant `decode` returns. The exact load→mutate→save repro in BarutSRB/OmniWM#410
   reproduces silently in nehir.
 - **nehir is in one respect *worse* than upstream OmniWM:** it additionally runs a
   **proactive launch-time strip**. `AppDelegate.finishBootstrap` calls
   `detectConfigMismatches` (`Sources/Nehir/App/AppDelegate.swift:59`); if any
   unknown key is found it backs up the file and calls `cleanSettingsFile`
   (`:62` → `:210-215`), which decode→encode→overwrites, deleting unknown keys
-  before the UI even appears. This is nehir's own instance of the #322
+  before the UI even appears. This is nehir's own instance of the BarutSRB/OmniWM#322
   "settings.toml gets reset" symptom.
 - **That launch gate is a partial guard, not a fix.** It reduces the
   *silent*-loss severity on a version skew (there is a timestamped backup +
   a migration window), but it still **destroys** the unknown keys from the live
-  config and does nothing for the in-session save path. A real #410 fix (preserving
+  config and does nothing for the in-session save path. A real BarutSRB/OmniWM#410 fix (preserving
   unknown keys) would also make this gate stop firing — a design interaction the
   implementer must resolve.
 - **Verdict:** 🔴 Open / Applies. The round-trip data loss is real and unfixed;
@@ -121,7 +121,7 @@ unknown keys. (`SettingsStore.ensureConfigFilesAvailable`,
 encode call sits at `:354` — but only when the file is *absent*, so it is a
 seeder, not a lossy-overwrite path.)
 
-### nehir-specific: proactive launch-time strip (the #322 instance, in code)
+### nehir-specific: proactive launch-time strip (the BarutSRB/OmniWM#322 instance, in code)
 
 ```swift
 // Sources/Nehir/App/AppDelegate.swift:50-66  (finishBootstrap, "Phase 0: config drift")
@@ -200,7 +200,7 @@ the assertion inverted.
 3. **The dropping is intended-in-tests** (`SettingsTOMLCodecTests.swift:104`) and
    *intended-in-product* (the launch gate at `AppDelegate.swift:59-66` deliberately
    strips detected unknown keys).
-4. **The in-session repro (#410's literal ask) reproduces silently.** With the
+4. **The in-session repro (BarutSRB/OmniWM#410's literal ask) reproduces silently.** With the
    codec as-is, injecting `futureSetting = "keep-me"` under `[general]` and
    `futureNiriSetting = true` under `[niri]`, then bumping a known setting and
    encoding, yields exactly the two failing assertions the reporter shows — there
@@ -209,7 +209,7 @@ the assertion inverted.
 
 ### Partial mitigation (the 🟡 qualifier) — and why it doesn't close the issue
 
-For the *cross-version/upgrade* sub-scenario (the #322 cluster), nehir has built a
+For the *cross-version/upgrade* sub-scenario (the BarutSRB/OmniWM#322 cluster), nehir has built a
 guard: the bootstrap `detectConfigMismatches` → timestamped backup → migration
 window path (`AppDelegate.swift:59-66`). So a downgrade/upgrade that leaves
 unknown keys is **not silent** — the user gets a backup and a notice. But:
@@ -218,7 +218,7 @@ unknown keys is **not silent** — the user gets a backup and a notice. But:
   `cleanSettingsFile` (`:213-215`). The user's effective config loses them; recovery
   requires manually re-merging from the backup. The issue's "Expected" (keys
   *survive* the save) is not met.
-- The guard does **not** cover the in-session save path at all — #410's exact
+- The guard does **not** cover the in-session save path at all — BarutSRB/OmniWM#410's exact
   repro is still silent.
 - **Design interaction:** if the codec were fixed to preserve unknown keys,
   `detectConfigMismatches` would no longer see them (they survive the round-trip
@@ -227,35 +227,35 @@ unknown keys is **not silent** — the user gets a backup and a notice. But:
   (a) silently coexist and be preserved, or (b) still be surfaced to the user while
   preserved. This is a product decision, not a mechanical port.
 
-## Relationship to #322, #169 and #346 (cross-references)
+## Relationship to BarutSRB/OmniWM#322, BarutSRB/OmniWM#169 and BarutSRB/OmniWM#346 (cross-references)
 
-- **OmniWM issue #322 — "[Bug] v0.4.9 resets the settings.toml again" (closed).**
+- **OmniWM issue BarutSRB/OmniWM#322 — "[Bug] v0.4.9 resets the settings.toml again" (closed).**
   Per the triage notes, this is the user-facing instance of the same cluster: a
   version upgrade reset users' `settings.toml`. nehir's `cleanSettingsFile`
   (`AppDelegate.swift:210-215`) is nehir's own active implementation of exactly
-  that behavior — it deliberately rewrites the file minus unknown keys. #322 is the
-  same root cause as #410; a #410 fix that preserves unknown keys would also
-  neutralize the reset-on-upgrade symptom. (#322's upstream specifics were not
+  that behavior — it deliberately rewrites the file minus unknown keys. BarutSRB/OmniWM#322 is the
+  same root cause as BarutSRB/OmniWM#410; a BarutSRB/OmniWM#410 fix that preserves unknown keys would also
+  neutralize the reset-on-upgrade symptom. (BarutSRB/OmniWM#322's upstream specifics were not
   independently fetched for this doc; conclusion rests on nehir code + triage
   metadata.)
-- **OmniWM PR #169 — "settings.json full canonical export" (closed, NOT merged).**
+- **OmniWM PR BarutSRB/OmniWM#169 — "settings.json full canonical export" (closed, NOT merged).**
   Adjacent but **not the same fix, and not applicable to nehir.** nehir has **no
   settings.json path**: the only JSON usage app-wide is
   `Sources/Nehir/Core/Config/RuntimeStateStore.swift` (an unrelated runtime-state
   file) and `Sources/Nehir/Core/Input/HotkeyBinding.swift`; every user-facing
   config codec in `Sources/Nehir/Core/Config/` is TOML (`SettingsTOMLCodec`,
-  `HotkeysTOMLCodec`, `WorkspacesTOMLCodec`). PR #169 expands *known* JSON output;
-  #410 preserves *unknown* TOML input. Porting #169 would not close #410. (PR #169's
+  `HotkeysTOMLCodec`, `WorkspacesTOMLCodec`). PR BarutSRB/OmniWM#169 expands *known* JSON output;
+  BarutSRB/OmniWM#410 preserves *unknown* TOML input. Porting BarutSRB/OmniWM#169 would not close BarutSRB/OmniWM#410. (PR BarutSRB/OmniWM#169's
   diff was not fetched; the "not applicable" conclusion is grounded in the absence
   of a settings.json codec in nehir.)
-- **OmniWM PR #346 (closed-without-merge).** A second attack on the settings
+- **OmniWM PR BarutSRB/OmniWM#346 (closed-without-merge).** A second attack on the settings
   round-trip root. Not fetched individually for this doc; flagged here only as
   part of the same cluster — review its diff before implementing a fix to avoid
   duplicating a previously-rejected approach.
 
 ## Recommendation
 
-Fix #410 in nehir by making the TOML codec **round-trip unknown keys** rather than
+Fix BarutSRB/OmniWM#410 in nehir by making the TOML codec **round-trip unknown keys** rather than
 discard them, then reconcile the two deliberate-stripping sites. Concretely:
 
 1. **Capture unknown keys at decode time.** Open the keyed containers against a
@@ -278,10 +278,10 @@ discard them, then reconcile the two deliberate-stripping sites. Concretely:
      launch strip or redefine "mismatch" as something the user opted into.
 4. **Scope the first cut to known tables** (the issue's "Expected" scopes it to
    `[general]`/`[niri]` etc.); top-level unknown tables can be a follow-up.
-5. **Follow-up (out of scope for #410):** the sibling auxiliary codecs
+5. **Follow-up (out of scope for BarutSRB/OmniWM#410):** the sibling auxiliary codecs
    `HotkeysTOMLCodec`/`WorkspacesTOMLCodec` (written by the same
    `saveImmediately` path, `SettingsFilePersistence.swift:145,148`) likely share
-   the lossy pattern, but #410 is specifically about `settings.toml`. Track
+   the lossy pattern, but BarutSRB/OmniWM#410 is specifically about `settings.toml`. Track
    separately.
 
 ## Suggested tests   (omit if N/A)

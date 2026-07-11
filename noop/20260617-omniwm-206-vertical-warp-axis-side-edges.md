@@ -1,4 +1,4 @@
-# OmniWM issue #206 — "Second monitor left/right sides inaccessible (warp)" — Discovery
+# BarutSRB/OmniWM#206 — "Second monitor left/right sides inaccessible (warp)" — Discovery
 
 Source issue: <https://github.com/BarutSRB/OmniWM/issues/206>
 Scope of this doc: determine whether the symptom reproduces in nehir — with the
@@ -15,7 +15,7 @@ before implementing; line numbers drift.
 > horizontal path tests only the horizontal (`x`) edges, and a cross-axis
 > predicate gates entry on the matching axis only. So with a vertical warp axis,
 > crossing the left/right sides of any monitor does **not** warp — the exact
-> opposite of #206. The bug does not reproduce; no fix to port.
+> opposite of BarutSRB/OmniWM#206. The bug does not reproduce; no fix to port.
 
 ---
 
@@ -25,7 +25,7 @@ before implementing; line numbers drift.
   `mouseWarpAttemptVerticalWarp` checks only `location.y` (top/bottom); the
   horizontal (`x`) sides are ignored. There is no shared "any edge" path that
   could mis-fire on the wrong axis.
-- **Verdict:** 🟢 **Fixed.** The wrong-axis warp described in #206 cannot occur.
+- **Verdict:** 🟢 **Fixed.** The wrong-axis warp described in BarutSRB/OmniWM#206 cannot occur.
 
 ## Issue context
 
@@ -109,7 +109,7 @@ case .vertical:   location.y < monitor.frame.minY || location.y >= monitor.frame
    `location.y` (`MouseWarpHandler.swift:436` and `:448`). Moving the cursor to
    the left/right sides of the second monitor changes `location.x` only; neither
    guard can be satisfied, so `mouseWarpToMonitor` is never called and no warp
-   occurs. This is precisely the behavior #206 expects (no teleport on the
+   occurs. This is precisely the behavior BarutSRB/OmniWM#206 expects (no teleport on the
    sides).
 
 2. **The cross-axis predicate reinforces it.** `mouseWarpLocationCrossedAxis`

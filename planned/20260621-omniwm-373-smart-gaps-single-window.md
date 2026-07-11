@@ -1,4 +1,4 @@
-# OmniWM #373 — Smart gaps (drop outer gaps for a lone window)
+# BarutSRB/OmniWM#373 — Smart gaps (drop outer gaps for a lone window)
 
 Re-verified against main 7a025b78 on 2026-07-07.
 
@@ -175,7 +175,7 @@ needed while implementing:
 
 `singleWindowLayoutContext(in:)` (`NiriLayoutEngine.swift:270`) already returns a
 non-`nil` context iff the workspace has exactly one non-tabbed column with
-exactly one `.normal`-sized window — the exact #373 predicate. Add
+exactly one `.normal`-sized window — the exact BarutSRB/OmniWM#373 predicate. Add
 `WMController.shouldRemoveOuterGapsForSingleWindow(in:)` (see Scope item 4). No
 new engine code.
 
@@ -273,7 +273,7 @@ Manual validation:
    `insetWorkingFrame(for:)` change must not affect `MouseEventHandler` paths).
 
 Changeset (minor; confirm release policy): "Add optional smart gaps: remove
-outer screen margins for a lone tiled window (OmniWM #373)."
+outer screen margins for a lone tiled window (BarutSRB/OmniWM#373)."
 
 ## Risks and mitigations
 
@@ -295,7 +295,7 @@ outer screen margins for a lone tiled window (OmniWM #373)."
   min-size feasibility for the lone window — desirable, not a risk, but note it.
 - **Per-monitor gap overrides ignored for the lone window.** With the global
   toggle on, a per-monitor outer-gap override is intentionally ignored for the
-  lone window (it is forced to `.zero`). This matches #373's "remove outer gaps"
+  lone window (it is forced to `.zero`). This matches BarutSRB/OmniWM#373's "remove outer gaps"
   intent; per-monitor smart-gaps layering is a follow-up.
 
 ## Follow-ups (out of scope)

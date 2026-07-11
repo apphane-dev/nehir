@@ -1,4 +1,4 @@
-# OmniWM issue #262 — "Tray-icon click steals focus" — Discovery
+# BarutSRB/OmniWM#262 — "Tray-icon click steals focus" — Discovery
 
 Source issue: <https://github.com/BarutSRB/OmniWM/issues/262>
 Scope of this doc: determine whether the symptom reproduces in nehir — clicking a

@@ -1,10 +1,10 @@
-# OmniWM PR #296 — "Fix trackpad gesture focus commit" — Discovery
+# OmniWM PR BarutSRB/OmniWM#296 — "Fix trackpad gesture focus commit" — Discovery
 
 Source PR: <https://github.com/BarutSRB/OmniWM/pull/296>
-Scope of this doc: determine whether the focus-commit fix PR #296 proposes
+Scope of this doc: determine whether the focus-commit fix PR BarutSRB/OmniWM#296 proposes
 (commit keyboard focus to the window in the column a committed trackpad
 gesture snapped to) is relevant to nehir, whether it is distinct from the
-trackpad-gesture-detection sibling track (#53 / #301), and whether the
+trackpad-gesture-detection sibling track (#53 / BarutSRB/OmniWM#301), and whether the
 proposed diff is safe to port.
 
 All file/line references were verified against the Nehir source tree
@@ -20,7 +20,7 @@ Re-verify before implementing; line numbers drift.
 > ([`20260616-nehir-53-trackpad-four-finger-swipe-gesture.md`](../discovery/20260616-nehir-53-trackpad-four-finger-swipe-gesture.md)
 > / [`…-omniwm-301-…`](./20260616-omniwm-301-three-finger-swipe-stuck-under-app-gesture-competition.md)):
 > those concern gesture *detection* / competition (the swipe aborts or
-> "gets stuck" mid-gesture); #296 concerns *focus* at gesture *end* (a
+> "gets stuck" mid-gesture); BarutSRB/OmniWM#296 concerns *focus* at gesture *end* (a
 > successful swipe completes — does the target window receive keyboard
 > focus?). Different layer of the gesture lifecycle, different code block.
 > Porting the OmniWM diff would be a **regression** (it would drop nehir's
@@ -33,7 +33,7 @@ Re-verify before implementing; line numbers drift.
 ## TL;DR
 
 - **nehir already focuses the snapped-column window at committed-gesture end;
-  PR #296's change is the same behavior the upstream rewrite lacks — nehir forked
+  PR BarutSRB/OmniWM#296's change is the same behavior the upstream rewrite lacks — nehir forked
   OmniWM and independently evolved this function further than the PR.**
 - **Verdict:** 🟢 **Fixed** — the focus commit exists in nehir and is more
   guarded than the proposed diff; porting it would regress. Filed under
@@ -57,7 +57,7 @@ snaps to `endState.activeColumnIndex`, the added block derives the target
 window from that column and force-focuses it:
 
 ```swift
-// upstream rewrite — finalizeOrCancelCommittedGesture (PR #296, unmerged)
+// upstream rewrite — finalizeOrCancelCommittedGesture (PR BarutSRB/OmniWM#296, unmerged)
 if columns.indices.contains(endState.activeColumnIndex),
    let activeWindow = columns[endState.activeColumnIndex].activeWindow {
     endState.selectedNodeId = activeWindow.id
@@ -89,7 +89,7 @@ Yes. nehir's analog is the same function name, reached on the same paths:
   `finalizeOrCancelCommittedGesture` (`MouseEventHandler.swift:1469`).
 - Touch-release finalize: `finalizeCommittedGestureAfterTouchRelease` (`:1852`)
   → `finalizeOrCancelCommittedGesture` (`:1861`).
-- Over-count abort of a committed gesture: `:1895` (per the sibling #301 doc).
+- Over-count abort of a committed gesture: `:1895` (per the sibling BarutSRB/OmniWM#301 doc).
 
 So the function runs on every committed trackpad-swipe termination.
 
@@ -155,7 +155,7 @@ Side-by-side, the two implementations aim at the same behavior — focus the
 window in the column the committed gesture snapped to — but nehir's is the
 strict superset:
 
-| Concern                          | PR #296 (upstream rewrite, unmerged)         | nehir (already shipped)                              |
+| Concern                          | PR BarutSRB/OmniWM#296 (upstream rewrite, unmerged)         | nehir (already shipped)                              |
 |----------------------------------|------------------------------------------|------------------------------------------------------|
 | Select snapped column's window   | `endState.selectedNodeId = activeWindow.id` | `syncViewportSelectionToActiveColumn` (`:1795`, sets `selectedNodeId` + active-tile idx) |
 | Remember focus / timestamp       | `engine.updateFocusTimestamp(for:)`      | `rememberViewportFocusAnchor` (`:1802`: anchor + timestamp) |
@@ -177,32 +177,32 @@ The matching nehir test surface already exists too (the PR's
 shape as nehir's existing `trackpadGesture*` tests in
 `Tests/NehirTests/MouseEventHandlerTests.swift`).
 
-## Distinctness from the trackpad-gesture sibling track (#53 / #301)
+## Distinctness from the trackpad-gesture sibling track (#53 / BarutSRB/OmniWM#301)
 
-The triage note asked specifically whether #296 duplicates #301. It does not.
+The triage note asked specifically whether BarutSRB/OmniWM#296 duplicates BarutSRB/OmniWM#301. It does not.
 They operate at different layers of the committed-gesture lifecycle:
 
-- **#53 / #301 (sibling track): gesture detection / competition.** The strict
+- **#53 / BarutSRB/OmniWM#301 (sibling track): gesture detection / competition.** The strict
   exact-count matcher `averageGestureTouchPosition` (`MouseEventHandler.swift:2146`)
   returns `nil` on transient over/under-count, an in-flight `.armed`/
   `.committed` gesture aborts (`:1458`/`:1502`), and the swipe "gets stuck" or
   never commits — especially when a competing app/OS claims the gesture. The
   fix is matcher hysteresis + abort-path tracing. This is about whether the
   gesture *qualifies and stays alive*.
-- **#296 (this PR): focus commit at gesture end.** A committed gesture
+- **BarutSRB/OmniWM#296 (this PR): focus commit at gesture end.** A committed gesture
   *successfully* terminates and snaps to a column; the question is whether the
   active window in that column *receives keyboard focus*. The code lives in
   `finalizeOrCancelCommittedGesture` (`:1747`) *after* `endGesture(snapToColumn:)`,
   not in the matcher or abort block. nehir already does it.
 
-#296 presupposes a gesture that committed and ended cleanly; #53/#301 are about
+BarutSRB/OmniWM#296 presupposes a gesture that committed and ended cleanly; #53/BarutSRB/OmniWM#301 are about
 failing to reach that point. They share `finalizeOrCancelCommittedGesture` as a
-common tail, but address disjoint behavior. Hence #296 is not a sibling
+common tail, but address disjoint behavior. Hence BarutSRB/OmniWM#296 is not a sibling
 duplicate; it is simply already-fixed in nehir.
 
 ## Recommendation
 
-Do **not** port PR #296. nehir's `finalizeOrCancelCommittedGesture` already
+Do **not** port PR BarutSRB/OmniWM#296. nehir's `finalizeOrCancelCommittedGesture` already
 commits focus to the snapped-column window at committed-gesture end, and the
 nehir implementation is the guarded superset (FFM / non-managed-focus /
 managed-target gates, focus border, mouse-warp suppression, disposition trace)

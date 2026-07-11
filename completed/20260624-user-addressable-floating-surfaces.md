@@ -128,7 +128,7 @@ transient surfaces for lifecycle bookkeeping. The missing piece is downstream:
 transient tracked floating entries should not automatically be bar-visible or
 rescue-eligible.
 
-### Workspace-bar floating filter (#323 discovery)
+### Workspace-bar floating filter (BarutSRB/OmniWM#323 discovery)
 
 `discovery/20260616-omniwm-323-floating-panel-bar-filter.md` already identified
 that `WorkspaceManager.barVisibleFloatingEntries` is too permissive. The current
@@ -273,7 +273,7 @@ Suggested initial rules:
 
 1. Exclude scratchpad windows exactly as today.
 2. Exclude non-standard layout reasons except cases explicitly known to be safe.
-   This ports the useful part of #323.
+   This ports the useful part of BarutSRB/OmniWM#323.
 3. Exclude transient/tiny helper surfaces:
    - if `entry.managedReplacementMetadata?.transientWindowServerEvidence == true`
      and the resolved/observed frame is below the internal minimum user-window

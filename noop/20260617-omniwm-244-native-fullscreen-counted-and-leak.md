@@ -1,4 +1,4 @@
-# OmniWM issue #244 — "Native full-screened window still counted as a window in space" — Discovery
+# BarutSRB/OmniWM#244 — "Native full-screened window still counted as a window in space" — Discovery
 
 Source issue: <https://github.com/BarutSRB/OmniWM/issues/244>
 Scope of this doc: determine whether the two reported symptoms reproduce in

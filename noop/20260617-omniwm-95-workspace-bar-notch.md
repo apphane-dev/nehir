@@ -1,4 +1,4 @@
-# OmniWM issue #95 — "Spaces bar vs macOS island/notch" — Discovery
+# BarutSRB/OmniWM#95 — "Spaces bar vs macOS island/notch" — Discovery
 
 Source issue: https://github.com/BarutSRB/OmniWM/issues/95 (closed, **not planned**).
 Scope of this doc: determine whether the issue applies to nehir,
@@ -197,7 +197,7 @@ cover the spaces/workspace bar. nehir's default path already avoids that:
 4. `WorkspaceBarGeometry.effectivePosition` converts the default overlap mode to `belowMenuBar` when both `monitor.hasNotch` and `resolved.notchAware` are true (`Sources/Nehir/UI/WorkspaceBar/WorkspaceBarGeometry.swift:43-53`).
 5. `WorkspaceBarManager.updateBarFrameAndPosition` applies the resolved geometry every time it positions the panel (`Sources/Nehir/UI/WorkspaceBar/WorkspaceBarManager.swift:388-401`).
 
-So the default nehir configuration should not reproduce #95 on hardware where
+So the default nehir configuration should not reproduce BarutSRB/OmniWM#95 on hardware where
 AppKit reports the notch through safe-area insets. If a future macOS "island" is
 not represented as a display safe-area inset, the upstream issue does not provide
 enough detail or a concrete API-level fix to port; that would be a separate
@@ -205,7 +205,7 @@ feature investigation, not this closed upstream bug.
 
 ## Recommendation
 
-Do not port anything for #95. Keep the existing notch-aware default and geometry
+Do not port anything for BarutSRB/OmniWM#95. Keep the existing notch-aware default and geometry
 invariant. If future reports show a Tahoe-specific island that does not affect
 `NSScreen.safeAreaInsets.top`, file a new nehir issue with hardware/OS details
-and the observed safe-area values; #95 itself owns no code action.
+and the observed safe-area values; BarutSRB/OmniWM#95 itself owns no code action.

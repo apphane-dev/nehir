@@ -1,6 +1,6 @@
-# OmniWM PR #388 — "Admit focused untracked standard windows before non-managed fallback (activation race)" — Discovery
+# OmniWM PR BarutSRB/OmniWM#388 — "Admit focused untracked standard windows before non-managed fallback (activation race)" — Discovery
 
-Source PR: <https://github.com/BarutSRB/OmniWM/pull/388> (fixes OmniWM issue #387)
+Source PR: <https://github.com/BarutSRB/OmniWM/pull/388> (fixes BarutSRB/OmniWM#387)
 Scope of this doc: determine whether the *concept* this PR introduces
 (admitting a transiently-untracked but genuinely-focused standard window before
 falling back to the non-managed focus path) exists in nehir, and whether adapting
@@ -45,7 +45,7 @@ Re-verify before implementing; line numbers drift.
   block. The new branch:
 
   ```swift
-  // upstream PR #388, AXEventHandler.swift (appx. :1369)
+  // upstream PR BarutSRB/OmniWM#388, AXEventHandler.swift (appx. :1369)
   if let windowId = UInt32(exactly: axRef.windowId),
      let admittedEntry = admitFocusedUntrackedWindowIfNeeded(
          token: token, windowId: windowId
@@ -196,7 +196,7 @@ edge cases the PR's single test does not cover:
 
 **Do not port.** The activation race is already closed in nehir by
 `admitFocusedWindowBeforeNonManagedFallback` (`AXEventHandler.swift:1751`,
-called at `:1682`), with stronger guarantees than the PR. Treat #388 as
+called at `:1682`), with stronger guarantees than the PR. Treat BarutSRB/OmniWM#388 as
 already-resolved evidence: its single test is subsumed by nehir's five
 focused-admission tests. No new repo action.
 

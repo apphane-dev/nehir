@@ -1,4 +1,4 @@
-# OmniWM PR #385 — "Suppress input during screenshot selection" — Discovery
+# OmniWM PR BarutSRB/OmniWM#385 — "Suppress input during screenshot selection" — Discovery
 
 Source PR: https://github.com/BarutSRB/OmniWM/pull/385
 Scope of this doc: determine whether the proposed screen-capture suppression
@@ -7,7 +7,7 @@ should be adapted for nehir, and whether the same root cause exists in nehir.
 Upstream state: **closed without merge** (`merged == false`, `merged_at == nil`).
 The task/catalog state said "open"; the GitHub API fetched during this discovery
 contradicts that and shows the PR closed on 2026-06-15. The PR says it fixes
-OmniWM issue #254 ("Trying to take a screenshot using Cmd + Shift + 4 causes
+BarutSRB/OmniWM#254 ("Trying to take a screenshot using Cmd + Shift + 4 causes
 windows to shift.").
 
 All file/line references were verified against the Nehir source tree at
@@ -26,7 +26,7 @@ Re-verify before implementing; line numbers drift.
 
 ## TL;DR
 
-- **Do not port PR #385 as-is.** It adds a frontmost-app screencapture guard to
+- **Do not port PR BarutSRB/OmniWM#385 as-is.** It adds a frontmost-app screencapture guard to
   the existing lock-screen suppression pattern, but nehir's normal screenshot
   selection drag cannot start the move/resize paths, and untracked screencapture
   surfaces cannot relayout tracked tiled windows.
@@ -37,7 +37,7 @@ Re-verify before implementing; line numbers drift.
 
 ## Upstream PR state and diff
 
-PR #385 proposes three changes:
+PR BarutSRB/OmniWM#385 proposes three changes:
 
 1. Add `WMController.isFrontmostAppScreenCapture()` matching
    `com.apple.screencaptureui` and `com.apple.Screenshot`.
@@ -149,7 +149,7 @@ If the initial screenshot-selection mouse-down did not enter `state.isMoving` or
 guard and never request an interactive relayout (`MouseEventHandler.swift:1039`,
 `:1064`).
 
-### 4. The layout-refresh guards PR #385 would extend are lock-screen-only
+### 4. The layout-refresh guards PR BarutSRB/OmniWM#385 would extend are lock-screen-only
 
 ```swift
 // Sources/Nehir/Core/Controller/LayoutRefreshController.swift:831
@@ -236,11 +236,11 @@ But the proposed fix is not justified for nehir by inspection:
 The lock-screen tests confirm the existing suppression mechanism works when its
 predicate is true (`MouseEventHandlerTests.swift:671`, `:709`, `:764`, `:801`),
 so if future runtime evidence proves a real nehir screenshot-selection bug, an
-adapted predicate could be tested. That is not established by PR #385 alone.
+adapted predicate could be tested. That is not established by PR BarutSRB/OmniWM#385 alone.
 
 ## Recommendation
 
-Do **not** port PR #385 as-is. Keep this as a no-op discovery unless a nehir
+Do **not** port PR BarutSRB/OmniWM#385 as-is. Keep this as a no-op discovery unless a nehir
 runtime trace or manual reproduction shows Cmd+Shift+4 can actually start a
 nehir interaction or relayout. If that happens, implement a narrower fix with a
 first-class `isFrontmostAppScreenCapture` abstraction and tests proving both:

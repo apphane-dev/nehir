@@ -1,4 +1,4 @@
-# OmniWM issue #336 — "Support gesture scroll without scroll snap" — Discovery
+# BarutSRB/OmniWM#336 — "Support gesture scroll without scroll snap" — Discovery
 
 Source issue: <https://github.com/BarutSRB/OmniWM/issues/336>
 Scope of this doc: determine whether the requested "modifier-key-gated
@@ -12,24 +12,24 @@ Re-verify before implementing; line numbers drift.
 ---
 
 > **Filed under `discovery/noop/`** — nehir already ships the exact feature
-> #336 asks for, and in a stricter form than the upstream suggestion. During the
+> BarutSRB/OmniWM#336 asks for, and in a stricter form than the upstream suggestion. During the
 > viewport-navigation redesign (`completed/20260612-viewport-navigation-redesign.md`)
 > nehir **removed** the global `[gestures] scrollSnap` toggle and instead made the
 > **Mouse Modifier** key bypass trackpad scroll snap **per gesture** (held at
 > start *or* pressed mid-gesture). Because the requested feature is fully present,
-> #336 owns **no new repo action**. Porting the upstream fix (PR #350 "closes
-> #336", PR #228 "≈ #336") would re-add the global `scrollSnap` toggle nehir
+> BarutSRB/OmniWM#336 owns **no new repo action**. Porting the upstream fix (PR BarutSRB/OmniWM#350 "closes
+> BarutSRB/OmniWM#336", PR BarutSRB/OmniWM#228 "≈ BarutSRB/OmniWM#336") would re-add the global `scrollSnap` toggle nehir
 > deliberately deleted — a regression — so it is **not** to be ported.
 
 ## TL;DR
 
-- **Nehir already answers #336 word-for-word: holding the Mouse Modifier while
+- **Nehir already answers BarutSRB/OmniWM#336 word-for-word: holding the Mouse Modifier while
   trackpad-scrolling bypasses snap and leaves the viewport wherever the user
   parked it (clamped only to valid bounds).** The global `scrollSnap` toggle the
   upstream PRs propose was removed by design.
 - **Verdict:** 🟢 **Fixed / not present** — feature implemented in nehir; this
   validates the catalog's instruction to check whether a snap toggle already
-  ships. The catalog's `nehir's own` flag on PR #350 is consistent with the
+  ships. The catalog's `nehir's own` flag on PR BarutSRB/OmniWM#350 is consistent with the
   finding: this is nehir-owned code that nehir has already written.
 
 ## What the issue actually asks
@@ -43,15 +43,15 @@ scroll without scroll snap." Body (verbatim):
 
 So the ask is precisely: **opt out of scroll-snap per gesture, gated by a
 held modifier key.** No reproduction, no cited code, no linked PR in the issue
-metadata. The catalog notes two upstream attempts: PR #350 "Niri scroll snap
-toggle — closes #336" (closed, tagged `nehir's own`) and PR #228 "Niri
-snap-to-column-boundaries option (≈#336)" (open draft). Both add a snap toggle;
+metadata. The catalog notes two upstream attempts: PR BarutSRB/OmniWM#350 "Niri scroll snap
+toggle — closes BarutSRB/OmniWM#336" (closed, tagged `nehir's own`) and PR BarutSRB/OmniWM#228 "Niri
+snap-to-column-boundaries option (≈BarutSRB/OmniWM#336)" (open draft). Both add a snap toggle;
 neither shares nehir's code (nehir forks OmniWM, not the upstream rewrite).
 
 ## Provenance: is this nehir's code?
 
 Yes. The
-trackpad scroll-gesture path that #336 concerns is entirely present in nehir:
+trackpad scroll-gesture path that BarutSRB/OmniWM#336 concerns is entirely present in nehir:
 
 - Trackpad gesture arming / commit / end: `MouseEventHandler.swift` (the same
   path analyzed in the sibling `20260616-omniwm-301` and `20260616-nehir-53` docs).
@@ -80,7 +80,7 @@ state.lockedGestureContext = .init(
 
 `MouseEventHandler.swift:81` defines `let bypassSnap: Bool` on the context.
 
-### 2. The modifier can ALSO engage bypass mid-gesture (strictly better than #336)
+### 2. The modifier can ALSO engage bypass mid-gesture (strictly better than BarutSRB/OmniWM#336)
 
 `MouseEventHandler.swift:1547-1558` — if the gesture armed *without* the
 modifier but the user presses it during the committed scroll, bypass is
@@ -153,7 +153,7 @@ observable state, not an afterthought.
 
 ## Why it is already fixed (and why porting would regress)
 
-The feature requested in #336 — "scroll with modifier key hold to opt in no
+The feature requested in BarutSRB/OmniWM#336 — "scroll with modifier key hold to opt in no
 snap behaviour" — is implemented verbatim, with two improvements over the
 issue's literal ask:
 
@@ -168,7 +168,7 @@ issue's literal ask:
 2. **Modifier engages mid-gesture too** (`MouseEventHandler.swift:1547-1558`),
    so the user does not have to hold the key before starting the scroll.
 
-Both upstream PRs (#350, #228) move in the opposite direction: they (re-)add a
+Both upstream PRs (BarutSRB/OmniWM#350, BarutSRB/OmniWM#228) move in the opposite direction: they (re-)add a
 snap toggle. Porting either would undo nehir's explicit decision to drop the
 global toggle and would re-introduce a setting nehir's own changeset marks as
 removed with no backward-compatibility mapping. That is a regression, not a
@@ -176,16 +176,16 @@ fix.
 
 ## Recommendation
 
-- **Do not port PR #350 or PR #228.** nehir already implements #336 in a
+- **Do not port PR BarutSRB/OmniWM#350 or PR BarutSRB/OmniWM#228.** nehir already implements BarutSRB/OmniWM#336 in a
   stricter form and deliberately removed the global toggle those PRs (re-)add.
-- **Minor, doc-only nit (not owned by #336):** `README.md:191` still describes
+- **Minor, doc-only nit (not owned by BarutSRB/OmniWM#336):** `README.md:191` still describes
   the *removed* design —
   *"Configurable gesture scroll snap. … Controlled by `gestures.scrollSnap` in
   `settings.toml` (default `true`)."* That setting no longer exists (removed in
   the redesign; no match in `Sources/` for `gestureScrollSnap`/`gestures.scrollSnap`).
   The line should be rewritten to describe the current Mouse-Modifier bypass.
   This is README hygiene belonging to the viewport-navigation redesign, not a
-  new action #336 motivates; it is noted here only for completeness.
+  new action BarutSRB/OmniWM#336 motivates; it is noted here only for completeness.
 
 ## Suggested tests
 

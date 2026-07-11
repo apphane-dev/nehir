@@ -1,4 +1,4 @@
-# OmniWM issue #147 — "Mouse-to-focused + FFM → jumping cursor" — Discovery
+# OmniWM issue BarutSRB/OmniWM#147 — "Mouse-to-focused + FFM → jumping cursor" — Discovery
 
 Source issue: <https://github.com/BarutSRB/OmniWM/issues/147>
 Scope of this doc: determine whether the bug applies to nehir (with both
@@ -25,7 +25,7 @@ before implementing; line numbers drift.
 > window" center-warp call site checks that flag and bails.** So a focus change
   caused by moving the cursor does **not** recenter the cursor; only
   keyboard/hotkey or new-window focus (which never sets the suppression) warps.
-- **Verdict:** 🟢 **Fixed.** This is precisely the behavior #147 asks for
+- **Verdict:** 🟢 **Fixed.** This is precisely the behavior BarutSRB/OmniWM#147 asks for
   ("focus changes when moving the cursor manually, but the cursor does not jump
   to the center").
 
@@ -148,12 +148,12 @@ if controller.moveMouseToFocusedWindowEnabled,
    `!shouldSuppressMouseMoveToFocusedWindow(for: token)`. For an FFM-initiated
    focus the gate returns `true` (matching token within the 1 s window), so
    `moveMouseToWindow(...)` is **not** called → the cursor is not warped to the
-   center. This is the exact expected behavior from #147.
+   center. This is the exact expected behavior from BarutSRB/OmniWM#147.
 
 3. **Keyboard/hotkey and new-window focus are unaffected.** Those paths set
    focus through `focusWindow`/`setKeyboardFocusTarget` and never call
    `suppressMouseMoveToFocusedWindow(for:)`, so the gate returns `false` and the
-   center-warp proceeds — again matching #147's expectation ("jump to the center
+   center-warp proceeds — again matching BarutSRB/OmniWM#147's expectation ("jump to the center
    only when … selected via hotkey or when a new window pops up").
 
 4. **The 1 s backstop is sized for the async gap.** The comment at
@@ -165,7 +165,7 @@ if controller.moveMouseToFocusedWindowEnabled,
 
 ## Recommendation
 
-**Do nothing.** nehir already implements the precise behavior #147 requests, at
+**Do nothing.** nehir already implements the precise behavior BarutSRB/OmniWM#147 requests, at
 the idiomatic layer (suppress at the pointer-focus source, gate at every warp
 site). There is no upstream diff to port (issue closed `not_planned`, no fix).
 If a future report shows a residual snap on pointer-initiated focus, the
@@ -183,5 +183,5 @@ appear to be asserted by name:
   after, and that the subsequent focus-confirm does **not** invoke
   `moveMouseToWindow` for B (inject a warping spy and assert it is not called).
 - Contrast case: a keyboard `focusNext` to B; assert the warp spy **is** called
-  for B (no suppression recorded). This locks in the source distinction #147
+  for B (no suppression recorded). This locks in the source distinction BarutSRB/OmniWM#147
   depends on.

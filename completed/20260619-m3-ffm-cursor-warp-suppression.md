@@ -14,7 +14,7 @@ Test landed: `AXEventHandlerTests.ffmFocusConfirmationDoesNotWarpCursorWhenMoveM
 
 With **Move mouse to focused window** enabled, a focus-follows-mouse (hover)
 confirmation warps the cursor to the focused window — the annoyance upstream
-fixed in #147. Nehir **already computes an `isFFM` signal** at the focus-confirm
+fixed in BarutSRB/OmniWM#147. Nehir **already computes an `isFFM` signal** at the focus-confirm
 site (`AXEventHandler.handleManagedAppActivation`) that means exactly "this
 confirmation is FFM-driven." The minimal fix is to gate the warp on `!isFFM`.
 

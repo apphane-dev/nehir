@@ -1,4 +1,4 @@
-# OmniWM PR #113 — "fix: skip above-normal-level windows from tiling (e.g. PiP)" — Discovery
+# OmniWM PR BarutSRB/OmniWM#113 — "fix: skip above-normal-level windows from tiling (e.g. PiP)" — Discovery
 
 Groom 2026-07-07: substantially resolved — PiP is now detected by window-server level (app-agnostic, level > 0 and < 20) and given sticky defaults (9ef0ae82, ade7cd07; see completed/20260626-pip-common-defaults-no-special-mode.md); re-verify the exact floating-classifier framing against current PiP handling (verified against main 7a025b78).
 

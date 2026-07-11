@@ -1,4 +1,4 @@
-# OmniWM issue #391 — "Valve Steam client cannot be tiled" — Discovery
+# BarutSRB/OmniWM#391 — "Valve Steam client cannot be tiled" — Discovery
 
 Source issue: <https://github.com/BarutSRB/OmniWM/issues/391>
 Scope of this doc: determine whether the issue applies to nehir, whether it is an
@@ -9,7 +9,7 @@ All file/line references were verified against the Nehir source tree
 at `7f61cb3` ("docs: update four-finger gesture discovery with non-repro trace").
 Re-verify before implementing; line numbers drift.
 
-> **Filed under `discovery/noop/`** — #391 reports **two** symptoms, and neither owns
+> **Filed under `discovery/noop/`** — BarutSRB/OmniWM#391 reports **two** symptoms, and neither owns
 > a new repo action:
 > - **Symptom A — "stays floating, cannot be viewed in overview, cannot be tiled."**
 >   This is **expected, conservative classification**, not a nehir bug. nehir's
@@ -34,21 +34,21 @@ Re-verify before implementing; line numbers drift.
 
 ## TL;DR
 
-- **#391 is two findings, both previously owned.** The "can't tile" half is by-design
+- **BarutSRB/OmniWM#391 is two findings, both previously owned.** The "can't tile" half is by-design
   AX classification; the "leaks across workspaces" half is the workspace-inactive
   stale-live-frame bug nehir already captured live (Telegram `windowId=159`, live at
   `x=1050..2056` on active workspace 1 while `hidden=workspaceInactive`).
 - **Verdict:** 🟡 **Partial / Duplicate.** The leak reproduces in nehir but is the same
   root cause as the workspace-inactive family; the tile failure is expected behavior.
-- **Upstream state:** #391 was **closed `completed` by BarutSRB on 2026-06-15 with no
+- **Upstream state:** BarutSRB/OmniWM#391 was **closed `completed` by BarutSRB on 2026-06-15 with no
   fix commit, no linked PR, and zero comments** (verified via the GitHub issues/timeline
-  APIs). Its resolution is therefore not evidence of a fix — like #235, it reads as a
+  APIs). Its resolution is therefore not evidence of a fix — like BarutSRB/OmniWM#235, it reads as a
   stale-issue sweep. The nehir behavior is unaffected by the closure.
 
 ## Provenance: is this nehir's code?
 
 Yes. Every
-symbol #391's two symptoms depend on exists in nehir at HEAD:
+symbol BarutSRB/OmniWM#391's two symptoms depend on exists in nehir at HEAD:
 
 | Issue concern | Nehir symbol | Definition site |
 | --- | --- | --- |
@@ -189,7 +189,7 @@ already pinned for tiled windows:
    A Steam window whose `hiddenState` says parked but whose live AX frame is on-screen is
    left on-screen.
 2. **The live-AX reconciliation is `reason == .layoutTransient`-only**
-   (`resolveHideOperation`, `LayoutRefreshController.swift:2386-2404`, per the #235 doc).
+   (`resolveHideOperation`, `LayoutRefreshController.swift:2386-2404`, per the BarutSRB/OmniWM#235 doc).
    Even if `resolveHideOperation` were reached for a `.workspaceInactive` window, the gate
    excludes that reason, so a drifted parked window is treated as `.alreadyHidden`.
 
@@ -224,7 +224,7 @@ reconciliation) are shared.
 
 ## Relationship to the sibling discoveries
 
-| Aspect | #391 Steam (this doc) | `workspace-inactive-stale-live-frame` (nehir) | `#235` (upstream umbrella) |
+| Aspect | BarutSRB/OmniWM#391 Steam (this doc) | `workspace-inactive-stale-live-frame` (nehir) | `BarutSRB/OmniWM#235` (upstream umbrella) |
 | --- | --- | --- | --- |
 | Window mode | **floating** | tiled (Telegram) | tiled + scratchpad |
 | Hide reason | `.workspaceInactive` | `.workspaceInactive` | `.workspaceInactive` (+ `.layoutTransient` overscroll) |
@@ -240,7 +240,7 @@ upstream-symptom record `noop/20260616-omniwm-235-window-bleed-different-workspa
 
 ## Recommendation
 
-**No new repo action for #391.**
+**No new repo action for BarutSRB/OmniWM#391.**
 
 1. **Symptom A — document the user fix, do not change the classifier.** When Steam (or any
    custom-chrome app) must tile, the user sets a rule with layout action **Tile** for
@@ -261,7 +261,7 @@ upstream-symptom record `noop/20260616-omniwm-235-window-bleed-different-workspa
    - Do not clear `workspaceInactive` hidden state without writing a frame or activating
      the workspace (the `executeHiddenReveal` `.none` path).
 
-   As with #235, a unit test can prove a park **plan is issued** for a drifted
+   As with BarutSRB/OmniWM#235, a unit test can prove a park **plan is issued** for a drifted
    already-hidden floating window; whether WindowServer finally renders it hidden is the
    separate, still-open offscreen-clamp problem noted in `docs/window-parking-and-offscreen-clamp.md`.
 

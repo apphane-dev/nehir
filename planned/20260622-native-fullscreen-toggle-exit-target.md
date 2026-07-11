@@ -192,4 +192,4 @@ comment or follow-up doc; do not rely on local trace filenames.
 - Do not change `toggleColumnFullWidth`; it is a column-width layout operation and
   behaved as the control trace expected.
 - Do not drive `AXFullScreen` from the tiling maximize path.
-- Do not remove existing native suspension / transition guards from the #244 fix.
+- Do not remove existing native suspension / transition guards from the BarutSRB/OmniWM#244 fix.

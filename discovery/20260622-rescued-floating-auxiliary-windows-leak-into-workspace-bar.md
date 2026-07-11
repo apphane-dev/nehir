@@ -24,7 +24,7 @@ one is about *what* the bar shows (an over-permissive admission + filter). They
 share only the visible surface (the workspace bar). It is, however, **adjacent
 to** [`20260616-omniwm-323-floating-panel-bar-filter.md`](20260616-omniwm-323-floating-panel-bar-filter.md),
 which already flagged that `barVisibleFloatingEntries` is too permissive — but
-this case is *stricter* than #323's proposed filter would catch (see "Why #323's
+this case is *stricter* than BarutSRB/OmniWM#323's proposed filter would catch (see "Why BarutSRB/OmniWM#323's
 fix does not cover this").
 
 All code citations were verified against the main Nehir source tree at
@@ -57,8 +57,8 @@ transient popup surfaces out of managed activation`). Line numbers will drift.
   capture shows repeated `managed_focus_requested` for `6218`/`6248` that never
   reach `managed_focus_confirmed` (they stay `pending`, then get cancelled /
   superseded).
-- **Not fixed by OmniWM PR #323's proposed `layoutReason == .standard` filter.**
-  Both surfaces carry `layout=standard`; #323's filter would still admit them.
+- **Not fixed by OmniWM PR BarutSRB/OmniWM#323's proposed `layoutReason == .standard` filter.**
+  Both surfaces carry `layout=standard`; BarutSRB/OmniWM#323's filter would still admit them.
   This needs a size/transience/rescue-eligibility gate, not a layout-reason gate.
 
 ---
@@ -105,7 +105,7 @@ WindowToken(pid: 57195, windowId: 6248) workspace=B8C55829-…
 ```
 
 Both floating entries carry `layout=standard` (not `nativeFullscreen` or any
-other special layout reason) — this matters for the #323 analysis below.
+other special layout reason) — this matters for the BarutSRB/OmniWM#323 analysis below.
 
 The reconcile snapshot records both as `rescue=true`:
 
@@ -272,19 +272,19 @@ the user wants kept" marker without any user intent ever being established.
 
 ---
 
-## Why OmniWM PR #323's proposed fix does not cover this
+## Why OmniWM PR BarutSRB/OmniWM#323's proposed fix does not cover this
 
 `discovery/20260616-omniwm-323-floating-panel-bar-filter.md` already identified
 that `barVisibleFloatingEntries` is too permissive and recommended adding a
-`layoutReason(for: token) == .standard` filter (matching upstream PR #323). That
+`layoutReason(for: token) == .standard` filter (matching upstream PR BarutSRB/OmniWM#323). That
 fix targets floating entries with **non-standard layout reasons**
 (`nativeFullscreen`, etc.).
 
 This case is stricter: both `6218` and `6248` carry `layout=standard`. They are
 genuinely standard-layout floating windows — they just happen to be tiny and/or
-transient. #323's `layoutReason == .standard` filter would **still admit them**.
+transient. BarutSRB/OmniWM#323's `layoutReason == .standard` filter would **still admit them**.
 So this bug needs a different gate (size / transience / rescue-origin), not the
-layout-reason gate #323 proposes. The two discoveries are complementary, not
+layout-reason gate BarutSRB/OmniWM#323 proposes. The two discoveries are complementary, not
 overlapping.
 
 ---
@@ -316,7 +316,7 @@ focus surprises if one of these ever did confirm.
 
 ## Fix directions (no implementation in this pass)
 
-Three independent levers; they can be combined. All preserve #323's separate
+Three independent levers; they can be combined. All preserve BarutSRB/OmniWM#323's separate
 layout-reason filter as an additional guard.
 
 ### Option A — Minimum-size gate at bar projection (cheapest, most targeted)
@@ -414,8 +414,8 @@ change. A pragmatic sequencing: A now (visible symptom), B as the follow-up
   windows — proving the two are independent.
 - **Adjacent to, but stricter than**
   [`20260616-omniwm-323-floating-panel-bar-filter.md`](20260616-omniwm-323-floating-panel-bar-filter.md).
-  #323's proposed `layoutReason == .standard` filter targets non-standard-layout
-  floating entries; these surfaces are `layout=standard`, so #323 alone does not
-  fix them. The two filters are complementary: #323's layout-reason gate + this
+  BarutSRB/OmniWM#323's proposed `layoutReason == .standard` filter targets non-standard-layout
+  floating entries; these surfaces are `layout=standard`, so BarutSRB/OmniWM#323 alone does not
+  fix them. The two filters are complementary: BarutSRB/OmniWM#323's layout-reason gate + this
   doc's size/transience gate together cover the full space of spurious floating
   icons.

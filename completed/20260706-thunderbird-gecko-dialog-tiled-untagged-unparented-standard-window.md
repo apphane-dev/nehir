@@ -202,7 +202,7 @@ yabai's management eligibility keys almost entirely on AX subrole: a window is
 tiles by default; `AXDialog`/`AXFloatingWindow` float (koekeishiya/yabai #2046,
 #152). Because Gecko reports its dialog as `AXStandardWindow` — not `AXDialog` —
 yabai tiles it exactly like Nehir does. The documented user workaround is a manual
-per-app / per-title `manage=off` rule (koekeishiya/yabai #384, #109), which runs
+per-app / per-title `manage=off` rule (koekeishiya/yabai#384 and koekeishiya/yabai#109), which runs
 into the same wall this document describes: title is unavailable and the subrole
 does not separate the dialog from the compose window.
 

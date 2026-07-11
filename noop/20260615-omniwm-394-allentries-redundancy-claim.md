@@ -1,4 +1,4 @@
-# OmniWM issue #394 — "redundant `allEntries()` call in full rescan" — Discovery
+# BarutSRB/OmniWM#394 — "redundant `allEntries()` call in full rescan" — Discovery
 
 Verdict: no-op — the two allEntries() calls straddle removeMissing() and the upstream reuse-the-snapshot fix would regress per-entry teardown; do NOT port. Kept as a reusable analysis reference. Moved to noop/ on 2026-07-07 (verified against main 7a025b78).
 
@@ -201,7 +201,7 @@ drop the transient entry/map arrays and the `map` pass. This is:
 - Optional, not blocking.
 - A micro-optimization (full rescan is not a per-frame hot path; it runs on
   workspace switches, monitor reconnect, etc.).
-- Strictly **not** what issue #394 describes or fixes.
+- Strictly **not** what issue BarutSRB/OmniWM#394 describes or fixes.
 
 The "500+ managed windows → 1000+ unnecessary lookups" framing in the issue
 over-counts: there is exactly **one** extra `allEntries()` traversal (the

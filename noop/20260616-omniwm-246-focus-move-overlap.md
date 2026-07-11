@@ -1,4 +1,4 @@
-# OmniWM issue #246 — "Windows overlapping after focus move" — Discovery
+# BarutSRB/OmniWM#246 — "Windows overlapping after focus move" — Discovery
 
 Source issue: <https://github.com/BarutSRB/OmniWM/issues/246>
 Scope of this doc: determine whether the issue applies to nehir,
@@ -8,21 +8,21 @@ All file/line references were verified against the Nehir source tree
 at `7f61cb3` ("docs: update four-finger gesture discovery with non-repro trace").
 Re-verify before implementing; line numbers drift.
 
-> **Filed under `discovery/noop/`** — #246 applies by inspection, but it owns no
+> **Filed under `discovery/noop/`** — BarutSRB/OmniWM#246 applies by inspection, but it owns no
 > new action: it is another upstream face of the stale-hidden-column / wrong-parked
 > live AX frame family already owned by
 > `discovery/20260616-stale-live-frame-on-stably-hidden-column.md`,
 > with cross-workspace overlap already catalogued in
 > `noop/20260616-omniwm-235-window-bleed-different-workspace.md`.
-> Implementing that sibling discovery's invariant closes this issue; #246 only
+> Implementing that sibling discovery's invariant closes this issue; BarutSRB/OmniWM#246 only
 > adds the "focus right after full-column-width" reproduction.
 
 ---
 
 ## TL;DR
 
-- **#246's reported overlap is a stale hide/re-hide failure during Niri horizontal
-  focus navigation, not a separate tiling model.** Upstream linked it to #235 and
+- **BarutSRB/OmniWM#246's reported overlap is a stale hide/re-hide failure during Niri horizontal
+  focus navigation, not a separate tiling model.** Upstream linked it to BarutSRB/OmniWM#235 and
   pushed `739a96e` ("fix: eliminate window bleed across workspaces and columns"),
   which re-applies hidden frames from authoritative hide requests and adds
   planning-width geometry for animated width changes. nehir still has the old
@@ -57,7 +57,7 @@ the next window to the right, the newly focused window overlapped the previous o
 The report was edited to emphasize that simply moving right reproduced it "always"
 and did not self-correct while moving through windows. It was filed on latest macOS.
 
-The first comment linked #235 as possibly relevant. The maintainer replied that a fix
+The first comment linked BarutSRB/OmniWM#235 as possibly relevant. The maintainer replied that a fix
 was in progress, then linked `BarutSRB/OmniWM@739a96e` as the pushed fix. The issue was
 later closed `not_planned` during a v0.4.8 cleanup, not because this individual report
 was proven fixed.
@@ -231,7 +231,7 @@ if abs(frame.origin.x - origin.x) < moveEpsilon,
 
 ## Why this applies / owns no new action
 
-#246's reproduction is exactly the high-risk sequence for the sibling stale-hidden-column
+BarutSRB/OmniWM#246's reproduction is exactly the high-risk sequence for the sibling stale-hidden-column
 bug:
 
 1. `toggleFullWidth` sets a full-width target and starts a width animation
@@ -255,12 +255,12 @@ class that nehir still has by inspection.
 
 It still should not become a separate top-level action, because nehir already has the root
 invariant filed: **hidden windows must be reconciled against their live AX frame even when
-they are stably hidden and produce no fresh `.hide` transition**. #246 is the focus-command
-reproduction of that same invariant; #235 is the cross-workspace report in the same family.
+they are stably hidden and produce no fresh `.hide` transition**. BarutSRB/OmniWM#246 is the focus-command
+reproduction of that same invariant; BarutSRB/OmniWM#235 is the cross-workspace report in the same family.
 
 ## Recommendation
 
-Do not port `739a96e` blindly as a standalone #246 patch. Instead, implement the sibling
+Do not port `739a96e` blindly as a standalone BarutSRB/OmniWM#246 patch. Instead, implement the sibling
 stale-live-frame discovery's fix in nehir terms:
 
 - Re-check stably hidden layout-transient windows' live AX frames against their expected park

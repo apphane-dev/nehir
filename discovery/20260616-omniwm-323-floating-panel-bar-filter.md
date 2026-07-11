@@ -1,4 +1,4 @@
-# OmniWM PR #323 — "Restore floating panel classification + bar filter" — Discovery
+# OmniWM PR BarutSRB/OmniWM#323 — "Restore floating panel classification + bar filter" — Discovery
 
 Groom 2026-07-07: resolved — the workspace-bar layoutReason==.standard filter landed (WorkspaceManager.barVisibleFloatingEntries rejects non-standard layout reasons; d54d5dd7); the titled AXDialog/AXPanel admission part remains unverified (verified against main 7a025b78).
 
@@ -16,12 +16,12 @@ numbers drift — re-verify before implementing.
 
 ## TL;DR
 
-- **Partial applies: nehir already restored non-standard AX subrole floating and automatic fallback mode preservation, but it still lacks PR #323's workspace-bar `layoutReason == .standard` filter and still does not admit titled `AXDialog`/`AXPanel` elements by role during top-level AX enumeration.**
+- **Partial applies: nehir already restored non-standard AX subrole floating and automatic fallback mode preservation, but it still lacks PR BarutSRB/OmniWM#323's workspace-bar `layoutReason == .standard` filter and still does not admit titled `AXDialog`/`AXPanel` elements by role during top-level AX enumeration.**
 - **Verdict:** 🟡 **Partial.** Do not port the diff blindly, but adapt the missing bar filter and re-evaluate titled dialog/panel admission against nehir's stricter managed-replacement/transient safeguards.
 
 ## Upstream change
 
-The closed PR is a three-commit fix for the popup-induced floating regression linked to #306.
+The closed PR is a three-commit fix for the popup-induced floating regression linked to BarutSRB/OmniWM#306.
 The final commit says it restores floating panel classification and bar filtering. The diff:
 
 - re-adds `AXWindowService.shouldTreatAsTopLevelWindow(role:subrole:)`;
@@ -215,7 +215,7 @@ What still applies:
 
 ## Recommendation
 
-Own a nehir follow-up, but **do not port PR #323 verbatim**:
+Own a nehir follow-up, but **do not port PR BarutSRB/OmniWM#323 verbatim**:
 
 1. Add the workspace-bar guard equivalent to `layoutReason(for: token) == .standard` in `barVisibleFloatingEntries`.
 2. Evaluate a narrow AX enumeration change for titled `AXDialog`/`AXPanel` elements, with tests that prove tooltips/untitled panels remain excluded.

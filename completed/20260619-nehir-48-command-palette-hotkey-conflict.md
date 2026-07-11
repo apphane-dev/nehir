@@ -367,7 +367,7 @@ while the user is on the default binding and goes away the moment they reassign
 ## Non-goals
 
 - **Do not** replace Carbon hotkeys with a `CGEventTap` keyboard backend. That is
-  the much larger OmniWM #226 port (see
+  the much larger BarutSRB/OmniWM#226 port (see
   `discovery/20260616-omniwm-226-chrome-extension-hotkey-priority.md`) and is
   unrelated to #48, which is a co-fire conflict, not a focused-app priority loss.
 - **Do not** attempt active liveness probing (register, synthesize an event,

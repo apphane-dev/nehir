@@ -1,4 +1,4 @@
-# OmniWM #311 — Exclude apps from the workspace bar
+# BarutSRB/OmniWM#311 — Exclude apps from the workspace bar
 
 Re-verified against main 7a025b78 on 2026-07-07.
 
@@ -6,7 +6,7 @@ Re-verified against main 7a025b78 on 2026-07-07.
 **Source discovery:** `discovery/20260617-omniwm-311-exclude-apps-from-workspace-bar.md`
 **Upstream reference:** https://github.com/BarutSRB/OmniWM/issues/311 (open, no comments/labels;
 feature request, not a bug). Distinct from closed `not_planned` #281 (hide *all* app icons) —
-#311 is per-app exclusion by identity.
+BarutSRB/OmniWM#311 is per-app exclusion by identity.
 
 Source references were refreshed against main `7a025b78` on 2026-07-07. `AppRule` still has no `hideFromWorkspaceBar` field and `WorkspaceBarDataSource` has no exclusion helper.
 
@@ -46,7 +46,7 @@ porting it into source:
      backed by a new `extractBool` helper.
    Without both, the discovery's proposed round-trip test ("a rule with
    `hideFromWorkspaceBar: true` survives TOML write + reload via `AppRuleFileStore`")
-   would fail. This is the same lossy-manual-codec class the sibling #410 work
+   would fail. This is the same lossy-manual-codec class the sibling BarutSRB/OmniWM#410 work
    (`completed/20260621-omniwm-410-settings-toml-unknown-keys-roundtrip-loss.md`) flagged
    for `HotkeysTOMLCodec`/`WorkspacesTOMLCodec`; `AppRuleFileStore` is the app-rule
    member of that class. The `AppRule.Codable` path (`CodingKeys`/`init(from:)`) still
@@ -142,12 +142,12 @@ presence; tiling/floating/focus are untouched.
   dependency; recompute occupancy DataSource-local.
 - Do **not** change tiling, floating, focus, scratchpad, or `assignToWorkspace`
   behavior — exclusion is bar-presence only.
-- Do **not** gate this on PR #323's separate `layoutReason == .standard` bar filter
+- Do **not** gate this on PR BarutSRB/OmniWM#323's separate `layoutReason == .standard` bar filter
   (`discovery/20260616-omniwm-323-floating-panel-bar-filter.md`) — that is orthogonal
   (excluding non-standard floating entries by layout reason, not by app identity).
 - Do **not** change #281 (hide all app icons, closed `not_planned`) — distinct request.
 - Do **not** touch `HotkeysTOMLCodec`/`WorkspacesTOMLCodec` — that lossy-codec gap is
-  owned by the #410 follow-up, not this ticket.
+  owned by the BarutSRB/OmniWM#410 follow-up, not this ticket.
 
 ## Exact implementation plan
 
@@ -274,7 +274,7 @@ Manual validation:
 4. Quit/relaunch nehir; confirm the rule and its `hideFromWorkspaceBar` flag survive
    the `apprules.d/*.toml` reload.
 
-Changeset (minor): "Add a per-app Hide from Workspace Bar rule (OmniWM #311)."
+Changeset (minor): "Add a per-app Hide from Workspace Bar rule (BarutSRB/OmniWM#311)."
 
 ## Risks and mitigations
 
@@ -282,7 +282,7 @@ Changeset (minor): "Add a per-app Hide from Workspace Bar rule (OmniWM #311)."
   occupancy leaves an Übersicht-only workspace visible-but-empty. Mitigation: recompute
   `hasBarOccupancy` from the filtered set in the same edit; covered by test #2.
 - **Lossy manual codec (MED).** Forgetting the `AppRuleFileStore` encode/decode pair
-  silently drops the flag on disk (the #410 regression class). Mitigation: the
+  silently drops the flag on disk (the BarutSRB/OmniWM#410 regression class). Mitigation: the
   file-store round-trip test #6 is load-bearing; do not skip it.
 - **Bundle-id resolution miss (MED).** `appInfoCache.bundleId(for:)` may return `nil`
   for a not-yet-cached pid during early enumeration. Mitigation: keep the
@@ -294,18 +294,18 @@ Changeset (minor): "Add a per-app Hide from Workspace Bar rule (OmniWM #311)."
   (rule id at set-build time, window id at lookup time); covered by test #4.
 - **Performance (LOW).** The excluded set is built once per `workspaceItems` call and
   lookup is `O(1)`. No measurable cost expected.
-- **Scope creep into #323 (LOW).** A worker might conflate this with the
+- **Scope creep into BarutSRB/OmniWM#323 (LOW).** A worker might conflate this with the
   `layoutReason == .standard` filter. Mitigation: the Non-goals section calls it out;
   these are independent tickets.
 
 ## Follow-ups (out of scope)
 
-- PR #323's `layoutReason == .standard` floating-bar filter
+- PR BarutSRB/OmniWM#323's `layoutReason == .standard` floating-bar filter
   (`discovery/20260616-omniwm-323-floating-panel-bar-filter.md`) — separate concern.
 - A global `workspaceBarExcludedBundleIds` list / per-monitor override in
   `MonitorBarSettings` — only if user research shows the app-rule editor is too heavy
   for the single-app case. Redundant with this field for the same bundle id.
 - Extending `HotkeysTOMLCodec`/`WorkspacesTOMLCodec` unknown-key round-trip — owned by
-  the #410 follow-up, not this ticket.
+  the BarutSRB/OmniWM#410 follow-up, not this ticket.
 - "Hide all app icons / bare workspace numbers" (#281) — closed `not_planned` upstream;
   not this feature.

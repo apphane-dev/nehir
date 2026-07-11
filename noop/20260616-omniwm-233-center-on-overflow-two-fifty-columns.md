@@ -1,4 +1,4 @@
-# OmniWM issue #233 — "Center focused column 'on overflow' triggers with 2 50% sized windows" — Discovery
+# BarutSRB/OmniWM#233 — "Center focused column 'on overflow' triggers with 2 50% sized windows" — Discovery
 
 Source issue: <https://github.com/BarutSRB/OmniWM/issues/233>
 Scope of this doc: determine whether nehir has the "center-on-overflow"
@@ -17,7 +17,7 @@ Re-verify before implementing; line numbers drift.
 > was **deleted** and replaced with a visibility-state-based `RevealPartial` model
 > (`completed/20260612-viewport-navigation-redesign.md`). The replacement
 > structurally excludes the over-trigger and locks it in with a regression test that is
-> the literal #233 scenario. There is no upstream diff to port (BarutSRB closed #233
+> the literal BarutSRB/OmniWM#233 scenario. There is no upstream diff to port (BarutSRB closed BarutSRB/OmniWM#233
 > `not_planned` without a merged fix), and porting one would be a regression against a
 > mechanism that no longer exists. This therefore owns **no new repo action**.
 
@@ -34,7 +34,7 @@ Re-verify before implementing; line numbers drift.
   -screen case. Centering only happens for a `fullyVisible` column when the viewport is
   *underfilled* (a lone/smaller column floating with margins), which is the intended
   "centering emerges naturally" behavior.
-- **The OmniWM #233 scenario is an existing, passing regression test.**
+- **The BarutSRB/OmniWM#233 scenario is an existing, passing regression test.**
   `scrollToRevealDoesNotMoveFullyVisibleWithDefaultWhenViewportFills`
   (`Tests/NehirTests/ViewportSnapContextTests.swift:555-588`) builds two 400px columns in an
   808px viewport (`400+8+400`, exact fit), sets `revealPartial = .default`, focuses the
@@ -45,7 +45,7 @@ Re-verify before implementing; line numbers drift.
 
 ## Provenance: is this nehir's code?
 
-**No.** The symbols #233 names — the `centerFocusedColumn`/`"onOverflow"` setting and the
+**No.** The symbols BarutSRB/OmniWM#233 names — the `centerFocusedColumn`/`"onOverflow"` setting and the
 "center focused column on overflow" UI option — **do not exist in nehir**:
 
 - A repo-wide search for `centerFocusedColumn | CenterFocusedColumn | onOverflow |
@@ -98,7 +98,7 @@ merged**. The issue was **closed as `not_planned`** on 2026-05-05 as part of a
 "v0.4.8+ issue cleanup" because the conversation "predates the v0.4.8 release on
 2026-04-21." A **related but distinct** issue, #345 ("Workspace bar window navigation
 centers Niri column despite `centerFocusedColumn = never`"), was later linked — that one
-is about the *workspace bar* navigation path, not the overflow-centering of #233.
+is about the *workspace bar* navigation path, not the overflow-centering of BarutSRB/OmniWM#233.
 
 ## The code in question
 
@@ -109,11 +109,11 @@ The removed OmniWM setting maps onto nehir's new model one-to-one:
 ```swift
 // .changeset/20260612022904-focus-reveal-policy-and-settings-restructure.md:11-14
 | centerFocusedColumn = "never"     | remove it, or set revealPartial = "off"      |
-| centerFocusedColumn = "onOverflow"| revealPartial = "default" (closest equivalent) |  // ← #233's setting
+| centerFocusedColumn = "onOverflow"| revealPartial = "default" (closest equivalent) |  // ← BarutSRB/OmniWM#233's setting
 | centerFocusedColumn = "always"    | revealPartial = "snapCenter"                 |
 ```
 
-So the OmniWM user in #233 (on `onOverflow`) is, in nehir, a `revealPartial = .default`
+So the OmniWM user in BarutSRB/OmniWM#233 (on `onOverflow`) is, in nehir, a `revealPartial = .default`
 user. That is the mode to validate.
 
 ### 2. Why `revealPartial = .default` cannot over-trigger on a filled viewport
@@ -150,7 +150,7 @@ func scrollToReveal(columnIndex: Int, isFFM: Bool, state: inout ViewportState,
 }
 ```
 
-The `.fullyVisible` branch at `:93-95` is the structural fix for #233. A column is
+The `.fullyVisible` branch at `:93-95` is the structural fix for BarutSRB/OmniWM#233. A column is
 `.fullyVisible` when it lies entirely within the viewport
 (`ViewportState+Geometry.swift:623`, `columnStart >= viewportStart - tol &&
 columnEnd <= viewportEnd + tol`). With two ~50%-width columns side by side, **both**
@@ -212,9 +212,9 @@ the window's left side to the left edge instead of centering"). nehir already do
 
 ## Why it does not apply to nehir
 
-The #233 over-trigger required two ingredients, **both of which are absent in nehir**:
+The BarutSRB/OmniWM#233 over-trigger required two ingredients, **both of which are absent in nehir**:
 
-| #233 ingredient (OmniWM) | nehir state |
+| BarutSRB/OmniWM#233 ingredient (OmniWM) | nehir state |
 |---|---|
 | The `centerFocusedColumn = "onOverflow"` setting / "center on overflow" UI option | **Deleted.** No references in `Sources/`; migrated to `revealPartial = .default` (`.changeset:12`). |
 | An overflow heuristic that fires centering without checking whether content actually overflows the *viewport* | **Absent.** `scrollToReveal` branches on geometric `columnVisibility` (`fullyVisible`/`clipped`/`parked`) and returns a no-op for `fullyVisible` + viewport-filled (`NiriLayoutEngine+ViewportCommands.swift:93-95`). |
@@ -228,7 +228,7 @@ column-width tuning, so the workaround neither helps nor is needed.
 ### The bug is locked out by a regression test
 
 `scrollToRevealDoesNotMoveFullyVisibleWithDefaultWhenViewportFills`
-(`Tests/NehirTests/ViewportSnapContextTests.swift:555-588`) is the literal #233 scenario:
+(`Tests/NehirTests/ViewportSnapContextTests.swift:555-588`) is the literal BarutSRB/OmniWM#233 scenario:
 
 ```swift
 // Tests/NehirTests/ViewportSnapContextTests.swift:555-588
@@ -250,14 +250,14 @@ column-width tuning, so the workaround neither helps nor is needed.
 ```
 
 Two 400px columns in an 808px viewport (exact fit) with `revealPartial = .default`,
-focus the fully-visible second column → **no scroll.** This is #233 verbatim, asserted as
+focus the fully-visible second column → **no scroll.** This is BarutSRB/OmniWM#233 verbatim, asserted as
 the desired behavior.
 
 ## Recommendation
 
 **Do not port, and file no action.** Three independent reasons:
 
-1. **Nothing to port.** Upstream never merged a fix; #233 was closed `not_planed` as a
+1. **Nothing to port.** Upstream never merged a fix; BarutSRB/OmniWM#233 was closed `not_planed` as a
    stale-sweep. There is no diff.
 2. **Nothing to port against.** The host mechanism (`centerFocusedColumn` +
    `computeVisibleOffset`) was deleted in the viewport-navigation redesign
@@ -270,10 +270,10 @@ the desired behavior.
 
 The only follow-up worth noting (not an action for *this* item) is the **related** upstream
 issue #345, which is a *different* path — workspace-bar window navigation centering a column
-even with `centerFocusedColumn = never`. That path is out of scope for #233 (overflow
+even with `centerFocusedColumn = never`. That path is out of scope for BarutSRB/OmniWM#233 (overflow
 centering) and has no nehir discovery yet; if #345 is triaged, it should be discovered on
 its own against nehir's workspace-bar focus projection (`20260615-workspace-bar-focus-projection-routing.md`
-is the adjacent nehir doc) rather than under #233.
+is the adjacent nehir doc) rather than under BarutSRB/OmniWM#233.
 
 ## Suggested tests
 
@@ -287,5 +287,5 @@ straightforward:
    widths `[404, 404]` in an 808px viewport (each column 50% + half-gap, summing to
    `808 + gap` — a touch over 100%, the realistic "close to 100%" case). Assert both
    columns classify `.fullyVisible` and `scrollToReveal` returns `false`. This pins the
-   `2*gap + pixelTolerance` tolerance in `fillsViewport` against the exact #233
+   `2*gap + pixelTolerance` tolerance in `fillsViewport` against the exact BarutSRB/OmniWM#233
    "widths sum to close to 100%" phrasing.

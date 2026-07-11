@@ -1,4 +1,4 @@
-# OmniWM issue #253 — "balance-sizes only affects active column (Dwindle)" — Discovery
+# BarutSRB/OmniWM#253 — "balance-sizes only affects active column (Dwindle)" — Discovery
 
 Source issue: https://github.com/BarutSRB/OmniWM/issues/253
 Scope of this doc: determine whether the `balance-sizes` "only rebalances the active column"
@@ -9,14 +9,14 @@ All file/line references were verified against the Nehir source tree at `904df02
 before implementing.
 
 > **Filed under `discovery/noop/`** — the verdict is ⚪ **Not applicable / don't port** for two
-> independent, reinforcing reasons. (1) The bug is **Dwindle-specific**: #253 is triggered by
+> independent, reinforcing reasons. (1) The bug is **Dwindle-specific**: BarutSRB/OmniWM#253 is triggered by
 > `balance-sizes` in Dwindle mode, and nehir has **no Dwindle layout engine** — a recursive
 > case-insensitive search for `dwindle` returns zero source/test hits (re-confirming the
-> `#270` / PR `#401` noop siblings). (2) Even on the alternate path the triage notes flag —
-> nehir *does* have a Niri `balanceSizes` — the root cause #253 describes **does not exist**:
+> `BarutSRB/OmniWM#270` / PR `BarutSRB/OmniWM#401` noop siblings). (2) Even on the alternate path the triage notes flag —
+> nehir *does* have a Niri `balanceSizes` — the root cause BarutSRB/OmniWM#253 describes **does not exist**:
 > nehir's Niri `balanceSizes` already iterates over **all** columns in the workspace (not just
 > the focused column's siblings) and resets every window in every column. The implementation
-> already does what #253 says the fix should do, and a test locks in that all-columns behavior.
+> already does what BarutSRB/OmniWM#253 says the fix should do, and a test locks in that all-columns behavior.
 > Owns no new repo action; there is nothing to port. See sibling docs
 > `noop/20260616-omniwm-270-dwindle-third-window-outside-grid-overlap.md` and
 > `noop/20260616-omniwm-401-dwindle-per-monitor-split-orientation.md`.
@@ -25,7 +25,7 @@ before implementing.
 
 ## TL;DR
 
-- **`balance-sizes` in #253 is a Dwindle-layout bug, and nehir has no Dwindle layout; and the
+- **`balance-sizes` in BarutSRB/OmniWM#253 is a Dwindle-layout bug, and nehir has no Dwindle layout; and the
   same root cause does not exist in nehir's Niri `balanceSizes`, which already balances all
   columns.** A recursive grep for `dwindle` across `Sources/` and `Tests/` returns nothing;
   meanwhile nehir's Niri `balanceSizes` iterates `for column in columns(in: workspaceId)` —
@@ -62,10 +62,10 @@ $ grep -RIn --exclude='*.md' -i dwindle Sources Tests    # zero hits
 $ find Sources -iname '*dwindle*'                         # zero hits
 ```
 
-`ffgrep -i dwindle` matches only the sibling noop discovery docs (`#270`, `#401`) and this
+`ffgrep -i dwindle` matches only the sibling noop discovery docs (`BarutSRB/OmniWM#270`, `BarutSRB/OmniWM#401`) and this
 doc — never `Sources/` or `Tests/`. nehir's only layout backend is the Niri column-scrolling
-engine under `Sources/Nehir/Core/Layout/Niri/`. This re-confirms the findings of the `#270` and
-`#401` noop siblings.
+engine under `Sources/Nehir/Core/Layout/Niri/`. This re-confirms the findings of the `BarutSRB/OmniWM#270` and
+`BarutSRB/OmniWM#401` noop siblings.
 
 **nehir's Niri `balanceSizes` already balances all columns.** The implementation:
 
@@ -139,7 +139,7 @@ The issue's own root-cause hypothesis is, verbatim:
 > only the currently focused container's siblings rather than iterating across all columns in
 > the workspace."
 
-nehir's Niri `balanceSizes` does exactly what #253 says the *fix* should do: it iterates across
+nehir's Niri `balanceSizes` does exactly what BarutSRB/OmniWM#253 says the *fix* should do: it iterates across
 all columns (`for column in columns(in: workspaceId)`) rather than the focused container's
 siblings. The buggy query pattern ("focused container's siblings") has no analogue in the Niri
 engine — the Niri `columns(in:)` path is workspace-scoped, not focus-scoped. Two independent
@@ -181,7 +181,7 @@ for column in columns {
 }
 ```
 
-If the #253 "only active column" bug existed here, two of the three columns would retain their
+If the BarutSRB/OmniWM#253 "only active column" bug existed here, two of the three columns would retain their
 mangled state and these expectations would fail. The sibling tests
 `balanceSizesFallsBackToAutoWidthWhenDefaultWidthIsAuto` (`:5944`) and
 `balanceSizesUsesExplicitDefaultWidthWithoutPresetMatch` (`:5977`) likewise build three columns
@@ -198,7 +198,7 @@ bug.
 
 **Do not port.** No action is owned here:
 
-- There is no Dwindle `balance-sizes` to patch (engine absent — re-confirms `#270`/`#401`).
+- There is no Dwindle `balance-sizes` to patch (engine absent — re-confirms `BarutSRB/OmniWM#270`/`BarutSRB/OmniWM#401`).
 - The Niri `balanceSizes` already balances all columns correctly, with multi-column test
   coverage; porting a Dwindle "iterate all columns" fix would be a no-op against code that
   already does this. Doing so would risk regressing the tested Niri behavior.

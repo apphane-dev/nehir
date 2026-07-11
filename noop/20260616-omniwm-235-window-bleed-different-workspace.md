@@ -1,11 +1,11 @@
-# OmniWM issue #235 — "Window bleeds into different workspace" — Discovery
+# BarutSRB/OmniWM#235 — "Window bleeds into different workspace" — Discovery
 
 Source issue: <https://github.com/BarutSRB/OmniWM/issues/235>
-Scope of this doc: determine whether #235 applies to nehir, and specifically
+Scope of this doc: determine whether BarutSRB/OmniWM#235 applies to nehir, and specifically
 whether its root cause overlaps nehir's existing stale-live-frame discoveries on
 hidden columns / inactive workspaces — or whether it is a distinct bug. It is the
 **cross-workspace** face of the window-bleed family; the **cross-monitor** face is
-#349 (`noop/20260616-omniwm-349-hidden-window-bleeds-multi-monitor.md`).
+BarutSRB/OmniWM#349 (`noop/20260616-omniwm-349-hidden-window-bleeds-multi-monitor.md`).
 
 All file/line references were verified against the Nehir source tree
 at `7f61cb3` ("docs: update four-finger gesture discovery with non-repro trace").
@@ -15,18 +15,18 @@ Re-verify before implementing; line numbers drift.
 
 > **Filed under `discovery/noop/`** — not because the bug is absent (the verdict
 > below is 🔴 Open / Applies, and it is confirmed live in nehir), but because
-> **#235 is a *duplicate* of the existing nehir discovery
+> **BarutSRB/OmniWM#235 is a *duplicate* of the existing nehir discovery
 > `20260616-workspace-inactive-stale-live-frame.md`**. It contributes no new root
 > cause and owns no new repo action: its own recommendation is "implement the
-> workspace-inactive discovery's recommendations, which close #235 directly."
-> The fix work therefore lives under that sibling doc; #235 is kept here only for
-> the upstream-symptom record and the cross-workspace / #349 cross-reference. It
+> workspace-inactive discovery's recommendations, which close BarutSRB/OmniWM#235 directly."
+> The fix work therefore lives under that sibling doc; BarutSRB/OmniWM#235 is kept here only for
+> the upstream-symptom record and the cross-workspace / BarutSRB/OmniWM#349 cross-reference. It
 > is the deduped survivor of a concurrent worker race (the strict-subset draft
 > `…-omniwm-235-window-bleeds-into-workspace.md` was removed).
 
 ## TL;DR
 
-- **#235 is the upstream description of nehir's stale-live-frame-on-inactive-workspace
+- **BarutSRB/OmniWM#235 is the upstream description of nehir's stale-live-frame-on-inactive-workspace
   bug, not a distinct issue.** A window that belongs to a non-visible workspace keeps a
   **live AX frame that intersects the active workspace**, so a sliver of it is drawn on a
   workspace it does not belong to. nehir already caught this exact failure in the wild:
@@ -36,9 +36,9 @@ Re-verify before implementing; line numbers drift.
   active workspace 1, while nehir's own state said `hidden=workspaceInactive`,
   `observedVisible=false`.
 - **Confirmed live in nehir, not merely latent.** The capture above is a real nehir
-  runtime capture, and its symptom is #235 verbatim: *"around 100px … always the last
+  runtime capture, and its symptom is BarutSRB/OmniWM#235 verbatim: *"around 100px … always the last
   selected window … at the right side of the screen."*
-- **Upstream closed it `not_planned` while it still reproduced.** BarutSRB closed #235 on
+- **Upstream closed it `not_planned` while it still reproduced.** BarutSRB closed BarutSRB/OmniWM#235 on
   2026-05-05 as a "v0.4.8+ issue cleanup" because the conversation "predates the v0.4.8
   release on 2026-04-21." Guria replied the same day that **v0.4.8.1 still bleeds**: Zoom
   on workspace 1 is partly visible on every other workspace, and *"it disappears after
@@ -54,7 +54,7 @@ Re-verify before implementing; line numbers drift.
 
 ## Provenance: is this nehir's code?
 
-Yes. Every symbol #235's symptom
+Yes. Every symbol BarutSRB/OmniWM#235's symptom
 depends on exists in nehir at the current HEAD, and they are the same symbols the
 workspace-inactive discovery pinned:
 
@@ -86,7 +86,7 @@ Filed 2026-04-13 on OmniWM/OmniWM **0.4.7.4** by `flschulz` (ultrawide monitor):
 
 Corroborating reports, all the same per-**workspace** right-edge signature:
 
-- `yougotwill` (2026-04-13): related to upstream #151; **only reproduces when windows
+- `yougotwill` (2026-04-13): related to upstream BarutSRB/OmniWM#151; **only reproduces when windows
   are set to full column width**; no bleed at normal width.
 - `Guria` (2026-04-13): single screen; **a Zoom call window bleeds into every workspace
   except the one currently displaying it**; also *"when I overscroll farmost right first
@@ -106,7 +106,7 @@ still reproduces.
 > 1st) and I see part of Zoom window on the right side. **it disappears after some
 > horizontal scroll applied on Workspace 1. But eventually reappears again.**"
 
-So #235's resolution state is **not "fixed"** — it is a stale-sweep close over a bug the
+So BarutSRB/OmniWM#235's resolution state is **not "fixed"** — it is a stale-sweep close over a bug the
 reporter confirmed live one release later. Guria's two 2026-05-05 screenshots show a
 partial Zoom window on the right edge of otherwise-empty workspaces.
 
@@ -251,10 +251,10 @@ emits the `.hide` that would route it through `resolveHideOperation` via the dif
 
 ## Why this applies to nehir
 
-The match between #235's reported symptoms and nehir's workspace-inactive mechanism is
+The match between BarutSRB/OmniWM#235's reported symptoms and nehir's workspace-inactive mechanism is
 one-to-one:
 
-| #235 symptom (user report) | nehir mechanism (code + capture) |
+| BarutSRB/OmniWM#235 symptom (user report) | nehir mechanism (code + capture) |
 |---|---|
 | Window on workspace N bleeds onto a different workspace | `hideWorkspace` parks inactive-workspace windows by nudging them to a screen edge (`LayoutRefreshController.swift:2142`), not via a compositor hide. A failed/skipped/clamped park leaves the tiled frame on-screen. |
 | "~100px … at the right side of the screen" | Right-edge park = `monitor.frame.maxX - reveal` (`SideHiding.swift:82-86`); the leftover strip is whatever the failed park left on-screen. nehir capture showed the window occupying `x=1050..2056` of a `0..2056` display — a full right-hand bleed. |
@@ -267,11 +267,11 @@ one-to-one:
 The decisive evidence is that nehir already caught this bug in the wild: the
 workspace-inactive capture shows a window on an inactive workspace (6) live-visible on the
 active workspace (1) while nehir's state says `hidden=workspaceInactive` +
-`observedVisible=false`. That is the literal definition of #235.
+`observedVisible=false`. That is the literal definition of BarutSRB/OmniWM#235.
 
 ### Two nehir mechanisms, one umbrella symptom
 
-#235's reports actually span both of nehir's stale-live-frame mechanisms on a single
+BarutSRB/OmniWM#235's reports actually span both of nehir's stale-live-frame mechanisms on a single
 display — they are not a separate cause, they are the same invariant violation
 (`hidden != nil` + `observedVisible=false` + live AX on-screen) on two hide reasons:
 
@@ -285,12 +285,12 @@ display — they are not a separate cause, they are the same invariant violation
 
 Both share the same reconciliation gap: the live-AX re-check runs only on a `.show`/`.hide`
 *transition*, so a window that is already hidden when its live frame drifts is never
-re-parked. #235 is the cross-workspace umbrella; #349 is the same family seen across
+re-parked. BarutSRB/OmniWM#235 is the cross-workspace umbrella; BarutSRB/OmniWM#349 is the same family seen across
 monitors.
 
 ## Relationship to the sibling discoveries
 
-| Aspect | #235 (this doc, upstream) | `workspace-inactive-stale-live-frame` (nehir) | `stale-live-frame-on-stably-hidden-column` (nehir) | #349 (cross-monitor) |
+| Aspect | BarutSRB/OmniWM#235 (this doc, upstream) | `workspace-inactive-stale-live-frame` (nehir) | `stale-live-frame-on-stably-hidden-column` (nehir) | BarutSRB/OmniWM#349 (cross-monitor) |
 |---|---|---|---|---|
 | Framing | window bleeds into a different **workspace** | window on inactive workspace visible on active workspace | hidden column's window stays on-screen after scroll | hidden window bleeds onto a different **monitor** |
 | Hide reason | `.workspaceInactive` (dominant) + `.layoutTransient` (overscroll) | `.workspaceInactive` | `.layoutTransient(left)` | screen-edge park misses adjacent monitor |
@@ -300,16 +300,16 @@ monitors.
 | Fixed by (user) | horizontal scroll | (app switch parked it by end) | scroll until column re-enters apply band | — |
 | nehir code state | **unfixed** (detection-only) | discovery filed; reconciliation still `layoutTransient`-only | discovery filed; reconciliation transition-gated | discovery filed |
 
-#235 is the upstream-facing description of the **workspace-inactive** column of this family
+BarutSRB/OmniWM#235 is the upstream-facing description of the **workspace-inactive** column of this family
 (with an overscroll/layout-transient footnote), and nehir already has the matching,
 capture-proven discovery for it. The code that produces it is unchanged except for the
 detection-only logging noted above.
 
 ## Recommendation
 
-Do not treat #235 as a new investigation. It is the same root cause as
+Do not treat BarutSRB/OmniWM#235 as a new investigation. It is the same root cause as
 `20260616-workspace-inactive-stale-live-frame.md`; implement that discovery's
-recommendations, which close #235 directly:
+recommendations, which close BarutSRB/OmniWM#235 directly:
 
 1. **Stop skipping already-hidden workspace-inactive windows blindly.** In `hideWorkspace`
    (`LayoutRefreshController.swift:2156-2167`), when `hiddenState != nil`, compare the live
@@ -326,7 +326,7 @@ recommendations, which close #235 directly:
    workspace** (the workspace-inactive discovery's `executeHiddenReveal` `.none` path), as
    that is how hidden state is cleared while `isWorkspaceActive=false` with no relayout.
 
-These are the same fixes the workspace-inactive discovery already specifies; #235 adds no
+These are the same fixes the workspace-inactive discovery already specifies; BarutSRB/OmniWM#235 adds no
 new root cause, only confirms the symptom is reported upstream and is still live in the
 latest upstream release the reporter tested. Any repair must also be validated against the
 `docs/window-parking-and-offscreen-clamp.md` pitfalls: a unit test can prove a park *plan is issued*, but
@@ -336,7 +336,7 @@ the live frame is *re-driven* toward the park slot.
 
 ## Suggested tests
 
-Mirror the workspace-inactive discovery's recommended test, framed for #235:
+Mirror the workspace-inactive discovery's recommended test, framed for BarutSRB/OmniWM#235:
 
 1. **Inactive-workspace drift is re-parked, not skipped.** Build a controller state with one
    monitor `M` (`frame=(0,0,2056,1329)`), workspace 1 active and visible, workspace 6

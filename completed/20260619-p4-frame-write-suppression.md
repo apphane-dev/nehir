@@ -2,7 +2,7 @@
 
 **Status:** completed — shipped on `main` in `0162aab4` ("Suppress frame-change relayout after a recent frame-write failure (P4)").
 **Cluster:** upstream-port patch track (P4)
-**Source concept:** closed Hiro PR #403; nehir-native recommendation.
+**Source concept:** closed Hiro PR BarutSRB/OmniWM#403; nehir-native recommendation.
 **Discovery docs:**
 - Primary: `completed/20260618-upstream-frame-write-failure-suppression.md`
 - Root-cause sibling (background only): `20260616-omniwm-403-frame-write-race-min-size-suppression.md` (now in `completed/`)
@@ -32,7 +32,7 @@ a fresh relayout. P4 adds one branch so that state returns `true`, removing the
 trigger.
 
 P4 is the **trigger-side fix**. The root cause — nehir computing a
-sub-minimum target — is tracked separately as **M1 / #384** (refused-frame-size
+sub-minimum target — is tracked separately as **M1 / BarutSRB/OmniWM#384** (refused-frame-size
 constraint feedback + respect window min-size in column-width math). P4 stops the
 thrash now; M1 stops the bad target from being computed. Sequence: **P4 first,
 then M1 characterization.**
@@ -166,7 +166,7 @@ green.
 
 ## Risks
 
-- **Band-aid, not root cause.** Pair with M1/#384 so the bad target is never
+- **Band-aid, not root cause.** Pair with M1/BarutSRB/OmniWM#384 so the bad target is never
   computed. Non-blocking for P4.
 - **A real user resize during the failure window is also suppressed** until the
   next legitimate enqueue. Intended trade-off: it is better not to fight the app
@@ -180,4 +180,4 @@ green.
 P4 first (this patch — removes the trigger), then M1 characterization
 (`discovery/20260618-refused-frame-feedback-characterization.md`) to close the
 structural loop by feeding terminally refused sizes into solver constraints, and
-#384 to respect window min-size in column-width math.
+BarutSRB/OmniWM#384 to respect window min-size in column-width math.

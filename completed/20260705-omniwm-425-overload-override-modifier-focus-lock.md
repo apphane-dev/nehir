@@ -1,8 +1,8 @@
-# OmniWM #425 — Overload the Mouse Resize modifier into a "Manual Override" modifier (add hold-to-lock-focus)
+# BarutSRB/OmniWM#425 — Overload the Mouse Resize modifier into a "Manual Override" modifier (add hold-to-lock-focus)
 
 **Status:** shipped — landed on `main` as `dc1f5fac` ("Add Manual Override focus lock from OmniWM") on 2026-07-05. Implemented as planned: `mouseResizeModifierKey` → `overrideModifier` rename (config/enum/UI), `mouse-resize-modifier-to-override-modifier` settings migration (introduced phase), and hold-to-lock-focus via live-flag read in `MouseEventHandler`. Tests + `docs/SETTINGS_MIGRATIONS.md` + `docs/ARCHITECTURE.md` updated in the same commit.
 **Upstream reference (idea + partial code):** <https://github.com/BarutSRB/OmniWM/issues/425> and commit <https://github.com/BarutSRB/OmniWM/commit/79067d451668dcd333bafbcf6e09acf1761fa892> (Focus Lock Modifier).
-**Attribution requirement:** the focus-lock *idea* is upstream (OmniWM, BarutSRB). The modifier enum this plan renames is already upstream-derived (`MouseResizeModifierKey.swift` carries the `Provenance=upstream-derived; Upstream-Project=OmniWM` SPDX header). Preserve that header on rename and add an SPDX/NOTICE note that the focus-lock behavior is derived from OmniWM #425. Do **not** copy OmniWM's `FocusLockModifier.swift` enum or its per-event `modifiersRawValue` threading verbatim — this plan reuses Nehir's existing modifier enum and reads live flags instead (see Design decision #2), so the code is independently implemented; attribute the idea, not the code.
+**Attribution requirement:** the focus-lock *idea* is upstream (OmniWM, BarutSRB). The modifier enum this plan renames is already upstream-derived (`MouseResizeModifierKey.swift` carries the `Provenance=upstream-derived; Upstream-Project=OmniWM` SPDX header). Preserve that header on rename and add an SPDX/NOTICE note that the focus-lock behavior is derived from BarutSRB/OmniWM#425. Do **not** copy OmniWM's `FocusLockModifier.swift` enum or its per-event `modifiersRawValue` threading verbatim — this plan reuses Nehir's existing modifier enum and reads live flags instead (see Design decision #2), so the code is independently implemented; attribute the idea, not the code.
 
 All file/line references were verified against the main Nehir source tree on 2026-07-05 (`main` @ `83c2234b`). Re-verify before editing; line numbers drift. Paths refer to the main repo, not this plans branch.
 
@@ -19,7 +19,7 @@ Overload the single existing modifier rather than adding a separate `focusLockMo
 
 Neither "Mouse Resize" nor "Mouse Modifier" describes effect #2, and the caption at `BehaviorSettingsTab.swift:105-107` crams both into one sentence.
 
-Add a **third** effect from OmniWM #425 — **hold-to-lock-focus**: while the modifier is physically held, suppress focus-follows-mouse so the pointer can cross other windows (to read/scroll/inspect) without stealing focus. All three effects share one coherent concept: *hold the modifier to take manual control and suppress the automatic/tiling behavior* (manual size vs auto-tile; free scroll vs auto-snap; held focus vs auto-follow).
+Add a **third** effect from BarutSRB/OmniWM#425 — **hold-to-lock-focus**: while the modifier is physically held, suppress focus-follows-mouse so the pointer can cross other windows (to read/scroll/inspect) without stealing focus. All three effects share one coherent concept: *hold the modifier to take manual control and suppress the automatic/tiling behavior* (manual size vs auto-tile; free scroll vs auto-snap; held focus vs auto-follow).
 
 So: **rename** the option to a "Manual Override" modifier, **relabel** section/caption to enumerate all three effects, **add** the focus-lock effect at the one focus-follows-mouse gate (`MouseEventHandler.swift:914-924`), and **migrate** the `[gestures].mouseResizeModifierKey` → `[gestures].overrideModifier` config key under the existing soft-migration lifecycle (`docs/SETTINGS_MIGRATIONS.md`).
 
@@ -73,7 +73,7 @@ Enum cases/`displayName`/`cgEventFlag` are unchanged (only the type name and fil
 
 **Enum (rename, keep provenance header)**
 
-1. `Sources/Nehir/Core/Config/MouseResizeModifierKey.swift` → rename file to `OverrideModifierKey.swift`; rename `enum MouseResizeModifierKey` → `OverrideModifierKey`. Keep the SPDX header (`:1-5`) verbatim and append a `SPDX-FileComment` note that the focus-lock behavior is derived from OmniWM #425. Cases, `displayName`, and the `cgEventFlag` extension are unchanged. Update the `cgEventFlag` extension's type name if it is declared as `extension MouseResizeModifierKey` (grep: it is referenced at the three match sites and in `SettingsStore`).
+1. `Sources/Nehir/Core/Config/MouseResizeModifierKey.swift` → rename file to `OverrideModifierKey.swift`; rename `enum MouseResizeModifierKey` → `OverrideModifierKey`. Keep the SPDX header (`:1-5`) verbatim and append a `SPDX-FileComment` note that the focus-lock behavior is derived from BarutSRB/OmniWM#425. Cases, `displayName`, and the `cgEventFlag` extension are unchanged. Update the `cgEventFlag` extension's type name if it is declared as `extension MouseResizeModifierKey` (grep: it is referenced at the three match sites and in `SettingsStore`).
 
 **Config model + migration decode**
 
@@ -122,7 +122,7 @@ Enum cases/`displayName`/`cgEventFlag` are unchanged (only the type name and fil
 8. `Sources/Nehir/Core/Controller/MouseEventHandler.swift`
    - In `shouldHandleFocusFollowsMouse(at:)` (`:914-924`), after the existing early-return guards and before the monitor/animation check, add:
      ```swift
-     // OmniWM #425: hold the override modifier to keep focus on the current
+     // BarutSRB/OmniWM#425: hold the override modifier to keep focus on the current
      // window while the pointer crosses others. Live flags are re-read every
      // move, so a missed key-up cannot strand focus (self-healing).
      let live = CGEventSource.flagsState(.combinedSessionState)
@@ -202,7 +202,7 @@ Manual validation on a host:
 4. New focus-lock: enable Focus Follows Mouse. Move the pointer over an unfocused window → focus follows. Now hold the modifier and move over the same window → focus stays on the original window; release → focus follows again. Toggle FFM off → holding the modifier has no focus effect.
 5. Fresh install: no settings.toml → defaults to `overrideModifier = "option"`, saved file uses only the new key.
 
-Changeset (minor): "Rename the Mouse Resize modifier to a Manual Override modifier and add hold-to-lock-focus (OmniWM #425)."
+Changeset (minor): "Rename the Mouse Resize modifier to a Manual Override modifier and add hold-to-lock-focus (BarutSRB/OmniWM#425)."
 
 ## Risks and mitigations
 
@@ -216,4 +216,4 @@ Changeset (minor): "Rename the Mouse Resize modifier to a Manual Override modifi
 
 - **Separate `focusLockModifier` setting.** Revisit only on a real user request for an independent focus-lock key (the requester's explicit deferral). If added, it would live under the Focus section next to `focusFollowsMouse`, matching OmniWM's own `[focus]` placement.
 - **Deprecate → enforce the migration.** Fill in the `deprecated`/`enforced` release fields in the registry once the introduced phase has shipped one release.
-- **Right-variant / "either" modifiers.** OmniWM #425's enum distinguishes left/right and "either" variants. Nehir's `OverrideModifierKey` does not model side. Out of scope; add only if requested.
+- **Right-variant / "either" modifiers.** BarutSRB/OmniWM#425's enum distinguishes left/right and "either" variants. Nehir's `OverrideModifierKey` does not model side. Out of scope; add only if requested.

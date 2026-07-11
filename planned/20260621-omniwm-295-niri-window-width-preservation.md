@@ -1,4 +1,4 @@
-# OmniWM #295 — Preserve Niri window width when moved
+# BarutSRB/OmniWM#295 — Preserve Niri window width when moved
 
 Re-verified against main 7a025b78 on 2026-07-07.
 
@@ -17,7 +17,7 @@ target column and unconditionally calls `initializeNewColumnWidth(...)`, which
 discards the moved window's source column width and resets
 `hasManualSingleWindowWidthOverride = false`. With the default lone-window
 `.fill` policy, an empty target workspace then renders the moved window at 100%
-width — exactly the OmniWM #295 report: a 50% window becomes full-width after
+width — exactly the BarutSRB/OmniWM#295 report: a 50% window becomes full-width after
 the move.
 
 Fix it in one place: when the **source** column has a manual width override
@@ -136,7 +136,7 @@ implementation:
      ```swift
      /// Applies the source column's width state to a freshly created/claimed
      /// target column when the user manually resized the source, so individual
-     /// window workspace moves preserve width (OmniWM #295). Falls back to the
+     /// window workspace moves preserve width (BarutSRB/OmniWM#295). Falls back to the
      /// workspace default reset otherwise.
      func applySourceColumnWidthOrReset(
          from sourceColumn: NiriContainer,
@@ -305,7 +305,7 @@ the same fixtures as `moveWindowToWorkspaceUsesExplicitDefaultWidthForTargetColu
      indirectly: because `hasManualSingleWindowWidthOverride == true`, the
      lone-window `.fill` policy is bypassed and `cachedWidth` is used.
    - Locks in: the copied proportional width re-resolves against the target
-     working frame, giving OmniWM #295's "50% relative to current screen".
+     working frame, giving BarutSRB/OmniWM#295's "50% relative to current screen".
 
 5. **Existing regression test stays green.**
    `moveWindowToWorkspaceUsesExplicitDefaultWidthForTargetColumn`
@@ -356,7 +356,7 @@ Manual validation on a two-monitor host (default lone-window `.fill` policy):
    default width (fallback branch unchanged).
 
 Changeset (patch): "Preserve manually-resized Niri column width when moving a
-single window to another workspace (OmniWM #295)."
+single window to another workspace (BarutSRB/OmniWM#295)."
 
 ## Risks and mitigations
 
@@ -386,11 +386,11 @@ single window to another workspace (OmniWM #295)."
 
 ## Follow-ups (out of scope)
 
-- Per-app initial column width (OmniWM #283, see
+- Per-app initial column width (BarutSRB/OmniWM#283, see
   `discovery/20260617-omniwm-283-per-app-initial-column-width.md`) is a
   separate feature and would interact with this fix only at column *creation*
   on admission, not at workspace move.
-- Allowing Niri columns wider than 100% of the working area (OmniWM #326, see
+- Allowing Niri columns wider than 100% of the working area (BarutSRB/OmniWM#326, see
   `discovery/20260617-omniwm-326-niri-column-over-100-percent-width.md`) is
   independent; this fix copies whatever `ProportionalSize` the source column
   already has, so a future >100% capability composes naturally.
@@ -398,5 +398,5 @@ single window to another workspace (OmniWM #295)."
   feedback wants it) would only require dropping the `hasManualSingleWindowWidthOverride`
   guard in `applySourceColumnWidthOrReset`. Deliberately deferred here.
 - Cross-monitor fixed-pixel width scaling (e.g. convert `.fixed(800px)` between
-  DPIs) is not addressed; out of scope for #295, which is explicitly about
+  DPIs) is not addressed; out of scope for BarutSRB/OmniWM#295, which is explicitly about
   proportional widths.

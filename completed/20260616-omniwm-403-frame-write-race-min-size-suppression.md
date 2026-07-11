@@ -1,4 +1,4 @@
-# OmniWM PR #403 — "Break AX frame-write race loop for min-size apps" — Discovery
+# OmniWM PR BarutSRB/OmniWM#403 — "Break AX frame-write race loop for min-size apps" — Discovery
 
 **Status:** completed — the recommended one-clause suppression fix shipped on `main` as part of P4 in commit `0162aab4` ("Suppress frame-change relayout after a recent frame-write failure (P4)"). The `recentFrameWriteFailures[windowId] != nil` branch this doc recommended is present at `Sources/Nehir/Core/Ax/AXManager.swift` in `shouldSuppressFrameChangeRelayout`. Implementation record: [`20260619-p4-frame-write-suppression.md`](20260619-p4-frame-write-suppression.md); background concept: [`20260618-upstream-frame-write-failure-suppression.md`](20260618-upstream-frame-write-failure-suppression.md). Moved from `discovery/` on 2026-06-20.
 
@@ -101,7 +101,7 @@ recentFrameWriteFailures.removeValue(forKey: windowId)   // ← failure flag cle
 
 A min-size-constrained app (App Store, Xcode, etc.) enforces a minimum window size.
 nehir's column-width math does **not** yet respect that minimum (that is the separate
-#384 layout-side pairing, for which no nehir discovery/fix exists yet), so it computes
+BarutSRB/OmniWM#384 layout-side pairing, for which no nehir discovery/fix exists yet), so it computes
 a target smaller than the app's enforced minimum. Then:
 
 1. **Write fails.** nehir writes the too-small frame; the app clamps it back to its
@@ -125,7 +125,7 @@ a target smaller than the app's enforced minimum. Then:
    it → step 1 repeats. The app's own snap-back is the self-sustaining trigger; without
    it the loop has no fuel.
 
-PR #403's fix removes the trigger at step 3: adding
+PR BarutSRB/OmniWM#403's fix removes the trigger at step 3: adding
 `if recentFrameWriteFailures[windowId] != nil { return true }` makes the snap-back
 notification suppressed during the post-failure window, so no relayout is kicked off,
 so the identical target is never re-enqueued by the app. The bounded retry (step 2)
@@ -139,7 +139,7 @@ Two existing nehir mechanisms are *related but do not close this gap*:
 - **The resize-minimum learner** (`LayoutRefreshController`, see the sibling discovery
   `20260614-ax-frame-write-verification-race.md` §3a) eventually learns the app's
   minimum and pins it into the solver so future targets respect it — the structural
-  fix (and the #384-side concept). But it is slower-timescale: it needs at least one
+  fix (and the BarutSRB/OmniWM#384-side concept). But it is slower-timescale: it needs at least one
   failed write to learn, and per §3a of that doc a transient mismatch can *cascade*
   rather than converge. It does nothing about the burst of snap-back-driven relayouts
   *during* the failed-write window.
@@ -165,7 +165,7 @@ low-risk fix the sibling doc identified but did not adopt — not a duplicate of
 ```swift
 func shouldSuppressFrameChangeRelayout(for windowId: Int, observedFrame: CGRect?) -> Bool {
     if pendingFrameWrites[windowId] != nil { return true }
-    if recentFrameWriteFailures[windowId] != nil { return true }   // ← the PR #403 fix
+    if recentFrameWriteFailures[windowId] != nil { return true }   // ← the PR BarutSRB/OmniWM#403 fix
     guard let observedFrame,
           let lastAppliedFrame = lastAppliedFrames[windowId]
     else { return false }
@@ -182,9 +182,9 @@ closed PR.
 Caveats to handle at implementation time (not blockers, but verify):
 
 - This is a **band-aid on the trigger**, not the root cause. The loop fundamentally
-  exists because nehir computes a sub-minimum target (#384 layout side). Pair this fix
-  with a #384 discovery/port (respect min-size in column-width math); the two are
-  complementary: #403 suppresses the thrash now, #384 stops computing the bad target.
+  exists because nehir computes a sub-minimum target (BarutSRB/OmniWM#384 layout side). Pair this fix
+  with a BarutSRB/OmniWM#384 discovery/port (respect min-size in column-width math); the two are
+  complementary: BarutSRB/OmniWM#403 suppresses the thrash now, BarutSRB/OmniWM#384 stops computing the bad target.
 - Confirm the failure flag is *not* cleared anywhere between a failed write and the
   next enqueue other than `:602` (e.g. `suppressFrameWrites` at `:709–710` clears it,
   but that path also tears down all per-window state, so suppression there is moot).

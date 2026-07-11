@@ -1,4 +1,4 @@
-# OmniWM #326 — Allow a Niri column over 100% width
+# BarutSRB/OmniWM#326 — Allow a Niri column over 100% width
 
 Re-verified against main 7a025b78 on 2026-07-07.
 
@@ -182,7 +182,7 @@ truly lone window (1 column, 1 normal window) hits the Layer-B clamp.
      ```swift
      let overConstrainedWidth = size.width > workingFrame.width
      let overConstrainedHeight = size.height > workingFrame.height
-     // OmniWM #326: a lone window wider than the working frame because the user
+     // BarutSRB/OmniWM#326: a lone window wider than the working frame because the user
      // set a >100% proportional width is intentional overflow the viewport scrolls
      // to reveal — not a min-size leak to suppress. Only the window's own min-width
      // forcing the overflow keeps the legacy containing-frame clamp.
@@ -421,7 +421,7 @@ Manual validation (default lone-window `.fill` policy):
    default (no behavior change for users who never touch the width).
 
 Changeset (minor): "Allow Niri columns wider than 100% of the working area, with
-horizontal scroll reveal (OmniWM #326)."
+horizontal scroll reveal (BarutSRB/OmniWM#326)."
 
 ## Risks and mitigations
 
@@ -470,6 +470,6 @@ horizontal scroll reveal (OmniWM #326)."
   columns.
 - Tuning the snap/scroll range for a single overwidth column if manual testing
   finds the reachable scroll range too tight (see Risks).
-- Per-app initial column width (OmniWM #283,
+- Per-app initial column width (BarutSRB/OmniWM#283,
   `discovery/20260617-omniwm-283-per-app-initial-column-width.md`) composes with
   this at column *creation*; it stays a separate task.

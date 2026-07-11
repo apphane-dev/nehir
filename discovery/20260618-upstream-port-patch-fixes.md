@@ -23,7 +23,7 @@ Four patch-level candidates are ready for dedicated implementation subagents:
 | P1 | require two rescan misses before eviction | `ba9d1e2` | `LayoutRefreshController.swift:1424` still passes `requiredConsecutiveMisses: 1` | direct patch |
 | P2 | do not cancel same-kind refreshes | `631caa9` | `LayoutRefreshController.swift:1636-1651` cancels `.immediateRelayout/.immediateRelayout` and `.relayout/.relayout` | direct patch |
 | P3 | preserve monitor orientation overrides | `8338d97` | `NiriMonitor.swift:50` overwrites override with `autoOrientation`; IPC uses `monitor.autoOrientation` | direct patch |
-| P4 | suppress frame-change relayout after recent AX write failure | closed Hiro PR #403 concept; nehir discovery exists | `AXManager.swift:165` checks pending/last-applied but not `recentFrameWriteFailures` | direct nehir-native patch |
+| P4 | suppress frame-change relayout after recent AX write failure | closed Hiro PR BarutSRB/OmniWM#403 concept; nehir discovery exists | `AXManager.swift:165` checks pending/last-applied but not `recentFrameWriteFailures` | direct nehir-native patch |
 
 These are intentionally scoped below "minor" because each should be safe to implement and test in a normal bug-fix changeset.
 

@@ -1,10 +1,10 @@
-# OmniWM issue #358 — "Overlaying Mac OS pills makes window moving by itself" — Discovery
+# BarutSRB/OmniWM#358 — "Overlaying Mac OS pills makes window moving by itself" — Discovery
 
 Source issue: https://github.com/BarutSRB/OmniWM/issues/358
 Scope of this doc: determine whether a transient macOS on-screen "pill"
 (input-source switcher indicator, screen-recording indicator — system-level
 overlays) can shift/resize a managed (tiled) window in nehir, and whether the
-upstream suggested fix (OmniWM PR #385, "Suppress input during screenshot
+upstream suggested fix (OmniWM PR BarutSRB/OmniWM#385, "Suppress input during screenshot
 selection", **closed without merge**) is safe to port.
 
 All file/line references were verified against the Nehir source tree at
@@ -17,7 +17,7 @@ Re-verify before implementing; line numbers drift.
 > built-in rule; the recording-indicator / screencapture surfaces are excluded
 > by activation-policy and AX-resolution gates; and any non-tracked overlay's
 > frame event is short-circuited before it can relayout. Porting the upstream
-> diff (PR #385) would *regress* (a narrower screencapture suppression that
+> diff (PR BarutSRB/OmniWM#385) would *regress* (a narrower screencapture suppression that
 > nehir's existing activation-policy occlusion already covers). The one related
 > *app-owned* overlay → viewport-reveal bug is a separate trigger owned by the
 > sibling discovery `discovery/20260615-viewport-reveal-from-unmanaged-overlay-activation.md`.
@@ -26,7 +26,7 @@ Re-verify before implementing; line numbers drift.
 
 ## TL;DR
 
-- **nehir does not reproduce #358.** The input-source indicator pill (the issue's
+- **nehir does not reproduce BarutSRB/OmniWM#358.** The input-source indicator pill (the issue's
   primary reproduction) is **explicitly classified `.unmanaged` by bundle id** and
   never admitted, so it can never perturb a tiled window. Recording/screencapture
   system chrome is excluded by activation policy and never resolves as a standard
@@ -188,22 +188,22 @@ when admitted it does not perturb the niri column layout.
 The one real "unmanaged overlay perturbs the layout" bug in nehir is the
 **viewport-reveal-on-app-activation** path, documented in
 `discovery/20260615-viewport-reveal-from-unmanaged-overlay-activation.md`.
-That sibling is a *structurally different* trigger from #358:
+That sibling is a *structurally different* trigger from BarutSRB/OmniWM#358:
 
-| | #358 (this item) | viewport-reveal sibling |
+| | BarutSRB/OmniWM#358 (this item) | viewport-reveal sibling |
 |---|---|---|
 | Overlay owner | **system process** (TextInputMenuAgent / screencapture) | **app-owned** overlay (Ghostty Quick Terminal) |
 | Same pid as a managed window? | **no** | **yes** — resolves to a managed sibling |
 | Hits `scrollToReveal`? | no — system pid has no AX focused window → `enterNonManagedFocus` (benign) | yes — the managed sibling's column is revealed |
 | Owned by this item? | no | owned by the sibling |
 
-#358's system-pill trigger cannot reach the reveal path, because a system process
+BarutSRB/OmniWM#358's system-pill trigger cannot reach the reveal path, because a system process
 has no focused AX window and no managed sibling. The reveal bug is already owned
-by the sibling; #358 adds nothing to it.
+by the sibling; BarutSRB/OmniWM#358 adds nothing to it.
 
 ## Why the upstream fix is unsafe / unnecessary to port
 
-OmniWM PR #385 ("Suppress input during screenshot selection") was **closed without
+OmniWM PR BarutSRB/OmniWM#385 ("Suppress input during screenshot selection") was **closed without
 merge**. It detects `com.apple.screencaptureui` / `com.apple.Screenshot` as
 frontmost and suppresses mouse handling + layout refresh via the lock-screen-style
 `isInputSuppressed` pattern. Porting it would be a regression risk for nehir with
@@ -215,7 +215,7 @@ no upside:
   (`WMController.swift:2524`), which covers the screencapture UI, so a
   per-frontmost-process suppression is redundant.
 - The issue's *input-source pill* reproduction is already handled by the
-  `systemTextInputPanel` rule, which PR #385 does not address at all (it targets
+  `systemTextInputPanel` rule, which PR BarutSRB/OmniWM#385 does not address at all (it targets
   the screencaptureui process, not TextInputMenuAgent).
 - A broad "suppress all layout refresh while a system overlay is frontmost" guard
   is exactly the kind of over-broad suppression that the completed FFM plan
@@ -225,9 +225,9 @@ no upside:
 
 ## Recommendation
 
-**Do nothing for #358 specifically.** No new action is owned here. If the
+**Do nothing for BarutSRB/OmniWM#358 specifically.** No new action is owned here. If the
 viewport-reveal behavior for *app-owned* overlays (Quick Terminal etc.) is later
-fixed, follow the sibling doc instead — #358's system-pill case is already
+fixed, follow the sibling doc instead — BarutSRB/OmniWM#358's system-pill case is already
 covered and is not part of that fix's scope. Optionally, if a future system
 overlay bundle is ever observed being admitted, extend the
 `systemTextInputPanelBundleIds` set (`WindowRuleEngine.swift:199`) — but no such

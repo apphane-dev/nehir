@@ -1,10 +1,10 @@
-# OmniWM PR #362 — "Border corner radius matches real window radius (≈ #341)" — Discovery
+# OmniWM PR BarutSRB/OmniWM#362 — "Border corner radius matches real window radius (≈ #341)" — Discovery
 
 Source PR: https://github.com/BarutSRB/OmniWM/pull/362
 Merge state: **closed without merge** (per task triage/upstream state) —
 evaluate the concept, not a verbatim patch.
 Scope of this doc: determine whether nehir still hard-codes the focus-border
-corner radius, and whether PR #362's proposed wiring should be ported.
+corner radius, and whether PR BarutSRB/OmniWM#362's proposed wiring should be ported.
 
 All file/line references were verified against the Nehir source tree
 at `904df02` ("Add bunch of discoveries mapped to issues from OmniWM"). Line
@@ -13,7 +13,7 @@ numbers drift — re-verify before implementing.
 > **Filed under `discovery/noop/`** — nehir already implements the PR's root fix:
 > the border manager queries `SkyLight.shared.cornerRadius(forWindowId:)`, passes
 > that resolved value into `BorderWindow`, and redraws when the radius changes.
-> Porting #362's `BorderWindow.Operations.cornerRadiusForWindow` hook would be a
+> Porting BarutSRB/OmniWM#362's `BorderWindow.Operations.cornerRadiusForWindow` hook would be a
 > redundant architecture move, not a new repo action.
 
 ---
@@ -99,7 +99,7 @@ private func resolvedCornerRadius(for windowId: Int) -> CGFloat {
 }
 ```
 
-The only material difference from PR #362 is fallback value: nehir's
+The only material difference from PR BarutSRB/OmniWM#362 is fallback value: nehir's
 `defaultCornerRadius` is still `9.0` (`Sources/Nehir/Core/Border/BorderManager.swift:17`),
 while the PR chose `10.0` when the SkyLight query returns `nil`.
 
@@ -171,7 +171,7 @@ func cornerRadius(forWindowId wid: Int) -> CGFloat? {
 1. **The production path is not hard-coded.** `BorderManager.updateFocusedWindow`
    resolves a per-window radius at `BorderManager.swift:71` and passes it into
    `BorderWindow.update` at `BorderManager.swift:88`-`BorderManager.swift:92`.
-   That is the same root concept as #362, just owned by the manager instead of
+   That is the same root concept as BarutSRB/OmniWM#362, just owned by the manager instead of
    by `BorderWindow.Operations`.
 2. **The drawing code consumes that resolved value.** `BorderWindow` marks the
    border dirty when `currentCornerRadius` changes (`BorderWindow.swift:121`-
@@ -181,7 +181,7 @@ func cornerRadius(forWindowId wid: Int) -> CGFloat? {
    provider calls `SkyLight.shared.cornerRadius(forWindowId:)` at
    `BorderManager.swift:22`, and the SkyLight implementation returns the first
    non-negative WindowServer corner radius at `SkyLight.swift:287`-`SkyLight.swift:318`.
-4. **Tests cover the behavior #362 needs.** `radiusChangeRedrawsWithoutReshape`
+4. **Tests cover the behavior BarutSRB/OmniWM#362 needs.** `radiusChangeRedrawsWithoutReshape`
    proves changing the supplied radius redraws without reshaping
    (`Tests/NehirTests/BorderWindowTests.swift:104`-`Tests/NehirTests/BorderWindowTests.swift:135`),
    and `sameFrameDifferentTargetWithDifferentRadiusRedraws` proves manager-level
@@ -189,14 +189,14 @@ func cornerRadius(forWindowId wid: Int) -> CGFloat? {
    (`Tests/NehirTests/BorderWindowTests.swift:224`-`Tests/NehirTests/BorderWindowTests.swift:269`).
 
 The remaining mismatch is only the nil-query fallback (`9.0` in nehir vs `10.0`
-in #362). That is not the reported root bug when SkyLight returns a radius, and
+in BarutSRB/OmniWM#362). That is not the reported root bug when SkyLight returns a radius, and
 changing it is a cosmetic policy choice rather than a unique port action for this
 closed PR.
 
 ## Recommendation
 
-Do **not** port PR #362. Keep nehir's manager-owned provider/caching design. If a
+Do **not** port PR BarutSRB/OmniWM#362. Keep nehir's manager-owned provider/caching design. If a
 future runtime report proves `SkyLight.cornerRadius(forWindowId:)` returns `nil`
 on supported macOS versions and the one-point fallback is visible, handle that as
 a separate small policy cleanup (likely changing `BorderManager.defaultCornerRadius`
-and `BorderWindow`'s test-only defaults together), not as a #362 port.
+and `BorderWindow`'s test-only defaults together), not as a BarutSRB/OmniWM#362 port.

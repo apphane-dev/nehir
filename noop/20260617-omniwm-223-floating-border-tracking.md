@@ -1,4 +1,4 @@
-# OmniWM issue #223 — "Border doesn't follow a floating window" — Discovery
+# BarutSRB/OmniWM#223 — "Border doesn't follow a floating window" — Discovery
 
 Source issue: https://github.com/BarutSRB/OmniWM/issues/223
 Upstream state: **closed as not planned** (per task triage/upstream state).

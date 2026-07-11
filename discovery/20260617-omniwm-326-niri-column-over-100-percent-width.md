@@ -1,4 +1,4 @@
-# OmniWM issue #326 — "Allow Niri layout column to be more than 100%" — Discovery
+# BarutSRB/OmniWM#326 — "Allow Niri layout column to be more than 100%" — Discovery
 
 Groom 2026-07-07: in flight — a plan exists (planned/20260621-omniwm-326-niri-column-over-100-percent-width.md); column width is still hard-capped at 100% (verified against main 7a025b78).
 

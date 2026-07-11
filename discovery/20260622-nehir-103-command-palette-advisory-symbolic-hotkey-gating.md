@@ -225,7 +225,7 @@ added code (the reader + gating + refresh), not just a catalog row.
 ## Non-goals (unchanged by #103)
 
 - No replacement of Carbon hotkeys with a `CGEventTap` keyboard backend — still
-  the separate OmniWM #226 scope (`planned/20260621-omniwm-226-chrome-extension-hotkey-priority.md`,
+  the separate BarutSRB/OmniWM#226 scope (`planned/20260621-omniwm-226-chrome-extension-hotkey-priority.md`,
   `discovery/20260616-omniwm-226-chrome-extension-hotkey-priority.md`).
 - No active liveness probing via event synthesis.
 - No advisory on arbitrary custom chords — still default-scoped to a curated list.

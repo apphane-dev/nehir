@@ -1,4 +1,4 @@
-# OmniWM issue #373 — "Smart gaps (remove gaps with single window)" — Discovery
+# BarutSRB/OmniWM#373 — "Smart gaps (remove gaps with single window)" — Discovery
 
 Groom 2026-07-07: in flight — a plan exists (planned/20260621-omniwm-373-smart-gaps-single-window.md); no smart-gaps/single-window outer-gap removal yet (verified against main 7a025b78).
 
@@ -47,7 +47,7 @@ Yes. The relevant machinery all exists; only the gap-suppression rule is missing
   (`Sources/Nehir/Core/Layout/Niri/NiriLayoutEngine.swift:258`) returns a context
   iff the workspace has exactly one non-tabbed column with exactly one
   `.normal`-sized window. This is precisely the "single visible window"
-  predicate #373 needs.
+  predicate BarutSRB/OmniWM#373 needs.
 - **A lone-window policy already exists — but it is about width, not gaps.**
   `loneWindowPolicy: LoneWindowPolicy = .fill`
   (`NiriLayoutEngine.swift:148`), resolved per workspace
@@ -140,7 +140,7 @@ func insetWorkingFrame(from frame: CGRect, scale: CGFloat = 2.0,
    is always inset by the configured outer gaps before the single window is
    placed (`NiriLayout.swift:871` consumes `workingFrame`).
 2. **Inner gaps already behave correctly.** With one window there are no
-   between-window gaps, so #373's "remove inner gaps" half is already satisfied
+   between-window gaps, so BarutSRB/OmniWM#373's "remove inner gaps" half is already satisfied
    by construction. Only the **outer** gap removal is new work.
 3. **The implementation is localized and low-risk.** Reuse
    `singleWindowLayoutContext(in:)` as the predicate. On the single-window layout

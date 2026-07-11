@@ -1,6 +1,6 @@
 # Upstream port P4 — Suppress app-originated frame-change relayout after a recent AX write failure — Discovery
 
-Source: closed Hiro PR #403 concept (not a merged upstream commit); the nehir-native recommendation is documented in [`20260616-omniwm-403-frame-write-race-min-size-suppression.md`](20260616-omniwm-403-frame-write-race-min-size-suppression.md) (now in `completed/`).
+Source: closed Hiro PR BarutSRB/OmniWM#403 concept (not a merged upstream commit); the nehir-native recommendation is documented in [`20260616-omniwm-403-frame-write-race-min-size-suppression.md`](20260616-omniwm-403-frame-write-race-min-size-suppression.md) (now in `completed/`).
 This doc is the **patch-cluster discovery** for that one-branch fix; the linked sibling is the full root-cause trace.
 
 Scope: confirm the suppression gap exists in nehir, confirm the bounded-clearing safety property the fix relies on, and scope the patch.
@@ -11,7 +11,7 @@ Scope: confirm the suppression gap exists in nehir, confirm the bounded-clearing
 
 - **Applies: nehir's `AXManager.shouldSuppressFrameChangeRelayout` checks only `pendingFrameWrites` and `lastAppliedFrames`, not `recentFrameWriteFailures`.** On a failed/min-size write, the pending map is cleared and `lastAppliedFrames` is never set, so the app's snap-back `kAXFrameChangedNotification` is not suppressed and kicks off a relayout that re-writes the identical too-small target — a self-sustaining loop.
 - **Verdict:** 🔴 Open / Applies. One-branch fix; safe in nehir specifically because every legitimate enqueue clears the failure flag (`AXManager.swift:602`), bounding the suppression window to "after a failed write, before the next legitimate write."
-- **This is the trigger-side fix, not the root cause.** The loop fundamentally exists because nehir computes a sub-minimum target (the M1 / #384 layout side). P4 suppresses the thrash now; M1's constraint feedback stops computing the bad target. Land **P4 first**, then M1 characterization.
+- **This is the trigger-side fix, not the root cause.** The loop fundamentally exists because nehir computes a sub-minimum target (the M1 / BarutSRB/OmniWM#384 layout side). P4 suppresses the thrash now; M1's constraint feedback stops computing the bad target. Land **P4 first**, then M1 characterization.
 
 ## Provenance: is this nehir's code?
 
@@ -109,11 +109,11 @@ swift test --filter RefreshRoutingTests
 
 ## Risks
 
-- **Band-aid, not root cause.** Pair with M1/#384 (respect min-size in column-width math) so the bad target is never computed. Non-blocking.
+- **Band-aid, not root cause.** Pair with M1/BarutSRB/OmniWM#384 (respect min-size in column-width math) so the bad target is never computed. Non-blocking.
 - **A real user resize during the failure window is also suppressed** until the next legitimate enqueue. Intended trade-off: it is better to not fight the app during the failed-write window than to re-write the identical failing target. The next enqueue re-enables normal behavior.
 - Unconditional suppression (any frame-change notification while the flag is present) vs. narrowing to "observedFrame near the failed target." Recommend unconditional — simplest correct shape given the bounded window; no safety gain from narrowing.
 
 ## Relationship to other clusters
 
 - **M1 (refused-frame feedback):** nehir already implements the structural constraint-feedback loop; P4 is its missing trigger-side companion. Sequence **P4 → M1 characterization**.
-- **#384 (respect window min-size in column-width math):** the true root cause. Tracked separately; not a patch.
+- **BarutSRB/OmniWM#384 (respect window min-size in column-width math):** the true root cause. Tracked separately; not a patch.

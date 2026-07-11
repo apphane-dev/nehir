@@ -1,4 +1,4 @@
-# OmniWM issue #301 — "3 finger swiping gets stuck on windows" — Discovery
+# BarutSRB/OmniWM#301 — "3 finger swiping gets stuck on windows" — Discovery
 
 Source issue: <https://github.com/BarutSRB/OmniWM/issues/301>
 Scope of this doc: determine whether the "3-finger swipe gets stuck"
@@ -14,7 +14,7 @@ trace"). Re-verify before implementing; line numbers drift.
 > sibling discovery
 > [`20260616-nehir-53-trackpad-four-finger-swipe-gesture.md`](../discovery/20260616-nehir-53-trackpad-four-finger-swipe-gesture.md)
 > (same `averageGestureTouchPosition` matcher, same abort-on-nil, same
-> diagnostic gap). OmniWM #301 is the 3-finger / app-competition manifestation
+> diagnostic gap). BarutSRB/OmniWM#301 is the 3-finger / app-competition manifestation
 > of that root cause; it motivates no new repo action beyond what #53's
 > Recommendation #1 (abort-path tracing) and #3 (armed/committed hysteresis)
 > already prescribe. Porting the upcoming OmniWM fix directly is N/A — nehir
@@ -141,7 +141,7 @@ Two structural facts make this exact symptom class likely and hard to field-diag
   no suppression and no trace.
 - **`abortActiveGestureIfNeeded()` and `resetGestureState()` write no trace.**
   The only trackpad-gesture traces are on the success path
-  (`touch_scroll_gesture_armed`, `_committed`, `_update`). When #301 reproduces,
+  (`touch_scroll_gesture_armed`, `_committed`, `_update`). When BarutSRB/OmniWM#301 reproduces,
   the trace shows only absence — the same diagnostic gap the sibling nehir-53
   doc already calls out (its "Diagnostic gap" section and Recommendation #1).
 
@@ -162,30 +162,30 @@ documented in
 - nehir-53 Recommendation #1 (trace the abort/skip path with a `reason`) and #3
   (once `.armed`/`.committed` at `requiredFingers`, tolerate `requiredFingers ± 1`
   for a few miss-frames before aborting) are **finger-count-agnostic** and would
-  directly address OmniWM #301's 3-finger "stuck/glitch": the hysteresis absorbs
+  directly address BarutSRB/OmniWM#301's 3-finger "stuck/glitch": the hysteresis absorbs
   the transient count changes a competing app produces, so the swipe no longer
   aborts mid-transition.
 
-The only thing #301 adds is the **app-level** (browser/app binds 3-finger)
+The only thing BarutSRB/OmniWM#301 adds is the **app-level** (browser/app binds 3-finger)
 competition vector and the **"stuck/glitch" symptom** — versus nehir-53's
 OS-level 4-finger reservation and "never commits" symptom. These are different
 symptoms of the same code defect; they share one fix.
 
-> Sibling reference in triage: OmniWM #336 ("gesture scroll without scroll-snap")
+> Sibling reference in triage: BarutSRB/OmniWM#336 ("gesture scroll without scroll-snap")
 > concerns the `bypassSnap` modifier path (`MouseEventHandler.swift:1530`–`:1540`,
 > `:1695`), a distinct feature, and is not the duplicate owner here.
 
 ## Recommendation
 
-Do **not** open a separate fix for #301; do **not** attempt to port the
+Do **not** open a separate fix for BarutSRB/OmniWM#301; do **not** attempt to port the
 "fix tomorrow" OmniWM change — nehir does not share the upstream rewrite's code,
 and the relevant logic already lives in
-`MouseEventHandler.swift`. Instead, fold #301 into the existing sibling track:
+`MouseEventHandler.swift`. Instead, fold BarutSRB/OmniWM#301 into the existing sibling track:
 
 1. **Tracing first** (nehir-53 Rec #1): emit a `touch_scroll_gesture_abort`
    with `requiredFingers`, `activeTouches`, phase, and a `reason`
    (`overCount` / `underCount` / `nonHorizontal` / `overlay` / `disabled`).
-   This is what would prove whether #301's "stuck" is abort-and-snap vs.
+   This is what would prove whether BarutSRB/OmniWM#301's "stuck" is abort-and-snap vs.
    never-commit, and it is the cheapest broadly-useful step. Add the abort
    call inside `handleGestureEvent` at `:1502` (and in `resetGestureState`,
    `:1924`-era).
@@ -205,6 +205,6 @@ and the relevant logic already lives in
 - In `Tests/NehirTests/MouseEventHandlerTests.swift` (near the existing
   `trackpadGesture*` tests): feed a committed 3-finger stream, then inject a
   frame with `activeTouches == requiredFingers ± 1` and assert the gesture
-  does **not** abort within the hysteresis window (lock-in behavior for #301).
+  does **not** abort within the hysteresis window (lock-in behavior for BarutSRB/OmniWM#301).
 - Assert the new abort trace carries the correct `reason` for over-count vs.
-  under-count vs. non-horizontal frames (the diagnostic for both #301 and #53).
+  under-count vs. non-horizontal frames (the diagnostic for both BarutSRB/OmniWM#301 and #53).

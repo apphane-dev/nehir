@@ -1,4 +1,4 @@
-# OmniWM PR #307 — "Fix IPC secret file handling on macOS" — Discovery
+# OmniWM PR BarutSRB/OmniWM#307 — "Fix IPC secret file handling on macOS" — Discovery
 
 Source PR: https://github.com/BarutSRB/OmniWM/pull/307
 (author @zicochaos; **closed without merge** — head repository `zicochaos/ipc-start-diagnostics` was deleted 2026-05-19, so the diff is unrecoverable).
@@ -96,13 +96,13 @@ public static func secretPath(forSocketPath socketPath: String) -> String {
 
 **3. The PR's secondary change (phase-tagged startup diagnostics) is already covered functionally.** nehir wraps IPC start failures in `AppDelegate.swift`: the live start path (`:136`) and the toggle path (`:117`) both catch throws and surface `"IPC Failed to Start"` with `error.localizedDescription` (`AppDelegate.swift:120`, `:139`), then disable IPC. The PR's "wrap IPC server startup errors with the startup phase" is a richer enum-tagged variant of exactly this; nehir's existing handling already makes an IPC-start failure actionable to the user. Not a regression, not a port requirement.
 
-**Observation (not this PR's bug):** the PR's Swift rewrite bundled defensive hardening — `O_NOFOLLOW` (symlink rejection), an explicit owner check, and regular-file validation on the secret read. nehir's Swift read path (`IPCClient.swift:79-90`) does `FileManager.contents(atPath:)` without those explicit guards. This is a potential future hardening, **not** the bug PR #307 exists to fix (the bug is the Zig `EINVAL`, which is absent here), and nehir already defends the connection at a separate boundary: every accepted client must pass the `getpeereid` peer-credential check `isCurrentUser(_:)` (`IPCServer.swift:325`) and the socket directory is created `0o700` (`IPCServer.swift:174`). The secret token is not the sole auth gate. Recording this as an aside; it does not change the verdict and does not belong to this item.
+**Observation (not this PR's bug):** the PR's Swift rewrite bundled defensive hardening — `O_NOFOLLOW` (symlink rejection), an explicit owner check, and regular-file validation on the secret read. nehir's Swift read path (`IPCClient.swift:79-90`) does `FileManager.contents(atPath:)` without those explicit guards. This is a potential future hardening, **not** the bug PR BarutSRB/OmniWM#307 exists to fix (the bug is the Zig `EINVAL`, which is absent here), and nehir already defends the connection at a separate boundary: every accepted client must pass the `getpeereid` peer-credential check `isCurrentUser(_:)` (`IPCServer.swift:325`) and the socket directory is created `0o700` (`IPCServer.swift:174`). The secret token is not the sole auth gate. Recording this as an aside; it does not change the verdict and does not belong to this item.
 
 ## Recommendation
 
-Do **not** port PR #307. The fix it ships (a Swift secret-file path replacing a failing Zig-FFI one) is already nehir's implementation, and the bug it fixes is structurally impossible here (no Zig layer exists). Attempting to apply the diff would be a no-op against `Sources/` at best, or would reintroduce a Zig dependency at worst. Close as not-applicable to nehir.
+Do **not** port PR BarutSRB/OmniWM#307. The fix it ships (a Swift secret-file path replacing a failing Zig-FFI one) is already nehir's implementation, and the bug it fixes is structurally impossible here (no Zig layer exists). Attempting to apply the diff would be a no-op against `Sources/` at best, or would reintroduce a Zig dependency at worst. Close as not-applicable to nehir.
 
-(Out of scope for this item, but worth a separate, dedicated discovery if anyone wants it: add `O_NOFOLLOW` + owner/regular-file validation to the secret read in `IPCClient.swift:76-90`. That is independent hardening, not a OmniWM #307 backport.)
+(Out of scope for this item, but worth a separate, dedicated discovery if anyone wants it: add `O_NOFOLLOW` + owner/regular-file validation to the secret read in `IPCClient.swift:76-90`. That is independent hardening, not a BarutSRB/OmniWM#307 backport.)
 
 ## Suggested tests
 

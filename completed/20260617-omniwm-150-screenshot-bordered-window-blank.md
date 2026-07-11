@@ -1,4 +1,4 @@
-# OmniWM issue #150 — "Screenshot of bordered window is blank" — Discovery
+# BarutSRB/OmniWM#150 — "Screenshot of bordered window is blank" — Discovery
 
 **Status: ✅ RESOLVED — shipped on `main` as `d88a5da2` ("Hide focus borders
 during macOS screenshots").** Verified against the main Nehir source tree on
@@ -7,7 +7,7 @@ picker is active, so "Capture Selected Window" captures the app window. This is
 the approach this discovery recommended.
 
 History:
-- 2026-06-17: filed from OmniWM #150; verdict 🟡 partial — nehir's own capture
+- 2026-06-17: filed from BarutSRB/OmniWM#150; verdict 🟡 partial — nehir's own capture
   exclusion protected overview thumbnails, but the native macOS screenshot
   window-picker case was unguarded.
 - 2026-07-07 groom: still applicable — partial (verified against main

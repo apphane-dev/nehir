@@ -165,7 +165,7 @@ Nehir exposes **three** "make it big" actions plus a dead fourth mode:
   `CommandHandler.toggleNativeFullscreenForFocused()` (`CommandHandler.swift:242`),
   calls `AXWindowService.setNativeFullscreen(axRef, fullscreen:)`
   (`AXWindow.swift:538`) — the real macOS `AXFullScreen` attribute, own Space.
-  Tracked via `WorkspaceManager.nativeFullscreenRecord` + suspension (see #244).
+  Tracked via `WorkspaceManager.nativeFullscreenRecord` + suspension (see BarutSRB/OmniWM#244).
 - **No niri analog** (niri is Wayland). This is genuine macOS fullscreen and is
   the only window-aware path. The #69 native-path symptoms live here.
 
@@ -251,7 +251,7 @@ neighbour.
   seven times in ~1 s (`window_admitted … mode=tiling phase=tiled`), and on exit
   produces a multi-second A↔B↔C `managed_focus_requested`/`managed_focus_confirmed`
   storm with floods of `managed_replacement_metadata_changed`. These are not
-  addressed by #244's suspension guard (disjoint failure mode). Out of scope for
+  addressed by BarutSRB/OmniWM#244's suspension guard (disjoint failure mode). Out of scope for
   the *tiling* expectations work; tracked separately under #69.
 
 The crux: **the correct G3 fix cannot be chosen until G1 is decided.** If Nehir

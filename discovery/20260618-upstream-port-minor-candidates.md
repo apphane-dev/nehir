@@ -26,7 +26,7 @@ Related docs:
 
 | ID | Candidate | Upstream source | Nehir state | Recommendation |
 | --- | --- | --- | --- | --- |
-| M1 | Feed terminally refused frame sizes into layout constraints | `40934c5` | nehir has resize-minimum learner but still has #403 loop | concept-port after/with P4 |
+| M1 | Feed terminally refused frame sizes into layout constraints | `40934c5` | nehir has resize-minimum learner but still has BarutSRB/OmniWM#403 loop | concept-port after/with P4 |
 | M2 | Learned per-window size quantum | `6eb9ba0` | overlaps terminal/cell-quantization fixes | compare before port |
 | M3 | Focus-request origin for FFM cursor-warp policy | `fce3a2c` | `ManagedFocusRequest` has no origin/timestamp | concept-port, skip Dwindle hunks |
 | M4 | Space mode detection and diagnostics | `ee554c7`, `de971b6`, `2dcab36` subset | nehir has partial managed-Spaces helper, no runtime topology or mode detection | product-mode diagnostic first |

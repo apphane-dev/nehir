@@ -1,4 +1,4 @@
-# OmniWM issue #194 — "Windows open on wrong monitor" — Discovery
+# BarutSRB/OmniWM#194 — "Windows open on wrong monitor" — Discovery
 
 Source issue: <https://github.com/BarutSRB/OmniWM/issues/194>
 Scope of this doc: determine whether the symptom (new apps/windows opening on

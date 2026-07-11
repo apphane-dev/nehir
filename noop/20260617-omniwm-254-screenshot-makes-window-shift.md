@@ -1,4 +1,4 @@
-# OmniWM issue #254 — "Cmd+Shift+4 screenshot makes window shift" — Discovery
+# BarutSRB/OmniWM#254 — "Cmd+Shift+4 screenshot makes window shift" — Discovery
 
 Source issue: <https://github.com/BarutSRB/OmniWM/issues/254>
 Scope of this doc: determine whether the symptom reproduces in nehir — taking a
@@ -9,24 +9,24 @@ at `904df02` ("Add bunch of discoveries mapped to issues from OmniWM"). Re-verif
 before implementing; line numbers drift.
 
 > **Filed under `discovery/noop/` — duplicate.** This issue is the exact bug that
-> upstream PR #385 targeted, and its root cause is already fully analyzed (and
+> upstream PR BarutSRB/OmniWM#385 targeted, and its root cause is already fully analyzed (and
 > resolved as not-applicable to nehir) in the sibling discovery
 > [`noop/20260616-omniwm-385-screenshot-selection-suppression.md`](./20260616-omniwm-385-screenshot-selection-suppression.md).
-> nehir owns **no new action** for #254 beyond what that doc already records.
+> nehir owns **no new action** for BarutSRB/OmniWM#254 beyond what that doc already records.
 
 ---
 
 ## TL;DR
 
-- **Already covered by the #385 sibling discovery.** A Cmd+Shift+4 left-drag
+- **Already covered by the BarutSRB/OmniWM#385 sibling discovery.** A Cmd+Shift+4 left-drag
   screenshot selection cannot start nehir's move/resize paths, and untracked
   screencapture overlay surfaces cannot relayout tracked tiled windows.
-- **Verdict:** ⚪ **Won't port / Not applicable** (duplicate of #385's result).
+- **Verdict:** ⚪ **Won't port / Not applicable** (duplicate of BarutSRB/OmniWM#385's result).
 
 ## Why this is a duplicate
 
-PR #385 (`https://github.com/BarutSRB/OmniWM/pull/385`) was authored to fix **this
-issue (#254)**. The sibling doc
+PR BarutSRB/OmniWM#385 (`https://github.com/BarutSRB/OmniWM/pull/385`) was authored to fix **this
+issue (BarutSRB/OmniWM#254)**. The sibling doc
 `noop/20260616-omniwm-385-screenshot-selection-suppression.md` already establishes,
 against the nehir codebase, that the symptom is not reachable:
 
@@ -46,6 +46,6 @@ against the nehir codebase, that the symptom is not reachable:
 
 **Do nothing.** No new action is owned here. If a future nehir runtime
 reproduction shows Cmd+Shift+4 actually starting an interaction or relayout,
-follow the path described in the #385 sibling doc's Recommendation (a first-class
+follow the path described in the BarutSRB/OmniWM#385 sibling doc's Recommendation (a first-class
 `isFrontmostAppScreenCapture` abstraction with tests proving both suppression
 during capture and immediate resumption afterward).

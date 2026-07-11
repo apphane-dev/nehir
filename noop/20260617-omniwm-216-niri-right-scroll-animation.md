@@ -1,4 +1,4 @@
-# OmniWM issue #216 — "Niri animation when scrolling to the right is somehow broken" — Discovery
+# BarutSRB/OmniWM#216 — "Niri animation when scrolling to the right is somehow broken" — Discovery
 
 Source issue: <https://github.com/BarutSRB/OmniWM/issues/216>
 Scope of this doc: determine whether the reported Niri right-scroll animation
@@ -12,14 +12,14 @@ Re-verify before implementing; line numbers drift.
 
 > **Filed under `discovery/noop/`** — nehir already renders right-edge partial
 > reveals from the same animated viewport offset as every other column. Upstream
-> closed #216 as `not_planned` during the v0.4.8 cleanup and did not merge or
+> closed BarutSRB/OmniWM#216 as `not_planned` during the v0.4.8 cleanup and did not merge or
 > propose a code fix to port. This item therefore owns **no new repo action**;
 > porting a separate right-edge special case would regress nehir's single
 > animated-viewport invariant.
 
 ## TL;DR
 
-- **The #216 symptom is structurally prevented in nehir: the rightmost partially
+- **The BarutSRB/OmniWM#216 symptom is structurally prevented in nehir: the rightmost partially
   visible column is not pre-positioned independently; every column is transformed
   by the same sampled `viewOffsetPixels.value(at:)`.**
 - The keyboard focus path named by the issue (`focusUpOrRight` / right focus)
@@ -31,13 +31,13 @@ Re-verify before implementing; line numbers drift.
   and a render-offset reveal is not kept at its final position while animating.
 - **Verdict:** 🟢 **Fixed / not present.** This validates the catalog's
   `validate?` note as a no-op result: nehir's current Niri viewport model already
-  avoids the reported right-scroll animation split, and #216 has no upstream diff
+  avoids the reported right-scroll animation split, and BarutSRB/OmniWM#216 has no upstream diff
   or distinct invariant to port.
 
 ## Provenance: is this nehir's code?
 
 Yes. The Niri focus, viewport, animation, and render symbols
-that #216 depends on all exist in nehir:
+that BarutSRB/OmniWM#216 depends on all exist in nehir:
 
 - Keyboard right-focus entry point: `focusUpOrRight` —
   `Sources/Nehir/Core/Layout/Niri/NiriNavigation.swift:340`.
@@ -250,7 +250,7 @@ revealedColumn.animateMoveFrom(displacement: CGPoint(x: -40, y: 0), ...)
 
 ## Why this doesn't apply
 
-#216 requires the entering right-edge partial column to be rendered from a
+BarutSRB/OmniWM#216 requires the entering right-edge partial column to be rendered from a
 position different from the rest of the strip — effectively at its final end
 position while the fully visible columns still animate. nehir's current Niri
 layout has no such separate target for the rightmost partial: `scrollToReveal`
@@ -261,7 +261,7 @@ every container (`NiriLayout.swift:241-264`, `NiriLayout.swift:333-354`).
 
 The only right-edge special case is offscreen parking for containers that do not
 intersect the viewport yet (`NiriLayout.swift:371-387`, `NiriLayout.swift:1208-1217`).
-That is not the #216 failure mode: on an open desktop edge, nehir has tests that
+That is not the BarutSRB/OmniWM#216 failure mode: on an open desktop edge, nehir has tests that
 prove a partially revealed right-edge column is a normal visible frame, not a
 hidden handle or final-position placeholder (`NiriLayoutEngineTests.swift:6195-6212`,
 `NiriLayoutEngineTests.swift:6269-6296`). Neighboring-monitor cases intentionally
@@ -270,9 +270,9 @@ that is a separate hidden-placement policy, not a right-scroll animation bug.
 
 ## Recommendation
 
-Do not port anything for #216. The upstream issue was closed as `not_planned`
+Do not port anything for BarutSRB/OmniWM#216. The upstream issue was closed as `not_planned`
 without a fix, and nehir already has the relevant invariant: one animated
 viewport offset drives every column, including the rightmost partial reveal.
 If the symptom is ever reported against nehir with a concrete monitor topology,
-treat it as a new runtime bug and capture a focused regression test; #216 itself
+treat it as a new runtime bug and capture a focused regression test; BarutSRB/OmniWM#216 itself
 owns no new action.

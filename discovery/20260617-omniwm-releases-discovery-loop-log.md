@@ -44,8 +44,8 @@ evidence is inlined as code citations or verbatim release-note quotes).
 - Cheaper Hyper event tap — **⚪ N/A** (nehir has no event-tap Hyper)
 - Correct animation timing per display — **🟡 Partial — verify**
 - Native fullscreen survives window recreation — **🟢 Largely present — verify** (`restoreNativeFullscreenReplacement`)
-- FFM no longer warps cursor (#147) — **🟢 Already fixed (noop)** — existing noop doc
-- settings.toml preserved — **🔴 Open — already tracked** — existing #410 doc
+- FFM no longer warps cursor (BarutSRB/OmniWM#147) — **🟢 Already fixed (noop)** — existing noop doc
+- settings.toml preserved — **🔴 Open — already tracked** — existing BarutSRB/OmniWM#410 doc
 - Monitor orientation overrides stick + IPC — **🟢 Already present**
 - No stray border on system-modal dialogs — **🟡 Verify**
 - Stable window stacking — **🟡 Verify**
@@ -54,7 +54,7 @@ evidence is inlined as code citations or verbatim release-note quotes).
 - Send window across workspaces and back, focus stuck — **🟡 Verify**
 - WorldStore — **🔵 Strategic divergence — do not wholesale port**
 - EventIntake — **🔵 Selective adoption**
-- IntentLedger + DeadlineWheel — **🟡 Selective adoption — owns a plan** (ties to #317/#379/#403)
+- IntentLedger + DeadlineWheel — **🟡 Selective adoption — owns a plan** (ties to BarutSRB/OmniWM#317/BarutSRB/OmniWM#379/BarutSRB/OmniWM#403)
 - SurfaceReconciler — **⚪ N/A as a unit**
 - Layout invariant asserts + replay tests — **🟢 Adopt incrementally (process)**
 
@@ -73,9 +73,9 @@ evidence is inlined as code citations or verbatim release-note quotes).
 
 ## Verdict tally
 
-- 🔴 **Open (owns a port/action):** 2 — MultitouchSupport swipe source (v0.4.9.9 #2); parallel overview thumbnails (v0.4.9.8 #2). Plus 1 **already-tracked** Open (settings.toml → #410).
+- 🔴 **Open (owns a port/action):** 2 — MultitouchSupport swipe source (v0.4.9.9 #2); parallel overview thumbnails (v0.4.9.8 #2). Plus 1 **already-tracked** Open (settings.toml → BarutSRB/OmniWM#410).
 - 🟡 **Partial / owns investigation or plan:** 9 — separate-Spaces (v0.4.9.9 #1); momentum scroll; AX-off-main audit; relayout-coalesce verify; size-grid jitter; per-display animation timing; IntentLedger/DeadlineWheel plan; native-fullscreen verify; modal-dialog border verify; stacking verify; admission-flapping verify; focus-stuck-after-move verify; refresh-ownership audit. (Investigations, not implementation commitments.)
-- 🟢 **Already present / fixed (noop-class):** 6 — FFM warp (#147, existing noop); monitor orientation+IPC; own-windows not tiled; own-windows not tab-stacked; Steam tiles by default; native-fullscreen window-recreation (largely).
+- 🟢 **Already present / fixed (noop-class):** 6 — FFM warp (BarutSRB/OmniWM#147, existing noop); monitor orientation+IPC; own-windows not tiled; own-windows not tab-stacked; Steam tiles by default; native-fullscreen window-recreation (largely).
 - ⚪ **N/A / won't port:** 11 — Hyper event tap; Dwindle; resize placeholders; SurfaceReconciler; hotkey-config cleanup; test-harness removal; stability meta-pass; (and the semantic-Hyper "decision" item).
 - 🔵 **Strategic divergence (study, do not port):** 2 — WorldStore; EventIntake (as a unit).
 
@@ -92,7 +92,7 @@ Ranked by confidence/leverage:
    pattern.
 3. **Scope IntentLedger/DeadlineWheel for nehir's retry ladders** (v0.4.9.8 #19).
    *Plan*, not a port — target the `scheduleCreatedWindowRetryIfNeeded`/
-   focus-revert ladders that are the substrate of the #317/#379/#403 race
+   focus-revert ladders that are the substrate of the BarutSRB/OmniWM#317/BarutSRB/OmniWM#379/BarutSRB/OmniWM#403 race
    discoveries.
 4. **"Displays have separate Spaces" investigation** (v0.4.9.9 #1). Verify the
    failure mode first; ship an accommodate+warn startup check; only add a
@@ -117,8 +117,8 @@ Ranked by confidence/leverage:
   citation (`file:line`, verified at `904df02`) or a verbatim quote of the
   upstream release note, per `AGENTS.md`.
 - **Non-duplication with the per-issue discovery set.** Two v0.4.9.8 items are
-  already owned by existing issue docs: FFM-warp (#147 → existing noop) and
-  settings.toml preservation (#410 → existing Open). The release docs point at
+  already owned by existing issue docs: FFM-warp (BarutSRB/OmniWM#147 → existing noop) and
+  settings.toml preservation (BarutSRB/OmniWM#410 → existing Open). The release docs point at
   those rather than re-scoping. The MultitouchSupport port is the *transport*
   complement to nehir #53's *matcher* analysis — complementary, not duplicate.
 - **Verify-before-close backlog.** Six v0.4.9.8 fixes (native-fullscreen

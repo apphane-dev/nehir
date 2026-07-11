@@ -2,7 +2,7 @@
 
 Groom 2026-07-07: resolved — landed as M3 (51f86e84; see completed/20260619-m3-ffm-cursor-warp-suppression.md).
 
-Source upstream commit: [`fce3a2c`](https://github.com/BarutSRB/OmniWM/commit/fce3a2c) — "Fix cursor warp for focus follows mouse" (0.4.9.7 line; thanks @m-hauck for the idea in issue #147).
+Source upstream commit: [`fce3a2c`](https://github.com/BarutSRB/OmniWM/commit/fce3a2c) — "Fix cursor warp for focus follows mouse" (0.4.9.7 line; thanks @m-hauck for the idea in issue BarutSRB/OmniWM#147).
 Related: [`20260616-ffm-steals-focus-behind-overlay-on-stale-queued-mouse-moves.md`](20260616-ffm-steals-focus-behind-overlay-on-stale-queued-mouse-moves.md), [`20260616-omniwm-317-rapid-focus-revert-race.md`](20260616-omniwm-317-rapid-focus-revert-race.md).
 
 Scope: determine whether the warp-on-hover defect applies to nehir, and scope a concept port (skip upstream's Dwindle hunks — Dwindle is intentionally absent from nehir).
@@ -48,7 +48,7 @@ A repo-wide `grep` for `intentLedger|classifyFocusObservation|echoOf|lateEcho|ma
 
 ## Why it applies
 
-With `moveMouseToFocusedWindowEnabled = true`, an FFM/hover confirmation reaches the warp gate indistinguishable from a keyboard confirmation and warps the cursor to the focused window — the exact annoyance upstream fixed in #147. Nehir has active FFM/warp work (`5ff991cb` multi-monitor warp, the FFM-overlay discovery) and the same blind spot.
+With `moveMouseToFocusedWindowEnabled = true`, an FFM/hover confirmation reaches the warp gate indistinguishable from a keyboard confirmation and warps the cursor to the focused window — the exact annoyance upstream fixed in BarutSRB/OmniWM#147. Nehir has active FFM/warp work (`5ff991cb` multi-monitor warp, the FFM-overlay discovery) and the same blind spot.
 
 ## Recommendation
 

@@ -1,11 +1,11 @@
-# OmniWM #226 — Chrome extension hotkey priority
+# BarutSRB/OmniWM#226 — Chrome extension hotkey priority
 
 Re-verified against main 7a025b78 on 2026-07-07.
 
 **Status:** planned
 **Source discovery:** `discovery/20260616-omniwm-226-chrome-extension-hotkey-priority.md`
 **Upstream reference:** <https://github.com/BarutSRB/OmniWM/issues/226> (closed `not_planned`; nehir picks it up)
-**Related shipped work:** `completed/20260619-nehir-48-command-palette-hotkey-conflict.md` (Diagnostics for Carbon-registration conflicts + curated co-fire advisories — explicitly scoped #226 *out*)
+**Related shipped work:** `completed/20260619-nehir-48-command-palette-hotkey-conflict.md` (Diagnostics for Carbon-registration conflicts + curated co-fire advisories — explicitly scoped BarutSRB/OmniWM#226 *out*)
 
 All source references were re-verified against the main Nehir source tree on
 2026-06-21. Re-verify before editing; line numbers drift.
@@ -217,7 +217,7 @@ claim drifted. Corrections adopted in this plan (all re-verified on 2026-06-21):
   `CommandHandler` dispatch (`:23`/`:47`).
 - Do **not** attempt active liveness probing (register + synthesize + observe).
 - Do **not** extend the `HotkeyAdvisoryCatalog` from #48 with Chrome-extension
-  specifics — that catalog is for *system* co-fires; #226's fix is the backend,
+  specifics — that catalog is for *system* co-fires; BarutSRB/OmniWM#226's fix is the backend,
   not more advisories.
 
 ## Exact implementation plan
@@ -346,7 +346,7 @@ Manual:
 
 Changeset (minor; confirm release policy): "Add an opt-in priority hotkey
 backend (keyboard event tap) so Nehir commands win over focused-app and browser
-extension shortcuts (OmniWM #226)."
+extension shortcuts (BarutSRB/OmniWM#226)."
 
 ## Risks and mitigations
 

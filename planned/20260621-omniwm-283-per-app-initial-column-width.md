@@ -1,4 +1,4 @@
-# OmniWM #283 — Per-app initial column width
+# BarutSRB/OmniWM#283 — Per-app initial column width
 
 Re-verified against main 7a025b78 on 2026-07-07.
 
@@ -104,17 +104,17 @@ implementing (re-verified against main `7a025b78`):
    - the workspace-assignment transient-override split — a manual column never
      receives a `loneWindowLayoutWidthOverride` (only the `else` branch at
      `NiriLayout.swift:831-835` sets it), so nothing stale is left behind;
-   - the planned #295 preserve-on-move, which copies source width state only when
+   - the planned BarutSRB/OmniWM#295 preserve-on-move, which copies source width state only when
      `hasManualSingleWindowWidthOverride == true` — so a rule-set width is carried
-     across a workspace move once #295 lands.
+     across a workspace move once BarutSRB/OmniWM#295 lands.
 
-5. **`moveWindowToWorkspace` is left unchanged in this plan (defer to #295).**
+5. **`moveWindowToWorkspace` is left unchanged in this plan (defer to BarutSRB/OmniWM#295).**
    The discovery's precedence ("a moved window with a rule uses the rule width")
    is satisfied compositionally: the rule sets the proportion + the manual flag
-   at fresh admission, and #295's `applySourceColumnWidthOrReset` preserves that
-   state across a move. Until #295 lands, a moved rule-set window resets to the
+   at fresh admission, and BarutSRB/OmniWM#295's `applySourceColumnWidthOrReset` preserves that
+   state across a move. Until BarutSRB/OmniWM#295 lands, a moved rule-set window resets to the
    target workspace default — a known transient gap, called out under Risks and
-   in the #295 coordination test.
+   in the BarutSRB/OmniWM#295 coordination test.
 
 6. **Optional validator addition.** `IPCRuleValidator`
    (`Sources/NehirIPC/IPCRuleValidator.swift`) currently validates only
@@ -239,7 +239,7 @@ admission build sites
 
    - Existing callers that omit the parameter (notably both branches of
      `moveWindowToWorkspace` at `NiriLayoutEngine+WorkspaceOps.swift:42`/`:46`,
-     and #295's planned `applySourceColumnWidthOrReset`) keep current behavior.
+     and BarutSRB/OmniWM#295's planned `applySourceColumnWidthOrReset`) keep current behavior.
 
 10. `Sources/Nehir/Core/Layout/Niri/NiriLayoutEngine+Windows.swift`
     - Add `initialColumnWidth: CGFloat? = nil` to `addWindow`
@@ -314,7 +314,7 @@ admission build sites
   relayout floor. The existing `minWidth` floor stays the only continuous
   per-app width effect.
 - Do **not** change `moveWindowToWorkspace` in this plan. Move-path rule
-  preservation is delegated to #295 (see "Discovery corrections / decisions" #5
+  preservation is delegated to BarutSRB/OmniWM#295 (see "Discovery corrections / decisions" #5
   and Risks).
 - Do **not** retroactively apply the rule to windows that are already admitted
   when a rule is added/edited. The effect is "initial" — it fires on the next
@@ -325,7 +325,7 @@ admission build sites
   transient-override split.
 - Do **not** add a setting/toggle to disable the feature; it is strictly
   additive and inert when no rule sets the field.
-- Do **not** port OmniWM #384 (it is already satisfied in Nehir; see the noop
+- Do **not** port BarutSRB/OmniWM#384 (it is already satisfied in Nehir; see the noop
   doc). The min-size floor interaction is handled by existing
   `resolveSpan`/`widthBounds` clamping.
 - Do **not** model fixed-pixel initial widths; the field is a proportion only,
@@ -401,10 +401,10 @@ test.
    - Admit one window with `initialColumnWidth: 0.3` (→ ~600px on a 2000px
      monitor) and call `engine.updateWindowConstraints(for: handle,
      constraints: WindowSizeConstraints(minSize: CGSize(width: 900, height: 1)))`
-     to model an enforced app min (#384 floor).
+     to model an enforced app min (BarutSRB/OmniWM#384 floor).
    - Assert the rendered frame width is `>= 900` — the floor wins over the rule,
      never sub-minimum.
-   - Locks in: the #384 floor interaction is handled by existing clamp machinery
+   - Locks in: the BarutSRB/OmniWM#384 floor interaction is handled by existing clamp machinery
      (`resolveSpan`/`widthBounds` + `clampColumnWidthToBounds`).
 
 4. **`initialColumnWidthAppliedOnceNotOnEveryAppend`**
@@ -462,15 +462,15 @@ Add next to the existing `minWidth` effect assertion
 11. **`appRuleDraftRoundTripsInitialColumnWidth`** — `AppRuleDraft(rule:)` reads
     the field; `makeRule()` writes it back; the disabled toggle yields `nil`.
 
-### Cross-workspace move precedence (#295 coordination — gated)
+### Cross-workspace move precedence (BarutSRB/OmniWM#295 coordination — gated)
 
 12. **`movedRuleSetWindowKeepsRuleWidthAfterMove`** — add to
-    `NiriLayoutEngineTests.swift` **only after #295 lands**. Admit a window with
+    `NiriLayoutEngineTests.swift` **only after BarutSRB/OmniWM#295 lands**. Admit a window with
     `initialColumnWidth: 0.5`, then `moveWindowToWorkspace` it to a fresh
     workspace; assert the target column still carries `.proportion(0.5)` and the
-    manual flag (delivered by #295's `applySourceColumnWidthOrReset`, not by this
-    plan). Until #295 lands, document this test as expected-to-fail-on-move and
-    keep it behind the #295 coordination note.
+    manual flag (delivered by BarutSRB/OmniWM#295's `applySourceColumnWidthOrReset`, not by this
+    plan). Until BarutSRB/OmniWM#295 lands, document this test as expected-to-fail-on-move and
+    keep it behind the BarutSRB/OmniWM#295 coordination note.
 
 ## Validation
 
@@ -516,7 +516,7 @@ Manual validation on a host with the default lone-window `.fill` policy:
 5. Remove the rule file; confirm Kitty admits at the workspace default again.
 
 Changeset (minor): "Add per-app initial column width as an App Rule effect
-(OmniWM #283)."
+(BarutSRB/OmniWM#283)."
 
 ## Risks and mitigations
 
@@ -524,16 +524,16 @@ Changeset (minor): "Add per-app initial column width as an App Rule effect
   "manual" flag for a rule-set width is deliberate (see "Discovery corrections /
   decisions" #4) but means the flag no longer exclusively means "user resized."
   Mitigation: the only behavioral consequence is that the lone-window policy
-  honors the width and #295 preserves it on move — both desirable for an initial
+  honors the width and BarutSRB/OmniWM#295 preserves it on move — both desirable for an initial
   width. Document the overload at the `initializeNewColumnWidth` call site. If a
   future feature needs to distinguish rule-set from user-resized, introduce a
   separate flag then; do not preemptively split now.
-- **Move-path gap until #295 lands (MED).** A moved rule-set window resets to
-  the target workspace default until #295's preserve-on-move is implemented.
+- **Move-path gap until BarutSRB/OmniWM#295 lands (MED).** A moved rule-set window resets to
+  the target workspace default until BarutSRB/OmniWM#295's preserve-on-move is implemented.
   Mitigation: the rule re-applies on the *next fresh admission* of a matching
   window; for the common "open app, it goes to the right workspace" flow the
   width is correct. Track the gap via the gated coordination test #12 and the
-  #295 plan's "Follow-ups" cross-reference.
+  BarutSRB/OmniWM#295 plan's "Follow-ups" cross-reference.
 - **Provider closure built every layout pass (LOW).** `syncAndInsert` constructs
   the `(WindowToken) -> CGFloat?` closure on every pass even when no new tokens
   are admitted. Mitigation: the closure is cheap and only consulted inside
@@ -556,17 +556,17 @@ Changeset (minor): "Add per-app initial column width as an App Rule effect
 
 ## Follow-ups (out of scope)
 
-- **Move-path rule preservation (#295).** Land #295's
+- **Move-path rule preservation (BarutSRB/OmniWM#295).** Land BarutSRB/OmniWM#295's
   `applySourceColumnWidthOrReset` so a moved rule-set window keeps its width.
-  This plan sets the flag #295 keys off; the two compose without further
-  #283-side work. See `planned/20260621-omniwm-295-niri-window-width-preservation.md`.
+  This plan sets the flag BarutSRB/OmniWM#295 keys off; the two compose without further
+  BarutSRB/OmniWM#283-side work. See `planned/20260621-omniwm-295-niri-window-width-preservation.md`.
 - **Re-apply on rule edit.** Today, editing/adding a rule does not retroactively
   resize already-admitted windows (the effect is "initial"). If user feedback
   wants "apply now," add a one-shot controller command that, for each matching
   tracked window whose column is a fresh single, reapplies the proportion. Out
   of scope here.
-- **Per-app `>100%` initial width (OmniWM #326).** Independent; the clamp to
-  `0...1` would need widening if #326 lands. The proportion storage
+- **Per-app `>100%` initial width (BarutSRB/OmniWM#326).** Independent; the clamp to
+  `0...1` would need widening if BarutSRB/OmniWM#326 lands. The proportion storage
   (`.proportion(...)`) already supports values `>1.0` structurally.
 - **Fixed-pixel initial width.** The issue asks only for a proportion. A future
   `.fixed` variant would reuse `ProportionalSize.fixed` but needs cross-monitor

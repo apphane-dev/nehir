@@ -1,8 +1,8 @@
-# OmniWM PR #401 — "Dwindle split orientation respects per-monitor settings (→#270)" — Discovery
+# OmniWM PR BarutSRB/OmniWM#401 — "Dwindle split orientation respects per-monitor settings (→BarutSRB/OmniWM#270)" — Discovery
 
 Source PR: https://github.com/BarutSRB/OmniWM/pull/401
 Merge state: **closed without merge** (`state: closed`, `merged: false`, `merged_at: null`).
-Related issue: OmniWM #270 (see sibling discovery
+Related issue: BarutSRB/OmniWM#270 (see sibling discovery
 `noop/20260616-omniwm-270-dwindle-third-window-outside-grid-overlap.md`).
 Scope of this doc: determine whether the PR's proposed Dwindle per-monitor split-orientation fix
 applies to nehir, and whether it is safe to port.
@@ -11,17 +11,17 @@ All file/line references were verified against the Nehir source tree at `7f61cb3
 ("docs: update four-finger gesture discovery with non-repro trace") on 20260616. Re-verify before
 implementing; line numbers drift.
 
-> **Filed under `discovery/noop/`** — PR #401 owns no new nehir action. It targets OmniWM's
+> **Filed under `discovery/noop/`** — PR BarutSRB/OmniWM#401 owns no new nehir action. It targets OmniWM's
 > `DwindleLayoutEngine`, `DwindleLayoutHandler`, Dwindle settings, and Dwindle tests, but those
 > symbols/directories are absent from nehir; the only carried layout engine is Niri. The sibling
-> #270 discovery already records the linked Dwindle issue as not applicable; this PR-specific doc
+> BarutSRB/OmniWM#270 discovery already records the linked Dwindle issue as not applicable; this PR-specific doc
 > preserves the merge-state and diff evidence.
 
 ---
 
 ## TL;DR
 
-- **Do not port PR #401: nehir has no Dwindle layout engine or Dwindle per-monitor settings for the
+- **Do not port PR BarutSRB/OmniWM#401: nehir has no Dwindle layout engine or Dwindle per-monitor settings for the
   patch to attach to.** A recursive source/test search for `Dwindle`, `splitWidthMultiplier`,
   `monitorDwindleOverrides`, `smartSplit`, `defaultSplitRatio`, `reorientSplits`, `aspectOrientation`,
   `planSplit`, and `splitLeaf` returns no matches.
@@ -30,7 +30,7 @@ implementing; line numbers drift.
 
 ## Upstream PR summary
 
-PR #401 claims OmniWM's Dwindle split orientation used the global `settings.splitWidthMultiplier`
+PR BarutSRB/OmniWM#401 claims OmniWM's Dwindle split orientation used the global `settings.splitWidthMultiplier`
 instead of per-monitor `effectiveSettings(for: monitorId)`, so `monitorDwindleOverrides` did not
 change split direction on portrait monitors. Its diff threads `monitorId` through
 `addWindow -> splitLeaf -> planSplit -> aspectOrientation`, changes split ratio/defaults to read
@@ -44,7 +44,7 @@ state.
 
 ## Provenance: is this nehir's code?
 
-The code family patched by PR #401 is not present in this fork:
+The code family patched by PR BarutSRB/OmniWM#401 is not present in this fork:
 
 - `find Sources -iname '*dwindle*'` prints nothing.
 - `grep -RIn --exclude='*.md' -E 'Dwindle|dwindle|splitWidthMultiplier|monitorDwindleOverrides|smartSplit|defaultSplitRatio|DwindleSettings|reorientSplits|aspectOrientation|planSplit|splitLeaf' Sources Tests` prints nothing.
@@ -198,7 +198,7 @@ func refreshResolvedMonitorSettings() {
 
 ## Why it doesn't apply / why the PR is unsafe to port
 
-1. **All target Dwindle symbols are absent.** PR #401's core methods (`splitLeaf`, `planSplit`,
+1. **All target Dwindle symbols are absent.** PR BarutSRB/OmniWM#401's core methods (`splitLeaf`, `planSplit`,
    `aspectOrientation`, `reorientSplits`) and settings (`splitWidthMultiplier`, `smartSplit`,
    `defaultSplitRatio`, `monitorDwindleOverrides`) have no nehir source/test matches. Porting the
    diff as-is would not compile.
@@ -217,13 +217,13 @@ func refreshResolvedMonitorSettings() {
 
 ## Recommendation
 
-Do not port PR #401. Mark it **not applicable (feature absent)** for nehir and keep the linked #270
+Do not port PR BarutSRB/OmniWM#401. Mark it **not applicable (feature absent)** for nehir and keep the linked BarutSRB/OmniWM#270
 Dwindle issue under `discovery/noop/`. If nehir ever introduces a Dwindle/BSP layout, re-open the
-question then and use PR #401's tests as requirements for that new engine.
+question then and use PR BarutSRB/OmniWM#401's tests as requirements for that new engine.
 
 ## Suggested tests
 
 N/A for current nehir: Dwindle and Dwindle split-orientation settings do not exist. If a future
-Dwindle layout is added, add tests equivalent to PR #401's
+Dwindle layout is added, add tests equivalent to PR BarutSRB/OmniWM#401's
 `perMonitorSplitOrientationUsesHighSplitWidthMultiplierForVerticalSplits` and
 `reorientSplitsChangesExistingTreeWhenSplitWidthMultiplierUpdated` alongside that engine.

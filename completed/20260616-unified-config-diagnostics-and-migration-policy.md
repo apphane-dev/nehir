@@ -41,7 +41,7 @@ for unknown keys goes away.
 ### Discovery: unknown-key round-trip data loss
 
 `discovery/20260616-omniwm-410-settings-toml-unknown-keys-roundtrip-loss.md`
-establishes (upstream OmniWM #410, applies verbatim to nehir):
+establishes (upstream BarutSRB/OmniWM#410, applies verbatim to nehir):
 
 - `SettingsTOMLCodec.encode(_:)` rebuilds a fresh `CanonicalTOMLConfig` from the
   in-memory `SettingsExport` (`Sources/Nehir/Core/Config/SettingsTOMLCodec.swift:6-11`).
@@ -54,7 +54,7 @@ establishes (upstream OmniWM #410, applies verbatim to nehir):
 - nehir additionally runs a **proactive launch-time strip**: `AppDelegate.finishBootstrap`
   calls `detectConfigMismatches` → `createTimestampedSettingsBackup` →
   `cleanSettingsFile` (decode→encode→overwrite) → `showMigration`. This is nehir's own
-  instance of the "#322 settings.toml gets reset on upgrade" symptom.
+  instance of the "BarutSRB/OmniWM#322 settings.toml gets reset on upgrade" symptom.
 - The dropping behavior is **codified by a test**:
   `unknownNiriKeysAreIgnoredAndNotReencoded`
   (`Tests/NehirTests/SettingsTOMLCodecTests.swift:89-104`), whose final assertion requires
@@ -310,7 +310,7 @@ Small, independently-shippable PRs, ordered by dependency:
 2. **Phase 2** (unknown-key Diagnostics) — depends on Phase 1 (must not claim "kept" while
    the save path still drops).
 3. **Phase 3** (remove launch strip) — depends on Phases 1+2 (otherwise removing the strip
-   re-exposes the silent in-session loss from #410).
+   re-exposes the silent in-session loss from BarutSRB/OmniWM#410).
 4. **Phase 4** (recovery window narrowing) — can follow Phase 3; mostly copy + trigger
    conditions.
 
@@ -322,7 +322,7 @@ are real failures.
 
 - **Premature removal of the strip (Phase 3 before Phase 1).** If the launch strip is
   removed before the codec round-trips, the in-session save path silently drops unknown
-  keys — reintroducing #410's literal repro with no guard at all. Mitigation: hard
+  keys — reintroducing BarutSRB/OmniWM#410's literal repro with no guard at all. Mitigation: hard
   ordering Phase 1 → Phase 3; the Phase 1 test flip is the gate.
 - **Round-trip fidelity drift.** Capturing unknown keys as `TOMLValue` and re-emitting them
   must preserve value shape (ints stay ints, arrays/dates/datetimes survive, comments are

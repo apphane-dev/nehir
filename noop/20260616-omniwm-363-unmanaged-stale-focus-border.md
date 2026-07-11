@@ -1,6 +1,6 @@
-# OmniWM PR #363 — "Clear stale focus border for unmanaged windows" — Discovery
+# OmniWM PR BarutSRB/OmniWM#363 — "Clear stale focus border for unmanaged windows" — Discovery
 
-Source PR: <https://github.com/BarutSRB/OmniWM/pull/363> (fixes OmniWM issue #351)
+Source PR: <https://github.com/BarutSRB/OmniWM/pull/363> (fixes BarutSRB/OmniWM#351)
 Scope of this doc: determine whether the *concept* behind the PR applies to
 nehir (clear stale focus borders when unmanaged/floating windows disappear
 without a destroy event), and whether the narrow PR diff is safe to port.
@@ -11,7 +11,7 @@ Re-verify before implementing; line numbers drift.
 
 > **Filed under `discovery/noop/`** — nehir already clears this stale-border
 > class at stricter lifecycle boundaries: app hide/deactivation, miniaturize,
-> remove, and post-create disappearance verification. Upstream #363 was closed
+> remove, and post-create disappearance verification. Upstream BarutSRB/OmniWM#363 was closed
 > without merge and later marked superseded by a broader OmniWM fix; porting its
 > narrow `renderEligibility` frame-probe gate would bypass nehir's existing
 > lifecycle context and can clear valid unmanaged borders whose preferred/event
@@ -43,7 +43,7 @@ Re-verify before implementing; line numbers drift.
   The diff adds an unmanaged-target gate inside `renderEligibility(for:)`:
 
   ```swift
-  // upstream PR #363, FocusBorderController.swift
+  // upstream PR BarutSRB/OmniWM#363, FocusBorderController.swift
   if !target.isManaged {
       guard observedFrame(for: target.axRef) != nil else {
           return .clear
@@ -124,7 +124,7 @@ private func renderEligibility(for target: KeyboardFocusTarget) -> RenderEligibi
 ```
 
 **Unmanaged frame resolution deliberately accepts preferred/event frames** — a
-blind port of #363 would clear before this fallback can run:
+blind port of BarutSRB/OmniWM#363 would clear before this fallback can run:
 
 ```swift
 // Sources/Nehir/Core/Border/FocusBorderController.swift:389
@@ -239,7 +239,7 @@ private func schedulePostCreateLifecycleVerification(for token: WindowToken) {
    tests exercise the lifecycle handlers at `AXEventHandler.swift:1213`,
    `AXEventHandler.swift:2485`, and `AXEventHandler.swift:2119`.
 
-4. **Porting #363 verbatim would be a regression risk.** nehir intentionally
+4. **Porting BarutSRB/OmniWM#363 verbatim would be a regression risk.** nehir intentionally
    lets an unmanaged focused target render from a preferred/event frame before
    falling back to `observedFrame(for:)` (`FocusBorderController.swift:389` and
    `FocusBorderController.swift:393`). The PR's unconditional pre-render AX
@@ -251,7 +251,7 @@ private func schedulePostCreateLifecycleVerification(for token: WindowToken) {
 
 ## Recommendation
 
-**Do not port PR #363.** Keep nehir's lifecycle-based fix as the owner for this
+**Do not port PR BarutSRB/OmniWM#363.** Keep nehir's lifecycle-based fix as the owner for this
 bug class. If a future stale-border report survives these paths, investigate it
 as a new lifecycle/identity hole with evidence of the missed notification, not by
 adding the upstream `renderEligibility` AX-frame gate wholesale.

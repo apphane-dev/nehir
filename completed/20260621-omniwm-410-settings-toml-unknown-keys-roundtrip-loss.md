@@ -1,4 +1,4 @@
-# OmniWM #410 — Settings TOML unknown-keys round-trip loss
+# BarutSRB/OmniWM#410 — Settings TOML unknown-keys round-trip loss
 
 **Status:** completed — no new action. The discovery's recommendation already
 shipped on `main` as commit `b7cfb91e` ("Preserve and surface unknown settings
@@ -7,7 +7,7 @@ keys instead of stripping them") and is recorded in
 plan exists only to point a worker at the completed work. Moved from `planned/` to `completed/` on 2026-06-26.
 **Source discovery:** `discovery/20260616-omniwm-410-settings-toml-unknown-keys-roundtrip-loss.md`
 **Superseded by (shipped):** `completed/20260616-unified-config-diagnostics-and-migration-policy.md`
-**Cluster:** `noop/20260616-omniwm-169-settings-json-full-export.md` (PR #169 —
+**Cluster:** `noop/20260616-omniwm-169-settings-json-full-export.md` (PR BarutSRB/OmniWM#169 —
 closed-without-merge upstream, judged not applicable to nehir; same root cause
 owned by this ticket).
 
@@ -19,7 +19,7 @@ All source references were re-verified against the main Nehir source tree at
 The discovery's verdict (🔴 applies; `SettingsTOMLCodec` drops every key it does
 not statically model, and the launch-time strip destroys them before the UI
 appears) was **correct, and the recommended fix has already landed** — with a
-broader scope than the discovery's minimal #410 cut. As part of the unified
+broader scope than the discovery's minimal BarutSRB/OmniWM#410 cut. As part of the unified
 config-diagnostics policy, commit `b7cfb91e`:
 
 1. made `CanonicalTOMLConfig` capture unknown keys per known table at decode and
@@ -35,8 +35,8 @@ config-diagnostics policy, commit `b7cfb91e`:
    renamed `MigrationView` → `ConfigRecoveryView`, which now fires only for
    genuine load failures (parse / wrong-type / enforced migration).
 
-There is nothing further to implement for #410 as scoped. A worker arriving here
-should **stop** and treat #410 as closed by `b7cfb91e`.
+There is nothing further to implement for BarutSRB/OmniWM#410 as scoped. A worker arriving here
+should **stop** and treat BarutSRB/OmniWM#410 as closed by `b7cfb91e`.
 
 ## What shipped (verified in `main` at `e7b246b6`)
 
@@ -96,7 +96,7 @@ The discovery was accurate; no symbol or location it cited required correction.
 Two decisions worth pinning for anyone re-reading the discovery against the
 as-built:
 
-- **The fix landed with a broader scope than the discovery's minimal #410 cut.**
+- **The fix landed with a broader scope than the discovery's minimal BarutSRB/OmniWM#410 cut.**
   The discovery recommended a codec-only round-trip plus reconciling the two
   strippers. The shipped work folded both into a unified four-category
   config-diagnostics policy (see the completed doc's "Goal" table). This is a
@@ -130,19 +130,19 @@ The shipped tests that lock the behavior in are
 `unknownKeysSurviveLoadMutateSaveAcrossTables`
 (`Tests/NehirTests/SettingsTOMLCodecTests.swift:95,116`).
 
-## Follow-ups (out of scope for #410)
+## Follow-ups (out of scope for BarutSRB/OmniWM#410)
 
 These are the only pieces of the discovery's recommendation not yet done. Both
-are **separate tickets**, not part of #410:
+are **separate tickets**, not part of BarutSRB/OmniWM#410:
 
 - **Sibling auxiliary codecs.** `Sources/Nehir/Core/Config/HotkeysTOMLCodec.swift`
   and `Sources/Nehir/Core/Config/WorkspacesTOMLCodec.swift` are manual TOML
   codecs that still drop unknown keys (no `SettingsTOMLUnknownValue` usage). The
-  discovery explicitly scoped #410 to `settings.toml` and flagged the siblings as
+  discovery explicitly scoped BarutSRB/OmniWM#410 to `settings.toml` and flagged the siblings as
   a follow-up; the completed plan reiterates this under Non-goals. Track
   separately.
 - **Unknown top-level tables.** As noted above, an unknown top-level table is
   still silently dropped. If preserving unknown top-level tables is wanted later,
   the top-level `CanonicalTOMLConfig` decoder/encoder (`:442-474`) would need the
   same `decodeUnknownFields`/dynamic-key-encode treatment the per-table decoders
-  already use. File as its own ticket; do not expand #410 to cover it.
+  already use. File as its own ticket; do not expand BarutSRB/OmniWM#410 to cover it.

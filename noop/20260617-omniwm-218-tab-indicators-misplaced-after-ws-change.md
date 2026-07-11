@@ -1,4 +1,4 @@
-# OmniWM issue #218 — "Tab indicators misplaced after workspace change" — Discovery
+# BarutSRB/OmniWM#218 — "Tab indicators misplaced after workspace change" — Discovery
 
 Source issue: <https://github.com/BarutSRB/OmniWM/issues/218>
 Scope of this doc: determine whether the symptom reproduces in nehir — a tabbed

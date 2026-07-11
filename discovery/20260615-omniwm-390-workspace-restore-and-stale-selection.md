@@ -1,4 +1,4 @@
-# OmniWM issue #390 — "OmniWM can lose workspace state (restore miss + stale Niri selection)" — Discovery
+# OmniWM issue BarutSRB/OmniWM#390 — "OmniWM can lose workspace state (restore miss + stale Niri selection)" — Discovery
 
 Groom 2026-07-07: partially resolved — Bug 2 (stale session patch overwrites newer selection) shipped via M6 (42ac731f); Bug 1 (persisted-restore metadata fallback for metadata-less windows) unverified against current source — re-confirm (verified against main 7a025b78).
 

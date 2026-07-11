@@ -1,4 +1,4 @@
-# nehir #93 / OmniWM #255 — "Vertical workspace bar" — Discovery
+# nehir #93 / BarutSRB/OmniWM#255 — "Vertical workspace bar" — Discovery
 
 Groom 2026-07-07: still applicable — open greenfield enhancement; `WorkspaceBarPosition` still has only the two top-edge cases (`overlappingMenuBar`/`belowMenuBar`) and no left/right-edge or orientation concept exists (verified against main 7a025b78).
 
@@ -7,13 +7,13 @@ Source issues:
 - upstream origin: <https://github.com/BarutSRB/OmniWM/issues/255>
 
 nehir #93 is the local tracker for this feature. Its entire body is a pointer to
-upstream OmniWM #255 ("Issue reported in OmniWM pre 0.4.8 release, closed as
+upstream BarutSRB/OmniWM#255 ("Issue reported in OmniWM pre 0.4.8 release, closed as
 cleanup without validation"), quoting the upstream reporter @yougotwill: *"Title
 says it all. I might try and contribute a PR for this once the Zig port is
 complete as I'm hoping it might be easier for me than in Swift."* The two issues
 are the same feature request — there is no independent content in #93 — so this
 single document covers both. nehir #93 is labeled `enhancement` and
-`omniwm-cleanup`; upstream #255 is labeled `enhancement`.
+`omniwm-cleanup`; upstream BarutSRB/OmniWM#255 is labeled `enhancement`.
 
 Scope of this doc: determine whether nehir already has any vertical (left/right
 screen-edge) workspace bar support; if not, map the architecture a vertical
@@ -36,7 +36,7 @@ inspection (no runtime trace).
   frame; and the only screen-edge layout coupling is a *top* inset. There is no
   latent/hidden vertical path to flip on.
 - **Verdict:** 🟡 **Open enhancement / greenfield** — not a bug port (no upstream
-  diff exists; #255 was "title says it all", closed as a pre-0.4.8 triage
+  diff exists; BarutSRB/OmniWM#255 was "title says it all", closed as a pre-0.4.8 triage
   cleanup). Correctly labeled `enhancement`. The feature is feasible and
   well-scoped: the niri working-area model already has per-edge struts
   (`left`/`right`/`top`/`bottom`), so the layout-coupling change is *populating*
@@ -259,13 +259,13 @@ section 3), `backgroundOpacity`, accent/text color (orientation-agnostic).
 
 ## Why it does not apply yet (and is not a bug)
 
-Upstream #255 carries no diff and no reproduction — it is a one-line feature
+Upstream BarutSRB/OmniWM#255 carries no diff and no reproduction — it is a one-line feature
 request ("Title says it all") closed as part of a pre-0.4.8 triage cleanup, not
 because it was built. nehir #93 mirrors it verbatim. There is therefore nothing
 to *port*; this is net-new feature work. Nothing in nehir's current bar path is
 "wrong for vertical" — it simply has no vertical path. The `omniwm-cleanup` label
 on #93 should not be read as "resolved": like the other `omniwm-cleanup`-tagged
-issues ported into nehir planning (e.g. the #240 focus-previous study), it marks
+issues ported into nehir planning (e.g. the BarutSRB/OmniWM#240 focus-previous study), it marks
 an upstream item dropped during triage that nehir may pick up on its own merits.
 
 ## What a vertical bar requires (implementation map)

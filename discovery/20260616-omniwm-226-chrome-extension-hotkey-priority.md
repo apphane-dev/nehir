@@ -1,4 +1,4 @@
-# OmniWM issue #226 — "Hotkeys overridden by Chrome extension shortcuts" — Discovery
+# BarutSRB/OmniWM#226 — "Hotkeys overridden by Chrome extension shortcuts" — Discovery
 
 Groom 2026-07-07: in flight — a plan exists (planned/20260621-omniwm-226-chrome-extension-hotkey-priority.md); still uses Carbon RegisterEventHotKey with no priority event-tap backend (verified against main 7a025b78).
 

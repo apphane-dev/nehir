@@ -1,4 +1,4 @@
-# OmniWM PR #364 — "Fix windows overlapping across monitors" (→#349) — Discovery
+# OmniWM PR BarutSRB/OmniWM#364 — "Fix windows overlapping across monitors" (→BarutSRB/OmniWM#349) — Discovery
 
 Source PR: https://github.com/BarutSRB/OmniWM/pull/364
 Author: @biswadip-paul (co-authored by "Claude Opus 4.6"); two commits, +23 −0, single file.
@@ -16,13 +16,13 @@ before implementing; line numbers drift.
 ---
 
 > **Filed under `discovery/noop/`** — the verdict is 🟢 **Fixed / don't port**: nehir already
-> prevents cross-monitor bleed at a stricter, earlier layer than PR #364's post-layout clamp
+> prevents cross-monitor bleed at a stricter, earlier layer than PR BarutSRB/OmniWM#364's post-layout clamp
 > (an overflowing tiled column is classified `.hidden` *before* any visible frame is emitted,
 > and hidden windows are parked offscreen by an overlap-minimising resolver), and the PR is
 > closed-without-merge upstream. Porting the diff as written would **regress** (clamps to the
 > wrong basis `monitor.frame` vs nehir's `monitor.visibleFrame`, and drops windows on null
 > intersection instead of parking them). This doc contributes no new root cause and owns no
-> repo action: if a #349-like bleed ever reproduces, it belongs to the **stale-live-frame**
+> repo action: if a BarutSRB/OmniWM#349-like bleed ever reproduces, it belongs to the **stale-live-frame**
 > family, not an unclamped visible frame. It is the **deduped survivor of a concurrent worker
 > race**: two near-complete siblings reached the identical verdict and were removed —
 > `20260616-omniwm-364-clamp-visible-frames-post-layout-noop.md` (an independent re-verification
@@ -35,8 +35,8 @@ before implementing; line numbers drift.
 
 The triage flagged this PR as **open**. The upstream state today is **closed, not merged**
 (GitHub API: `state=closed`, `merged=false`; the `pull/364.diff` endpoint serves the two
-commits as an unmerged patch, and the parallel #349 discovery independently recorded
-"Closed without merge"). So #364 was **rejected upstream** — it never landed in OmniWM. That
+commits as an unmerged patch, and the parallel BarutSRB/OmniWM#349 discovery independently recorded
+"Closed without merge"). So BarutSRB/OmniWM#364 was **rejected upstream** — it never landed in OmniWM. That
 makes the verdict here about whether to *adapt* the concept into nehir, not whether to
 back-merge a real fix.
 
@@ -46,7 +46,7 @@ back-merge a real fix.
   clamp: a tiled column whose rendered rect overflows into a neighbouring monitor's frame
   is reclassified `.hidden` *before* any frame is committed, and hidden windows are parked
   offscreen by an overlap-minimising resolver. The PR's post-layout clamp of *visible*
-  frames is therefore a no-op where nehir is strong, and useless where #349's symptom
+  frames is therefore a no-op where nehir is strong, and useless where BarutSRB/OmniWM#349's symptom
   actually lives (hidden windows — which the PR explicitly excludes).**
 - **The diff is technically fine in one detail** (commit 2's deferred-mutation arrays are
   the correct Swift fix for the concurrent-dictionary-mutation crash commit 1 introduced),
@@ -67,7 +67,7 @@ Yes. The exact function the PR patches exists in nehir under the renamed module 
 - `Sources/Nehir/Core/Layout/Niri/NiriLayoutEngine+Animation.swift:228` —
   `calculateCombinedLayoutUsingPools`, returning `(frames: framePool, hiddenHandles:
   hiddenPool)`. This is 1:1 with OmniWM's
-  `Sources/OmniWM/Core/Layout/Niri/NiriLayoutEngine+Animation.swift` that #364 edits.
+  `Sources/OmniWM/Core/Layout/Niri/NiriLayoutEngine+Animation.swift` that BarutSRB/OmniWM#364 edits.
 
 The PR's *fix* (`clampVisibleFramesToMonitorBounds`) is **not present in nehir**: `ffgrep`
 for the symbol returns only matches inside the discovery docs themselves, nothing under
@@ -112,7 +112,7 @@ The PR's own summary states the goal precisely: *"intersects each visible window
 with `monitor.frame`, removing frames that fall entirely outside the monitor bounds,"* and
 *"Hidden windows … are excluded … since their positioning is handled separately."*
 
-## What #349 reports (the bug this PR claims to fix)
+## What BarutSRB/OmniWM#349 reports (the bug this PR claims to fix)
 
 > *"When i am using two monitors … windows not hiding fully. part of the hided window, that
 > should be out of the visible monitor, are shown over shown window."*
@@ -172,7 +172,7 @@ a post-pass clamp to trim. Windows are sized inside their container (`layoutCont
 in the multi-monitor side-by-side case it targets. (`git log -S` shows this guard ships in
 the `9a46877` "Initial Nehir import" — it is nehir's baseline design, not a recent backport.)
 
-### 2. The hidden windows (the real #349 symptom) are parked by an overlap-minimising resolver
+### 2. The hidden windows (the real BarutSRB/OmniWM#349 symptom) are parked by an overlap-minimising resolver
 
 Columns that *do* overflow are `.hidden`, so their windows go to `hiddenHandles`
 (`NiriLayout.swift:278`) and are **never in `framePool` at all**. They are parked offscreen
@@ -187,7 +187,7 @@ other monitor — trying both hide edges and multiple vertical parking lanes:
 // :121 / :194 / :209 / :260  overlapArea(...) minimised across lanes and edges
 ```
 
-The `:103` comment describes #349's exact failure mode and is nehir's deliberate guard. The
+The `:103` comment describes BarutSRB/OmniWM#349's exact failure mode and is nehir's deliberate guard. The
 PR's clamp does nothing for these windows by its own admission (`where hiddenPool[token] ==
 nil`), so even in OmniWM the patch cannot address the reporter's literal symptom.
 
@@ -256,13 +256,13 @@ stricter choice. So nehir's clamp posture is intentional and consistent, not an 
 
 ## Distinction from nehir's stale-live-frame discoveries
 
-If a #349-like symptom (a "hidden" window's pixels on another monitor) ever appears in
+If a BarutSRB/OmniWM#349-like symptom (a "hidden" window's pixels on another monitor) ever appears in
 nehir, it is **not** this PR's mechanism. It is the *stale-live-frame* family: a window nehir
 believes hidden whose live AX frame never advanced to the park slot (state/cache desync +
 park-write failure), documented in the two stale-live-frame briefs. The table from the
-parallel #349 discovery holds:
+parallel BarutSRB/OmniWM#349 discovery holds:
 
-| | OmniWM #349 / PR #364 | nehir stale-live-frame discoveries |
+| | BarutSRB/OmniWM#349 / PR BarutSRB/OmniWM#364 | nehir stale-live-frame discoveries |
 |---|---|---|
 | Window's logical state at layout | **Visible** (tiled column) | **Hidden** (`layoutTransient` / workspace-inactive) |
 | What is wrong | Computed **visible frame** overhangs the monitor edge | **Live AX frame** stale / never reached the park slot |
@@ -271,7 +271,7 @@ parallel #349 discovery holds:
 
 ## Recommendation
 
-**Do not port/adapt PR #364.** Concretely:
+**Do not port/adapt PR BarutSRB/OmniWM#364.** Concretely:
 
 1. Do **not** add `clampVisibleFramesToMonitorBounds` (in any form) to
    `NiriLayoutEngine+Animation.swift`. nehir's classification-and-parking pipeline

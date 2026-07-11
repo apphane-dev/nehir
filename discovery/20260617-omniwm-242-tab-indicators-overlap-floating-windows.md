@@ -1,4 +1,4 @@
-# OmniWM issue #242 — "Tab indicators overlap floating windows" — Discovery
+# BarutSRB/OmniWM#242 — "Tab indicators overlap floating windows" — Discovery
 
 Groom 2026-07-07: still applicable — partial; TabbedColumnOverlayManager.shouldShowOverlay still checks viewport intersection only (no floating-occlusion filter in tabbedColumnOverlayInfos) (verified against main 7a025b78).
 
@@ -18,7 +18,7 @@ before implementing; line numbers drift.
 - **nehir's tab overlay is not occlusion-aware:** `shouldShowOverlay` checks only
   viewport intersection, and the overlay-info collector never inspects floating
   windows. So when z-ordering places the overlay above a floating window, the
-  rail draws over it — the #242 symptom can occur.
+  rail draws over it — the BarutSRB/OmniWM#242 symptom can occur.
 - **But nehir partly mitigates it:** the overlay is `level = .normal` and
   z-ordered relative to the active *tiled* window (`orderWindow(relativeTo:
   activeWindowId)`), not unconditionally above floating windows — so a focused
@@ -38,7 +38,7 @@ before implementing; line numbers drift.
 
 ## Provenance: is this nehir's code?
 
-Yes — same overlay subsystem as #218 (`TabbedColumnOverlayManager`,
+Yes — same overlay subsystem as BarutSRB/OmniWM#218 (`TabbedColumnOverlayManager`,
 `TabbedColumnOverlayWindow`, `NiriLayoutHandler.updateTabbedColumnOverlays`).
 The rail is drawn just **left** of a tabbed column:
 
@@ -129,7 +129,7 @@ Two viable shapes (pick one):
 
 Suppressing is simpler and matches how nehir already hides overlays for
 off-viewport columns. Either way the change is localized to the overlay-info
-collection path; the per-pass refresh wiring (#218) already re-evaluates it on
+collection path; the per-pass refresh wiring (BarutSRB/OmniWM#218) already re-evaluates it on
 every layout pass and floating move.
 
 ## Suggested tests

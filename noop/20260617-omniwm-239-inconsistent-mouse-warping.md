@@ -1,4 +1,4 @@
-# OmniWM issue #239 — "Inconsistent mouse warping (multi-mon)" — Discovery
+# BarutSRB/OmniWM#239 — "Inconsistent mouse warping (multi-mon)" — Discovery
 
 Source issue: <https://github.com/BarutSRB/OmniWM/issues/239>
 Scope of this doc: determine whether the symptom reproduces in nehir — on two
@@ -25,7 +25,7 @@ before implementing; line numbers drift.
 - **nehir computes a normalized ratio on the non-crossing axis and reapplies it
   to the destination frame, then clamps.** For two identical monitors the ratio
   math collapses to `dest == source`, i.e. no vertical drift — the cursor lands
-  exactly where it left, which is the consistent, expected behavior #239 wants.
+  exactly where it left, which is the consistent, expected behavior BarutSRB/OmniWM#239 wants.
 - **Verdict:** 🟢 **Fixed.** The reported inconsistency does not reproduce.
 
 ## Issue context
@@ -40,7 +40,7 @@ before implementing; line numbers drift.
 
 ## Provenance: is this nehir's code?
 
-Yes — same subsystem as #206 (`MouseWarpHandler`, axis-dispatched). The
+Yes — same subsystem as BarutSRB/OmniWM#206 (`MouseWarpHandler`, axis-dispatched). The
 transfer-ratio and destination computation are in
 `Sources/Nehir/Core/Controller/MouseWarpHandler.swift`:
 `mouseWarpCalculateYRatio`/`mouseWarpCalculateXRatio`,
@@ -99,7 +99,7 @@ mouseWarpToMonitor(named: effectiveOrder[rightIndex], edge: .left, transferRatio
    `yRatio = (maxY − point.y)/height`, and
    `destY = maxY − yRatio·height = maxY − (maxY − point.y) = point.y`.
    The cursor lands at **exactly** the same `y` it had on the source — there is
-   no "lower" or "higher" drift. This is the consistent behavior #239 asks for.
+   no "lower" or "higher" drift. This is the consistent behavior BarutSRB/OmniWM#239 asks for.
 
 2. **Non-identical monitors get correct proportional transfer.** When the
    destination frame differs, `destY = destMaxY − yRatio·destHeight` maps the

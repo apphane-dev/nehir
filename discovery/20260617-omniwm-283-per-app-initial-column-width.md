@@ -1,4 +1,4 @@
-# OmniWM issue #283 — "Per-app initial column width rules" — Discovery
+# BarutSRB/OmniWM#283 — "Per-app initial column width rules" — Discovery
 
 Groom 2026-07-07: in flight — a plan exists (planned/20260621-omniwm-283-per-app-initial-column-width.md); no per-app initial column-width effect yet (verified against main 7a025b78).
 
@@ -28,8 +28,8 @@ issues from OmniWM"). Line numbers drift — re-verify before implementing.
   consumed, at the relayout layer).
 - **Verdict:** 🔴 **Applies / owns a new action.** This is an open feature, not a
   reproducing bug; nehir lacks the capability, the premise is valid, and the code
-  to extend exists. Distinct from sibling min-size work (#384, 🟢 Fixed) and
-  cross-workspace width preservation (#295, 🔴 Applies) — the boundary is drawn
+  to extend exists. Distinct from sibling min-size work (BarutSRB/OmniWM#384, 🟢 Fixed) and
+  cross-workspace width preservation (BarutSRB/OmniWM#295, 🔴 Applies) — the boundary is drawn
   below.
 
 ## Provenance: is this nehir's code?
@@ -173,7 +173,7 @@ if let minW = entry.ruleEffects.minWidth {
 ```
 
 So `minWidth` is a constraint that **clamps column width up** every layout pass
-(the guarantee documented in sibling #384). An **initial** width is a different
+(the guarantee documented in sibling BarutSRB/OmniWM#384). An **initial** width is a different
 axis: it must be consumed **once, at column creation**, not merged into the
 constraint floor. The plumbing for "matched rule → per-window effect" exists;
 the missing step is carrying that effect into `addWindow`/`initializeNewColumnWidth`.
@@ -210,7 +210,7 @@ enum LoneWindowPolicy: Equatable, Identifiable, Codable {
 **Consequence:** setting only `column.width = .proportion(0.5)` is *insufficient*
 for the Kitty-on-empty-workspace case — the `.fill` policy still yields 100%. The
 feature must also set `column.hasManualSingleWindowWidthOverride = true` so the
-lone-window path honors the rule's width (exactly the flag the #295 fix relies
+lone-window path honors the rule's width (exactly the flag the BarutSRB/OmniWM#295 fix relies
 on, `initializeNewColumnWidth` clears it at `NiriLayoutEngine.swift:229`). Using
 that flag for a rule-set width is a semantic overload of "manual override" — it
 should be an explicit design decision, not an accident.
@@ -230,31 +230,31 @@ should be an explicit design decision, not an accident.
    effect reuses this pipeline; only the *consumption* site is new.
 
 3. **It is genuinely distinct from `minWidth`.** `minWidth` is a constraint floor,
-   enforced every layout, clamping width **up** (per #384). `initialColumnWidth`
+   enforced every layout, clamping width **up** (per BarutSRB/OmniWM#384). `initialColumnWidth`
    is a one-time starting proportion, applied at column creation, freely
    resizable afterward. An app can carry both (e.g. Kitty: `initialColumnWidth =
    0.5`, `minWidth = 400`) with no conflict.
 
 ## Boundary with sibling discoveries (coordinate here)
 
-- **#384** (`noop/20260616-omniwm-384-respect-window-min-size-in-niri-column-width.md`,
+- **BarutSRB/OmniWM#384** (`noop/20260616-omniwm-384-respect-window-min-size-in-niri-column-width.md`,
   🟢 Fixed): the *floor* axis. nehir already propagates `minSize` into
   `resolveSpan`/`widthBounds` (`NiriNode.swift:526`/`:551`) and clamps column
-  width **up** to it. Porting #384 is a no-op and delivers **none** of this
+  width **up** to it. Porting BarutSRB/OmniWM#384 is a no-op and delivers **none** of this
   feature — initial width and min floor are orthogonal. An `initialColumnWidth`
-  implementation must still *respect* the #384 floor: if a rule's `0.5` resolves
+  implementation must still *respect* the BarutSRB/OmniWM#384 floor: if a rule's `0.5` resolves
   below the app's enforced min-size, the min-size wins (clamp the initial width up
   to `widthBounds().min` after applying the rule).
-- **#295** (`20260616-omniwm-295-niri-window-width-preservation.md`, 🔴 Applies):
-  the *move* axis. Both touch `initializeNewColumnWidth`: #295 via
-  `moveWindowToWorkspace` (`NiriLayoutEngine+WorkspaceOps.swift:36`/`:40`), #283
+- **BarutSRB/OmniWM#295** (`20260616-omniwm-295-niri-window-width-preservation.md`, 🔴 Applies):
+  the *move* axis. Both touch `initializeNewColumnWidth`: BarutSRB/OmniWM#295 via
+  `moveWindowToWorkspace` (`NiriLayoutEngine+WorkspaceOps.swift:36`/`:40`), BarutSRB/OmniWM#283
   via `addWindow` (`:125`/`:153`). They must be coordinated so the precedence is
   intentional — proposed: a brand-new admission uses the rule width (else
   workspace default); a moved window with a rule uses the rule width; a moved
-  window without a rule preserves the source width (#295's fix). Otherwise a
-  #295 fix that blindly copies source state would clobber a per-app rule.
+  window without a rule preserves the source width (BarutSRB/OmniWM#295's fix). Otherwise a
+  BarutSRB/OmniWM#295 fix that blindly copies source state would clobber a per-app rule.
 - **#268** ("Minimum window size seemingly ignored") is upstream's hazier twin of
-  the same min-size-vs-initial-width confusion; #283 is the better-articulated,
+  the same min-size-vs-initial-width confusion; BarutSRB/OmniWM#283 is the better-articulated,
   actionable half.
 
 ## Recommendation
@@ -284,7 +284,7 @@ the existing rule pipeline and consuming it at column creation. Concrete shape:
      path honors it** (`NiriLayout.swift:700-707`) — see §4;
    - clamp the resolved initial width up to the column's min floor
      (`widthBounds().min`, `NiriNode.swift:551`) so the rule never violates the
-     app's own min-size (#384 guarantee).
+     app's own min-size (BarutSRB/OmniWM#384 guarantee).
 
 3. **Config format** (mirrors the existing `minWidth` block in
    `docs/CONFIGURATION.md:209-220`):
@@ -298,7 +298,7 @@ the existing rule pipeline and consuming it at column creation. Concrete shape:
    minWidth = 400               # orthogonal floor; both may coexist
    ```
 
-4. **Coordinate #295/#384 precedence** per the boundary section above.
+4. **Coordinate BarutSRB/OmniWM#295/BarutSRB/OmniWM#384 precedence** per the boundary section above.
 
 ## Suggested tests
 
@@ -310,12 +310,12 @@ the existing rule pipeline and consuming it at column creation. Concrete shape:
    §4.
 2. **Rule width below the app's min-size is clamped up.** Rule `initialColumnWidth
    = 0.3` (→600px) with an app `minSize.width = 900`. Assert the column resolves
-   to ≥900 (the #384 floor wins over the rule), never sub-minimum.
+   to ≥900 (the BarutSRB/OmniWM#384 floor wins over the rule), never sub-minimum.
 3. **Applied once, not re-triggered.** After Kitty's column exists, admit a second
    window to it (different app, no rule). Assert the column width is unchanged —
    the rule fires at creation only, not on every append.
-4. **Cross-workspace move precedence (#295 interaction).** A window carrying an
-   `initialColumnWidth` rule moved to a fresh workspace (#295 path via
+4. **Cross-workspace move precedence (BarutSRB/OmniWM#295 interaction).** A window carrying an
+   `initialColumnWidth` rule moved to a fresh workspace (BarutSRB/OmniWM#295 path via
    `moveWindowToWorkspace`) ends up at the rule width, not the target default and
    not a stale source width.
 5. **No rule → unchanged.** An app without a rule admitted today behaves exactly

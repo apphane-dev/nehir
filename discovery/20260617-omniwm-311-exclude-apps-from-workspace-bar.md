@@ -1,4 +1,4 @@
-# OmniWM issue #311 — "Option to exclude specific apps from the workspace bar" — Discovery
+# BarutSRB/OmniWM#311 — "Option to exclude specific apps from the workspace bar" — Discovery
 
 Groom 2026-07-07: in flight — a plan exists (planned/20260621-omniwm-311-exclude-apps-from-workspace-bar.md); no per-app hide-from-workspace-bar rule yet (verified against main 7a025b78).
 
@@ -34,7 +34,7 @@ The issue is open upstream with **no comments and no labels** as of the verifica
 
 - **Closed #281 ("hide the application icons from the bar")** is **not** the same request.
   #281 asks to hide *all* app icons and show bare workspace numbers (`| 1 | 2 | 3 |`); it was
-  closed upstream as `not_planned`. #311 is per-app exclusion by identity. They are distinct
+  closed upstream as `not_planned`. BarutSRB/OmniWM#311 is per-app exclusion by identity. They are distinct
   actions and do not collide.
 - Discussion #83 ("Non-Sticky floating windows") is thematically related (background/overlay
   windows) but is about floating-window stickiness, not bar presence.
@@ -241,7 +241,7 @@ Concretely:
    viable secondary surface. It is redundant with (1) for the same bundle id, so pick one
    primary; recommend the app-rule field as primary.
 
-Do **not** gate this on PR #323's separate bar filter (`layoutReason == .standard`,
+Do **not** gate this on PR BarutSRB/OmniWM#323's separate bar filter (`layoutReason == .standard`,
 documented in `20260616-omniwm-323-floating-panel-bar-filter.md`) — that is a different
 concern (excluding non-standard floating entries) and is orthogonal to per-app identity
 exclusion.

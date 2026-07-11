@@ -1,4 +1,4 @@
-# OmniWM issue #295 — "[Niri] Windows do not keep their current width when moved to another workspace on another screen" — Discovery
+# OmniWM issue BarutSRB/OmniWM#295 — "[Niri] Windows do not keep their current width when moved to another workspace on another screen" — Discovery
 
 Groom 2026-07-07: in flight — a plan exists (planned/20260621-omniwm-295-niri-window-width-preservation.md); individual-window cross-workspace move still resets target column width (verified against main 7a025b78).
 
@@ -32,7 +32,7 @@ numbers drift.
   `Tests/NehirTests/NiriLayoutEngineTests.swift:3670-3697`. That test passed
   locally, so the behavior is intentional in current tests but conflicts with
   the issue's expected behavior.
-- **Verdict:** issue #295 applies to nehir. A fix should preserve/copy the
+- **Verdict:** issue BarutSRB/OmniWM#295 applies to nehir. A fix should preserve/copy the
   source column's width state when moving an individual window into a newly
   created or claimed target column, with tests updated to reflect the desired
   Niri-compatible behavior.
@@ -231,7 +231,7 @@ swift test --filter NiriLayoutEngineTests/moveWindowToWorkspaceUsesExplicitDefau
 It passed, confirming that the current codebase still implements the reset-to-
 target-default behavior.
 
-This test likely needs to be replaced or narrowed when fixing #295, because the
+This test likely needs to be replaced or narrowed when fixing BarutSRB/OmniWM#295, because the
 new desired behavior is to preserve the moved window/source column width rather
 than reset to the target workspace default.
 
@@ -346,7 +346,7 @@ Add/adjust tests in `Tests/NehirTests/NiriLayoutEngineTests.swift`:
 
 ## Verdict
 
-Issue #295 is relevant for nehir and identifies a real behavior mismatch with
+Issue BarutSRB/OmniWM#295 is relevant for nehir and identifies a real behavior mismatch with
 expected Niri-style width preservation. The bug is localized to
 `NiriLayoutEngine.moveWindowToWorkspace(...)` resetting the target column width
 state during individual-window workspace moves. The fix should preserve the

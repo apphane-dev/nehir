@@ -1,6 +1,6 @@
 # Challenge window width vs column width (and other column-vs-window semantics) — Discovery
 
-Groom 2026-07-07: still applicable — naming/API-surface cleanup (collapse the window-width command family, rename `hasManualSingleWindowWidthOverride`, decide `NiriWindow.windowWidth`); sequenced behind the still-in-flight `#295`/`#283`/`#326` width plans, none of which have landed (verified against main 7a025b78).
+Groom 2026-07-07: still applicable — naming/API-surface cleanup (collapse the window-width command family, rename `hasManualSingleWindowWidthOverride`, decide `NiriWindow.windowWidth`); sequenced behind the still-in-flight `BarutSRB/OmniWM#295`/`BarutSRB/OmniWM#283`/`BarutSRB/OmniWM#326` width plans, none of which have landed (verified against main 7a025b78).
 
 Source: backlog item **#19** ("Challenge window width vs column width (and other
 column-vs-window semantics)"), captured in `planned/20260621-backlog-brainstorm.md`.
@@ -9,7 +9,7 @@ Scope of this doc: audit Nehir's Niri width model for places where **"window
 width"** and **"column width"** are conflated, duplicated, or misleadingly named,
 and decide whether the distinction is worth tightening. This is a *semantics /
 naming / API-surface* investigation, not a bug repro and not a new feature — the
-related feature work (#283 / #295 / #326) is cited below, not duplicated.
+related feature work (BarutSRB/OmniWM#283 / BarutSRB/OmniWM#295 / BarutSRB/OmniWM#326) is cited below, not duplicated.
 
 All file/line references were verified against the main Nehir source tree
 (`e7b246b6`) on 2026-06-21. Re-verify before acting; line numbers drift.
@@ -49,7 +49,7 @@ user would guess:
    Meanwhile the "window width" *commands* conspicuously do not touch it.
 
 **Verdict:** 🟡 **Pursue as a naming/API-surface cleanup, sequenced as a
-follow-up** after `#295` / `#283` / `#326` land (they all touch
+follow-up** after `BarutSRB/OmniWM#295` / `BarutSRB/OmniWM#283` / `BarutSRB/OmniWM#326` land (they all touch
 `hasManualSingleWindowWidthOverride` and would otherwise compound the overload).
 Do **not** treat it as a bug; treat it as debt reduction. The concrete,
 shippable scope is: (a) collapse or justify the window-width command family,
@@ -259,14 +259,14 @@ default policy"** — not specifically anything about a single window. Its name 
 relic of the moment it was introduced (the lone-window path), and three planned
 discoveries propose to lean on the same flag for unrelated purposes:
 
-- **#295** copies `hasManualSingleWindowWidthOverride` from the source column to
+- **BarutSRB/OmniWM#295** copies `hasManualSingleWindowWidthOverride` from the source column to
   the target column on a cross-workspace window move
   (`planned/20260621-omniwm-295-niri-window-width-preservation.md:75,109`).
-- **#283** sets `hasManualSingleWindowWidthOverride = true` when an `AppRule`
+- **BarutSRB/OmniWM#283** sets `hasManualSingleWindowWidthOverride = true` when an `AppRule`
   supplies an `initialColumnWidth` — and its plan **flags this as a semantic
   overload** ("Reusing `hasManualSingleWindowWidthOverride` for a rule-set width
   is a …", `planned/20260621-omniwm-283-per-app-initial-column-width.md:94,522`).
-- **#326** sets `hasManualSingleWindowWidthOverride = true` for a deliberately
+- **BarutSRB/OmniWM#326** sets `hasManualSingleWindowWidthOverride = true` for a deliberately
   over-100% lone window
   (`planned/20260621-omniwm-326-niri-column-over-100-percent-width.md:341,359`).
 
@@ -395,8 +395,8 @@ without a stated user need.
 
 **Suggested rename:** `bypassesLoneWindowPolicy` or `hasExplicitColumnWidth`
 (reads as "this column carries an explicit width that should override the
-lone-window default"). This must land **together with** whichever of #295/#283/
-#326 touches the flag first, or be done immediately before them as a prep
+lone-window default"). This must land **together with** whichever of BarutSRB/OmniWM#295/BarutSRB/OmniWM#283/
+BarutSRB/OmniWM#326 touches the flag first, or be done immediately before them as a prep
 commit — otherwise the overload documented in §3 accretes on a name that is
 already wrong. The flag's *semantics* do not need to change, only its name and
 the doc comment.
@@ -431,7 +431,7 @@ mysterious.
   default set is unaffected (the width-window actions are `.unassigned`). Risk is
   low but non-zero for power users who assigned them — and those users are
   exactly the ones who would notice the commands did nothing distinct.
-- **Sequencing hazard with #295 / #283 / #326 (Lobe B).** All three planned
+- **Sequencing hazard with BarutSRB/OmniWM#295 / BarutSRB/OmniWM#283 / BarutSRB/OmniWM#326 (Lobe B).** All three planned
   discoveries add a new meaning to `hasManualSingleWindowWidthOverride`. If the
   rename lands *after* them, three plans must be re-verified; if it lands *first*
   as a prep commit, they pick up the new name for free. The latter is strongly
@@ -479,7 +479,7 @@ mysterious.
 ## Recommendation
 
 **🟡 Pursue as a follow-up cleanup, sequenced after — or as a prep commit before
-— the first of #295 / #283 / #326.** The underlying model is correct; the debt is
+— the first of BarutSRB/OmniWM#295 / BarutSRB/OmniWM#283 / BarutSRB/OmniWM#326.** The underlying model is correct; the debt is
 in naming and a duplicated command surface. Concretely:
 
 - **Do Lobe B first (rename `hasManualSingleWindowWidthOverride`),** ideally as a

@@ -1,4 +1,4 @@
-# OmniWM issue #315 — "Sticky apps visible across all workspaces" — Discovery
+# BarutSRB/OmniWM#315 — "Sticky apps visible across all workspaces" — Discovery
 
 Groom 2026-07-07: resolved — a sticky AppRule effect landed (AppRule + AppRuleFileStore codec + bar visibility; isStickyWindow/isGlobalStickyWindow across the runtime) (verified against main 7a025b78).
 
@@ -256,7 +256,7 @@ regress (it can't be implemented) and would mislead users.
 6. **Codec caution:** adding `sticky` to the `[effect]` block touches the same
    TOML codec flagged by sibling discovery `20260616-omniwm-410-settings-toml-unknown-keys-roundtrip-loss.md`
    — ensure the new key round-trips through encode/decode and the unknown-key path
-   (#410's concern) still degrades gracefully.
+   (BarutSRB/OmniWM#410's concern) still degrades gracefully.
 
 ## Suggested tests
 
@@ -274,7 +274,7 @@ regress (it can't be implemented) and would mislead users.
   in the exclusion set), preventing a false bleed alert.
 - **TOML round-trip of the new key.** Encode an `AppRule` with `sticky = true`,
   decode the produced TOML, assert `sticky` survives; assert a rule file *without*
-  the key still decodes to `sticky == nil` (guards the unknown-key path per #410).
+  the key still decodes to `sticky == nil` (guards the unknown-key path per BarutSRB/OmniWM#410).
 - **Overlay disclaimer is not silently managed.** A `.accessory`-policy window with
   no close button and no user rule remains heuristic-floated
   (`AXWindow.swift:653`) — i.e. nehir does *not* auto-promote Übersicht into

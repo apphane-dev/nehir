@@ -1,10 +1,10 @@
-# OmniWM PR #169 — "settings.json full canonical export" — Discovery
+# OmniWM PR BarutSRB/OmniWM#169 — "settings.json full canonical export" — Discovery
 
 Source PR: https://github.com/BarutSRB/OmniWM/pull/169
 Merge state: **closed without merge** upstream; judge the idea, not the branch.
 Scope of this doc: determine whether the closed JSON-export/config-workflow PR
 applies to nehir, whether its settings round-trip concern is already owned by
-#410, and whether any distinct nehir action remains.
+BarutSRB/OmniWM#410, and whether any distinct nehir action remains.
 
 All file/line references were verified against the Nehir source tree
 at `7f61cb3` ("docs: update four-finger gesture discovery with non-repro trace").
@@ -12,7 +12,7 @@ Re-verify before implementing; line numbers drift.
 
 ---
 
-> **Filed under `discovery/noop/`** — #169 owns no new repo action. The PR's
+> **Filed under `discovery/noop/`** — BarutSRB/OmniWM#169 owns no new repo action. The PR's
 > direct target is upstream's old monolithic `settings.json` export API
 > (`exportData(incrementalOnly:)` / `exportSettings(incrementalOnly:)`), and those
 > symbols are absent in nehir. nehir's editable-config workflow already creates
@@ -29,12 +29,12 @@ Re-verify before implementing; line numbers drift.
   TOML/directories (`Sources/Nehir/Core/Config/SettingsTOMLCodec.swift:6`,
   `Sources/Nehir/Core/Config/SettingsFilePersistence.swift:142-158`).
 - **Verdict:** ⚪ **Won't port / Not applicable.** The only overlapping bug class
-  is the known unknown-key round-trip loss, and #410 already owns that fix
+  is the known unknown-key round-trip loss, and BarutSRB/OmniWM#410 already owns that fix
   (`discovery/20260616-omniwm-410-settings-toml-unknown-keys-roundtrip-loss.md:9-11`).
 
 ## Upstream PR: proposed fix and diff shape
 
-PR #169 was closed without merge. The patch series begins with
+PR BarutSRB/OmniWM#169 was closed without merge. The patch series begins with
 "Make settings.json export full config by default": it changes upstream
 `SettingsExport.exportData(incrementalOnly:)` and `SettingsStore.exportSettings`
 defaults from `true` to `false`, then adds a regression test asserting default
@@ -95,7 +95,7 @@ static func encode(_ export: SettingsExport) throws -> Data {
 `CanonicalTOMLConfig` is an explicit TOML schema with modeled tables only
 (`Sources/Nehir/Core/Config/CanonicalTOMLConfig.swift:15-26`), populated from the
 full in-memory export (`Sources/Nehir/Core/Config/CanonicalTOMLConfig.swift:147-223`).
-There is no compact/diff mode equivalent to upstream PR #169.
+There is no compact/diff mode equivalent to upstream PR BarutSRB/OmniWM#169.
 
 ### nehir splits the full editable config across files
 
@@ -146,7 +146,7 @@ The settings UI calls this workflow from the General tab
 
 ## Why this does not apply as a distinct port
 
-1. **The broken upstream default is absent.** PR #169 changes a default argument
+1. **The broken upstream default is absent.** PR BarutSRB/OmniWM#169 changes a default argument
    from compact/incremental to full. nehir has no `incrementalOnly` or
    `SettingsExportMode`, so there is no default to flip and no JSON export button
    to relabel.
@@ -155,17 +155,17 @@ The settings UI calls this workflow from the General tab
    `ConfigurationFilesSection` exposes the config folder and main settings file
    (`Sources/Nehir/UI/ConfigurationFilesSection.swift:11-33`), and the workflow
    creates missing files first (`Sources/Nehir/UI/SettingsFileWorkflow.swift:17`).
-3. **The actual remaining round-trip data loss is already #410.** nehir still
+3. **The actual remaining round-trip data loss is already BarutSRB/OmniWM#410.** nehir still
    drops unknown TOML keys because `decode` reads only `CanonicalTOMLConfig` and
    `encode` rebuilds only modeled tables (`Sources/Nehir/Core/Config/SettingsTOMLCodec.swift:13-15`,
    `Sources/Nehir/Core/Config/CanonicalTOMLConfig.swift:296-308`). The sibling
-   discovery explicitly names closed-without-merge PR #169 as part of that cluster
+   discovery explicitly names closed-without-merge PR BarutSRB/OmniWM#169 as part of that cluster
    and owns the preservation action
    (`discovery/20260616-omniwm-410-settings-toml-unknown-keys-roundtrip-loss.md:9-11`).
 
 ## Recommendation
 
-Do **not** port PR #169. Keep #410 as the actionable settings round-trip ticket:
+Do **not** port PR BarutSRB/OmniWM#169. Keep BarutSRB/OmniWM#410 as the actionable settings round-trip ticket:
 its fix should preserve unknown TOML keys across `SettingsTOMLCodec.decode` →
 `encode` and reconcile that with nehir's launch-time mismatch cleanup. If a UX
 follow-up is desired later, evaluate it as a nehir-native config-folder workflow,

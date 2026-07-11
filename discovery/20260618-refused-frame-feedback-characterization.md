@@ -12,7 +12,7 @@ Scope: re-evaluate whether M1 is a *port* after direct code inspection. **It is 
 ## TL;DR
 
 - **Correction to the earlier minor-candidates framing: nehir already implements the full refused-frame → constraint feedback loop that upstream `40934c5` introduced.** The dataflow upstream adds — refusal observed → extract minimum → store per-window constraint → push to solver → schedule relayout → solver respects constraint — exists end-to-end in nehir today.
-- **The remaining #403 thrash loop is the P4 suppression gap**, not a missing feedback path. With P4 landed, the loop converges via the existing learner.
+- **The remaining BarutSRB/OmniWM#403 thrash loop is the P4 suppression gap**, not a missing feedback path. With P4 landed, the loop converges via the existing learner.
 - **Verdict:** 🟢 Not a port. Do **not** introduce upstream's `AXFrameApplicationLedger` file shape. The actual M1 work is: (a) test coverage for the untested learner/loop, (b) optional cascade hardening (require two stable oversized observations before pinning), (c) sequence after P4.
 
 ## The dataflow, verified end-to-end in nehir
@@ -27,7 +27,7 @@ Scope: re-evaluate whether M1 is a *port* after direct code inspection. **It is 
 | Schedule relayout | `RefreshReason` | `requestRefresh(reason: .layoutCommand, ...)` (`LayoutRefreshController.swift:3196-3198`) + `forceApplyNextFrame` for tiled siblings (`:3192-3194`) | ✅ present |
 | Solver respects constraint | solver | `resolveSpan` / `widthBounds` / `clampHeight` consume `node.constraints.minSize` (`NiriNode.swift:551`, `:170+`); `buildWindowSnapshots` merges inferred min into `mergedConstraints.minSize` (`LayoutRefreshController.swift:482-540`) | ✅ present |
 
-This is independently confirmed by `docs/ARCHITECTURE.md:377`, which documents the learner, and by the noop `20260616-omniwm-384-respect-window-min-size-in-niri-column-width.md` framing: *"#403's loop is fueled by a constraint-discovery transient on early layouts … closed by the resize-minimum learner after the first failed write — not by a missing propagation gap."*
+This is independently confirmed by `docs/ARCHITECTURE.md:377`, which documents the learner, and by the noop `20260616-omniwm-384-respect-window-min-size-in-niri-column-width.md` framing: *"BarutSRB/OmniWM#403's loop is fueled by a constraint-discovery transient on early layouts … closed by the resize-minimum learner after the first failed write — not by a missing propagation gap."*
 
 ## The genuine remaining gaps
 

@@ -1,4 +1,4 @@
-# OmniWM issue #240 — "Focus previous window command doesn't work across workspaces" — Discovery
+# BarutSRB/OmniWM#240 — "Focus previous window command doesn't work across workspaces" — Discovery
 
 Groom 2026-07-07: resolved — Focus Previous now crosses workspaces and monitors (30faf8f3, "Focus Previous Window crosses workspaces and monitors").
 
@@ -24,7 +24,7 @@ issue page.
   search machinery, but it is unused, and the caller then re-activates the result
   in the *current* workspace id, so flipping the flag alone is not a complete fix.
 - **Verdict:** 🔴 **Open / Applies** — latent nehir bug, not fixed, owns a new
-  action distinct from sibling #317 (which is a focus *revert race*, a different
+  action distinct from sibling BarutSRB/OmniWM#317 (which is a focus *revert race*, a different
   root cause).
 
 ## Provenance: is this nehir's code?
@@ -123,7 +123,7 @@ artificially walled off.
 
 ## Why it applies
 
-Upstream #240 (reporter @yougotwill): *"If I'm on `Workspace 1` and focus an
+Upstream BarutSRB/OmniWM#240 (reporter @yougotwill): *"If I'm on `Workspace 1` and focus an
 application on `Workspace 2` and then use the 'Focus previous window' command it
 doesn't go back to the first application, instead it focuses another window in
 `Workspace 2`."* The issue was closed as `not_planned` by the maintainer purely as
@@ -161,7 +161,7 @@ workspace switch.
 
 This is **not** owned by the sibling discovery `20260616-omniwm-317-…`. That doc
 concerns rapid focus-next/prev *reverting to an intermediate window* due to a
-stale macOS AX echo — a timing/race root cause. #240 is a static, structural
+stale macOS AX echo — a timing/race root cause. BarutSRB/OmniWM#240 is a static, structural
 workspace-scoping limitation: the two share no code cause and no fix.
 
 ## Recommendation

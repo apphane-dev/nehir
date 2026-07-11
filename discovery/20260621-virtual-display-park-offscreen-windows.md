@@ -128,7 +128,7 @@ func origin(for side: HideSide, y: CGFloat) -> CGPoint {
 For a `.right` park, the window's left edge lands at `monitor.frame.maxX - reveal` (≈1px
 inside the right edge) and its body extends rightward into whatever global coordinates lie
 beyond the monitor. On a single display that is offscreen; on a side-by-side multi-monitor
-arrangement it lands on the neighbour — the #349 bleed, which the overlap-minimising
+arrangement it lands on the neighbour — the BarutSRB/OmniWM#349 bleed, which the overlap-minimising
 resolver (`SideHiding.swift` `overlapArea` / `verticalParkingCandidates`) tries to avoid by
 picking the least-overlapping edge and vertical lane.
 
@@ -340,7 +340,7 @@ implementer has anchors; none of this is proposed for the docs-only branch.
 
 7. **It does not fix the reconciliation root causes.** The documented bleed
    (`workspace-inactive-stale-live-frame`, `stale-live-frame-on-stably-hidden-column`,
-   OmniWM #235) happens when Nehir **skips or never issues** the park. A virtual display
+   BarutSRB/OmniWM#235) happens when Nehir **skips or never issues** the park. A virtual display
    only changes where an *accepted* park lands. The reconciliation fixes in those sibling
    docs are mandatory and orthogonal; shipping a virtual display without them would still
    bleed (the window would stay on the real display because it was never moved).

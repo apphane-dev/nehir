@@ -266,7 +266,7 @@ duplicated. Current line numbers shown.
   transition. Verdict there: 🟢 the *counting* and *content-leak* symptoms are already
   fixed. **#69's native-path symptoms are a different failure mode** (focus-lease
   misattribution + admission churn + post-exit focus storm) that those guards do not
-  address — so #69 is not contradicted by #244's "fixed" verdict; they cover disjoint
+  address — so #69 is not contradicted by BarutSRB/OmniWM#244's "fixed" verdict; they cover disjoint
   symptoms of the same subsystem. The trace evidence above is the delta.
 - **`discovery/20260617-omniwm-326-niri-column-over-100-percent-width.md`** — owns the
   **column-width cap**. Confirms `toggleColumnFullWidth` = exactly 100%:
@@ -306,7 +306,7 @@ duplicated. Current line numbers shown.
 4. **Native path — admission churn.** Seven `window_admitted` for one token in ~1 s
    (#338-344) during the transition. Check the restore-on-admission helpers in
    `AXEventHandler.swift` and the `.nativeFullscreen` short-circuits in
-   `LayoutRefreshController.swift`. Note: #244's suspension design should normally
+   `LayoutRefreshController.swift`. Note: BarutSRB/OmniWM#244's suspension design should normally
    prevent re-admission — so this churn may indicate the suspension is being entered and
    exited repeatedly.
 5. **Native path — `managed_replacement_metadata_changed` flood.** Tens of these per

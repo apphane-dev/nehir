@@ -36,7 +36,7 @@ All source references verified against the main Nehir source tree on
   and **geometric coordinates** (`monitorAnchorX/Y`).
 - **Verdict:** 🟢 **Pursue — small and scoped.** Round-on-write at the codec
   boundary (do not touch runtime precision). The companion work it depends on
-  (unknown-key round-tripping, OmniWM #410) is already merged
+  (unknown-key round-tripping, BarutSRB/OmniWM#410) is already merged
   (`SettingsTOMLUnknownValue` / `unknownFields`), so this is a clean cosmetic
   follow-up, not a schema change.
 

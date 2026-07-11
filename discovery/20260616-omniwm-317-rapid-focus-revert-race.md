@@ -1,11 +1,11 @@
-# OmniWM issue #317 — "Rapid focus-next/prev snaps back to the wrong window" — Discovery
+# OmniWM issue BarutSRB/OmniWM#317 — "Rapid focus-next/prev snaps back to the wrong window" — Discovery
 
 Groom 2026-07-07: still applicable — shouldHonorObservedFocusOverPendingRequest remains the time-blind boolean (source.isAuthoritative && origin == .external); no createdAt/grace window or IntentLedger exists in nehir (verified against main 7a025b78).
 
 Source issue: https://github.com/BarutSRB/OmniWM/issues/317 — "When moving focus to
 next/prev quickly, focus randomly goes in opposite direction"
 Companion PR: https://github.com/BarutSRB/OmniWM/pull/379 — "Fix focus reverting on
-rapid next/prev key presses (→#317)"
+rapid next/prev key presses (→BarutSRB/OmniWM#317)"
 Scope: determine whether the
 focus-revert race applies to nehir, and which fix is safe to port.
 
@@ -15,8 +15,8 @@ numbers drift.** Verdict is by code inspection; nehir has no runtime trace for t
 bug. Upstream quotes were fetched live from the GitHub web/API, not inferred from
 titles.
 
-> **Consolidation note.** This is the single authoritative discovery for #317. It
-> merges eleven earlier redundant #317 discovery docs (rapid-focus-next-prev-*,
+> **Consolidation note.** This is the single authoritative discovery for BarutSRB/OmniWM#317. It
+> merges eleven earlier redundant BarutSRB/OmniWM#317 discovery docs (rapid-focus-next-prev-*,
 > rapid-focus-revert-stale-ax-echo, pr379-*, confirmation-echo-gap-deferral-queue,
 > trigger-predicate-and-keypress-fronting-path, revert-clears-confirmedfocus-*,
 > grace-period-fix-unported-applies, closed-unmerged-state-*) that a duplicate-run
@@ -40,7 +40,7 @@ titles.
   `intentLedger|classifyFocusObservation|echoOf|lateEcho|managedRequestGracePeriod`
   returns **zero matches** — no time-based or ledger-based defense exists. It will
   reproduce here.
-- **The upstream fix is not directly portable.** PR #379 (300 ms grace period) was
+- **The upstream fix is not directly portable.** PR BarutSRB/OmniWM#379 (300 ms grace period) was
   **closed without merge**; OmniWM `main` instead shipped a large architectural
   redesign — an `IntentLedger` + `DeadlineWheel` that *deletes*
   `FocusBridgeCoordinator` entirely. nehir is on the **old architecture** (it still
@@ -49,29 +49,29 @@ titles.
 
 ## Upstream state — corrects the catalog
 
-The catalog flags #317 as `open` and PR #379 as `open`. A direct GitHub REST-API
+The catalog flags BarutSRB/OmniWM#317 as `open` and PR BarutSRB/OmniWM#379 as `open`. A direct GitHub REST-API
 read contradicts both:
 
 | Fact (API) | Value |
 |---|---|
-| Issue #317 `state` / `state_reason` | **closed** / **completed** |
-| Issue #317 `closed_at` / `closed_by` | `2026-06-15T23:32:00Z` / `BarutSRB` |
-| Issue #317 close event `commit_id` | **`null`** → manual close, **no referencing commit** |
-| PR #379 `state` / `merged` | closed / **false** |
-| PR #379 `merged_at` / `merge_commit_sha` | `null` / `null` |
-| PR #379 `closed_at` | `2026-06-15T23:35:07Z` (**3 min after** the issue) |
-| PR #379 `head.repo` / `head.ref` | `biswadip-paul/OmniWM` / `fix/focus-direction-race-on-rapid-keypress` |
+| Issue BarutSRB/OmniWM#317 `state` / `state_reason` | **closed** / **completed** |
+| Issue BarutSRB/OmniWM#317 `closed_at` / `closed_by` | `2026-06-15T23:32:00Z` / `BarutSRB` |
+| Issue BarutSRB/OmniWM#317 close event `commit_id` | **`null`** → manual close, **no referencing commit** |
+| PR BarutSRB/OmniWM#379 `state` / `merged` | closed / **false** |
+| PR BarutSRB/OmniWM#379 `merged_at` / `merge_commit_sha` | `null` / `null` |
+| PR BarutSRB/OmniWM#379 `closed_at` | `2026-06-15T23:35:07Z` (**3 min after** the issue) |
+| PR BarutSRB/OmniWM#379 `head.repo` / `head.ref` | `biswadip-paul/OmniWM` / `fix/focus-direction-race-on-rapid-keypress` |
 
 The issue was closed *as completed* yet the close event carries **no commit**, and
 the fix PR was closed-unmerged **after** the issue. The fix text survives only in
-two **contributor forks** (not `BarutSRB/OmniWM`): the unmerged PR #379 branch above,
+two **contributor forks** (not `BarutSRB/OmniWM`): the unmerged PR BarutSRB/OmniWM#379 branch above,
 and a cherry-pick (commit `8674850`) into a *different* fork, `bispaul/OmniWM`,
 whose message notes the original PR "missed" the callsite inside
 `admitFocusedWindowBeforeNonManagedFallback` and patches that fifth site.
 
 **Practical consequences:** (1) the closure changes nothing for nehir — nehir has
 none of the fix, so the bug reproduces regardless of upstream labels; (2) there is
-**no merge SHA** to cite or sync from — cite PR #379's diff + the `bispaul/OmniWM`
+**no merge SHA** to cite or sync from — cite PR BarutSRB/OmniWM#379's diff + the `bispaul/OmniWM`
 cherry-pick note as design provenance only; (3) the fix will not reappear in
 nehir's upstream diff-tracking.
 
@@ -133,7 +133,7 @@ struct ManagedFocusRequest: Equatable {
     var retryCount: Int = 0
     var lastActivationSource: ActivationEventSource?
     var status: Status = .pending
-}                                // ← no createdAt, no origin, no age  (PR #379 / main add one of these)
+}                                // ← no createdAt, no origin, no age  (PR BarutSRB/OmniWM#379 / main add one of these)
 ```
 
 Built without a timestamp at `:67` (no `createdAt:` argument).
@@ -191,7 +191,7 @@ The five call sites of the guard (re-confirmed by direct read):
 | `:1411` | `.conflictsWithPendingRequest` case |
 | `:1490` | `.conflictsWithPendingRequest` case |
 | `:1558` | combined `.matchesActiveRequest` / `.conflictsWithPendingRequest` case |
-| **`:1651`** | **inside `admitFocusedWindowBeforeNonManagedFallback` (def `:1596`)** — the site PR #379 missed |
+| **`:1651`** | **inside `admitFocusedWindowBeforeNonManagedFallback` (def `:1596`)** — the site PR BarutSRB/OmniWM#379 missed |
 | `:3474` | combined case in `handleMissingFocusedWindow` (def `:3463`) |
 
 ### What actually reverts (mechanics correction)
@@ -283,7 +283,7 @@ consumed at `AXEventHandler.swift:1338`-`:1340` to recognize a self-echo, gated 
 private static let nativeAppSwitchLeaseRequestConfirmationGrace: TimeInterval = 0.6
 ```
 
-But the #317 race is entirely on the **pending** path, where `ManagedFocusRequest`
+But the BarutSRB/OmniWM#317 race is entirely on the **pending** path, where `ManagedFocusRequest`
 has no timestamp — a pending request is, by definition, not yet confirmed, so
 `recentlyConfirmedManagedRequest` cannot classify the late echo. **The fix is
 already half-built in nehir; the gap is narrow and local.**
@@ -307,7 +307,7 @@ through the missed branch.
 
 | Option | What | Scope / risk | Caveat |
 |---|---|---|---|
-| **A — PR #379 grace (stopgap)** | `createdAt: CFAbsoluteTime` + `var age` on `ManagedFocusRequest`; 300 ms grace in the guard | Small, additive, surgical | Closed-unmerged; can wrongly suppress a genuine change made within 300 ms, and a stale echo arriving after 300 ms still reverts — **why upstream abandoned it.** |
+| **A — PR BarutSRB/OmniWM#379 grace (stopgap)** | `createdAt: CFAbsoluteTime` + `var age` on `ManagedFocusRequest`; 300 ms grace in the guard | Small, additive, surgical | Closed-unmerged; can wrongly suppress a genuine change made within 300 ms, and a stale echo arriving after 300 ms still reverts — **why upstream abandoned it.** |
 | **B — codebase-faithful (recommended)** | Extend nehir's *existing* echo recognition to the pending path: a `recentlyIssuedManagedRequest` (token + `issuedAt: Date`) recorded in `beginManagedRequest`, mirroring `ConfirmedManagedRequest`; reuse the **0.6 s** `nativeAppSwitchLeaseRequestConfirmationGrace` | Medium; reuses concepts nehir already understands; local to the pending path | A 0.3 s window (option A) + 0.6 s confirmed window would let a self-echo fall through the gap — **use 0.6 s so both windows agree.** |
 | **C — OmniWM `main` ledger (principled, rewrite)** | New `IntentLedger` with `classifyFocusObservation(token:) -> .echoOf/.lateEcho/.external`, threaded into all five sites with an `observedToken:` param | Large — `main`'s ledger is the backbone of `AXEventHandler` (25+ call sites), deletes `FocusBridgeCoordinator`, adds a `ManagedFocusOrigin` enum, and moves the live request from `controller.focusBridge.activeManagedRequest` to `controller.intentLedger.activeManagedRequest` | The axis upstream settled on after rejecting the timer; avoids re-litigating the trade-off |
 
@@ -331,7 +331,7 @@ was dropped entirely in favor of classifying *which* managed intent the observat
 echoes (commits `bcb3dff` "Add IntentLedger and DeadlineWheel…" and `47106f8`
 "Delete FocusBridgeCoordinator; IntentLedger owns focus requests").
 
-**Do not** copy PR #379's diff verbatim: closed-not-merged, superseded, and it
+**Do not** copy PR BarutSRB/OmniWM#379's diff verbatim: closed-not-merged, superseded, and it
 under-covers the call sites (its cherry-pick had to add the
 `admitFocusedWindowBeforeNonManagedFallback` site at `:1651`).
 
@@ -364,7 +364,7 @@ the probe-vs-echo asymmetry by giving the *pending* path the echo recognition th
 
 If a fuller rewrite is wanted later, plan the transition to option C (the
 `IntentLedger`), which is the unifying primitive for this **and** the FFM focus race
-(see below). Option A (PR #379's 300 ms grace) is an acceptable fast stopgap only.
+(see below). Option A (PR BarutSRB/OmniWM#379's 300 ms grace) is an acceptable fast stopgap only.
 
 ## Existing tests encode the buggy contract (must be qualified)
 
