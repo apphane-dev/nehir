@@ -2,6 +2,10 @@
 
 Groom 2026-07-07: resolved — Focus Previous now crosses workspaces and monitors (30faf8f3, "Focus Previous Window crosses workspaces and monitors").
 
+Groom 2026-07-12: moved to `completed/` — solved in Nehir, tracked as nehir #92
+(<https://github.com/apphane-dev/nehir/issues/92>). See
+`discovery/20260712-omniwm-cleanup-sweep-20260505-regroom.md`.
+
 Source issue: https://github.com/BarutSRB/OmniWM/issues/240
 Scope of this doc: determine whether nehir's "Focus Previous Window" command
 reaches the last-focused window when it lives on a *different* workspace, or —

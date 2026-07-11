@@ -2,6 +2,12 @@
 
 Groom 2026-07-07: still applicable — partial; TabbedColumnOverlayManager.shouldShowOverlay still checks viewport intersection only (no floating-occlusion filter in tabbedColumnOverlayInfos) (verified against main 7a025b78).
 
+Groom 2026-07-12: moved to `noop/` — **verdict: not reproduced in Nehir; the
+symptom was most likely fixed upstream before the fork** (user validation
+2026-07-12). The code-level gap noted on 2026-07-07 (no floating-occlusion
+filter) stands as an observation, but without a reproduction it owns no repo
+action. See `discovery/20260712-omniwm-cleanup-sweep-20260505-regroom.md`.
+
 Source issue: <https://github.com/BarutSRB/OmniWM/issues/242>
 Scope of this doc: determine whether the symptom reproduces in nehir — the
 tabbed-column indicator rail drawing on top of a floating window that occupies

@@ -28,18 +28,18 @@ tracker (see `AGENTS.md`).
 | --- | --- | --- | --- |
 | BarutSRB/OmniWM#255 | Vertical workspace bar | `discovery/20260621-nehir-93-vertical-workspace-bar.md` (nehir #93) | open feature |
 | BarutSRB/OmniWM#253 | balance-sizes only distributes active column | `noop/20260617-omniwm-253-balance-sizes-dwindle-active-column.md` | noop |
-| BarutSRB/OmniWM#246 | Windows overlapping | `noop/20260616-omniwm-246-focus-move-overlap.md` | noop |
+| BarutSRB/OmniWM#246 | Windows overlapping | `noop/20260616-omniwm-246-focus-move-overlap.md` | ✅ solved in Nehir codebase |
 | BarutSRB/OmniWM#244 | Native fullscreen still counted as a window | `noop/20260617-omniwm-244-native-fullscreen-counted-and-leak.md`; fullscreen behaviour continues in `planned/20260622-fullscreen-behaviour-roadmap.md` | noop + follow-up planned |
-| BarutSRB/OmniWM#242 | Tab indicators overlap floating windows | `discovery/20260617-omniwm-242-tab-indicators-overlap-floating-windows.md` | open |
-| BarutSRB/OmniWM#240 | Focus previous window across workspaces | `discovery/20260616-omniwm-240-focus-previous-cross-workspace.md` | open |
+| BarutSRB/OmniWM#242 | Tab indicators overlap floating windows | `noop/20260617-omniwm-242-tab-indicators-overlap-floating-windows.md` | not reproduced in Nehir; most likely fixed upstream before the fork |
+| BarutSRB/OmniWM#240 | Focus previous window across workspaces | `completed/20260616-omniwm-240-focus-previous-cross-workspace.md` | **✅ solved in Nehir** (`30faf8f3`; nehir #92, <https://github.com/apphane-dev/nehir/issues/92>) |
 | BarutSRB/OmniWM#239 | Inconsistent mouse warping | `noop/20260617-omniwm-239-inconsistent-mouse-warping.md` | noop |
-| BarutSRB/OmniWM#235 | Window bleeds into different workspace | `noop/20260616-omniwm-235-window-bleed-different-workspace.md` | noop |
-| BarutSRB/OmniWM#233 | Center-on-overflow with two 50% windows | `noop/20260616-omniwm-233-center-on-overflow-two-fifty-columns.md` | noop |
+| BarutSRB/OmniWM#235 | Window bleeds into different workspace | `noop/20260616-omniwm-235-window-bleed-different-workspace.md` | ✅ solved in Nehir codebase |
+| BarutSRB/OmniWM#233 | Center-on-overflow with two 50% windows | `noop/20260616-omniwm-233-center-on-overflow-two-fifty-columns.md` | ✅ solved in Nehir codebase |
 | BarutSRB/OmniWM#226 | Hotkeys overridden by Chrome extension shortcuts | `discovery/20260616-omniwm-226-chrome-extension-hotkey-priority.md`, `planned/20260621-omniwm-226-chrome-extension-hotkey-priority.md`; related shipped work in `completed/20260619-nehir-48-command-palette-hotkey-conflict.md` | planned |
 | BarutSRB/OmniWM#223 | Border does not follow moved floating window | `noop/20260617-omniwm-223-floating-border-tracking.md`; Nehir border work shipped via `completed/20260619-nehir-66-borders-undecorated-windows.md` | noop / solved-adjacent |
-| BarutSRB/OmniWM#218 | Tab indicators misplaced after workspace change | `noop/20260617-omniwm-218-tab-indicators-misplaced-after-ws-change.md` | noop |
-| BarutSRB/OmniWM#216 | Niri right-scroll animation broken | `noop/20260617-omniwm-216-niri-right-scroll-animation.md` | noop |
-| BarutSRB/OmniWM#206 | Second monitor left/right sides inaccessible | `noop/20260617-omniwm-206-vertical-warp-axis-side-edges.md` | noop |
+| BarutSRB/OmniWM#218 | Tab indicators misplaced after workspace change | `noop/20260617-omniwm-218-tab-indicators-misplaced-after-ws-change.md` | not reproduced; most likely fixed upstream before the fork |
+| BarutSRB/OmniWM#216 | Niri right-scroll animation broken | `noop/20260617-omniwm-216-niri-right-scroll-animation.md` | most likely fixed upstream before the fork |
+| BarutSRB/OmniWM#206 | Second monitor left/right sides inaccessible | `noop/20260617-omniwm-206-vertical-warp-axis-side-edges.md` | fixed upstream before the fork |
 | BarutSRB/OmniWM#194 | Windows don't open on focused display | `noop/20260617-omniwm-194-windows-open-on-wrong-monitor.md` | noop |
 | BarutSRB/OmniWM#150 | Screenshot of focused (bordered) window is blank | `completed/20260617-omniwm-150-screenshot-bordered-window-blank.md` | **✅ solved in Nehir** (`d88a5da2` — hide focus borders during macOS screenshot chords) |
 
@@ -176,7 +176,13 @@ only if custom hosted views are ever added to the menu.**
 
 ## Verdict tally (27 swept issues)
 
-- **✅ solved in Nehir:** 1 — BarutSRB/OmniWM#150 (screenshot border, `d88a5da2`).
+- **✅ solved in Nehir:** 5 — BarutSRB/OmniWM#150 (screenshot border,
+  `d88a5da2`), BarutSRB/OmniWM#240 (focus previous cross-workspace, `30faf8f3`,
+  nehir #92), and BarutSRB/OmniWM#246, BarutSRB/OmniWM#235,
+  BarutSRB/OmniWM#233 (solved in the Nehir codebase).
+- **Fixed upstream before the fork (not reproduced in Nehir):** 4 —
+  BarutSRB/OmniWM#242, BarutSRB/OmniWM#218, BarutSRB/OmniWM#216,
+  BarutSRB/OmniWM#206.
 - 🟢 **present / tracked / N/A-by-construction (new verdicts):** 4 —
   BarutSRB/OmniWM#214 (nehir #62 planned), BarutSRB/OmniWM#181 momentum, BarutSRB/OmniWM#180 restore
   catalog, BarutSRB/OmniWM#131 native menu.
@@ -186,5 +192,8 @@ only if custom hosted views are ever added to the menu.**
   follow-up discovery.
 - ⚪ **N/A (new verdicts):** 2 — BarutSRB/OmniWM#195 (no Quake terminal),
   BarutSRB/OmniWM#189 (meta-thread).
-- **Previously groomed (June rounds):** 15 remaining tracked issues per the
-  table above (11 noop, 3 open/planned discoveries, 1 open feature).
+- **Previously groomed (June rounds), still open or noop:** 8 remaining
+  tracked issues per the table above (5 noop — BarutSRB/OmniWM#253,
+  BarutSRB/OmniWM#244, BarutSRB/OmniWM#239, BarutSRB/OmniWM#223,
+  BarutSRB/OmniWM#194 — plus BarutSRB/OmniWM#226 planned, BarutSRB/OmniWM#255
+  open feature; BarutSRB/OmniWM#244 also has planned fullscreen follow-up).
