@@ -38,6 +38,25 @@ discipline; keep documents in sync with where the work actually is.
 Every document must stay durable and machine-independent (see the two sections
 below): no trace log filenames, no machine-specific paths.
 
+## Referencing upstream issues
+
+When citing an upstream OmniWM issue or PR in any document on this branch, use
+the **full cross-repo form**: `BarutSRB/OmniWM#nnn` (optionally as a link,
+`<https://github.com/BarutSRB/OmniWM/issues/nnn>`).
+
+Never write `OmniWM #nnn`, `upstream #nnn`, or bare `#nnn` for an upstream
+ticket. Bare `#nnn` means **Nehir's own tracker** — on GitHub it auto-links to
+the nehir repository, so the short forms silently point at (or get confused
+with) an unrelated Nehir issue with the same number. The two trackers share
+overlapping number ranges; only the `owner/repo#nnn` form is unambiguous.
+
+Reserve bare `#nnn` for Nehir issues.
+
+The same rule applies to **commit messages on this branch**: a bare `#nnn`
+must point at a Nehir issue. When a commit concerns an upstream ticket, spell
+it out as `BarutSRB/OmniWM#nnn` in the subject or body — never `OmniWM #nnn`
+or bare `#nnn`.
+
 ## Discovery documents: do not reference trace log filenames
 
 When writing discovery / investigation documents (under `discovery/`, `completed/`,
