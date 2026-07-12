@@ -16,7 +16,10 @@ private func prepareWorkspaceBarSummonRightLayout(
     await waitForLayoutPlanRefreshWork(on: controller)
     controller.syncMonitorsToNiriEngine()
 
-    guard let engine = controller.niriEngine else { return }
+    guard let engine = controller.niriEngine else {
+        Issue.record("Expected Niri engine after enabling Niri layout")
+        return
+    }
     for workspaceId in workspaceIds {
         let handles = controller.workspaceManager.entries(in: workspaceId).map(\.handle)
         let focusedHandle = controller.workspaceManager.lastFocusedHandle(in: workspaceId)
