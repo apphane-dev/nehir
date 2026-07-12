@@ -18,7 +18,7 @@ enum SummonTraceFormatting {
         token.map { String(describing: $0) } ?? "nil"
     }
 
-    static func describe(_ anchor: CommandPaletteSummonAnchor?) -> String {
+    static func describe(_ anchor: SummonRightAnchor?) -> String {
         guard let anchor else { return "nil" }
         return "token=\(describe(anchor.token)),workspace=\(anchor.workspaceId.uuidString)"
     }

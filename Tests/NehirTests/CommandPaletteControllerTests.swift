@@ -36,7 +36,7 @@ private func makeCommandPaletteWindowItem(windowId: Int) -> CommandPaletteWindow
 private func makeCommandPaletteSummonAnchor(
     wmController: WMController,
     windowId: Int = 11
-) -> CommandPaletteSummonAnchor {
+) -> SummonRightAnchor {
     guard let workspaceId = wmController.interactionWorkspace()?.id else {
         fatalError("Expected active workspace for summon-anchor test fixture")
     }
@@ -561,7 +561,7 @@ private func makeCommandPaletteMenuItem(title: String, parent: String = "View") 
         #expect(controller.selectedMode == .windows)
     }
 
-    @Test func resolveSummonAnchorReturnsWorkspaceOnlyAnchorWhenNoManagedWindow() {
+    @Test func sharedSummonAnchorReturnsWorkspaceOnlyAnchorWhenNoManagedWindow() {
         let wmController = makeCommandPaletteTestWMController()
         guard let workspaceId = wmController.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace for summon-anchor test")
@@ -570,13 +570,13 @@ private func makeCommandPaletteMenuItem(title: String, parent: String = "View") 
 
         _ = wmController.workspaceManager.enterNonManagedFocus(appFullscreen: false)
 
-        let anchor = CommandPaletteController.resolveSummonAnchor(for: wmController, pointerMonitorId: nil)
+        let anchor = wmController.summonRightAnchor(on: nil)
 
         #expect(anchor?.token == nil)
         #expect(anchor?.workspaceId == workspaceId)
     }
 
-    @Test func resolveSummonAnchorReturnsTokenAnchorWhenManagedWindowPresent() {
+    @Test func sharedSummonAnchorReturnsTokenAnchorWhenManagedWindowPresent() {
         let wmController = makeCommandPaletteTestWMController()
         guard let workspaceId = wmController.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace for summon-anchor test")
@@ -601,25 +601,25 @@ private func makeCommandPaletteMenuItem(title: String, parent: String = "View") 
             onMonitor: wmController.workspaceManager.monitorId(for: workspaceId)
         )
 
-        let anchor = CommandPaletteController.resolveSummonAnchor(for: wmController, pointerMonitorId: nil)
+        let anchor = wmController.summonRightAnchor(on: nil)
 
         #expect(anchor?.token == storedHandle.id)
         #expect(anchor?.workspaceId == workspaceId)
     }
 
-    @Test func resolveSummonAnchorReturnsNilWhenNoInteractionWorkspace() {
+    @Test func sharedSummonAnchorReturnsNilWhenNoInteractionWorkspace() {
         let settings = SettingsStore(defaults: makeCommandPaletteTestDefaults())
         settings.workspaceConfigurations = []
         let wmController = WMController(settings: settings)
         wmController.workspaceManager.applyMonitorConfigurationChange([])
         _ = wmController.workspaceManager.setInteractionMonitor(nil)
 
-        let anchor = CommandPaletteController.resolveSummonAnchor(for: wmController, pointerMonitorId: nil)
+        let anchor = wmController.summonRightAnchor(on: nil)
 
         #expect(anchor == nil)
     }
 
-    @Test func resolveSummonAnchorTargetsWorkspaceOnPointerMonitorNotInteractionMonitor() {
+    @Test func sharedSummonAnchorTargetsWorkspaceOnSuppliedMonitorNotInteractionMonitor() {
         let settings = SettingsStore(defaults: makeCommandPaletteTestDefaults())
         settings.workspaceConfigurations = [
             WorkspaceConfiguration(name: "1", monitorAssignment: .main),
@@ -648,10 +648,7 @@ private func makeCommandPaletteMenuItem(title: String, parent: String = "View") 
         // …but the palette opened on the secondary monitor, so a no-anchor
         // summon must target the secondary (visually active) workspace, not the
         // interaction monitor's workspace on the other display.
-        let anchor = CommandPaletteController.resolveSummonAnchor(
-            for: wmController,
-            pointerMonitorId: secondaryMonitor.id
-        )
+        let anchor = wmController.summonRightAnchor(on: secondaryMonitor.id)
 
         #expect(anchor?.workspaceId == secondaryWorkspaceId)
         #expect(anchor?.workspaceId != primaryWorkspaceId)
@@ -685,7 +682,7 @@ private func makeCommandPaletteMenuItem(title: String, parent: String = "View") 
         #expect(CommandPaletteController.paletteMonitorId(for: wmController, displayId: nil) == nil)
     }
 
-    @Test func resolveSummonAnchorFallsBackToLastFocusedMemory() {
+    @Test func sharedSummonAnchorFallsBackToLastFocusedMemory() {
         let wmController = makeCommandPaletteTestWMController()
         guard let workspaceId = wmController.interactionWorkspace()?.id else {
             Issue.record("Missing active workspace for summon-anchor test")
@@ -707,7 +704,7 @@ private func makeCommandPaletteMenuItem(title: String, parent: String = "View") 
         _ = wmController.workspaceManager.rememberFocus(storedHandle, in: workspaceId)
         _ = wmController.workspaceManager.enterNonManagedFocus(appFullscreen: false)
 
-        let anchor = CommandPaletteController.resolveSummonAnchor(for: wmController, pointerMonitorId: nil)
+        let anchor = wmController.summonRightAnchor(on: nil)
 
         #expect(anchor?.token == storedHandle.id)
         #expect(anchor?.workspaceId == workspaceId)

@@ -44,11 +44,6 @@ struct CommandPaletteAppSnapshot: Equatable {
     }
 }
 
-struct CommandPaletteSummonAnchor: Equatable {
-    let token: WindowToken?
-    let workspaceId: WorkspaceDescriptor.ID
-}
-
 private struct CommandPaletteFocusTarget {
     let app: CommandPaletteAppSnapshot
     let focusedWindow: AXUIElement?
@@ -202,7 +197,7 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
     private weak var wmController: WMController?
     private var restoreFocusTarget: CommandPaletteFocusTarget?
     private var menuFocusTarget: CommandPaletteFocusTarget?
-    private var summonAnchor: CommandPaletteSummonAnchor?
+    private var summonAnchor: SummonRightAnchor?
     private var cachedMenuTargetApp: CommandPaletteAppSnapshot?
     private var sessionMenuCache: [pid_t: [MenuItemModel]] = [:]
     private var hasLoadedMenuItems = false
@@ -218,7 +213,7 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
 
     private enum SelectionAction {
         case navigateWindow(WMController, WindowHandle)
-        case summonWindowRight(WMController, WindowHandle, CommandPaletteSummonAnchor)
+        case summonWindowRight(WMController, WindowHandle, SummonRightAnchor)
         case pressMenu(CommandPaletteFocusTarget, AXUIElement)
         case executeCommand(WMController, HotkeyCommand)
     }
@@ -342,10 +337,7 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
         let paletteMonitorId = Self.paletteMonitorId(for: wmController, screen: paletteScreen)
         restoreFocusTarget = captureFrontmostFocusTarget()
         menuFocusTarget = resolveMenuFocusTarget()
-        summonAnchor = Self.resolveSummonAnchor(
-            for: wmController,
-            pointerMonitorId: paletteMonitorId
-        )
+        summonAnchor = wmController.summonRightAnchor(on: paletteMonitorId)
         Self.recordSummonTrace(
             wmController,
             "palette.show pointerMonitor=\(SummonTraceFormatting.describe(paletteMonitorId)) "
@@ -441,47 +433,6 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
     static func paletteMonitorId(for wmController: WMController, displayId: CGDirectDisplayID?) -> Monitor.ID? {
         guard let displayId else { return nil }
         return wmController.workspaceManager.monitors.first { $0.displayId == displayId }?.id
-    }
-
-    static func resolveSummonAnchor(
-        for wmController: WMController,
-        pointerMonitorId: Monitor.ID?
-    ) -> CommandPaletteSummonAnchor? {
-        // Target the active workspace on the monitor the palette opened on, not
-        // the interaction monitor — otherwise a no-anchor summon lands on
-        // whichever display last had a managed interaction rather than the one
-        // the user is looking at. Fall back to the interaction workspace only
-        // when the palette screen cannot be mapped to a managed monitor.
-        let activeWorkspace: WorkspaceDescriptor
-        if let pointerMonitorId,
-           let workspace = wmController.workspaceManager.activeWorkspaceOrFirst(on: pointerMonitorId)
-        {
-            activeWorkspace = workspace
-        } else if let workspace = wmController.interactionWorkspace() {
-            activeWorkspace = workspace
-        } else {
-            return nil
-        }
-
-        let anchorToken = if let focusedToken = wmController.workspaceManager.confirmedManagedFocusToken,
-                             let entry = wmController.workspaceManager.entry(for: focusedToken),
-                             entry.workspaceId == activeWorkspace.id
-        {
-            focusedToken
-        } else {
-            wmController.workspaceManager.preferredWorkspaceFocusToken(in: activeWorkspace.id)
-        }
-
-        let validatedToken: WindowToken? = anchorToken.flatMap { token in
-            guard let entry = wmController.workspaceManager.entry(for: token),
-                  entry.workspaceId == activeWorkspace.id
-            else {
-                return nil
-            }
-            return token
-        }
-
-        return .init(token: validatedToken, workspaceId: activeWorkspace.id)
     }
 
     private static func recordSummonTrace(_ wmController: WMController, _ message: String) {
@@ -1199,7 +1150,7 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
         wmController: WMController,
         items: [CommandPaletteWindowItem],
         selectedItemID: CommandPaletteSelectionID?,
-        summonAnchor: CommandPaletteSummonAnchor? = nil
+        summonAnchor: SummonRightAnchor? = nil
     ) {
         self.wmController = wmController
         windows = items

@@ -169,6 +169,7 @@ struct WorkspaceBarView: View {
     let onToggleWindowFloating: (WindowToken) -> Void
     let onToggleWindowSticky: (WindowToken) -> Void
     let onToggleScratchpadAssignment: (WindowToken) -> Void
+    let onSummonWindowRight: (WindowToken) -> Void
     let onCloseWindow: (WindowToken) -> Void
     let onMoveWindowToWorkspace: (WindowToken, WorkspaceDescriptor.ID) -> Void
     let onToggleScratchpadVisible: () -> Void
@@ -188,6 +189,7 @@ struct WorkspaceBarView: View {
             onToggleWindowFloating: onToggleWindowFloating,
             onToggleWindowSticky: onToggleWindowSticky,
             onToggleScratchpadAssignment: onToggleScratchpadAssignment,
+            onSummonWindowRight: onSummonWindowRight,
             onCloseWindow: onCloseWindow,
             onMoveWindowToWorkspace: onMoveWindowToWorkspace,
             onToggleScratchpadVisible: onToggleScratchpadVisible
@@ -214,6 +216,7 @@ struct WorkspaceBarMeasurementView: View {
             onToggleWindowFloating: { _ in },
             onToggleWindowSticky: { _ in },
             onToggleScratchpadAssignment: { _ in },
+            onSummonWindowRight: { _ in },
             onCloseWindow: { _ in },
             onMoveWindowToWorkspace: { _, _ in },
             onToggleScratchpadVisible: {}
@@ -242,6 +245,7 @@ struct WorkspaceBarWindowActions {
     let onToggleSticky: (WindowToken) -> Void
     let onToggleScratchpadAssignment: (WindowToken) -> Void
     let onCreateAppRule: (WindowToken) -> Void
+    let onSummonRight: (WindowToken) -> Void
     let onClose: (WindowToken) -> Void
     let onMoveToWorkspace: (WindowToken, WorkspaceDescriptor.ID) -> Void
     let moveTargets: [WorkspaceBarWindowMoveTarget]
@@ -270,6 +274,7 @@ private struct WorkspaceBarContentView: View {
     let onToggleWindowFloating: (WindowToken) -> Void
     let onToggleWindowSticky: (WindowToken) -> Void
     let onToggleScratchpadAssignment: (WindowToken) -> Void
+    let onSummonWindowRight: (WindowToken) -> Void
     let onCloseWindow: (WindowToken) -> Void
     let onMoveWindowToWorkspace: (WindowToken, WorkspaceDescriptor.ID) -> Void
     let onToggleScratchpadVisible: () -> Void
@@ -360,6 +365,7 @@ private struct WorkspaceBarContentView: View {
             onToggleSticky: onToggleWindowSticky,
             onToggleScratchpadAssignment: onToggleScratchpadAssignment,
             onCreateAppRule: onCreateAppRuleForWindow,
+            onSummonRight: onSummonWindowRight,
             onClose: onCloseWindow,
             onMoveToWorkspace: onMoveWindowToWorkspace,
             moveTargets: windowMoveTargets,
@@ -510,6 +516,7 @@ private struct WorkspaceItemView: View {
             onToggleSticky: windowActions.onToggleSticky,
             onToggleScratchpadAssignment: windowActions.onToggleScratchpadAssignment,
             onCreateAppRule: windowActions.onCreateAppRule,
+            onSummonRight: windowActions.onSummonRight,
             onClose: windowActions.onClose,
             onMoveToWorkspace: windowActions.onMoveToWorkspace,
             moveTargets: workspaceBarMoveTargetsExcludingCurrentWorkspace(
@@ -1097,7 +1104,7 @@ private struct WindowIconView: View {
             isHovered = hovering
         }
         // Right-click window icon: *Toggle Floating; Assign to Scratchpad;
-        // Create App Rule; Move to Workspace ▸; Close; Windows…*. Acts on
+        // Create App Rule; Move to Workspace ▸; Summon Right; Close; Windows…*. Acts on
         // this window's token, not focus.
         .contextMenu {
             Button {
@@ -1131,6 +1138,11 @@ private struct WindowIconView: View {
                 actions.onCreateAppRule(window.id)
             } label: {
                 Label("Create App Rule for This Window…", systemImage: "slider.horizontal.3")
+            }
+            Button {
+                actions.onSummonRight(window.id)
+            } label: {
+                Label("Summon Right", systemImage: "arrow.right.to.line")
             }
             Divider()
             Button(role: .destructive) {
