@@ -79,6 +79,18 @@ import QuartzCore
         var executedByReason: [RefreshReason: Int] = [:]
     }
 
+    struct MemoryDebugSnapshot {
+        let pendingRevealTransactionCount: Int
+        let pendingRevealVerificationTaskCount: Int
+        let delayedParkReverifyTaskCount: Int
+        let delayedParkReverifyAttemptCount: Int
+        let stableHideReconciliationWorkspaceCount: Int
+        let displayLinkCount: Int
+        let refreshRateDisplayCount: Int
+        let closingAnimationDisplayCount: Int
+        let closingAnimationCount: Int
+    }
+
     struct RefreshDebugHooks {
         var onFullRescan: ((RefreshReason) async throws -> Bool)?
         var onRelayout: ((RefreshReason, RefreshRoute) async -> Bool)?
@@ -702,6 +714,20 @@ import QuartzCore
 
     func refreshDebugSnapshot() -> RefreshDebugCounters {
         debugCounters
+    }
+
+    func memoryDebugSnapshot() -> MemoryDebugSnapshot {
+        MemoryDebugSnapshot(
+            pendingRevealTransactionCount: pendingRevealTransactionsByWindowId.count,
+            pendingRevealVerificationTaskCount: pendingRevealVerificationTasksByWindowId.count,
+            delayedParkReverifyTaskCount: delayedParkReverifyTasksByWindowId.count,
+            delayedParkReverifyAttemptCount: delayedParkReverifyAttemptsByWindowId.count,
+            stableHideReconciliationWorkspaceCount: diffExecutor.stableHideReconciliationWorkspaceCount,
+            displayLinkCount: layoutState.displayLinksByDisplay.count,
+            refreshRateDisplayCount: layoutState.refreshRateByDisplay.count,
+            closingAnimationDisplayCount: layoutState.closingAnimationsByDisplay.count,
+            closingAnimationCount: layoutState.closingAnimationsByDisplay.values.reduce(0) { $0 + $1.count }
+        )
     }
 
     private func currentSpaceTopology(monitors: [Monitor], trackedEntries: [WindowModel.Entry]) -> SpaceTopology {
@@ -4239,6 +4265,11 @@ final class LayoutDiffExecutor {
     /// refresh — where each monitor's plan executes in the same batch — one
     /// workspace's sweep never starves another's by resetting a shared timer.
     private var lastStableHideReconciliationUptimeByWorkspace: [WorkspaceDescriptor.ID: TimeInterval] = [:]
+
+    var stableHideReconciliationWorkspaceCount: Int {
+        lastStableHideReconciliationUptimeByWorkspace.count
+    }
+
     /// Minimum interval between stably-hidden-column reconciliation sweeps for a
     /// given workspace. The drift this sweep corrects otherwise persists indefinitely,
     /// so a sub-second cadence is plenty while keeping the AX-read cost negligible.

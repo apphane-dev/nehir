@@ -127,9 +127,22 @@ final class AppAXContext {
     /// `AXWindowsQueryRecorder`.
     @MainActor static let axWindowsQueryRecorder = AXWindowsQueryRecorder()
 
+    struct MemoryDebugSnapshot {
+        let contextCount: Int
+        let inFlightCreationCount: Int
+    }
+
     @MainActor static var contexts: [pid_t: AppAXContext] = [:]
     @MainActor private static var inFlightCreations: [pid_t: Task<AppAXContext?, Error>] = [:]
     @MainActor static var contextFactoryForTests: ((NSRunningApplication) async throws -> AppAXContext?)?
+
+    @MainActor
+    static func memoryDebugSnapshot() -> MemoryDebugSnapshot {
+        MemoryDebugSnapshot(
+            contextCount: contexts.count,
+            inFlightCreationCount: inFlightCreations.count
+        )
+    }
 
     private nonisolated init(
         _ nsApp: NSRunningApplication,

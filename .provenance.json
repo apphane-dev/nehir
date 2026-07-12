@@ -108,7 +108,11 @@
         "Tests/NehirTests/WorkspaceBarRightClickWiringTests.swift",
         "Tests/NehirTests/CreateAppRuleForFocusedWindowTests.swift",
         "Tests/NehirTests/WorkspaceNavigationHandlerTests.swift",
-        "Tests/NehirTests/WorkspacesTOMLCodecTests.swift"
+        "Tests/NehirTests/WorkspacesTOMLCodecTests.swift",
+        "Sources/Nehir/Core/Diagnostics/ProcessMemoryDiagnostics.swift",
+        "Tests/NehirTests/ProcessMemoryDiagnosticsTests.swift",
+        "Tests/NehirTests/RuntimeMemoryDumpSectionTests.swift",
+        "Tests/NehirTests/TerminatedAppStatePruningTests.swift"
       ],
       "copyright": [
         "2026 Aleksei Gurianov and Nehir contributors"
