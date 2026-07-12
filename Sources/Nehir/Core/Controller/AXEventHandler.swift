@@ -508,6 +508,39 @@ final class AXEventHandler: CGSEventDelegate {
         var scopedGeometryRelayoutRequests = 0
     }
 
+    struct MemoryDebugSnapshot {
+        let deferredCreatedWindowIdCount: Int
+        let deferredCreatedWindowOrderCount: Int
+        let createPlacementContextCount: Int
+        let recentManagedWorkspaceByPidCount: Int
+        let recentAppActivationByPidCount: Int
+        let recentSameAppWindowCloseByPidCount: Int
+        let recentNonManagedFocusByPidCount: Int
+        let overlayCapablePidCount: Int
+        let focusedWindowLossClosePrecursorByPidCount: Int
+        let sameAppRecoveryRedirectLatchCount: Int
+        let recentParkedFocusFollowByTokenCount: Int
+        let parkedFollowHoldByPidCount: Int
+        let recentManagedAdmissionByTokenCount: Int
+        let pendingManagedReplacementBurstCount: Int
+        let pendingManagedReplacementTaskCount: Int
+        let deferredInactiveNativeActivationTokenCount: Int
+        let deferredSameAppActiveNativeActivationTokenCount: Int
+        let pendingNativeFullscreenFollowupTaskCount: Int
+        let pendingNativeFullscreenStaleCleanupTaskCount: Int
+        let pendingWindowRuleReevaluationTaskCount: Int
+        let pendingWindowRuleReevaluationTargetCount: Int
+        let pendingWindowStabilizationTaskCount: Int
+        let pendingPostCreateLifecycleVerificationTaskCount: Int
+        let pendingDestroyLivenessVerificationTaskCount: Int
+        let pendingCreatedWindowRetryTaskCount: Int
+        let pendingActivationRetryTaskCount: Int
+        let createdWindowRetryCount: Int
+        let windowCloseFocusRecoveryContextCount: Int
+        let createFocusTraceCount: Int
+        let managedReplacementTraceCount: Int
+    }
+
     struct ManagedReplacementTraceEvent: Equatable {
         enum Kind: Equatable {
             case enqueued(
@@ -911,6 +944,7 @@ final class AXEventHandler: CGSEventDelegate {
     private var pendingDestroyLivenessVerificationTasks: [WindowToken: Task<Void, Never>] = [:]
     private var pendingCreatedWindowRetryTasks: [UInt32: Task<Void, Never>] = [:]
     private var createdWindowRetryCountById: [UInt32: Int] = [:]
+    private var createdWindowRetryPidById: [UInt32: pid_t] = [:]
     private var pendingActivationRetryTask: Task<Void, Never>?
     private var pendingActivationRetryRequestId: UInt64?
     private var createFocusTrace: [NiriCreateFocusTraceEvent] = []
@@ -936,6 +970,41 @@ final class AXEventHandler: CGSEventDelegate {
         controller: WMController
     ) {
         self.controller = controller
+    }
+
+    func memoryDebugSnapshot() -> MemoryDebugSnapshot {
+        MemoryDebugSnapshot(
+            deferredCreatedWindowIdCount: deferredCreatedWindowIds.count,
+            deferredCreatedWindowOrderCount: deferredCreatedWindowOrder.count,
+            createPlacementContextCount: createPlacementContextsByWindowId.count,
+            recentManagedWorkspaceByPidCount: recentManagedWorkspaceByPid.count,
+            recentAppActivationByPidCount: recentAppActivationByPid.count,
+            recentSameAppWindowCloseByPidCount: recentSameAppWindowCloseByPid.count,
+            recentNonManagedFocusByPidCount: recentNonManagedFocusByPid.count,
+            overlayCapablePidCount: overlayCapablePids.count,
+            focusedWindowLossClosePrecursorByPidCount: focusedWindowLossClosePrecursorByPid.count,
+            sameAppRecoveryRedirectLatchCount: sameAppRecoveryRedirectLatches.count,
+            recentParkedFocusFollowByTokenCount: recentParkedFocusFollowByToken.count,
+            parkedFollowHoldByPidCount: parkedFollowHoldByPid.count,
+            recentManagedAdmissionByTokenCount: recentManagedAdmissionByToken.count,
+            pendingManagedReplacementBurstCount: pendingManagedReplacementBursts.count,
+            pendingManagedReplacementTaskCount: pendingManagedReplacementTasks.count,
+            deferredInactiveNativeActivationTokenCount: deferredInactiveNativeActivationTokens.count,
+            deferredSameAppActiveNativeActivationTokenCount: deferredSameAppActiveNativeActivationTokens.count,
+            pendingNativeFullscreenFollowupTaskCount: pendingNativeFullscreenFollowupTasks.count,
+            pendingNativeFullscreenStaleCleanupTaskCount: pendingNativeFullscreenStaleCleanupTasks.count,
+            pendingWindowRuleReevaluationTaskCount: pendingWindowRuleReevaluationTask == nil ? 0 : 1,
+            pendingWindowRuleReevaluationTargetCount: pendingWindowRuleReevaluationTargets.count,
+            pendingWindowStabilizationTaskCount: pendingWindowStabilizationTasks.count,
+            pendingPostCreateLifecycleVerificationTaskCount: pendingPostCreateLifecycleVerificationTasks.count,
+            pendingDestroyLivenessVerificationTaskCount: pendingDestroyLivenessVerificationTasks.count,
+            pendingCreatedWindowRetryTaskCount: pendingCreatedWindowRetryTasks.count,
+            pendingActivationRetryTaskCount: pendingActivationRetryTask == nil ? 0 : 1,
+            createdWindowRetryCount: createdWindowRetryCountById.count,
+            windowCloseFocusRecoveryContextCount: windowCloseFocusRecoveryContext == nil ? 0 : 1,
+            createFocusTraceCount: createFocusTrace.count,
+            managedReplacementTraceCount: managedReplacementTrace.count
+        )
     }
 
     func setup() {
@@ -1092,6 +1161,69 @@ final class AXEventHandler: CGSEventDelegate {
         }
 
         trackPreparedCreate(candidate)
+    }
+
+    func seedFocusStateForTerminationPruningTests(
+        pid: pid_t,
+        workspaceId: WorkspaceDescriptor.ID,
+        windowId: Int
+    ) {
+        let now = managedReplacementCurrentUptime()
+        let token = WindowToken(pid: pid, windowId: windowId)
+        recentManagedWorkspaceByPid[pid] = .init(workspaceId: workspaceId, recordedAt: now)
+        recentAppActivationByPid[pid] = now
+        recentSameAppWindowCloseByPid[pid] = now
+        recentNonManagedFocusByPid[pid] = now
+        overlayCapablePids.insert(pid)
+        focusedWindowLossClosePrecursorByPid[pid] = .init(
+            workspaceId: workspaceId,
+            preservedToken: token,
+            recordedAt: now
+        )
+        sameAppRecoveryRedirectLatches[.init(pid: pid, workspaceId: workspaceId)] = .init(
+            observedToken: token,
+            targetToken: token,
+            phase: .preconfirm,
+            recordedAt: now
+        )
+        recentParkedFocusFollowByToken[token] = now
+        parkedFollowHoldByPid[pid] = (workspaceId: workspaceId, at: now)
+        recentManagedAdmissionByToken[token] = .init(workspaceId: workspaceId, recordedAt: now)
+    }
+
+    func seedPendingStateForTerminationPruningTests(
+        pid: pid_t,
+        workspaceId: WorkspaceDescriptor.ID,
+        windowId: UInt32
+    ) {
+        let now = managedReplacementCurrentUptime()
+        let token = WindowToken(pid: pid, windowId: Int(windowId))
+        let replacementKey = ManagedReplacementKey(pid: pid, workspaceId: workspaceId)
+        func pendingTask() -> Task<Void, Never> {
+            Task {
+                try? await Task.sleep(for: .seconds(60))
+            }
+        }
+
+        pendingManagedReplacementBursts[replacementKey] = .init(
+            policy: .structural,
+            firstEventUptime: now
+        )
+        pendingManagedReplacementTasks[replacementKey] = pendingTask()
+        deferredInactiveNativeActivationTokens.insert(.init(token: token, sourceRawValue: "test"))
+        deferredSameAppActiveNativeActivationTokens.insert(token)
+        pendingNativeFullscreenFollowupTasks[token] = pendingTask()
+        pendingNativeFullscreenStaleCleanupTasks[token] = pendingTask()
+        pendingWindowRuleReevaluationTargets.insert(.pid(pid))
+        if pendingWindowRuleReevaluationTask == nil {
+            pendingWindowRuleReevaluationTask = pendingTask()
+        }
+        pendingWindowStabilizationTasks[token] = pendingTask()
+        pendingPostCreateLifecycleVerificationTasks[token] = pendingTask()
+        pendingDestroyLivenessVerificationTasks[token] = pendingTask()
+        pendingCreatedWindowRetryTasks[windowId] = pendingTask()
+        createdWindowRetryCountById[windowId] = 1
+        createdWindowRetryPidById[windowId] = pid
     }
 
     func resetDebugStateForTests() {
@@ -2987,8 +3119,9 @@ final class AXEventHandler: CGSEventDelegate {
         Task { [weak self, deferralKey, pid = observedEntry.pid, source] in
             try? await Task.sleep(nanoseconds: 120_000_000)
             await MainActor.run { [weak self] in
-                guard let self else { return }
-                self.deferredInactiveNativeActivationTokens.remove(deferralKey)
+                guard let self,
+                      self.deferredInactiveNativeActivationTokens.remove(deferralKey) != nil
+                else { return }
                 self.handleAppActivation(pid: pid, source: source, origin: .retry)
             }
         }
@@ -3147,8 +3280,9 @@ final class AXEventHandler: CGSEventDelegate {
         Task { [weak self, deferralKey, pid = observedEntry.pid, source] in
             try? await Task.sleep(nanoseconds: 120_000_000)
             await MainActor.run { [weak self] in
-                guard let self else { return }
-                self.deferredInactiveNativeActivationTokens.remove(deferralKey)
+                guard let self,
+                      self.deferredInactiveNativeActivationTokens.remove(deferralKey) != nil
+                else { return }
                 self.handleAppActivation(pid: pid, source: source, origin: .retry)
             }
         }
@@ -3213,8 +3347,9 @@ final class AXEventHandler: CGSEventDelegate {
         Task { [weak self, token = observedEntry.token, pid = observedEntry.pid, source] in
             try? await Task.sleep(nanoseconds: 120_000_000)
             await MainActor.run { [weak self] in
-                guard let self else { return }
-                self.deferredSameAppActiveNativeActivationTokens.remove(token)
+                guard let self,
+                      self.deferredSameAppActiveNativeActivationTokens.remove(token) != nil
+                else { return }
                 self.handleAppActivation(pid: pid, source: source, origin: .retry)
             }
         }
@@ -3264,8 +3399,9 @@ final class AXEventHandler: CGSEventDelegate {
         Task { [weak self, token = observedEntry.token, pid = observedEntry.pid, source] in
             try? await Task.sleep(nanoseconds: 120_000_000)
             await MainActor.run { [weak self] in
-                guard let self else { return }
-                self.deferredSameAppActiveNativeActivationTokens.remove(token)
+                guard let self,
+                      self.deferredSameAppActiveNativeActivationTokens.remove(token) != nil
+                else { return }
                 self.handleAppActivation(pid: pid, source: source, origin: .retry)
             }
         }
@@ -6683,17 +6819,20 @@ final class AXEventHandler: CGSEventDelegate {
             return false
         }
         guard resolveAXWindowRef(windowId: windowId, pid: pid) == nil else {
+            cancelCreatedWindowRetry(windowId: windowId)
             return false
         }
 
         let attempt = createdWindowRetryCountById[windowId, default: 0] + 1
         guard attempt <= Self.createdWindowRetryLimit else {
+            cancelCreatedWindowRetry(windowId: windowId)
             discardCreatePlacementContext(windowId: windowId)
             return false
         }
 
         enqueueCreatedWindowRetry(
             windowId: windowId,
+            pid: pid,
             attempt: attempt,
             traceKind: .createRetryScheduled(
                 windowId: windowId,
@@ -6714,21 +6853,28 @@ final class AXEventHandler: CGSEventDelegate {
 
         let attempt = createdWindowRetryCountById[windowId, default: 0] + 1
         guard attempt <= Self.createdWindowRetryLimit else {
+            cancelCreatedWindowRetry(windowId: windowId)
             discardCreatePlacementContext(windowId: windowId)
             return false
         }
 
-        enqueueCreatedWindowRetry(windowId: windowId, attempt: attempt, traceKind: nil)
+        enqueueCreatedWindowRetry(windowId: windowId, pid: nil, attempt: attempt, traceKind: nil)
         return true
     }
 
     private func enqueueCreatedWindowRetry(
         windowId: UInt32,
+        pid: pid_t?,
         attempt: Int,
         traceKind: NiriCreateFocusTraceEvent.Kind?
     ) {
         createdWindowRetryCountById[windowId] = attempt
         pendingCreatedWindowRetryTasks.removeValue(forKey: windowId)?.cancel()
+        if let pid {
+            createdWindowRetryPidById[windowId] = pid
+        } else {
+            createdWindowRetryPidById.removeValue(forKey: windowId)
+        }
         if let traceKind {
             recordNiriCreateFocusTrace(.init(kind: traceKind))
         }
@@ -6736,6 +6882,7 @@ final class AXEventHandler: CGSEventDelegate {
             try? await Task.sleep(for: Self.stabilizationRetryDelay)
             guard !Task.isCancelled, let self else { return }
             self.pendingCreatedWindowRetryTasks.removeValue(forKey: windowId)
+            self.createdWindowRetryPidById.removeValue(forKey: windowId)
             self.processCreatedWindow(windowId: windowId)
         }
     }
@@ -6743,6 +6890,7 @@ final class AXEventHandler: CGSEventDelegate {
     private func cancelCreatedWindowRetry(windowId: UInt32) {
         pendingCreatedWindowRetryTasks.removeValue(forKey: windowId)?.cancel()
         createdWindowRetryCountById.removeValue(forKey: windowId)
+        createdWindowRetryPidById.removeValue(forKey: windowId)
     }
 
     private func resetCreatedWindowRetryState() {
@@ -6751,6 +6899,7 @@ final class AXEventHandler: CGSEventDelegate {
         }
         pendingCreatedWindowRetryTasks.removeAll()
         createdWindowRetryCountById.removeAll()
+        createdWindowRetryPidById.removeAll()
     }
 
     private func captureCreatePlacementContext(windowId: UInt32, spaceId: UInt64) {
@@ -7062,9 +7211,68 @@ final class AXEventHandler: CGSEventDelegate {
         source.isAuthoritative && origin == .external
     }
 
+    private func cleanupPendingStateForTerminatedApp(pid: pid_t) {
+        let managedReplacementKeys = Set(pendingManagedReplacementBursts.keys)
+            .union(pendingManagedReplacementTasks.keys)
+        for key in managedReplacementKeys where key.pid == pid {
+            pendingManagedReplacementTasks.removeValue(forKey: key)?.cancel()
+            pendingManagedReplacementBursts.removeValue(forKey: key)
+        }
+
+        deferredInactiveNativeActivationTokens = deferredInactiveNativeActivationTokens.filter {
+            $0.token.pid != pid
+        }
+        deferredSameAppActiveNativeActivationTokens = deferredSameAppActiveNativeActivationTokens.filter {
+            $0.pid != pid
+        }
+
+        let nativeFullscreenTokens = Set(pendingNativeFullscreenFollowupTasks.keys)
+            .union(pendingNativeFullscreenStaleCleanupTasks.keys)
+        for token in nativeFullscreenTokens where token.pid == pid {
+            cancelNativeFullscreenLifecycleTasks(for: token)
+        }
+        for token in pendingWindowStabilizationTasks.keys.filter({ $0.pid == pid }) {
+            cancelWindowStabilizationRetry(for: token)
+        }
+        for token in pendingPostCreateLifecycleVerificationTasks.keys.filter({ $0.pid == pid }) {
+            cancelPostCreateLifecycleVerification(for: token)
+        }
+        for token in pendingDestroyLivenessVerificationTasks.keys.filter({ $0.pid == pid }) {
+            cancelDestroyLivenessVerification(for: token)
+        }
+        for windowId in createdWindowRetryPidById.compactMap({ $0.value == pid ? $0.key : nil }) {
+            cancelCreatedWindowRetry(windowId: windowId)
+        }
+
+        pendingWindowRuleReevaluationTargets = pendingWindowRuleReevaluationTargets.filter { target in
+            switch target {
+            case let .window(token): token.pid != pid
+            case let .pid(targetPid): targetPid != pid
+            }
+        }
+        if pendingWindowRuleReevaluationTargets.isEmpty {
+            pendingWindowRuleReevaluationTask?.cancel()
+            pendingWindowRuleReevaluationTask = nil
+        }
+
+        if let context = windowCloseFocusRecoveryContext,
+           context.suppressedActivationPid == pid || context.preservedToken?.pid == pid
+        {
+            endWindowCloseFocusRecovery()
+        }
+    }
+
     func cleanupFocusStateForTerminatedApp(pid: pid_t) {
+        cleanupPendingStateForTerminatedApp(pid: pid)
         recentManagedWorkspaceByPid.removeValue(forKey: pid)
         recentAppActivationByPid.removeValue(forKey: pid)
+        recentSameAppWindowCloseByPid.removeValue(forKey: pid)
+        recentNonManagedFocusByPid.removeValue(forKey: pid)
+        focusedWindowLossClosePrecursorByPid.removeValue(forKey: pid)
+        sameAppRecoveryRedirectLatches = sameAppRecoveryRedirectLatches.filter { $0.key.pid != pid }
+        recentParkedFocusFollowByToken = recentParkedFocusFollowByToken.filter { $0.key.pid != pid }
+        parkedFollowHoldByPid.removeValue(forKey: pid)
+        recentManagedAdmissionByToken = recentManagedAdmissionByToken.filter { $0.key.pid != pid }
         overlayCapablePids.remove(pid)
 
         guard let controller else { return }
