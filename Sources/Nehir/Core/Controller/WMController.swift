@@ -799,6 +799,24 @@ final class WMController {
         windowActionHandler.focusWindowFromBar(token: token, suppressMouseWarp: true)
     }
 
+    /// Token-based Summon Right backing the workspace bar's window menu. The
+    /// source is always the represented token while the owning bar monitor
+    /// determines the destination workspace and shared anchor policy.
+    @discardableResult
+    func summonWindowRightFromBar(token: WindowToken, on monitorId: Monitor.ID) -> ExternalCommandResult {
+        guard let handle = workspaceManager.handle(for: token),
+              let anchor = summonRightAnchor(on: monitorId),
+              windowActionHandler.summonWindowRight(
+                  handle: handle,
+                  anchorToken: anchor.token,
+                  anchorWorkspaceId: anchor.workspaceId
+              )
+        else {
+            return .notFound
+        }
+        return .executed
+    }
+
     /// Token-based close backing the workspace bar's right-click *Close* item.
     /// Resolves the token to its handle (same lookup as
     /// `focusWindowFromBar(token:)`) and delegates to the shared

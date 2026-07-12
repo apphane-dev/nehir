@@ -106,6 +106,7 @@
         "Tests/NehirTests/WindowActionHandlerTests.swift",
         "Tests/NehirTests/WorkspaceBarGeometryTests.swift",
         "Tests/NehirTests/WorkspaceBarRightClickWiringTests.swift",
+        "Tests/NehirTests/WorkspaceBarSummonRightTests.swift",
         "Tests/NehirTests/CreateAppRuleForFocusedWindowTests.swift",
         "Tests/NehirTests/WorkspaceNavigationHandlerTests.swift",
         "Tests/NehirTests/WorkspacesTOMLCodecTests.swift",

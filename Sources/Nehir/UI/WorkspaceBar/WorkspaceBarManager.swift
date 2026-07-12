@@ -273,6 +273,9 @@ final class WorkspaceBarManager {
                 onToggleScratchpadAssignment: { [weak controller] token in
                     _ = controller?.toggleWindowScratchpadAssignment(token: token)
                 },
+                onSummonWindowRight: { [weak controller] token in
+                    _ = controller?.summonWindowRightFromBar(token: token, on: monitor.id)
+                },
                 onCloseWindow: { [weak controller] token in
                     _ = controller?.closeWindowFromBar(token: token)
                 },
