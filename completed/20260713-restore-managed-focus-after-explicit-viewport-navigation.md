@@ -1,12 +1,26 @@
 # Restore managed focus after explicit viewport navigation
 
-Status: approved for implementation
+Status: landed on `main` in commit `8a2e6db4` (2026-07-13).
 
 ## Source discovery
 
 - `discovery/20260708-stale-nonmanaged-focus-suppresses-managed-selection-and-window-move.md`
 - `discovery/20260713-resize-command-target-offscreen-selection.md`
 - NF-1 in `discovery/20260708-cross-discovery-relevance-clusters.md`
+
+## Landed result
+
+`MouseEventHandler` now requests `.mouseScrollSelection` focus for a selected
+managed window even while non-managed focus is active, while preserving the
+focus-follows-mouse guard and existing focus-request ordering. The gesture-end
+diagnostic records `nonManagedFocusAtSelection`; the obsolete
+`suppressedNonManagedFocus` disposition is no longer emitted for this explicit
+navigation path. A patch changeset was added in
+`.changeset/20260713170109-restore-managed-focus-after-explicit-viewport-na.md`.
+
+The implementation changed only `Sources/Nehir/Core/Controller/MouseEventHandler.swift`
+and added the changeset. Tests were intentionally not edited pending real-user
+runtime confirmation, per project policy.
 
 ## Problem
 

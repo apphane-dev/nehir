@@ -634,7 +634,14 @@ but these Niri sizing handlers bypass it and read `selectedNodeId` directly.
   column, visibility class, preferred focus, confirmed focus, and resolved
   target.
 
-## Candidate fix boundary (not implemented)
+## Candidate fix boundary
+
+The related explicit-navigation focus fix landed on `main` in commit
+`8a2e6db4`; it restores managed focus after a committed snapped gesture even
+when non-managed focus is active. That addresses the NF-1 handoff which can
+leave selection and confirmed focus divergent, but it does not change resize
+command authority or intentionally parked-selection semantics. The resize
+mismatch documented here remains an independent policy question.
 
 The narrowest behavioral decision point is
 `NiriLayoutHandler.cycleSize` and the sibling sizing handlers. A fix should first
@@ -648,4 +655,6 @@ define one invariant:
 
 Adding only a visibility fallback without deciding this invariant risks changing
 intentional parked-selection behavior during animations or explicit navigation.
-No runtime code or tests were changed as part of this discovery.
+The related focus-handoff fix landed separately in
+`Sources/Nehir/Core/Controller/MouseEventHandler.swift`; no resize-targeting
+behavior was changed as part of this discovery.
