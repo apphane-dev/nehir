@@ -74,6 +74,9 @@ private func makeAXEventTestController(
         settings: settings,
         windowFocusOperations: operations
     )
+    // Fake the pointer-location OS boundary so the real cursor never leaks into
+    // create-placement decisions (test monitors reuse the real main display id).
+    controller.axEventHandler.cursorDisplayIdProvider = { nil }
     if let trackedBundleId {
         controller.appInfoCache.storeInfoForTests(pid: getpid(), bundleId: trackedBundleId)
         controller.axEventHandler.bundleIdProvider = { _ in trackedBundleId }
@@ -271,6 +274,7 @@ private func makeSynthesizedFocusedAdmissionContext() -> WindowCreatePlacementCo
         focusedWorkspaceId: nil,
         focusedMonitorId: nil,
         interactionMonitorId: nil,
+        cursorMonitorId: nil,
         source: "ax_focused_admission_synthesized",
         focusedWorkspaceSource: nil,
         recentPidWorkspaceId: nil,
@@ -10886,6 +10890,7 @@ private func waitUntilAXEventTest(
                 _,
                 _,
                 _,
+                _,
                 _
             ) = event.kind {
                 return token == admittedToken &&
@@ -10982,6 +10987,7 @@ private func waitUntilAXEventTest(
                 contextInteractionMonitorId,
                 _,
                 _,
+                _,
                 _
             ) = event.kind {
                 return token == admittedToken &&
@@ -11074,6 +11080,7 @@ private func waitUntilAXEventTest(
                 _,
                 contextFocusedWorkspaceId,
                 contextFocusedMonitorId,
+                _,
                 _,
                 _,
                 _,

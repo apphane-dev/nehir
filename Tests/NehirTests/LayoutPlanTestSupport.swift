@@ -136,6 +136,9 @@ func makeLayoutPlanTestController(
         windowFocusOperations: operations
     )
     controller.lockScreenObserver.frontmostApplicationProvider = { nil }
+    // Fake the pointer-location OS boundary so the real cursor never leaks into
+    // create-placement decisions (test monitors reuse the real main display id).
+    controller.axEventHandler.cursorDisplayIdProvider = { nil }
     installSynchronousFrameApplySuccessOverride(on: controller)
     controller.workspaceManager.applyMonitorConfigurationChange(monitors)
     return controller
