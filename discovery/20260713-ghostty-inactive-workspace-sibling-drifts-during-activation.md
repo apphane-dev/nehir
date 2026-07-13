@@ -7,6 +7,10 @@ the same capture. The capture does not prove WindowServer visibility or a
 user-visible flash. The exact geometry writer that unparked it is also not
 identified yet, so this is not implementation-ready.
 
+**Reproduction status: observation only. There are no confirmed reproduction
+steps.** Every sequence or trigger listed below is reconstructed from one
+observation and remains a hypothesis until independently repeated.
+
 Verified against `main` at `ed374cf0` on 2026-07-13. Source line numbers will
 drift; function names are included so the paths remain findable.
 
@@ -373,12 +377,15 @@ cannot rule this out.
   no `lastApplied` target and current suppression logic contradict that shape.
 - **Multiple confirmed drifting windows:** only `42790` crossed the detector.
 
-## Reproduction clues
+## Reproduction clues — none confirmed
 
-There is **no deterministic minimal repro yet**. The capture gives a useful
-high-confidence sequence, but it does not prove every step is required.
+There is **no confirmed reproduction procedure, deterministic or otherwise**.
+No step or combination below has been independently executed and shown to
+produce the drift. The numbered sequence is only a chronological reconstruction
+of one observation; it must not be presented as a known repro or as evidence
+that any listed step is necessary or sufficient.
 
-### Closest sequence represented by the capture
+### Observed sequence to try — unconfirmed
 
 1. On one display, create two normal tiled windows from the same app, preferably
    Ghostty, on two Nehir workspaces:
@@ -410,9 +417,10 @@ high-confidence sequence, but it does not prove every step is required.
 
 8. Confirm whether the existing hide pass re-parks B automatically.
 
-### Likely minimal trigger
+### Working minimal-trigger hypothesis — unconfirmed
 
-The probable core is simpler than the full sequence:
+The suspected core is simpler than the full sequence, but it has not reproduced
+the behavior independently:
 
 > Reactivate/focus one window of an app on the active workspace while another
 > window of the same pid is parked as `workspaceInactive` on another Nehir
@@ -422,9 +430,13 @@ The far-right prior viewport position, the explicit hide/unhide, and the
 trackpad gesture may only increase the probability. Test them as independent
 toggles rather than assuming all are required.
 
-### Confidence by precondition
+### Candidate preconditions — evidence strength only
 
-| Precondition | Confidence it matters | Evidence |
+The ratings below describe how clearly each condition was present or connected
+to the source path in the one observation. They are **not** confidence that the
+condition reproduces the bug; none is confirmed necessary or sufficient.
+
+| Candidate precondition | Evidence strength | Evidence |
 |---|---:|---|
 | Same pid has windows on two Nehir workspaces | High | Both tokens are Ghostty pid `82494`; only inactive sibling `42790` drifted. |
 | Active-workspace sibling is app-activated/focused | High | Request `250` and `workspaceDidActivateApplication` immediately precede the drift interval; source calls app-wide activate. |
