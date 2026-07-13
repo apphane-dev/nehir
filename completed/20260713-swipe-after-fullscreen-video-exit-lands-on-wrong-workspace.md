@@ -1,10 +1,13 @@
 # Swiping away from a native-fullscreen video lands on the wrong workspace — Discovery
 
-> Scope: root-cause a reported runtime bug. Source-backed; **does not propose a
-> fix.** Line references verified against main-repo HEAD `8a2e6db4`.
-> **Re-verify before implementing; line numbers drift** — at capture time the
-> working tree had uncommitted edits in `AXEventHandler.swift`, so cite by symbol
-> name, not just line.
+> **STATUS: LANDED** on `main` as `9d2c8dc4` ("Keep active workspace when an app
+> re-homes focus after fullscreen exit"), 2026-07-13, after review. This
+> discovery is the root-cause note; the shipped fix and how it diverged from the
+> hypothesis below are recorded in "Resolution" at the end.
+
+> Scope: root-cause a reported runtime bug. Source-backed. Line references in the
+> analysis were verified against main-repo HEAD `8a2e6db4` (pre-fix); they have
+> since drifted — cite by symbol name, not just line, and read current source.
 
 ## Symptom (as reported)
 
@@ -259,3 +262,41 @@ video on ws2** → ws1 activated → 3-finger swipe scrolls ws1 = wrong workspac
    focus to the app's window on workspace B.
 4. Immediately 3-finger swipe to scroll. Observe the scroll applies to workspace
    B, not A. Expected: stay on / scroll workspace A.
+
+---
+
+## Resolution (landed `9d2c8dc4`, 2026-07-13, after review)
+
+Shipped as **"Keep active workspace when an app re-homes focus after fullscreen
+exit"** on `main`. Changeset: `patch`. Diff: `AXEventHandler.swift` (+137), new
+test `Tests/NehirTests/SwipeAfterFullscreenExitWorkspaceTests.swift` (+92).
+
+**What shipped — and how it diverged from the hypothesis above.** The fix does
+not gate on the *pending request* (open question 3) and does not extend
+`shouldDeferInactiveNativeActivationBeforeCloseRecovery` (open question 2).
+Instead it anchors on the **durable managed border target**, which survives the
+teardown even after confirmed focus and pending requests have been cleared — the
+weakness that made pending-request-based approaches fragile here:
+
+- New guard `shouldSuppressInactiveSameAppFocusAfterTeardownRehoming(...)`:
+  suppresses an external `focusedWindowChanged` to an **inactive-workspace**
+  window of the **same pid** when the app's live managed border target still sits
+  on the **active** workspace, and a same-app teardown happened within a short
+  grace window.
+- Grace tracking: `recordRecentSameAppTeardown(pid:)` /
+  `hasRecentSameAppTeardown(for:)` / `pruneRecentSameAppTeardowns(...)`, recorded
+  at fullscreen suspend/restore/destroy **and** same-app window-close sites.
+- New suppression trace reason: `same_app_teardown_rehome_suppressed`.
+
+**Scope widened during implementation:** the landed fix covers **both** native
+(green-button, own Space) fullscreen **and** app/HTML5 fullscreen exit — this
+discovery only captured the native-Space path from the trace, but the same
+re-home shape applies to HTML5 fullscreen and is handled by the same guard.
+
+**Genuine re-focus is preserved (open questions 1 & 4):** Cmd-Tab arrives as an
+app activation (`workspaceDidActivateApplication`), not `focusedWindowChanged`,
+and inactive-workspace windows are off-screen/unclickable — so the guard only
+ever fires for the automatic post-teardown re-home, not real user intent.
+
+Symbol/line references in the analysis above predate the fix and have drifted;
+read current source.
