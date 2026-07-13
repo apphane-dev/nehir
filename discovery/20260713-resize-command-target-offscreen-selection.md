@@ -513,21 +513,27 @@ commit chokepoint.
    desired intermediate evidence is `activeColumnIndex=3`, selection in column
    3, and confirmed managed focus still on the column-5 token. The original
    sequence reported `focusSelection=suppressedNonManagedFocus`.
-5. Reproduce the same focus/window churn that preceded the original failure:
-   activate/dismiss the same temporary Helium surface, or repeat the exact app
-   switch/popover interaction that creates and removes it. Do not click a tiled
-   window afterward. Wait only long enough for the resulting layout refresh and
-   focus validation to finish.
-6. Invoke **Cycle Column Width Forward** once using its normal hotkey. Do not use
-   `nehirctl` from a newly focused Terminal for this step; bringing Terminal
-   frontmost changes the state being investigated.
-7. If column 5 resizes and is revealed while column 3 was visibly current, stop
-   capture immediately.
+5. **Do not try to manufacture Helium popovers or transient windows.** The
+   original capture contained a transient Helium window, but it does not show
+   what user action created it and does not establish it as the trigger. A later
+   non-reproduction created and removed several Helium transient surfaces while
+   selection, confirmed focus, and the resize target all remained correctly on
+   visible column 2. Treat this as incidental correlation, not a repro step.
+6. Instead, perform only the normal action sequence that originally preceded the
+   bad resize—if the bug had a familiar real-world precursor—and do not click a
+   tiled window after the leftward gesture. If there is no known precursor,
+   simply wait for the viewport spring to settle, then invoke **Cycle Column
+   Width Forward** once using its normal hotkey. Do not use `nehirctl` from a
+   newly focused Terminal for this step; bringing Terminal frontmost changes the
+   state being investigated.
+7. If a far/offscreen column resizes and is revealed while another column was
+   visibly current, stop capture immediately. Otherwise, the attempt is a useful
+   negative result: it confirms selection and the resize target stayed aligned.
 
-Useful timing variants should be separate captures: churn immediately after the
-leftward gesture; Cmd-Tab away/back before the same churn; or perform the
-leftward gesture while a known non-managed surface owns keyboard focus. Avoid
-mixing all variants into one long capture.
+The only productive timing variants are ordinary user actions that have actually
+preceded the bug for the reporter (for example, the same app switch or closing
+an app window if either was present). Capture one variant per trace; do not
+invent a popover/churn step from the trace's internal window labels.
 
 ### Deterministic semantic reproduction
 
