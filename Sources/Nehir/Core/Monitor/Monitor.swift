@@ -489,4 +489,8 @@ extension CGPoint {
         }
         return monitors.min(by: { $0.frame.distanceSquared(to: self) < $1.frame.distanceSquared(to: self) })
     }
+
+    func monitorContaining(in monitors: [Monitor]) -> Monitor? {
+        monitors.first(where: { $0.frame.contains(self) })
+    }
 }

@@ -126,6 +126,7 @@ struct NiriCreateFocusTraceEvent: Equatable {
             nativeSpaceMonitorId: Monitor.ID?,
             frameMonitorId: Monitor.ID?,
             interactionMonitorId: Monitor.ID?,
+            cursorMonitorId: Monitor.ID?,
             contextSource: String?,
             focusedWorkspaceSource: String?,
             recentPidWorkspaceId: WorkspaceDescriptor.ID?
@@ -320,6 +321,12 @@ struct WindowCreatePlacementContext: Equatable {
     let focusedWorkspaceId: WorkspaceDescriptor.ID?
     let focusedMonitorId: Monitor.ID?
     let interactionMonitorId: Monitor.ID?
+    /// The monitor the pointer is physically over at admission time, derived by
+    /// strict containment from `NSEvent.mouseLocation`. Unlike `interactionMonitorId`
+    /// (written only by Nehir-managed actions and therefore stale after a plain
+    /// non-managed desktop click on a display without managed windows), this reflects
+    /// where the user actually is. `nil` when the pointer is over no monitor.
+    let cursorMonitorId: Monitor.ID?
     let source: String
     let focusedWorkspaceSource: String?
     let recentPidWorkspaceId: WorkspaceDescriptor.ID?
@@ -334,6 +341,7 @@ extension WindowCreatePlacementContext: CustomStringConvertible {
             + "focused_workspace=\(focusedWorkspaceId?.uuidString ?? "nil") "
             + "focused_monitor=\(String(describing: focusedMonitorId)) "
             + "interaction_monitor=\(String(describing: interactionMonitorId)) "
+            + "cursor_monitor=\(String(describing: cursorMonitorId)) "
             + "source=\(source) "
             + "focused_workspace_source=\(focusedWorkspaceSource ?? "nil") "
             + "recent_pid_workspace=\(recentPidWorkspaceId?.uuidString ?? "nil") "
@@ -358,11 +366,12 @@ extension NiriCreateFocusTraceEvent: CustomStringConvertible {
             nativeSpaceMonitorId,
             frameMonitorId,
             interactionMonitorId,
+            cursorMonitorId,
             contextSource,
             focusedWorkspaceSource,
             recentPidWorkspaceId
         ):
-            "create_placement_resolved token=\(token) workspace=\(workspaceId.uuidString) pending_workspace=\(pendingWorkspaceId?.uuidString ?? "nil") pending_monitor=\(String(describing: pendingMonitorId)) focused_workspace=\(focusedWorkspaceId?.uuidString ?? "nil") focused_monitor=\(String(describing: focusedMonitorId)) native_monitor=\(String(describing: nativeSpaceMonitorId)) frame_monitor=\(String(describing: frameMonitorId)) interaction_monitor=\(String(describing: interactionMonitorId)) context_source=\(contextSource ?? "nil") focused_workspace_source=\(focusedWorkspaceSource ?? "nil") recent_pid_workspace=\(recentPidWorkspaceId?.uuidString ?? "nil")"
+            "create_placement_resolved token=\(token) workspace=\(workspaceId.uuidString) pending_workspace=\(pendingWorkspaceId?.uuidString ?? "nil") pending_monitor=\(String(describing: pendingMonitorId)) focused_workspace=\(focusedWorkspaceId?.uuidString ?? "nil") focused_monitor=\(String(describing: focusedMonitorId)) native_monitor=\(String(describing: nativeSpaceMonitorId)) frame_monitor=\(String(describing: frameMonitorId)) interaction_monitor=\(String(describing: interactionMonitorId)) cursor_monitor=\(String(describing: cursorMonitorId)) context_source=\(contextSource ?? "nil") focused_workspace_source=\(focusedWorkspaceSource ?? "nil") recent_pid_workspace=\(recentPidWorkspaceId?.uuidString ?? "nil")"
         case let .candidateTracked(token, workspaceId):
             "candidate_tracked token=\(token) workspace=\(workspaceId.uuidString)"
         case let .relayoutActivatedWindow(token, workspaceId):
@@ -981,6 +990,12 @@ final class AXEventHandler: CGSEventDelegate {
     var fastFrameProvider: ((AXWindowRef) -> CGRect?)?
     var isFullscreenProvider: ((AXWindowRef) -> Bool)?
     var spaceDisplayResolver: ((UInt64, [Monitor]) -> CGDirectDisplayID?)?
+    /// OS-boundary seam for the display the pointer is currently over. `nil` uses the
+    /// live AppKit pointer; tests set it (e.g. to `{ nil }`) so the real cursor position
+    /// never leaks into placement decisions. Faking this boundary — not the placement
+    /// algorithm — keeps production and tests on the same resolveCursorPlacementMonitorId
+    /// path.
+    var cursorDisplayIdProvider: (() -> CGDirectDisplayID?)?
     var managedReplacementTimeSourceForTests: (() -> TimeInterval)?
     var axContextWarmupHandlerForTests: ((pid_t) -> Void)?
     private(set) var debugCounters = DebugCounters()
@@ -2853,6 +2868,21 @@ final class AXEventHandler: CGSEventDelegate {
         phase: StableRecoveryRedirectPhase
     ) -> Bool {
         guard activeWindowCloseFocusRecoveryWorkspaceId() == nil else { return false }
+        // A window the user just created lands here with the same `recentNonManaged`
+        // pid signal an overlay steal would produce: opening it (e.g. Finder ⌘N) is a
+        // non-managed app activation, which records recentNonManagedFocus for the new
+        // window's OWN pid. That alone satisfies the overlay-recovery evidence
+        // (hasSameAppOverlayRecoverySignal is evaluated on the observed window), so the
+        // heuristic redirects focus off it. The redirect target is not required to be an
+        // overlay app — stableViewportFocusTarget just picks the nearest on-screen tile
+        // in the workspace excluding the new window, so focus bounces to whatever else
+        // happens to share the workspace. A freshly *managed*-admitted window is an
+        // intentional, stable focus target, not an overlay steal; genuine focus-stealing
+        // overlays are non-managed and never appear in recentManagedAdmissionByToken, so
+        // this exempts only real new windows.
+        if recentManagedAdmissionWorkspaceId(for: observedEntry.token) == workspaceId {
+            return false
+        }
         let signal = hasSameAppOverlayRecoverySignal(for: observedEntry)
         let recentSameAppClose = hasRecentSameAppWindowClose(for: observedEntry.pid)
         let previousSameAppFocusDisappeared = previousSameAppFocusDisappearedSignal(
@@ -5499,6 +5529,7 @@ final class AXEventHandler: CGSEventDelegate {
                     nativeSpaceMonitorId: createPlacementContext?.nativeSpaceMonitorId,
                     frameMonitorId: placementTraceMonitorId(for: windowFrame, controller: controller),
                     interactionMonitorId: createPlacementContext?.interactionMonitorId,
+                    cursorMonitorId: createPlacementContext?.cursorMonitorId,
                     contextSource: createPlacementContext?.source,
                     focusedWorkspaceSource: createPlacementContext?.focusedWorkspaceSource,
                     recentPidWorkspaceId: createPlacementContext?.recentPidWorkspaceId
@@ -7031,11 +7062,36 @@ final class AXEventHandler: CGSEventDelegate {
                 controller.workspaceManager.monitorId(for: $0)
             },
             interactionMonitorId: controller.workspaceManager.interactionMonitorId,
+            cursorMonitorId: resolveCursorPlacementMonitorId(controller: controller),
             source: source,
             focusedWorkspaceSource: focusedWorkspaceSource,
             recentPidWorkspaceId: recentPidWorkspaceId,
             createdAt: Date()
         )
+    }
+
+    /// The monitor the pointer is physically over, by strict containment.
+    /// `NSEvent.mouseLocation` is an AppKit bottom-left point; `Monitor.frame` is
+    /// top-left CG space, so matching the pointer against it directly picks the wrong
+    /// display on vertically stacked monitors. Resolve the containing `NSScreen` in
+    /// AppKit space and map it back through `displayId` — the same decision the command
+    /// palette uses (`CommandPaletteController.paletteScreen`). Returns `nil` when the
+    /// pointer is over no screen (no nearest-snap).
+    private func resolveCursorPlacementMonitorId(
+        controller: WMController
+    ) -> Monitor.ID? {
+        // An installed provider is authoritative: when it returns nil the pointer is
+        // over no screen, and we must not fall back to the live cursor (that would leak
+        // the real pointer through a test's `{ nil }` seam). Only consult AppKit when no
+        // provider is installed at all.
+        let displayId: CGDirectDisplayID?
+        if let cursorDisplayIdProvider {
+            displayId = cursorDisplayIdProvider()
+        } else {
+            displayId = NSScreen.screen(containing: NSEvent.mouseLocation)?.displayId
+        }
+        guard let displayId else { return nil }
+        return controller.workspaceManager.monitors.first { $0.displayId == displayId }?.id
     }
 
     private func resolveActiveFocusRequestPlacementMonitorId(

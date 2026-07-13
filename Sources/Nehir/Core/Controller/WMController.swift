@@ -1544,9 +1544,49 @@ final class WMController {
             }
         }
 
+        // Reported repro: the user clicks a display's desktop and hits ⌘N in an app
+        // (e.g. Finder) with no managed window on that display. That non-managed
+        // activation updates none of the signals above — the interaction monitor is
+        // stale (last managed display), the focused/native fields are nil, and the new
+        // window's WindowServer frame is an off-screen park-zone rect that
+        // monitorApproximation snaps to the wrong display. The only signal pointing at
+        // the display the user is actually on is the pointer location. When it is known
+        // (cursor over a real monitor), no native space is claimed, and the authoritative
+        // WindowServer frame is off-screen (contained by no monitor), prefer the cursor
+        // monitor. We deliberately do NOT also require the live AX frame to be off-screen:
+        // a freshly created window's AX frame is macOS's default placement (typically the
+        // built-in display), which is noise here, not user intent. This runs after the
+        // authoritative pending/native/confirmed-focus branches above, so it only fills
+        // the gap where they are all absent. An on-screen WindowServer frame (a window the
+        // user positioned before admission) still falls through to the frame fallback.
+        if let cursorMonitorId = createPlacementContext?.cursorMonitorId,
+           createPlacementContext?.nativeSpaceMonitorId == nil,
+           monitorContainingPlacementFrame(windowFrame) == nil,
+           let workspace = workspaceManager.activeWorkspaceOrFirst(on: cursorMonitorId)
+        {
+            return WorkspacePlacementTarget(
+                workspaceId: workspace.id,
+                monitorId: cursorMonitorId,
+                isAuthoritative: true
+            )
+        }
+
+        // The live AX frame is an IPC round-trip; fetch it at most once per admission and
+        // reuse it across the fast-frame monitor fallback and the interaction-monitor
+        // branch below. The outer optional records whether we have queried yet, so the
+        // query stays lazy — skipped entirely when monitors.count == 1 and the later
+        // off-screen interaction branch is never reached.
+        var cachedFastFrame: CGRect??
+        func liveFastFrame() -> CGRect? {
+            if let cachedFastFrame { return cachedFastFrame }
+            let frame = AXWindowService.framePreferFast(axRef)
+            cachedFastFrame = frame
+            return frame
+        }
+
         let fallbackFrameMonitor = monitorForPlacementFrame(windowFrame)
         let fallbackFastFrameMonitor = workspaceManager.monitors.count > 1
-            ? monitorForPlacementFrame(AXWindowService.framePreferFast(axRef))
+            ? monitorForPlacementFrame(liveFastFrame())
             : nil
         let fallbackResolvedFrameMonitor = fallbackFrameMonitor ?? fallbackFastFrameMonitor
 
@@ -1569,6 +1609,26 @@ final class WMController {
             return WorkspacePlacementTarget(
                 workspaceId: workspace.id,
                 monitorId: monitorId,
+                isAuthoritative: true
+            )
+        }
+
+        // A synthesized focused-admission with no focused/native context still knows the
+        // interaction monitor. If both the WindowServer frame and the live AX frame are
+        // off-screen (contained by no monitor — e.g. a parked negative-y frame that
+        // monitorApproximation would snap to the wrong display), trust the interaction
+        // monitor over the approximated frame monitor. An on-screen frame (contained by
+        // a real monitor) still falls through to the frame-monitor fallback below: a
+        // stale interaction monitor must not override a frame that genuinely places the
+        // window on a display.
+        if let interactionMonitorId = createPlacementContext?.interactionMonitorId,
+           monitorContainingPlacementFrame(windowFrame) == nil,
+           monitorContainingPlacementFrame(liveFastFrame()) == nil,
+           let workspace = workspaceManager.activeWorkspaceOrFirst(on: interactionMonitorId)
+        {
+            return WorkspacePlacementTarget(
+                workspaceId: workspace.id,
+                monitorId: interactionMonitorId,
                 isAuthoritative: true
             )
         }
@@ -1721,6 +1781,11 @@ final class WMController {
     private func monitorForPlacementFrame(_ frame: CGRect?) -> Monitor? {
         guard let frame, !frame.isNull, !frame.isEmpty else { return nil }
         return frame.center.monitorApproximation(in: workspaceManager.monitors)
+    }
+
+    private func monitorContainingPlacementFrame(_ frame: CGRect?) -> Monitor? {
+        guard let frame, !frame.isNull, !frame.isEmpty else { return nil }
+        return frame.center.monitorContaining(in: workspaceManager.monitors)
     }
 
     private func resolvedAppInfo(for pid: pid_t) -> AppInfoCache.AppInfo? {
