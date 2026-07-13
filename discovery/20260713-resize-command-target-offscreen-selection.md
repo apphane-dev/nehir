@@ -462,6 +462,124 @@ selection is parked/transient/offscreen. Different command families can then
 declare which authority they accept without recomputing half of the context
 from another state domain.
 
+## Proposed verbose reproduction and capture runbook
+
+### Important limitation of current verbose tracing
+
+Verbose mode is still worth capturing, but it cannot by itself attribute a
+selection-only write. `ViewportMutationSnapshot` contains only active column,
+current/target offset, and offset kind; it does not contain `selectedNodeId`
+(`Sources/Nehir/Core/Layout/Niri/ViewportState.swift:167-181`, `:216-223`). The
+audit records provenance only when that snapshot changes (`:233-254`), and the
+commit observer emits only when the viewport target offset moves by more than
+half a pixel (`Sources/Nehir/Core/Workspace/WorkspaceManager.swift:3532-3548`,
+`:3630-3642`).
+
+Consequently, a write that changes `selectedNodeId` from column 3 to column 5
+while leaving `activeColumnIndex=3` and both offsets unchanged appears in the
+next viewport record, but `lastViewportMutationCaller` may still describe an
+older offset mutation or be nil. A verbose capture can correlate the flip with
+focus/reconcile events and prove the command target, but definitive setter
+attribution requires an additional selection-write event at the workspace
+commit chokepoint.
+
+### Capture preparation
+
+1. In **Settings → Diagnostics**, enable **Developer Mode** and set
+   **Viewport Trace Verbosity** to **Verbose**. Verbose enables layout dumps,
+   per-frame gesture records, and viewport mutation provenance
+   (`Sources/Nehir/Core/Config/ViewportTraceVerbosity.swift:9-42`).
+2. Close Settings before reproducing. Do not open Command Palette, Terminal, or
+   another Nehir-owned/debug window during the attempt; those surfaces alter
+   frontmost/non-managed focus.
+3. Prefer the default trace hotkey, `Control+Option+Command+T`, both to start and
+   stop. Start immediately before the setup transition and stop immediately
+   after the first wrong resize. Each trace category retains only its newest
+   400 records, so a long verbose gesture sequence can evict the decisive
+   beginning (`Sources/Nehir/Core/Controller/RuntimeDiagnosticsCoordinator.swift:281-300`).
+4. Use one short attempt per capture. Record a screen capture or screenshot as a
+   separate visual aid, especially the workspace bar's distinct focused and
+   selected indicators.
+
+### Root-cause-oriented attempt
+
+1. On one active Niri workspace, arrange at least six columns. Use easily
+   identifiable windows in columns 3, 4, and 5.
+2. Focus/select the column-5 window and wait for layout/focus animation to
+   settle. Optionally cycle its width once; this creates a clear resize identity
+   record before the divergence.
+3. Start verbose capture.
+4. Trackpad-scroll left until column 3 is the stable viewport/selection. The
+   desired intermediate evidence is `activeColumnIndex=3`, selection in column
+   3, and confirmed managed focus still on the column-5 token. The original
+   sequence reported `focusSelection=suppressedNonManagedFocus`.
+5. Reproduce the same focus/window churn that preceded the original failure:
+   activate/dismiss the same temporary Helium surface, or repeat the exact app
+   switch/popover interaction that creates and removes it. Do not click a tiled
+   window afterward. Wait only long enough for the resulting layout refresh and
+   focus validation to finish.
+6. Invoke **Cycle Column Width Forward** once using its normal hotkey. Do not use
+   `nehirctl` from a newly focused Terminal for this step; bringing Terminal
+   frontmost changes the state being investigated.
+7. If column 5 resizes and is revealed while column 3 was visibly current, stop
+   capture immediately.
+
+Useful timing variants should be separate captures: churn immediately after the
+leftward gesture; Cmd-Tab away/back before the same churn; or perform the
+leftward gesture while a known non-managed surface owns keyboard focus. Avoid
+mixing all variants into one long capture.
+
+### Deterministic semantic reproduction
+
+This does not prove the erroneous focus-recovery arm, but it tests the command's
+behavior with an intentionally parked selection:
+
+1. Focus/select a far-right column.
+2. Hold the configured **Manual Override** modifier while trackpad-scrolling far
+   enough left to bypass snap, or enable per-workspace Viewport Scroll Lock and
+   produce a background focus confirmation for the far-right token.
+3. Without selecting a visible window, run **Cycle Column Width Forward**.
+4. Capture whether sizing follows the parked selected node and explicitly
+   reveals it.
+
+Label this capture as an intentional parked-selection control, not as the
+root-cause reproduction.
+
+### Negative control
+
+Repeat the topology and leftward navigation, but explicitly click/focus the
+visible column-3 window immediately before resizing. The command should resize
+column 3 without a far-right reveal. A failing capture plus this control
+separates target-state divergence from general resize geometry problems.
+
+### Evidence checklist
+
+A useful capture should contain, in order:
+
+- a viewport record after gesture completion showing selected node, confirmed
+  focus, `activeColumnIndex`, current/target view start, gesture/animation state,
+  scroll lock, and unsnapped state;
+- focus/reconcile records for the app switch and transient window admission or
+  removal;
+- the first record where selection has changed back to the far-right token while
+  active column and viewport position remain unchanged;
+- the resize record's window token and column index;
+- the following viewport reveal/animation target;
+- start/end runtime snapshots and the interaction-monitor write section.
+
+`command_target.resolve.*` may be absent for this resize because the sizing hot
+path bypasses `managedCommandTarget`; the Niri resize and viewport sections are
+the authoritative command evidence.
+
+For definitive attribution in a diagnostic build, add a behavior-neutral
+`viewport_selection_write` event in `updateNiriViewportState` carrying workspace,
+before/after selected node, before/after active column, selection revision, and
+caller/reason. Also add a sizing-command-start event carrying interaction
+monitor/workspace, selected token/node/column, active column, visibility class,
+confirmed/pending/preferred focus, scroll-lock/gesture/animation flags, and the
+resolved command target. Do not change targeting behavior while collecting this
+evidence.
+
 ## Why the user's expectation differed
 
 The visible UI suggested “resize the current viewport column” because column 3
