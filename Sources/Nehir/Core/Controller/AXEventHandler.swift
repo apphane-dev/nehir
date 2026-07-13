@@ -190,6 +190,7 @@ struct NiriCreateFocusTraceEvent: Equatable {
         case focusConfirmed(token: WindowToken, workspaceId: WorkspaceDescriptor.ID, source: ActivationEventSource)
         case borderReapplied(token: WindowToken, phase: ManagedBorderReapplyPhase)
         case nonManagedFallbackEntered(pid: pid_t, source: ActivationEventSource)
+        case untrackedActivationRetry(pid: pid_t, attempt: Int, source: ActivationEventSource)
         case prepareCreateRejected(
             windowId: UInt32,
             token: WindowToken?,
@@ -399,6 +400,8 @@ extension NiriCreateFocusTraceEvent: CustomStringConvertible {
             "border_reapplied token=\(token) phase=\(phase.rawValue)"
         case let .nonManagedFallbackEntered(pid, source):
             "non_managed_fallback_entered pid=\(pid) source=\(source.rawValue)"
+        case let .untrackedActivationRetry(pid, attempt, source):
+            "untracked_activation_retry pid=\(pid) attempt=\(attempt) source=\(source.rawValue)"
         case let .prepareCreateRejected(
             windowId,
             token,
@@ -869,6 +872,7 @@ final class AXEventHandler: CGSEventDelegate {
     )
     private static let windowCloseFocusRecoveryDuration: TimeInterval = 0.6
     private static let stabilizationRetryDelay: Duration = .milliseconds(100)
+    private static let untrackedActivationRetryDelay: Duration = .milliseconds(300)
     private static let postCreateLifecycleVerificationDelay: Duration = .milliseconds(75)
     private static let createdWindowRetryLimit = 5
     private static let createPlacementContextTTL: TimeInterval = 15
@@ -881,6 +885,7 @@ final class AXEventHandler: CGSEventDelegate {
     // admitting unrelated surfaces that merely happen to share the pid.
     private static let recentAppActivationTTL: TimeInterval = 10
     private static let activationRetryLimit = 5
+    private static let untrackedActivationRetryLimit = 6
     private static let nativeAppSwitchLeaseRequestConfirmationGrace: TimeInterval = 0.6
     private static let createFocusTraceLimit = 128
     private static let managedReplacementTraceLimit = 128
@@ -947,6 +952,8 @@ final class AXEventHandler: CGSEventDelegate {
     private var createdWindowRetryPidById: [UInt32: pid_t] = [:]
     private var pendingActivationRetryTask: Task<Void, Never>?
     private var pendingActivationRetryRequestId: UInt64?
+    private var pendingUntrackedActivationRetryTasksByPid: [pid_t: Task<Void, Never>] = [:]
+    private var untrackedActivationRetryCountByPid: [pid_t: Int] = [:]
     private var createFocusTrace: [NiriCreateFocusTraceEvent] = []
     private var managedReplacementTrace: [ManagedReplacementTraceEvent] = []
     private var nextManagedReplacementEventSequence: UInt64 = 0
@@ -1016,6 +1023,7 @@ final class AXEventHandler: CGSEventDelegate {
         resetCreatePlacementContextState()
         recentManagedWorkspaceByPid.removeAll()
         recentAppActivationByPid.removeAll()
+        resetUntrackedActivationRetryState()
         recentSameAppWindowCloseByPid.removeAll()
         recentNonManagedFocusByPid.removeAll()
         overlayCapablePids.removeAll()
@@ -1236,6 +1244,7 @@ final class AXEventHandler: CGSEventDelegate {
         resetCreatePlacementContextState()
         recentManagedWorkspaceByPid.removeAll()
         recentAppActivationByPid.removeAll()
+        resetUntrackedActivationRetryState()
         recentSameAppWindowCloseByPid.removeAll()
         recentNonManagedFocusByPid.removeAll()
         overlayCapablePids.removeAll()
@@ -3590,9 +3599,11 @@ final class AXEventHandler: CGSEventDelegate {
         // user-intent signal that should still admit the app's window even while
         // non-managed focus is active. Window-level focus churn
         // (.focusedWindowChanged) does not qualify, so only record app
-        // activations here.
-        if source == .workspaceDidActivateApplication {
+        // activations here. Retries preserve their original source, but must not
+        // renew the user-intent TTL or reset the retry cap.
+        if source == .workspaceDidActivateApplication, origin == .external {
             recordRecentAppActivation(pid: pid)
+            resetUntrackedActivationRetry(for: pid)
         }
         guard controller.hasStartedServices else { return }
 
@@ -7159,6 +7170,13 @@ final class AXEventHandler: CGSEventDelegate {
             preserveFocusedToken: false
         )
         recordNonManagedFallbackEntered(pid: pid, source: source)
+        if hasRecentAppActivation(for: pid),
+           controller.workspaceManager.entries(forPid: pid).isEmpty,
+           pid != getpid()
+        {
+            scheduleAXContextWarmup(for: pid)
+            scheduleUntrackedActivationRetry(for: pid, source: source)
+        }
         controller.focusBorderController.clear()
     }
 
@@ -7266,6 +7284,7 @@ final class AXEventHandler: CGSEventDelegate {
         cleanupPendingStateForTerminatedApp(pid: pid)
         recentManagedWorkspaceByPid.removeValue(forKey: pid)
         recentAppActivationByPid.removeValue(forKey: pid)
+        resetUntrackedActivationRetry(for: pid)
         recentSameAppWindowCloseByPid.removeValue(forKey: pid)
         recentNonManagedFocusByPid.removeValue(forKey: pid)
         focusedWindowLossClosePrecursorByPid.removeValue(forKey: pid)
@@ -7450,6 +7469,61 @@ final class AXEventHandler: CGSEventDelegate {
 
     private func resetActivationRetryState() {
         cancelActivationRetry()
+    }
+
+    private func scheduleUntrackedActivationRetry(
+        for pid: pid_t,
+        source: ActivationEventSource
+    ) {
+        guard pendingUntrackedActivationRetryTasksByPid[pid] == nil else { return }
+
+        let attempt = untrackedActivationRetryCountByPid[pid, default: 0] + 1
+        guard attempt <= Self.untrackedActivationRetryLimit else { return }
+        untrackedActivationRetryCountByPid[pid] = attempt
+
+        let task = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: Self.untrackedActivationRetryDelay)
+            guard !Task.isCancelled, let self else { return }
+
+            self.pendingUntrackedActivationRetryTasksByPid[pid] = nil
+            guard let controller = self.controller,
+                  controller.focusBridge.activeManagedRequest == nil,
+                  controller.workspaceManager.entries(forPid: pid).isEmpty,
+                  self.hasRecentAppActivation(for: pid),
+                  NSRunningApplication(processIdentifier: pid) != nil
+            else {
+                self.resetUntrackedActivationRetry(for: pid)
+                return
+            }
+
+            self.recordNiriCreateFocusTrace(
+                .init(
+                    kind: .untrackedActivationRetry(
+                        pid: pid,
+                        attempt: attempt,
+                        source: source
+                    )
+                )
+            )
+            self.handleAppActivation(pid: pid, source: source, origin: .retry)
+            if !controller.workspaceManager.entries(forPid: pid).isEmpty {
+                self.untrackedActivationRetryCountByPid.removeValue(forKey: pid)
+            }
+        }
+        pendingUntrackedActivationRetryTasksByPid[pid] = task
+    }
+
+    private func resetUntrackedActivationRetry(for pid: pid_t) {
+        pendingUntrackedActivationRetryTasksByPid.removeValue(forKey: pid)?.cancel()
+        untrackedActivationRetryCountByPid.removeValue(forKey: pid)
+    }
+
+    private func resetUntrackedActivationRetryState() {
+        for task in pendingUntrackedActivationRetryTasksByPid.values {
+            task.cancel()
+        }
+        pendingUntrackedActivationRetryTasksByPid.removeAll()
+        untrackedActivationRetryCountByPid.removeAll()
     }
 
     private func deferCreatedWindow(_ windowId: UInt32) {
