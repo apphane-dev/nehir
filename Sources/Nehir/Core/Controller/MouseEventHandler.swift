@@ -2180,10 +2180,10 @@ final class MouseEventHandler {
             }
         }
         var didRequestFocus = false
+        let nonManagedFocusAtSelection = controller.workspaceManager.isNonManagedFocusActive
         if let selectedWindow {
             rememberViewportFocusAnchor(selectedWindow, engine: engine, wsId: wsId)
             if !controller.focusFollowsMouseEnabled,
-               !controller.workspaceManager.isNonManagedFocusActive,
                let target = controller.managedKeyboardFocusTarget(for: selectedWindow.token)
             {
                 _ = controller.renderKeyboardFocusBorder(
@@ -2201,8 +2201,6 @@ final class MouseEventHandler {
             focusSelectionDisposition = "none"
         } else if controller.focusFollowsMouseEnabled {
             focusSelectionDisposition = "suppressed"
-        } else if controller.workspaceManager.isNonManagedFocusActive {
-            focusSelectionDisposition = "suppressedNonManagedFocus"
         } else if didRequestFocus {
             focusSelectionDisposition = "requested"
         } else {
@@ -2215,6 +2213,7 @@ final class MouseEventHandler {
                 "input=trackpadTouches",
                 "snap=\(!lockedContext.bypassSnap)",
                 "focusSelection=\(focusSelectionDisposition)",
+                "nonManagedFocusAtSelection=\(nonManagedFocusAtSelection)",
                 "focusFollowsMouse=\(controller.focusFollowsMouseEnabled)",
                 "endedGestureIsAnimating=\(endedGestureIsAnimating)",
                 "previousActiveColumnIndex=\(previousActiveColumnIndex.map(String.init) ?? "nil")",
