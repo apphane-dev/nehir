@@ -4,7 +4,11 @@ Status: confirmed — runtime evidence and source mechanism both verified agains
 the build that produced the capture (`nehir vd953d4`, i.e. main at `d953d4d3`
 "Float zero-frame Gecko transient dialogs that the first #142 fix still tiled",
 which contains both the user-activation exemption `151f4e3a` and the admission
-diagnostics `0f785212`).
+diagnostics `0f785212`). **Repro confirmed by the user on 2026-07-13** using
+the recipe below (hide the managed window, restart nehir) — see the
+"2026-07-13 confirmation captures" subsection. Fix plan:
+[`planned/20260713-fix-missing-focused-window-activation-admission-retry.md`](../planned/20260713-fix-missing-focused-window-activation-admission-retry.md)
+(fix option A).
 
 This is a **recurrence of the Slack trap**
 (`discovery/20260703-user-activated-slack-suppressed-as-stale-under-nonmanaged-focus.md`)
@@ -162,7 +166,41 @@ entry. The rescans at `09:19:25Z`–`09:19:28Z` demonstrably skipped it, and it
 was visible on screen by capture end, i.e. the user's activation revealed it.
 The exact hide mechanism is not recoverable from this capture
 (`hiddenAppPIDs=0` at both snapshots only proves it was not Cmd-H hidden *at
-snapshot time*).
+snapshot time*). The user confirms they **never Cmd-H hide** ChatGPT — so the
+wild-origin hide state comes from the app itself (ChatGPT keeps its window
+alive when it is closed / auto-hidden), not from a user action. Any fix must
+therefore treat the untracked-at-rescan precondition as routine, not as a
+rare user-inflicted corner.
+
+## 2026-07-13 confirmation captures
+
+The user reproduced with the deliberate recipe (window managed → hide →
+restart nehir) on build `v6a52dc`, this time with **Claude for Desktop**
+(`com.anthropic.claudefordesktop`, pid 79165, windowId 40114) — third distinct
+app for the trap family, confirming app-independence. The fresh-instance
+capture (13 s, starting at nehir launch with `startedServices=false`,
+`windows total=0`) shows every precondition and both halves of the mechanism:
+
+- The startup rescan admitted six windows (Slack, Helium ×3, Telegram,
+  VS Code Insiders, plus a user-rule ghostty) — **not** the hidden Claude
+  window: precondition P1 reproduced.
+- Dock activation hit the AX race again: `activation_source_observed
+  pid=79165 source=workspaceDidActivateApplication` directly followed by
+  `non_managed_fallback_entered pid=79165` (and a
+  `close_recovery_focused_window_nil pid=79165` decision record) — no
+  admission attempt from the activation itself.
+- **This run was rescued by timing, proving fix option A's premise:** a
+  window-close-recovery probe (the SuperCmd palette windowId 59 had just been
+  destroyed) synthesized a `focusedWindowChanged` admission ~2 s later —
+  *inside* the 10 s TTL — and the shipped exemption admitted it:
+  `unrequested_admission_nonmanaged_focus_decision … suppressed=false
+  reason=recent_app_activation` → `window_admitted … mode=tiling`.
+
+So whenever *any* admission attempt lands within the TTL, the exemption works
+exactly as designed; the bug is solely the absence of a guaranteed attempt.
+Whether the user ends up trapped currently depends on an unrelated
+coincidence (a close-recovery probe, a second activation event, a WM
+command) racing a 10-second timer.
 
 ## Exact reproduction steps
 
