@@ -519,21 +519,30 @@ commit chokepoint.
    non-reproduction created and removed several Helium transient surfaces while
    selection, confirmed focus, and the resize target all remained correctly on
    visible column 2. Treat this as incidental correlation, not a repro step.
-6. Instead, perform only the normal action sequence that originally preceded the
-   bad resize—if the bug had a familiar real-world precursor—and do not click a
-   tiled window after the leftward gesture. If there is no known precursor,
-   simply wait for the viewport spring to settle, then invoke **Cycle Column
-   Width Forward** once using its normal hotkey. Do not use `nehirctl` from a
-   newly focused Terminal for this step; bringing Terminal frontmost changes the
-   state being investigated.
+6. **Run the Ghostty Quick Terminal candidate.** Leave the `exedev@easysell: ~`
+   Ghostty window offscreen and another Ghostty terminal visibly selected. Open
+   then close the Ghostty Quick Terminal once using the normal user hotkey; do
+   not click another tiled window afterward. Then issue the intended command.
+   For the keyboard-focus variant, press `Command-W` rather than cycling width.
 7. If a far/offscreen column resizes and is revealed while another column was
-   visibly current, stop capture immediately. Otherwise, the attempt is a useful
-   negative result: it confirms selection and the resize target stayed aligned.
+   visibly current, stop capture immediately. Likewise, stop if `Command-W`
+   opens the “All terminal sessions in this window will be terminated” sheet for
+   the offscreen easysell terminal. Otherwise, the attempt is a useful negative
+   result: it confirms selection and the command target stayed aligned.
 
-The only productive timing variants are ordinary user actions that have actually
-preceded the bug for the reporter (for example, the same app switch or closing
-an app window if either was present). Capture one variant per trace; do not
-invent a popover/churn step from the trace's internal window labels.
+This candidate is now concrete. In a later capture, Quick Terminal `5915` closed
+at `13:23:03`; an external `workspaceDidActivateApplication` established a
+`native_app_switch` lease at `13:23:04`; and after the visible Ghostty state had
+settled, `Command-W` caused Ghostty to create AX sheet `48749`. Its recorded
+parent was offscreen Ghostty window `42790`, titled `exedev@easysell: ~`, parked
+at `x=-1010`. The simultaneous destruction of window `48723` does **not** prove
+that it received `Command-W`: the sheet parent is stronger evidence of the
+actual recipient. At that point layout selection was visible window `48723`,
+while confirmed managed focus was instead offscreen Helium window `47748`.
+
+Capture one variant per trace. The original Helium transient is still not a
+repro step; the concrete interaction to test is Quick Terminal close followed
+by a command while a different Ghostty terminal is visibly selected.
 
 ### Deterministic semantic reproduction
 
