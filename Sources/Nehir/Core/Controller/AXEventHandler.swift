@@ -917,8 +917,20 @@ final class AXEventHandler: CGSEventDelegate {
     private static let recentNonManagedFocusTTL: TimeInterval = 2
     private static let focusedWindowLossClosePrecursorTTL: TimeInterval = 0.6
     private static let sameAppRecoveryRedirectLatchTTL: TimeInterval = 2
+    // When one of an app's windows tears down — a native-fullscreen Space
+    // destroyed, an (HTML5/app-level) fullscreen video window closed, or any
+    // same-app window removed — macOS can take several seconds to re-home
+    // keyboard focus to another of the app's windows, which may live on an
+    // inactive workspace. Track that teardown per pid over a grace window wide
+    // enough to span the re-home latency, so a stray same-app
+    // `focusedWindowChanged` to an inactive workspace during that window can be
+    // recognized as automatic re-homing rather than genuine user re-focus. This
+    // is deliberately longer than `recentSameAppWindowCloseTTL` (which gates
+    // tighter same-frame close recovery); observed re-homes here land 5–9 s late.
+    private static let recentSameAppTeardownTTL: TimeInterval = 10
     private var recentSameAppWindowCloseByPid: [pid_t: TimeInterval] = [:]
     private var recentNonManagedFocusByPid: [pid_t: TimeInterval] = [:]
+    private var recentSameAppTeardownByPid: [pid_t: TimeInterval] = [:]
     // Pids that own a recognized app overlay window (e.g. the Ghostty quick
     // terminal). Once observed, the pid stays marked for the process lifetime so
     // the QT open/close focus churn it emits can be suppressed/deferred without
@@ -1026,6 +1038,7 @@ final class AXEventHandler: CGSEventDelegate {
         resetUntrackedActivationRetryState()
         recentSameAppWindowCloseByPid.removeAll()
         recentNonManagedFocusByPid.removeAll()
+        recentSameAppTeardownByPid.removeAll()
         overlayCapablePids.removeAll()
         focusedWindowLossClosePrecursorByPid.removeAll()
         sameAppRecoveryRedirectLatches.removeAll()
@@ -1247,6 +1260,7 @@ final class AXEventHandler: CGSEventDelegate {
         resetUntrackedActivationRetryState()
         recentSameAppWindowCloseByPid.removeAll()
         recentNonManagedFocusByPid.removeAll()
+        recentSameAppTeardownByPid.removeAll()
         overlayCapablePids.removeAll()
         focusedWindowLossClosePrecursorByPid.removeAll()
         sameAppRecoveryRedirectLatches.removeAll()
@@ -2265,6 +2279,7 @@ final class AXEventHandler: CGSEventDelegate {
     func handleRemoved(token: WindowToken) {
         guard let controller else { return }
         recordRecentSameAppWindowClose(pid: token.pid)
+        recordRecentSameAppTeardown(pid: token.pid)
         let entry = controller.workspaceManager.entry(for: token)
         let affectedWorkspaceId = entry?.workspaceId
         let confirmedTokenBeforeRemoval = controller.workspaceManager.confirmedManagedFocusToken
@@ -3755,6 +3770,24 @@ final class AXEventHandler: CGSEventDelegate {
                 return
             }
 
+            if shouldSuppressInactiveSameAppFocusAfterTeardownRehoming(
+                entry: entry,
+                isWorkspaceActive: isWorkspaceActive,
+                requestDisposition: requestDisposition,
+                source: source,
+                origin: origin
+            ) {
+                if case let .conflictsWithPendingRequest(request) = requestDisposition {
+                    continueManagedFocusRequest(
+                        request,
+                        source: source,
+                        origin: origin,
+                        reason: .pendingFocusMismatch
+                    )
+                }
+                return
+            }
+
             if shouldSuppressSameAppInactiveWorkspaceActivationBeforeCloseRecovery(
                 entry: entry,
                 isWorkspaceActive: isWorkspaceActive,
@@ -4675,6 +4708,7 @@ final class AXEventHandler: CGSEventDelegate {
     @discardableResult
     private func suspendManagedWindowForNativeFullscreen(_ entry: WindowModel.Entry) -> Bool {
         guard let controller else { return false }
+        recordRecentSameAppTeardown(pid: entry.token.pid)
         cancelNativeFullscreenLifecycleTasks(containing: entry.token)
         let changed = controller.workspaceManager.markNativeFullscreenSuspended(entry.token)
         _ = controller.focusBorderController.focusChanged(
@@ -4697,6 +4731,7 @@ final class AXEventHandler: CGSEventDelegate {
         guard hadRecord || controller.workspaceManager.layoutReason(for: entry.token) == .nativeFullscreen else {
             return false
         }
+        recordRecentSameAppTeardown(pid: entry.token.pid)
         cancelNativeFullscreenLifecycleTasks(containing: entry.token)
         let restored = controller.workspaceManager.restoreNativeFullscreenRecord(for: entry.token) != nil || hadRecord
         if restored {
@@ -4978,6 +5013,7 @@ final class AXEventHandler: CGSEventDelegate {
         }
 
         guard let unavailableRecord else { return false }
+        recordRecentSameAppTeardown(pid: token.pid)
         controller.focusBorderController.hide()
         controller.nativeFullscreenPlaceholderManager.remove(token)
         clearManagedFocusState(matching: token, workspaceId: unavailableRecord.workspaceId)
@@ -5558,6 +5594,7 @@ final class AXEventHandler: CGSEventDelegate {
                     // let the deferred activation retry reveal the target.
                 } else {
                     recordRecentSameAppWindowClose(pid: destroyedPid)
+                    recordRecentSameAppTeardown(pid: destroyedPid)
                     // Quick-terminal hide/close can destroy an auxiliary AX element
                     // instead of the tracked managed window. Preserve the current
                     // workspace before macOS activates a successor app/window.
@@ -5667,6 +5704,7 @@ final class AXEventHandler: CGSEventDelegate {
         }
 
         recordRecentSameAppWindowClose(pid: candidate.token.pid)
+        recordRecentSameAppTeardown(pid: candidate.token.pid)
         cancelDestroyLivenessVerification(for: candidate.token)
 
         let shouldDelayDestroy = shouldDelayManagedReplacementDestroy(candidate)
@@ -6337,6 +6375,23 @@ final class AXEventHandler: CGSEventDelegate {
             return false
         }
         return true
+    }
+
+    private func recordRecentSameAppTeardown(pid: pid_t) {
+        pruneRecentSameAppTeardowns()
+        recentSameAppTeardownByPid[pid] = managedReplacementCurrentUptime()
+    }
+
+    private func hasRecentSameAppTeardown(for pid: pid_t) -> Bool {
+        pruneRecentSameAppTeardowns()
+        return recentSameAppTeardownByPid[pid] != nil
+    }
+
+    private func pruneRecentSameAppTeardowns(now: TimeInterval? = nil) {
+        let now = now ?? managedReplacementCurrentUptime()
+        recentSameAppTeardownByPid = recentSameAppTeardownByPid.filter { _, at in
+            now - at <= Self.recentSameAppTeardownTTL
+        }
     }
 
     private func isWithinSameAppCloseRecoveryWindow(pid: pid_t) -> Bool {
@@ -7229,6 +7284,87 @@ final class AXEventHandler: CGSEventDelegate {
         source.isAuthoritative && origin == .external
     }
 
+    /// Suppress an external `focusedWindowChanged` that macOS emits when it
+    /// re-homes keyboard focus to another of an app's windows after one of that
+    /// app's windows tears down (a fullscreen video exiting, a window closing).
+    ///
+    /// When a fullscreen video — native-Space *or* app/HTML5 fullscreen — exits,
+    /// or any of the app's windows closes, macOS hands keyboard focus to another
+    /// window of the *same app*, which can live on an inactive workspace. It
+    /// arrives seconds later as an authoritative external `focusedWindowChanged`.
+    /// Left unguarded it switches the active workspace to the inactive one —
+    /// either because `shouldHonorObservedFocusOverPendingRequest` discards
+    /// Nehir's pending restore request (`conflictsWithPendingRequest`), or because
+    /// `shouldHandleObservedManagedActivationWithoutPendingRequest` admits the
+    /// focus outright once that request/confirmed focus has already been cleared
+    /// (`unrelatedNoRequest`). A follow-up 3-finger swipe then scrolls the wrong
+    /// workspace.
+    ///
+    /// The older deferrals key off `confirmedManagedFocusToken`, which the
+    /// teardown clears, so they miss the gap. Anchor instead on the app's live
+    /// managed border target: if it is a *different* window of the *same app* on
+    /// the currently-active workspace, the app's real focus is already where the
+    /// user is, and a same-app `focusedWindowChanged` to an *inactive* (off-screen,
+    /// unclickable) workspace is macOS re-homing, not a user click. Require recent
+    /// same-app teardown evidence so an ordinary deliberate re-focus with no
+    /// teardown is untouched, and never suppress focus on the very window Nehir
+    /// just requested (`matchesActiveRequest`).
+    private func shouldSuppressInactiveSameAppFocusAfterTeardownRehoming(
+        entry observedEntry: WindowModel.Entry,
+        isWorkspaceActive: Bool,
+        requestDisposition: ActivationRequestDisposition,
+        source: ActivationEventSource,
+        origin: ActivationCallOrigin
+    ) -> Bool {
+        guard origin == .external,
+              source == .focusedWindowChanged,
+              !isWorkspaceActive,
+              hasRecentSameAppTeardown(for: observedEntry.pid),
+              let controller
+        else {
+            return false
+        }
+
+        switch requestDisposition {
+        case .matchesActiveRequest:
+            return false
+        case let .conflictsWithPendingRequest(request):
+            // Only the app's own re-homing; a pending request for a different app
+            // is a genuine cross-app conflict that must resolve normally.
+            guard request.token.pid == observedEntry.pid else { return false }
+        case .unrelatedNoRequest:
+            break
+        }
+
+        // The app's live managed focus must already be on the active workspace,
+        // on a different window of the same app. That is the durable "the user is
+        // already here" anchor that survives the teardown clearing confirmed focus.
+        guard let borderTarget = controller.currentBorderTarget(),
+              borderTarget.isManaged,
+              borderTarget.token.pid == observedEntry.pid,
+              borderTarget.token != observedEntry.token,
+              let anchorWorkspaceId = controller.workspaceManager.entry(for: borderTarget.token)?.workspaceId,
+              let anchorMonitorId = controller.workspaceManager.monitorId(for: anchorWorkspaceId),
+              controller.workspaceManager.activeWorkspace(on: anchorMonitorId)?.id == anchorWorkspaceId
+        else {
+            return false
+        }
+
+        controller.diagnostics.recordRuntimeViewportTrace(
+            workspaceId: observedEntry.workspaceId,
+            reason: "same_app_teardown_rehome_suppressed",
+            details: [
+                "token=\(observedEntry.token)",
+                "source=\(source.rawValue)",
+                "origin=\(origin.rawValue)",
+                "requestDisposition=\(requestDisposition)",
+                "anchorTarget=\(borderTarget.token)",
+                "anchorWorkspace=\(anchorWorkspaceId.uuidString)"
+            ]
+        )
+        return true
+    }
+
     private func cleanupPendingStateForTerminatedApp(pid: pid_t) {
         let managedReplacementKeys = Set(pendingManagedReplacementBursts.keys)
             .union(pendingManagedReplacementTasks.keys)
@@ -7287,6 +7423,7 @@ final class AXEventHandler: CGSEventDelegate {
         resetUntrackedActivationRetry(for: pid)
         recentSameAppWindowCloseByPid.removeValue(forKey: pid)
         recentNonManagedFocusByPid.removeValue(forKey: pid)
+        recentSameAppTeardownByPid.removeValue(forKey: pid)
         focusedWindowLossClosePrecursorByPid.removeValue(forKey: pid)
         sameAppRecoveryRedirectLatches = sameAppRecoveryRedirectLatches.filter { $0.key.pid != pid }
         recentParkedFocusFollowByToken = recentParkedFocusFollowByToken.filter { $0.key.pid != pid }
