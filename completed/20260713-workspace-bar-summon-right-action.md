@@ -1,7 +1,26 @@
 # Add Summon Right to workspace-bar window context menus
 
-**Status:** planned  
-**Verified against:** `main` at `6d6b23ee` on 2026-07-13
+- **Status:** completed on `main` on 2026-07-13
+- **Implemented by:** `7bf9bfc4` (`Add Summon Right to workspace bar window menus`)
+- **Follow-up:** `ed374cf0` (`Fail Summon Right tests without layout engine`)
+- **Verified target state:** `main` at `ed374cf0` on 2026-07-13
+
+## Completion record
+
+The implementation landed with the planned shared `SummonRightAnchor` resolver,
+explicit token-and-monitor workspace-bar adapter, context-menu wiring, focused
+six-test suite, and minor changeset
+`.changeset/20260713013707-summon-windows-to-the-right-from-workspace-bar-c.md`.
+`mise run check` passed with 1,442 tests. The follow-up commit made the focused
+test helper record a failure instead of silently returning when the Niri layout
+engine is unavailable, closing a false-positive path identified during review.
+
+The automated suite covers explicit clicked-token targeting, right-of-anchor
+insertion, secondary-bar destination precedence, empty destinations, unmanaged
+focus with remembered workspace focus, stale/unavailable targets, and the
+current-anchor no-op. Manual multi-monitor and grouped-icon GUI validation was
+not performed and remains a recommended post-merge smoke check, not unfinished
+source work.
 
 ## Overview
 
@@ -18,7 +37,7 @@ must ultimately call the explicit
 `WindowActionHandler.summonWindowRight(handle:anchorToken:anchorWorkspaceId:)`
 path.
 
-## Source-backed current state
+## Source-backed pre-implementation state
 
 - `WorkspaceBarView` already accepts token-parameterized callbacks for its
   window-icon actions (`Sources/Nehir/UI/WorkspaceBar/WorkspaceBarView.swift:159-174`).
@@ -173,60 +192,60 @@ exact source token, and the manager already owns the destination monitor.
 
 ### Task 1 — Extract and share anchor resolution
 
-- [ ] Add the UI-neutral anchor model and monitor-aware resolver.
-- [ ] Move the existing resolver body rather than reimplementing it; preserve
+- [x] Add the UI-neutral anchor model and monitor-aware resolver.
+- [x] Move the existing resolver body rather than reimplementing it; preserve
       monitor selection, interaction-workspace fallback, remembered-focus
       fallback, token validation, and workspace-only anchors.
-- [ ] Update the palette and `SummonTraceFormatting` to use the shared type.
-- [ ] Update existing palette tests only for the moved API; all assertions must
+- [x] Update the palette and `SummonTraceFormatting` to use the shared type.
+- [x] Update existing palette tests only for the moved API; all assertions must
       remain equivalent.
-- [ ] Fast gate: `mise run build`, then
+- [x] Fast gate: `mise run build`, then
       `swift test --filter CommandPaletteControllerTests`.
 
 ### Task 2 — Add the token-based workspace-bar adapter
 
-- [ ] Add `summonWindowRightFromBar(token:on:)` (or equivalent) to
+- [x] Add `summonWindowRightFromBar(token:on:)` (or equivalent) to
       `WMController`.
-- [ ] Resolve only the passed token; never consult a command-target/focused-
+- [x] Resolve only the passed token; never consult a command-target/focused-
       window resolver for the source window.
-- [ ] Resolve the destination from the supplied bar monitor and call the exact
+- [x] Resolve the destination from the supplied bar monitor and call the exact
       explicit `WindowActionHandler.summonWindowRight` overload used by the
       palette.
-- [ ] Return `.notFound` on stale source token, absent destination, or rejected
+- [x] Return `.notFound` on stale source token, absent destination, or rejected
       execution.
-- [ ] Fast gate: `mise run build`.
+- [x] Fast gate: `mise run build`.
 
 ### Task 3 — Wire the context-menu item
 
-- [ ] Thread the token callback through every workspace-bar initializer/action
+- [x] Thread the token callback through every workspace-bar initializer/action
       bundle, including `WorkspaceBarMeasurementView`'s no-op closure and
       `WorkspaceItemView.scopedWindowActions`.
-- [ ] Add a **Summon Right** menu item in the non-destructive action group,
+- [x] Add a **Summon Right** menu item in the non-destructive action group,
       passing `window.id`.
-- [ ] In `WorkspaceBarManager`, capture the bar's concrete `monitor.id` and call
+- [x] In `WorkspaceBarManager`, capture the bar's concrete `monitor.id` and call
       the new adapter.
-- [ ] Keep grouped-icon targeting and all existing menu ordering/disable rules
+- [x] Keep grouped-icon targeting and all existing menu ordering/disable rules
       otherwise unchanged.
-- [ ] Fast gate: `mise run build` and `mise run test:compile`.
+- [x] Fast gate: `mise run build` and `mise run test:compile`.
 
 ### Task 4 — Focused tests and acceptance
 
 Create `Tests/NehirTests/WorkspaceBarSummonRightTests.swift` with synthetic
 Swift Testing coverage:
 
-- [ ] clicked token B is summoned while token A is focused, proving the source
+- [x] clicked token B is summoned while token A is focused, proving the source
       is explicit-token rather than focus-targeted;
-- [ ] on two monitors, invoking the adapter for the secondary bar targets the
+- [x] on two monitors, invoking the adapter for the secondary bar targets the
       secondary active workspace even when interaction focus is primary;
-- [ ] a valid destination anchor inserts the clicked window immediately right
+- [x] a valid destination anchor inserts the clicked window immediately right
       of that anchor;
-- [ ] an empty destination workspace produces a nil-token anchor and admits the
+- [x] an empty destination workspace produces a nil-token anchor and admits the
       clicked window as the rightmost/new column;
-- [ ] unmanaged focus with valid workspace focus memory uses the remembered
+- [x] unmanaged focus with valid workspace focus memory uses the remembered
       anchor;
-- [ ] stale/unknown clicked tokens and unavailable destinations return
+- [x] stale/unknown clicked tokens and unavailable destinations return
       `.notFound` and leave managed state unchanged;
-- [ ] choosing the anchor itself returns `.notFound` and leaves managed/layout
+- [x] choosing the anchor itself returns `.notFound` and leaves managed/layout
       state unchanged.
 
 Reuse existing synthetic Niri/window fixtures and the production resolver. Do
@@ -249,8 +268,8 @@ Fast gate: `swift test --filter WorkspaceBarSummonRightTests` plus
       secondary display's active workspace.
 - [ ] Grouped icon: confirm the action targets the same representative window
       as the icon's other token-based context-menu actions.
-- [ ] Run the full gate once at the end: `mise run check`.
-- [ ] Add a minor changeset:
+- [x] Run the full gate once at the end: `mise run check`.
+- [x] Add a minor changeset:
       `mise run changeset minor "Summon windows to the right from workspace bar context menus"`.
 
 ## Risks and mitigations
@@ -273,7 +292,7 @@ Fast gate: `swift test --filter WorkspaceBarSummonRightTests` plus
 
 ## Housekeeping and commit message shape
 
-- [ ] After implementation merges, update this document with deviations and
+- [x] After implementation merges, update this document with deviations and
       move it from `planned/` to `completed/` on the plans branch.
 - Use plain-English commit subjects, not Conventional Commits. Suggested source
   commit: `Add Summon Right to workspace bar window menus`.

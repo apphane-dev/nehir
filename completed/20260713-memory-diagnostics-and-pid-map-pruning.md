@@ -1,5 +1,31 @@
 # Memory diagnostics in runtime dumps and trace captures, plus pid-map pruning
 
+- **Status:** completed on `main` on 2026-07-13
+- **Implemented by:** `8c4d5f03` (`Add process memory diagnostics helper`)
+- **Verified target state:** `main` at `ed374cf0` on 2026-07-13
+
+## Completion record
+
+The implementation landed as one squashed commit covering all planned runtime
+memory diagnostics, dump integration, container snapshots, terminated-pid
+pruning, focused tests, and the `none` changeset
+`.changeset/20260713012249-runtime-state-dumps-and-trace-captures-now-inclu.md`.
+`mise run check` passed with 1,442 tests.
+
+The final pruning scope is intentionally broader than the original minimum:
+`cleanupFocusStateForTerminatedApp(pid:)` also cancels/removes attributable
+pending replacement, activation, fullscreen, rule-reevaluation,
+stabilization, lifecycle-verification, destroy-liveness, and created-window
+retry state. The regression test proves terminated-pid entries are removed
+while entries for another pid survive. PID-unknown created-window retries are
+not attributed to a terminated app; they clear through their normal exhaustion
+path.
+
+A live manual runtime-dump and trace-capture inspection was not recorded during
+implementation. Automated coverage verifies the `-- Memory --` section and
+subsystem counter lines, and the full gate passed; live capture inspection
+remains a post-merge operational check rather than unfinished source work.
+
 ## Overview
 
 Add process-memory diagnostics to the runtime state dump so every trace
@@ -10,7 +36,7 @@ tools. Additionally, close the one genuinely unbounded-over-uptime structure
 found during discovery: the pid-keyed "recent activity" maps in
 `AXEventHandler` that are never pruned when an app terminates.
 
-## Context (from discovery)
+## Pre-implementation context (from discovery)
 
 Live measurement of a debug build running 7.5 h under real use
 (`--nehir-trace`):
@@ -129,14 +155,14 @@ continuous trend.
 - Create: `Sources/Nehir/Core/Diagnostics/ProcessMemoryDiagnostics.swift`
 - Create: `Tests/NehirTests/ProcessMemoryDiagnosticsTests.swift`
 
-- [ ] implement `ProcessMemoryDiagnostics.current()` reading `task_vm_info`
+- [x] implement `ProcessMemoryDiagnostics.current()` reading `task_vm_info`
       for the current process (footprint, peak, resident)
-- [ ] implement `formattedLine` with MB formatting; nil-safe when the
+- [x] implement `formattedLine` with MB formatting; nil-safe when the
       `task_info` call fails (report `footprint=unavailable`)
-- [ ] tests: `current()` returns nonzero footprint for the test process;
+- [x] tests: `current()` returns nonzero footprint for the test process;
       `formattedLine` renders expected keys; formatting of a known byte
       value
-- [ ] gate: `mise run build` + run the new test file — must pass before
+- [x] gate: `mise run build` + run the new test file — must pass before
       task 2
 
 ### Task 2: Container-size snapshots and `-- Memory --` dump section
@@ -151,17 +177,17 @@ continuous trend.
   (render `-- Memory --` section in `runtimeStateDebugDump()`)
 - Create: `Tests/NehirTests/RuntimeMemoryDumpSectionTests.swift`
 
-- [ ] add `memoryDebugSnapshot()` to `AXEventHandler` covering the maps and
+- [x] add `memoryDebugSnapshot()` to `AXEventHandler` covering the maps and
       trace arrays listed in Solution Overview
-- [ ] add `memoryDebugSnapshot()` to `LayoutRefreshController`
-- [ ] add `AppAXContext` context/in-flight counts accessor
-- [ ] render `-- Memory --` section (footprint line + counters) in
+- [x] add `memoryDebugSnapshot()` to `LayoutRefreshController`
+- [x] add `AppAXContext` context/in-flight counts accessor
+- [x] render `-- Memory --` section (footprint line + counters) in
       `runtimeStateDebugDump()`
-- [ ] tests: dump output contains the `-- Memory --` header, the footprint
+- [x] tests: dump output contains the `-- Memory --` header, the footprint
       key, and each subsystem counter line; counter snapshot reflects a
       known populated state (populate via existing test seams, not new
       decision-changing hooks)
-- [ ] gate: `mise run build` + targeted tests — must pass before task 3
+- [x] gate: `mise run build` + targeted tests — must pass before task 3
 
 ### Task 3: Prune pid-keyed maps on app termination
 
@@ -170,32 +196,32 @@ continuous trend.
   (`cleanupFocusStateForTerminatedApp(pid:)`)
 - Create: `Tests/NehirTests/TerminatedAppStatePruningTests.swift`
 
-- [ ] extend `cleanupFocusStateForTerminatedApp(pid:)` to remove entries for
+- [x] extend `cleanupFocusStateForTerminatedApp(pid:)` to remove entries for
       the pid from `recentSameAppWindowCloseByPid`,
       `recentNonManagedFocusByPid`, `focusedWindowLossClosePrecursorByPid`,
       `sameAppRecoveryRedirectLatches`, `parkedFollowHoldByPid`
-- [ ] sweep `recentParkedFocusFollowByToken` and
+- [x] sweep `recentParkedFocusFollowByToken` and
       `recentManagedAdmissionByToken` for tokens whose `pid` matches
-- [ ] tests: seed the maps (via existing test seams), invoke termination
+- [x] tests: seed the maps (via existing test seams), invoke termination
       cleanup, assert entries for the dead pid are gone and entries for
       other pids survive
-- [ ] gate: `mise run build` + targeted tests — must pass before task 4
+- [x] gate: `mise run build` + targeted tests — must pass before task 4
 
 ### Task 4: Verify acceptance criteria and full gate
 
 - [ ] run a debug build, trigger a runtime state dump, and confirm the
       `-- Memory --` section appears with plausible values; start/stop a
       trace capture and confirm both embedded dumps include it
-- [ ] full suite: `mise run check`
-- [ ] changeset: `mise run changeset none "Runtime state dumps and trace
+- [x] full suite: `mise run check`
+- [x] changeset: `mise run changeset none "Runtime state dumps and trace
       captures now include process memory diagnostics"` (developer-facing
       diagnostics; use `patch` instead if the pruning fix is judged
       user-visible)
 
 ### Task 5: Housekeep
 
-- [ ] update this plan's checkboxes; note any deviations inline
-- [ ] move this plan to `completed/` on the plans branch once merged
+- [x] update this plan's checkboxes; note any deviations inline
+- [x] move this plan to `completed/` on the plans branch once merged
 
 ## Commit message shape
 
