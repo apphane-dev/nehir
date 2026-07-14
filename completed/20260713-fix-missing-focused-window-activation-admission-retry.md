@@ -1,5 +1,46 @@
 # Plan: retry focused admission when a user-activated app's window resolves late
 
+- **Status:** completed on `main` on 2026-07-13
+- **Implemented by:** `b8c4ed15` (`Retry focused admission when an activated app's window resolves late`)
+- **Verified target state:** `main` at `b8c4ed15`
+
+## Completion record
+
+Landed as fix option A, one commit, touching only
+`Sources/Nehir/Core/Controller/AXEventHandler.swift` (+78) and the changeset
+`.changeset/20260713125306-admit-windows-of-user-activated-apps-even-when-t.md`
+(`patch`) — the fences held (no test files, no guard semantic changes, no other
+files).
+
+What shipped, against the landed source:
+
+- New bounded retry state `pendingUntrackedActivationRetryTasksByPid` /
+  `untrackedActivationRetryCountByPid`, delay `untrackedActivationRetryDelay =
+  300 ms`, cap `untrackedActivationRetryLimit = 6`
+  (`AXEventHandler.swift:7474` `scheduleUntrackedActivationRetry`), kept fully
+  separate from the managed-request retry machinery as specified.
+- The recovery hook fires at the end of `handleMissingFocusedWindow`
+  (`AXEventHandler.swift:7175`) under exactly the planned condition:
+  `hasRecentAppActivation(for: pid)` and no tracked entries for the pid and
+  `pid != getpid()`; it calls `scheduleAXContextWarmup(for: pid)` then
+  `scheduleUntrackedActivationRetry`. Each fired retry re-runs
+  `handleAppActivation(pid:source:origin: .retry)` and, while the window stays
+  untracked, re-enters this hook to schedule the next attempt under the cap.
+- New trace event `untracked_activation_retry pid=<pid> attempt=<n>
+  source=<source>` (`AXEventHandler.swift:404`).
+- Cleanup wired into `cleanupFocusStateForTerminatedApp`
+  (`AXEventHandler.swift:7287`), `cleanup()`, and `resetDebugStateForTests()`
+  via `resetUntrackedActivationRetry(for:)` / `resetUntrackedActivationRetryState()`.
+
+**Justified deviation (accepted):** the implementation added `origin ==
+.external` to the `recordRecentAppActivation` gate in `handleAppActivation`
+(`AXEventHandler.swift:3604`) and an `activeManagedRequest == nil` guard inside
+the fired retry. Both are correctness necessities the plan omitted: without the
+`origin` gate, each `.retry` re-invocation would renew the 10 s intent TTL and
+reset the retry counter, turning the bounded retry into an unbounded loop; the
+managed-request guard keeps the retry from racing a real focus request. The
+retry preserves the original activation `source`.
+
 Discovery:
 [`discovery/20260707-chatgpt-activation-admission-misses-recent-activation-ttl.md`](../discovery/20260707-chatgpt-activation-admission-misses-recent-activation-ttl.md)
 (fix option A there). Family:

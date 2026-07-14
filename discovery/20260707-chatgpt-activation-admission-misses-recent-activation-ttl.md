@@ -1,14 +1,16 @@
 # Discovery: ChatGPT activation not tiled — recent-app-activation exemption expires before the first real admission attempt
 
-Status: confirmed — runtime evidence and source mechanism both verified against
-the build that produced the capture (`nehir vd953d4`, i.e. main at `d953d4d3`
-"Float zero-frame Gecko transient dialogs that the first #142 fix still tiled",
-which contains both the user-activation exemption `151f4e3a` and the admission
-diagnostics `0f785212`). **Repro confirmed by the user on 2026-07-13** using
-the recipe below (hide the managed window, restart nehir) — see the
-"2026-07-13 confirmation captures" subsection. Fix plan:
-[`planned/20260713-fix-missing-focused-window-activation-admission-retry.md`](../planned/20260713-fix-missing-focused-window-activation-admission-retry.md)
-(fix option A).
+Status: **resolved** — fixed on `main` at `b8c4ed15` ("Retry focused admission
+when an activated app's window resolves late") via fix option A. Runtime
+evidence and source mechanism were verified against the build that produced the
+capture (`nehir vd953d4`, i.e. main at `d953d4d3` "Float zero-frame Gecko
+transient dialogs that the first #142 fix still tiled", which contains both the
+user-activation exemption `151f4e3a` and the admission diagnostics `0f785212`).
+**Repro confirmed by the user on 2026-07-13** using the recipe below (hide the
+managed window, restart nehir) — see the "2026-07-13 confirmation captures"
+subsection. Completed plan:
+[`completed/20260713-fix-missing-focused-window-activation-admission-retry.md`](../completed/20260713-fix-missing-focused-window-activation-admission-retry.md).
+User validation of the shipped fix in the real repro is still pending.
 
 This is a **recurrence of the Slack trap**
 (`discovery/20260703-user-activated-slack-suppressed-as-stale-under-nonmanaged-focus.md`)
