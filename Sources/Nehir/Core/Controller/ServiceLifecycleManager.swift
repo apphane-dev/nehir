@@ -80,6 +80,7 @@ final class ServiceLifecycleManager {
         controller.reconcileEnabledAndHotkeysState()
         controller.layoutRefreshController.setup()
         controller.axEventHandler.setup()
+        controller.axManager.installWorkspaceObservers()
         controller.axManager.onAppLaunched = { [weak self] _ in
             self?.handleAppLaunched()
         }

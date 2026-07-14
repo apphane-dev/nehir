@@ -85,8 +85,26 @@ final class AXManager {
     private(set) var inactiveWorkspaceWindowIds: Set<Int> = []
 
     init() {
-        setupTerminationObserver()
-        setupLaunchObserver()
+        installWorkspaceObservers()
+    }
+
+    /// Install the app launch/termination NSWorkspace observers if they are not
+    /// already registered. Idempotent so it can be called again after a service
+    /// restart (stop() → cleanup() nils them). See ServiceLifecycleManager.startServices().
+    func installWorkspaceObservers() {
+        if appTerminationObserver == nil {
+            setupTerminationObserver()
+        }
+        if appLaunchObserver == nil {
+            setupLaunchObserver()
+        }
+    }
+
+    /// Observability of a private lifecycle invariant (used by
+    /// AXManagerObserverReinstallTests). Reflects real observer state; does not
+    /// stub or override observer behavior.
+    var workspaceObserversInstalled: Bool {
+        appTerminationObserver != nil && appLaunchObserver != nil
     }
 
     private static func format(frame: CGRect?) -> String {

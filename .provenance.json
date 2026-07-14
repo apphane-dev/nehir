@@ -114,7 +114,8 @@
         "Tests/NehirTests/ProcessMemoryDiagnosticsTests.swift",
         "Tests/NehirTests/RuntimeMemoryDumpSectionTests.swift",
         "Tests/NehirTests/TerminatedAppStatePruningTests.swift",
-        "Tests/NehirTests/SwipeAfterFullscreenExitWorkspaceTests.swift"
+        "Tests/NehirTests/SwipeAfterFullscreenExitWorkspaceTests.swift",
+        "Tests/NehirTests/AXManagerObserverReinstallTests.swift"
       ],
       "copyright": [
         "2026 Aleksei Gurianov and Nehir contributors"
@@ -123,6 +124,18 @@
     }
   ],
   "upstreamCommits": {
+    "Sources/Nehir/Core/Ax/AXManager.swift": [
+      {
+        "repo": "https://github.com/BarutSRB/OmniWM",
+        "hash": "6808e44c"
+      }
+    ],
+    "Sources/Nehir/Core/Controller/ServiceLifecycleManager.swift": [
+      {
+        "repo": "https://github.com/BarutSRB/OmniWM",
+        "hash": "6808e44c"
+      }
+    ],
     "Sources/Nehir/Core/Config/MonitorGapSettings.swift": [
       {
         "repo": "https://github.com/BarutSRB/OmniWM",
