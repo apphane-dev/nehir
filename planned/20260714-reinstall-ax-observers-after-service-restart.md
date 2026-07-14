@@ -4,13 +4,41 @@ Verified against main `3056bee8` on 2026-07-14. **Re-verify line numbers before
 editing; they drift.**
 
 **Status:** planned.
-**Symptom:** After the runtime is stopped and started again within the same
-process — a disable→enable toggle, or an Accessibility-permission grant/revoke
-cycle — Nehir stops noticing apps launching and quitting. New app windows are
-not admitted on launch and terminated apps' windows are not cleaned up, until
-the whole app is relaunched.
+**Symptom:** After the runtime is stopped and started again **within the same
+process**, Nehir stops noticing apps launching and quitting. New app launches are
+not detected and terminated apps' window state / `AppAXContext` are not torn down
+via the termination observer, until the whole app is relaunched. (Other admission
+paths — focused-window admission, periodic rescan, CGS observers — can partially
+mask the *launch* case, so termination is the cleaner visible symptom.)
+
+**The concrete trigger is onboarding, and it fires on first run.** The one path
+that does a same-process stop→start today is the onboarding gate
+(`WMController.setOnboardingActive`, `Sources/Nehir/Core/Controller/WMController.swift:428-440`):
+entering onboarding calls `serviceLifecycleManager.stop()` (→ `cleanup()`, which
+nils the observers), leaving it calls `setEnabled(desiredEnabled)` →
+`serviceLifecycleManager.start()` → `startServices()` (which does not reinstall
+them). Because `AppDelegate` runs `setOnboardingActive(true)` whenever
+`!hasCompletedOnboarding` (`Sources/Nehir/App/AppDelegate.swift:98-102`), **every
+new user runs their entire first session with launch/quit detection broken** —
+`AXManager.init()` installs the observers, onboarding-open nils them, and
+onboarding-finish restarts services without reinstalling. A second launch skips
+onboarding, so the init-installed observers survive and the bug hides.
+
+Note: losing Accessibility permission does **not** trigger this — it only flips
+`accessibilityPermissionGranted` and reconciles `isEnabled`
+(`WMController.swift:448-451`); it never calls `stop()`/`cleanup()`. There is also
+no UI "disable" path calling `setEnabled(false)` today. Onboarding (and any
+*future* disable/enable or re-run-onboarding affordance) is the trigger.
+
 **Desired behavior:** a stop→start cycle fully restores app launch/termination
 detection, exactly as a fresh launch would.
+
+**How to observe (for the implementer's own sanity check — the Step 3 test is the
+real gate):** the deterministic signal is the unit test below. Live, you can
+reset onboarding-completed state, launch Nehir, finish the wizard, then (without
+quitting) quit a running app and watch its window state linger; or set an lldb
+breakpoint in `setupTerminationObserver`/`setupLaunchObserver` (hit only at
+launch, never again after onboarding) and in `cleanup` (hit on onboarding-open).
 
 Upstream reference: `BarutSRB/OmniWM` commit `6808e44c` ("Stabilize event intake
 and service restarts"), which introduced an idempotent `installWorkspaceObservers()`
@@ -162,7 +190,7 @@ real state, it does not stub the observers.
 ## Changeset (required — user-visible bug fix)
 
 ```bash
-mise run changeset patch "Restore app launch and quit detection after the runtime is disabled and re-enabled (or after an Accessibility-permission change) without needing an app relaunch"
+mise run changeset patch "Restore app launch and quit detection after completing onboarding, so a first-run session no longer loses app tracking until the app is relaunched"
 ```
 
 ## Commit message shape
@@ -173,11 +201,12 @@ Plain-English subject, no Conventional-Commits prefix:
 Reinstall app launch/termination observers after a restart
 
 AXManager registered its NSWorkspace launch/termination observers only in
-init(), while stop() → cleanup() removed and nilled them. A disable→enable or
-Accessibility-permission cycle therefore left the onAppLaunched/onAppTerminated
-closures wired but never fired, so app launch and quit detection stayed dead
-until a full relaunch. Add an idempotent installWorkspaceObservers() and call
-it from both init() and ServiceLifecycleManager.startServices().
+init(), while stop() → cleanup() removed and nilled them. The onboarding gate
+does a same-process stop→start (and runs on first launch), so after finishing
+onboarding the onAppLaunched/onAppTerminated closures were wired but never
+fired — every new user's first session lost app launch/quit detection until a
+full relaunch. Add an idempotent installWorkspaceObservers() and call it from
+both init() and ServiceLifecycleManager.startServices().
 
 Ports the observer-reinstall portion of BarutSRB/OmniWM@6808e44c.
 
