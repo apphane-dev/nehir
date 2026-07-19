@@ -1622,6 +1622,23 @@ final class AXEventHandler: CGSEventDelegate {
                 )
             )
         )
+        if let token = trace.token,
+           let workspaceId = controller?.workspaceManager.workspace(for: token)
+        {
+            controller?.diagnostics.recordRuntimeViewportTrace(
+                workspaceId: workspaceId,
+                reason: "close_recovery_destroy_liveness_decision",
+                details: [
+                    "uptimeMs=\(traceUptimeMs())",
+                    "windowId=\(trace.windowId)",
+                    "token=\(token)",
+                    "origin=\(trace.origin.traceName)",
+                    "windowServerPid=\(trace.windowServerPid.map(String.init) ?? "nil")",
+                    "outcome=\(trace.outcome)",
+                    "reason=\(trace.reason)"
+                ]
+            )
+        }
     }
 
     private func recordDestroyLivenessVerification(_ trace: DestroyLivenessVerificationTrace) {
@@ -1637,6 +1654,21 @@ final class AXEventHandler: CGSEventDelegate {
                 )
             )
         )
+        if let workspaceId = controller?.workspaceManager.workspace(for: trace.token) {
+            controller?.diagnostics.recordRuntimeViewportTrace(
+                workspaceId: workspaceId,
+                reason: "close_recovery_destroy_liveness_verification",
+                details: [
+                    "uptimeMs=\(traceUptimeMs())",
+                    "token=\(trace.token)",
+                    "origin=\(trace.origin.traceName)",
+                    "windowServerAlive=\(trace.windowServerAlive)",
+                    "axEnumeration=\(trace.axEnumeration)",
+                    "outcome=\(trace.outcome)",
+                    "reason=\(trace.reason)"
+                ]
+            )
+        }
     }
 
     private func handleFrameChanged(windowId: UInt32) {
@@ -2329,7 +2361,9 @@ final class AXEventHandler: CGSEventDelegate {
                 workspaceId: workspaceId,
                 reason: "close_recovery_removed_window_focus_recovery",
                 details: [
+                    "uptimeMs=\(traceUptimeMs())",
                     "removedToken=\(token)",
+                    "recentSameAppCloseAgeMs=\(recentSameAppCloseAgeMs(for: token.pid))",
                     "confirmedBeforeRemoval=\(confirmedTokenBeforeRemoval.map(String.init(describing:)) ?? "nil")",
                     "activeRecoveryWorkspace=\(recoveryContextBeforeRemoval?.workspaceId.uuidString ?? "nil")",
                     "activeRecoveryPreservedToken=\(recoveryContextBeforeRemoval?.preservedToken.map(String.init(describing:)) ?? "nil")",
@@ -2409,19 +2443,28 @@ final class AXEventHandler: CGSEventDelegate {
             return
         }
 
+        let replacedContext = windowCloseFocusRecoveryContext
         windowCloseFocusRecoveryContext = WindowCloseFocusRecoveryContext(
             workspaceId: workspaceId,
             expiresAt: Date().addingTimeInterval(Self.windowCloseFocusRecoveryDuration),
             suppressedActivationPid: suppressingPid,
             preservedToken: preservedToken
         )
+        let currentTarget = controller.currentBorderTarget()
         controller.diagnostics.recordRuntimeViewportTrace(
             workspaceId: workspaceId,
             reason: "close_recovery_begin",
             details: [
+                "uptimeMs=\(traceUptimeMs())",
                 "caller=\(reason)",
+                "durationMs=\(Int(Self.windowCloseFocusRecoveryDuration * 1000))",
                 "suppressedPid=\(suppressingPid.map(String.init) ?? "nil")",
-                "preservedToken=\(preservedToken.map(String.init(describing:)) ?? "nil")"
+                "preservedToken=\(preservedToken.map(String.init(describing:)) ?? "nil")",
+                "replacedWorkspace=\(replacedContext?.workspaceId.uuidString ?? "nil")",
+                "replacedPreservedToken=\(replacedContext?.preservedToken.map(String.init(describing:)) ?? "nil")",
+                "currentTarget=\(currentTarget.map { String(describing: $0.token) } ?? "nil")",
+                "currentTargetManaged=\(currentTarget.map { String($0.isManaged) } ?? "nil")",
+                "confirmedFocus=\(controller.workspaceManager.confirmedManagedFocusToken.map(String.init(describing:)) ?? "nil")"
             ]
         )
         controller.focusPolicyEngine.beginLease(
@@ -2435,6 +2478,20 @@ final class AXEventHandler: CGSEventDelegate {
     private func activeWindowCloseFocusRecoveryContext() -> WindowCloseFocusRecoveryContext? {
         guard let context = windowCloseFocusRecoveryContext else { return nil }
         guard context.expiresAt > Date() else {
+            let currentTarget = controller?.currentBorderTarget()
+            controller?.diagnostics.recordRuntimeViewportTrace(
+                workspaceId: context.workspaceId,
+                reason: "close_recovery_expired",
+                details: [
+                    "uptimeMs=\(traceUptimeMs())",
+                    "suppressedPid=\(context.suppressedActivationPid.map(String.init) ?? "nil")",
+                    "preservedToken=\(context.preservedToken.map(String.init(describing:)) ?? "nil")",
+                    "expiredAgoMs=\(Int(max(0, -context.expiresAt.timeIntervalSinceNow) * 1000))",
+                    "currentTarget=\(currentTarget.map { String(describing: $0.token) } ?? "nil")",
+                    "currentTargetManaged=\(currentTarget.map { String($0.isManaged) } ?? "nil")",
+                    "confirmedFocus=\(controller?.workspaceManager.confirmedManagedFocusToken.map(String.init(describing:)) ?? "nil")"
+                ]
+            )
             endWindowCloseFocusRecovery()
             return nil
         }
@@ -3089,7 +3146,9 @@ final class AXEventHandler: CGSEventDelegate {
         let recentNonManagedFocus = overlaySignal?.recentNonManaged
             ?? hasRecentNonManagedFocus(for: observedEntry.pid)
         let currentTarget = controller?.currentBorderTarget()
+        let precursor = focusedWindowLossClosePrecursor(for: observedEntry.pid)
         let details = [
+            "uptimeMs=\(traceUptimeMs())",
             "token=\(observedEntry.token)",
             "isWorkspaceActive=\(isWorkspaceActive)",
             "source=\(source.rawValue)",
@@ -3097,13 +3156,19 @@ final class AXEventHandler: CGSEventDelegate {
             "requestDisposition=\(requestDisposition)",
             "activeRecoveryWorkspace=\(activeWindowCloseFocusRecoveryContext()?.workspaceId.uuidString ?? "nil")",
             "recentSameAppClose=\(recentSameAppClose)",
+            "recentSameAppCloseAgeMs=\(recentSameAppCloseAgeMs(for: observedEntry.pid))",
             "recentNonManagedFocus=\(recentNonManagedFocus)",
+            "recentNonManagedFocusAgeMs=\(recentNonManagedFocusAgeMs(for: observedEntry.pid))",
+            "overlayCapablePid=\(overlayCapablePids.contains(observedEntry.pid))",
+            "nonManagedFocusActive=\(controller?.workspaceManager.isNonManagedFocusActive ?? false)",
             "overlayVisible=\(overlaySignal.map { String($0.overlayVisible) } ?? "not_checked")",
             "sameAppCloseOrOverlayEvidence=\(sameAppCloseOrOverlayEvidence.map { String($0) } ?? "not_checked")",
             "currentTarget=\(currentTarget.map { String(describing: $0.token) } ?? "nil")",
             "currentTargetManaged=\(currentTarget.map { String($0.isManaged) } ?? "nil")",
             "currentTargetSamePid=\(currentTarget.map { String($0.pid == observedEntry.pid) } ?? "nil")",
-            "focusedWindowLossPrecursor=\(focusedWindowLossClosePrecursor(for: observedEntry.pid)?.workspaceId.uuidString ?? "nil")",
+            "focusedWindowLossPrecursor=\(precursor?.workspaceId.uuidString ?? "nil")",
+            "focusedWindowLossPrecursorToken=\(precursor?.preservedToken.map(String.init(describing:)) ?? "nil")",
+            "focusedWindowLossPrecursorAgeMs=\(focusedWindowLossPrecursorAgeMs(for: observedEntry.pid))",
             "decision=\(decision)"
         ]
         controller?.diagnostics.recordRuntimeViewportTrace(
@@ -3313,13 +3378,24 @@ final class AXEventHandler: CGSEventDelegate {
         // first external arrival so we don't loop; the retry resolves via the
         // evidence branch above or falls through as a real activation.
         guard origin == .external else { return false }
+        let currentTarget = controller.currentBorderTarget()
         controller.diagnostics.recordRuntimeViewportTrace(
             workspaceId: observedEntry.workspaceId,
             reason: "overlay_close_churn_deferred",
             details: [
+                "uptimeMs=\(traceUptimeMs())",
                 "token=\(observedEntry.token)",
                 "source=\(source.rawValue)",
                 "origin=\(origin.rawValue)",
+                "delayMs=120",
+                "recentSameAppCloseAgeMs=\(recentSameAppCloseAgeMs(for: observedEntry.pid))",
+                "recentNonManagedFocusAgeMs=\(recentNonManagedFocusAgeMs(for: observedEntry.pid))",
+                "overlayCapablePid=\(overlayCapablePids.contains(observedEntry.pid))",
+                "activeRecoveryRemainingMs=\(activeRecoveryRemainingMs())",
+                "nonManagedFocusActive=\(controller.workspaceManager.isNonManagedFocusActive)",
+                "currentTarget=\(currentTarget.map { String(describing: $0.token) } ?? "nil")",
+                "currentTargetManaged=\(currentTarget.map { String($0.isManaged) } ?? "nil")",
+                "confirmedFocus=\(controller.workspaceManager.confirmedManagedFocusToken.map(String.init(describing:)) ?? "nil")",
                 "reason=await_close_recovery_signal"
             ]
         )
@@ -3331,12 +3407,30 @@ final class AXEventHandler: CGSEventDelegate {
             return true
         }
         deferredInactiveNativeActivationTokens.insert(deferralKey)
-        Task { [weak self, deferralKey, pid = observedEntry.pid, source] in
+        Task { [weak self, deferralKey, pid = observedEntry.pid, workspaceId = observedEntry.workspaceId, source] in
             try? await Task.sleep(nanoseconds: 120_000_000)
             await MainActor.run { [weak self] in
                 guard let self,
                       self.deferredInactiveNativeActivationTokens.remove(deferralKey) != nil
                 else { return }
+                let currentTarget = self.controller?.currentBorderTarget()
+                self.controller?.diagnostics.recordRuntimeViewportTrace(
+                    workspaceId: workspaceId,
+                    reason: "overlay_close_churn_retry",
+                    details: [
+                        "uptimeMs=\(self.traceUptimeMs())",
+                        "token=\(deferralKey.token)",
+                        "source=\(source.rawValue)",
+                        "origin=retry",
+                        "recentSameAppCloseAgeMs=\(self.recentSameAppCloseAgeMs(for: pid))",
+                        "recentNonManagedFocusAgeMs=\(self.recentNonManagedFocusAgeMs(for: pid))",
+                        "focusedWindowLossPrecursorAgeMs=\(self.focusedWindowLossPrecursorAgeMs(for: pid))",
+                        "activeRecoveryRemainingMs=\(self.activeRecoveryRemainingMs())",
+                        "currentTarget=\(currentTarget.map { String(describing: $0.token) } ?? "nil")",
+                        "currentTargetManaged=\(currentTarget.map { String($0.isManaged) } ?? "nil")",
+                        "confirmedFocus=\(self.controller?.workspaceManager.confirmedManagedFocusToken.map(String.init(describing:)) ?? "nil")"
+                    ]
+                )
                 self.handleAppActivation(pid: pid, source: source, origin: .retry)
             }
         }
@@ -6335,6 +6429,32 @@ final class AXEventHandler: CGSEventDelegate {
             entry.workspaceId,
             focusing: entry.token
         )
+    }
+
+    private func traceUptimeMs() -> Int {
+        Int(managedReplacementCurrentUptime() * 1000)
+    }
+
+    private func traceAgeMs(since recordedAt: TimeInterval?) -> String {
+        guard let recordedAt else { return "nil" }
+        return String(Int(max(0, managedReplacementCurrentUptime() - recordedAt) * 1000))
+    }
+
+    private func recentSameAppCloseAgeMs(for pid: pid_t) -> String {
+        traceAgeMs(since: recentSameAppWindowCloseByPid[pid])
+    }
+
+    private func recentNonManagedFocusAgeMs(for pid: pid_t) -> String {
+        traceAgeMs(since: recentNonManagedFocusByPid[pid])
+    }
+
+    private func focusedWindowLossPrecursorAgeMs(for pid: pid_t) -> String {
+        traceAgeMs(since: focusedWindowLossClosePrecursorByPid[pid]?.recordedAt)
+    }
+
+    private func activeRecoveryRemainingMs() -> String {
+        guard let context = windowCloseFocusRecoveryContext else { return "nil" }
+        return String(Int(context.expiresAt.timeIntervalSinceNow * 1000))
     }
 
     private func recordRecentSameAppWindowClose(pid: pid_t) {

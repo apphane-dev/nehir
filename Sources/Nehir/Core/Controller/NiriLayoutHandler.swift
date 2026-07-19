@@ -1517,7 +1517,7 @@ enum NiriWindowMoveResult {
             col.resolveAndCacheWidth(workingAreaWidth: workingFrame.width, gaps: gap)
         }
 
-        if let newNode = engine.focusTarget(
+        let resolvedTarget = engine.focusTarget(
             direction: direction,
             currentSelection: currentNode,
             in: wsId,
@@ -1525,10 +1525,37 @@ enum NiriWindowMoveResult {
             state: &state,
             workingFrame: workingFrame,
             gaps: gap
-        ) {
+        )
+        if let newNode = resolvedTarget {
             activateNode(
                 newNode, in: wsId, state: &state,
                 options: .init(activateWindow: false, ensureVisible: false)
+            )
+        }
+
+        // Record what the explicit directional-focus keypress resolved to in the
+        // layout model, so a repro can distinguish "the command never moved the
+        // selection" from "the selection moved but was reverted by later
+        // re-admission/close-recovery churn." The resulting selection captured
+        // here is the in-model truth immediately after activation; subsequent
+        // viewport traces (which also log selectedNode) reveal any later revert.
+        if controller.diagnostics.isRuntimeTraceCaptureActive {
+            let currentToken = (currentNode as? NiriWindow)?.token
+            let targetToken = (resolvedTarget as? NiriWindow)?.token
+            let resultingToken = selectedWindowToken(state: state, engine: engine)
+            controller.diagnostics.recordRuntimeViewportTrace(
+                workspaceId: wsId,
+                reason: "focus_direction_dispatch",
+                details: [
+                    "direction=\(direction)",
+                    "currentNodeId=\(String(describing: currentId))",
+                    "currentToken=\(currentToken.map(String.init(describing:)) ?? "nil")",
+                    "targetResolved=\(resolvedTarget != nil)",
+                    "targetNodeId=\(resolvedTarget.map { String(describing: $0.id) } ?? "nil")",
+                    "targetToken=\(targetToken.map(String.init(describing:)) ?? "nil")",
+                    "resultingSelectedNodeId=\(state.selectedNodeId.map { String(describing: $0) } ?? "nil")",
+                    "resultingSelectedToken=\(resultingToken.map(String.init(describing:)) ?? "nil")"
+                ]
             )
         }
         _ = controller.workspaceManager.applySessionPatch(
