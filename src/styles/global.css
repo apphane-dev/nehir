@@ -34,7 +34,8 @@
 
   /* Rhythm */
   --pad: clamp(1.25rem, 5vw, 3rem);
-  --maxw: 1200px;
+  --maxw: 1400px;
+  --maxw-wide: 1600px;
   --radius: 14px;
   --radius-lg: 20px;
 }
@@ -99,6 +100,11 @@ a { color: inherit; text-decoration: none; }
   margin-inline: auto;
   padding-inline: var(--pad);
 }
+
+/* Showcase bands (the demo strip, feature grid) get extra width so a single
+   centered column does not waste wide viewports. Prose blocks keep their own
+   ch-based measure caps, so readability is unaffected. */
+.wrap-wide { max-width: var(--maxw-wide); }
 
 .section {
   padding-block: clamp(4.5rem, 10vw, 8rem);

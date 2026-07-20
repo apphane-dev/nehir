@@ -2,38 +2,106 @@
 /*
  * FlowStrip — the signature element.
  * A live, horizontally-scrolling strip of window columns: a miniature of
- * Nehir itself. Focus slides between columns with the arrow keys or the
- * on-screen controls; the strip scrolls the focused column into view.
+ * Nehir itself.
+ *
+ * Selection is per *window*, mirroring Nehir's real focus model: the focus
+ * ring targets an individual window — a stacked window inside a column, or the
+ * active tab inside a tabbed column — never a whole column. Arrow keys navigate
+ * like ⌥⌘Arrow "go there": Left/Right move across columns (landing on each
+ * column's active window), Up/Down move within the focused column — between
+ * stacked windows, or cycling tabs in a tabbed column.
+ *
+ * Tabbed columns render as a thin vertical rail of peels along the column's
+ * left edge (no labels), exactly like Nehir's TabbedColumnOverlay. Clicking a
+ * peel switches the visible tab. The workspace switcher swaps the whole strip
+ * to a different mock arrangement.
  */
-type Line = { w: number; accent?: boolean };
-type Win = { app: string; kind: string; lines: number; tag?: string };
+type Win = { app: string; kind: string; lines: number };
 type Col = { width: "narrow" | "normal" | "wide"; mode?: "tabs"; windows: Win[] };
+type Workspace = { key: string; label: string; focus: number; columns: Col[] };
 
-const columns: Col[] = [
-  { width: "normal", windows: [{ app: "Terminal", kind: "term", lines: 7 }] },
+const workspaces: Workspace[] = [
   {
-    width: "wide",
-    windows: [{ app: "Editor", kind: "edit", lines: 9, tag: "focused" }],
-  },
-  {
-    width: "normal",
-    windows: [
-      { app: "Safari", kind: "web", lines: 3 },
-      { app: "Docs", kind: "doc", lines: 4 },
+    key: "code",
+    label: "code",
+    focus: 1,
+    columns: [
+      { width: "normal", windows: [{ app: "Terminal", kind: "term", lines: 7 }] },
+      { width: "wide", windows: [{ app: "Editor", kind: "edit", lines: 9 }] },
+      {
+        width: "normal",
+        windows: [
+          { app: "Safari", kind: "web", lines: 3 },
+          { app: "Docs", kind: "doc", lines: 4 },
+        ],
+      },
+      {
+        width: "narrow",
+        mode: "tabs",
+        windows: [
+          { app: "Slack", kind: "chat", lines: 5 },
+          { app: "Mail", kind: "doc", lines: 5 },
+          { app: "Linear", kind: "doc", lines: 5 },
+        ],
+      },
+      { width: "normal", windows: [{ app: "Music", kind: "media", lines: 4 }] },
+      { width: "wide", windows: [{ app: "Xcode", kind: "edit", lines: 9 }] },
     ],
   },
   {
-    width: "narrow",
-    mode: "tabs",
-    windows: [
-      { app: "Slack", kind: "chat", lines: 5 },
-      { app: "Mail", kind: "doc", lines: 5 },
-      { app: "Linear", kind: "doc", lines: 5 },
+    key: "comms",
+    label: "comms",
+    focus: 0,
+    columns: [
+      {
+        width: "narrow",
+        mode: "tabs",
+        windows: [
+          { app: "Slack", kind: "chat", lines: 6 },
+          { app: "Mail", kind: "doc", lines: 5 },
+          { app: "Messages", kind: "chat", lines: 4 },
+        ],
+      },
+      { width: "wide", windows: [{ app: "Mail", kind: "doc", lines: 8 }] },
+      {
+        width: "normal",
+        windows: [
+          { app: "Calendar", kind: "doc", lines: 3 },
+          { app: "Reminders", kind: "doc", lines: 4 },
+        ],
+      },
+      { width: "normal", windows: [{ app: "Zoom", kind: "media", lines: 5 }] },
     ],
   },
-  { width: "normal", windows: [{ app: "Music", kind: "media", lines: 4 }] },
-  { width: "wide", windows: [{ app: "Xcode", kind: "edit", lines: 9 }] },
+  {
+    key: "read",
+    label: "read",
+    focus: 0,
+    columns: [
+      { width: "wide", windows: [{ app: "Safari", kind: "web", lines: 9 }] },
+      {
+        width: "normal",
+        windows: [
+          { app: "Docs", kind: "doc", lines: 4 },
+          { app: "Notes", kind: "doc", lines: 5 },
+        ],
+      },
+      {
+        width: "normal",
+        mode: "tabs",
+        windows: [
+          { app: "Wikipedia", kind: "web", lines: 6 },
+          { app: "arXiv", kind: "doc", lines: 6 },
+          { app: "Reader", kind: "doc", lines: 6 },
+        ],
+      },
+      { width: "narrow", windows: [{ app: "Music", kind: "media", lines: 4 }] },
+    ],
+  },
 ];
+
+const initial = workspaces[0];
+const initialWin = `fs-${initial.key}-${initial.focus}-0`;
 ---
 
 <figure class="strip" aria-label="Interactive preview of windows arranged in scrolling columns">
@@ -41,48 +109,64 @@ const columns: Col[] = [
     <span class="strip-dot" style="--d:#ff5f57"></span>
     <span class="strip-dot" style="--d:#febc2e"></span>
     <span class="strip-dot" style="--d:#28c840"></span>
-    <span class="strip-ws">
-      <span class="ws-name is-active">code</span>
-      <span class="ws-name">comms</span>
-      <span class="ws-name">read</span>
+    <span class="strip-ws" role="group" aria-label="Workspaces">
+      {workspaces.map((ws, i) => (
+        <button
+          type="button"
+          class={`ws-name${i === 0 ? " is-active" : ""}`}
+          id={`fs-ws-${ws.key}`}
+          data-ws-btn={ws.key}
+          aria-pressed={i === 0 ? "true" : "false"}
+        >{ws.label}</button>
+      ))}
     </span>
-    <span class="strip-hint mono">← → to flow</span>
+    <span class="strip-hint mono">arrows to flow</span>
   </div>
 
-  <div class="strip-viewport" id="flow-viewport" tabindex="0" role="listbox" aria-activedescendant="flowstrip-opt-1"
-       aria-label="Window columns. Use left and right arrow keys to move focus.">
-    <div class="strip-track" id="flow-track">
-      {columns.map((col, i) => (
-        <div class={`col col-${col.width}${col.mode === "tabs" ? " col-tabs" : ""}`}
-             id={`flowstrip-opt-${i}`} data-col={i} role="option" aria-selected={i === 1 ? "true" : "false"}>
-          {col.mode === "tabs" && (
-            <div class="col-tabbar">
-              {col.windows.map((w, t) => (
-                <span class={`col-tab${t === 0 ? " is-active" : ""}`}>{w.app}</span>
-              ))}
-            </div>
-          )}
-          {(col.mode === "tabs" ? col.windows.slice(0, 1) : col.windows).map((w) => (
-            <div class="win">
-              <div class="win-bar">
-                <span class="win-app">{w.app}</span>
-              </div>
-              <div class={`win-body body-${w.kind}`}>
-                {Array.from({ length: w.lines }).map((_, li) => (
-                  <span class="ln" style={`--lw:${45 + ((li * 37) % 50)}%`}></span>
+  <div class="strip-viewport" id="flow-viewport" tabindex="0" role="listbox"
+       aria-activedescendant={initialWin}
+       aria-label="Windows in scrolling columns. Left and right arrows move between columns, up and down move within the focused column or cycle tabs.">
+    {workspaces.map((ws, wsi) => (
+      <div class="strip-track" data-ws={ws.key} data-focus={ws.focus} hidden={wsi !== 0}>
+        {ws.columns.map((col, c) => (
+          <div class={`col col-${col.width}${col.mode === "tabs" ? " col-tabs" : ""}`}
+               data-col={c} data-mode={col.mode ?? "stack"} data-active="0">
+            {col.mode === "tabs" && (
+              <div class="col-peels" aria-hidden="true">
+                {col.windows.map((w, t) => (
+                  <span class={`peel${t === 0 ? " is-active" : ""}`} data-peel={t} title={w.app}></span>
                 ))}
               </div>
+            )}
+            <div class="col-windows">
+              {col.windows.map((w, t) => (
+                <div class={`win win-${w.kind}`} role="option" id={`fs-${ws.key}-${c}-${t}`}
+                     data-app={w.app}
+                     aria-selected={wsi === 0 && c === ws.focus && t === 0 ? "true" : "false"}
+                     hidden={col.mode === "tabs" && t !== 0}>
+                  <div class="win-bar">
+                    <span class="win-app">{w.app}</span>
+                  </div>
+                  <div class={`win-body body-${w.kind}`}>
+                    {Array.from({ length: w.lines }).map((_, li) => (
+                      <span class="ln" style={`--lw:${45 + ((li * 37) % 50)}%`}></span>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      ))}
-    </div>
+          </div>
+        ))}
+      </div>
+    ))}
     <div class="focus-ring" id="flow-ring" aria-hidden="true"></div>
   </div>
 
+  <p class="strip-live sr-only" id="flow-live" aria-live="polite"></p>
+
   <figcaption class="strip-controls">
     <button class="strip-arrow" id="flow-prev" aria-label="Focus previous column">←</button>
-    <span class="strip-cap mono">Focused column slides into view — nothing gets squeezed.</span>
+    <span class="strip-cap mono">Focus a window — columns scroll, tabs peel, nothing gets squeezed.</span>
     <button class="strip-arrow" id="flow-next" aria-label="Focus next column">→</button>
   </figcaption>
 </figure>
@@ -98,6 +182,14 @@ const columns: Col[] = [
       0 0 0 1px rgba(255, 255, 255, 0.02) inset;
   }
 
+  .sr-only {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0 0 0 0);
+    white-space: nowrap; border: 0;
+  }
+
   .strip-chrome {
     display: flex;
     align-items: center;
@@ -111,8 +203,12 @@ const columns: Col[] = [
   .ws-name {
     font-family: var(--mono); font-size: 0.68rem; color: var(--faint);
     padding: 0.15rem 0.5rem; border-radius: 6px; border: 1px solid transparent;
+    background: transparent; cursor: pointer;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
   }
+  .ws-name:hover { color: var(--muted); }
   .ws-name.is-active { color: var(--cyan); border-color: rgba(51,217,242,0.3); background: rgba(51,217,242,0.07); }
+  .ws-name:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
   .strip-hint { margin-left: auto; font-size: 0.68rem; color: var(--faint); }
 
   .strip-viewport {
@@ -129,19 +225,27 @@ const columns: Col[] = [
   .strip-viewport:focus-visible { outline: 2px solid var(--cyan); outline-offset: -2px; }
 
   .strip-track { display: flex; gap: 0.85rem; width: max-content; }
+  .strip-track[hidden] { display: none; }
 
   .col {
     flex: none;
     display: flex;
-    flex-direction: column;
-    gap: 0.6rem;
+    flex-direction: row;
+    gap: 0.4rem;
     height: 340px;
     border-radius: 12px;
-    transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
   }
   .col-narrow { width: 168px; }
   .col-normal { width: 236px; }
   .col-wide { width: 320px; }
+
+  .col-windows {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
 
   .win {
     flex: 1;
@@ -153,13 +257,17 @@ const columns: Col[] = [
     border-radius: 10px;
     overflow: hidden;
   }
+  .win[hidden] { display: none; }
   .win-bar {
     display: flex; align-items: center;
     padding: 0.5rem 0.7rem;
     border-bottom: 1px solid var(--line);
     background: rgba(255, 255, 255, 0.02);
+    transition: background 0.2s, color 0.2s;
   }
   .win-app { font-family: var(--mono); font-size: 0.72rem; color: var(--muted); letter-spacing: 0.02em; }
+  .win[aria-selected="true"] .win-bar { background: rgba(78, 134, 242, 0.1); }
+  .win[aria-selected="true"] .win-app { color: var(--text); }
   .win-body { flex: 1; padding: 0.8rem 0.75rem; display: flex; flex-direction: column; gap: 0.5rem; overflow: hidden; }
   .ln { height: 7px; width: var(--lw); border-radius: 4px; background: rgba(255, 255, 255, 0.07); }
 
@@ -173,23 +281,52 @@ const columns: Col[] = [
   .body-media { background: radial-gradient(circle at 30% 30%, rgba(155,84,240,0.18), transparent 70%), var(--surface); }
   .body-chat .ln:nth-child(even) { align-self: flex-end; background: rgba(78,134,242,0.18); }
 
-  /* tabbed column */
-  .col-tabbar { display: flex; gap: 0.2rem; }
-  .col-tab {
-    font-family: var(--mono); font-size: 0.62rem; color: var(--faint);
-    padding: 0.3rem 0.45rem; border-radius: 6px 6px 0 0;
-    background: rgba(255,255,255,0.02); border: 1px solid var(--line); border-bottom: none;
-    flex: 1; text-align: center; overflow: hidden; text-overflow: ellipsis;
+  /* tabbed column — a vertical rail of peels along the left edge, no labels.
+     Mirrors Nehir's TabbedColumnOverlay: the segments *share the column's
+     height* (equal, height-distributing pills that scale with the column, not
+     fixed chips), and the active tab is set apart by a wider, brighter pill —
+     Nehir's overlay widens the active segment (8px vs 5px) and fills it with
+     the accent color. Here the active pill is also a touch taller for extra
+     emphasis. */
+  .col-peels {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    width: 16px;
+    padding: 1px 0;
   }
-  .col-tab.is-active { color: var(--cyan); background: rgba(51,217,242,0.08); }
+  .peel {
+    flex: 1 1 0;
+    min-height: 10px;
+    width: 6px;
+    border-radius: 5px;
+    background: rgba(255, 255, 255, 0.14);
+    border: 1px solid var(--line);
+    cursor: pointer;
+    transition: width 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+      flex-grow 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+      background 0.2s, border-color 0.2s, box-shadow 0.2s;
+  }
+  .peel:hover { width: 9px; background: rgba(255, 255, 255, 0.28); }
+  .peel.is-active {
+    flex-grow: 1.5;
+    width: 12px;
+    background: var(--flow);
+    border-color: transparent;
+    box-shadow: 0 0 12px -3px rgba(78, 134, 242, 0.75);
+  }
 
-  /* focus ring — slides to the focused column */
+  /* focus ring — slides to the focused *window* (not the whole column) */
   .focus-ring {
     position: absolute;
-    top: 1.1rem;
-    height: 340px;
+    top: 0;
+    left: 0;
+    width: 0;
+    height: 0;
     border: 2px solid transparent;
-    border-radius: 13px;
+    border-radius: 12px;
     pointer-events: none;
     background: var(--flow) border-box;
     -webkit-mask: linear-gradient(#000 0 0) padding-box, linear-gradient(#000 0 0);
@@ -197,9 +334,9 @@ const columns: Col[] = [
     mask-composite: exclude;
     box-shadow: 0 0 0 1px rgba(0,0,0,0.4), 0 0 34px -6px rgba(78, 134, 242, 0.6);
     transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1),
-      width 0.4s cubic-bezier(0.22, 1, 0.36, 1);
-    will-change: transform, width;
-    left: 0;
+      width 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+      height 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: transform, width, height;
   }
 
   .strip-controls {
@@ -217,63 +354,182 @@ const columns: Col[] = [
     transition: color 0.15s, border-color 0.15s, transform 0.15s;
   }
   .strip-arrow:hover { color: var(--text); border-color: rgba(255,255,255,0.3); transform: translateY(-1px); }
+  .strip-arrow:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
 
   @media (max-width: 620px) {
     .col { height: 260px; }
-    .focus-ring { height: 260px; }
     .strip-hint { display: none; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .strip-viewport { scroll-behavior: auto; }
+    .focus-ring, .peel, .win-bar { transition: none; }
   }
 </style>
 
 <script>
   const viewport = document.getElementById("flow-viewport") as HTMLElement | null;
-  const track = document.getElementById("flow-track") as HTMLElement | null;
   const ring = document.getElementById("flow-ring") as HTMLElement | null;
+  const live = document.getElementById("flow-live") as HTMLElement | null;
   const prev = document.getElementById("flow-prev");
   const next = document.getElementById("flow-next");
+  const wsButtons = Array.from(document.querySelectorAll<HTMLButtonElement>("[data-ws-btn]"));
 
-  if (viewport && track && ring) {
-    const cols = Array.from(track.querySelectorAll<HTMLElement>(".col"));
-    let focused = 1;
+  if (viewport && ring) {
+    const reduced = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-    // The ring lives inside the scroll container and scrolls with the track,
-    // so it must be placed in the track's own content coordinates (offsetLeft),
-    // not viewport-relative client coordinates — otherwise it drifts by the
-    // scroll offset once the strip is scrolled.
+    let track = viewport.querySelector<HTMLElement>(".strip-track:not([hidden])")!;
+    let cols: HTMLElement[] = [];
+    let focusedCol = 0;
+
+    const winsOf = (col: HTMLElement) => Array.from(col.querySelectorAll<HTMLElement>(".win"));
+    const activeIdx = (col: HTMLElement) => Number(col.dataset.active ?? "0");
+    const activeWin = (col: HTMLElement) => winsOf(col)[activeIdx(col)];
+
+    // The ring lives inside the scroll container and scrolls with the track, so
+    // it must use content coordinates. Each .win's nearest positioned ancestor
+    // is the viewport (nothing between is positioned), so offsetLeft/offsetTop
+    // are already viewport-content coordinates — no drift once scrolled.
     const placeRing = () => {
-      const el = cols[focused];
-      if (!el) return;
-      ring.style.width = `${el.offsetWidth}px`;
-      ring.style.transform = `translateX(${el.offsetLeft}px)`;
+      const col = cols[focusedCol];
+      if (!col) return;
+      const win = activeWin(col);
+      if (!win) return;
+      ring.style.width = `${win.offsetWidth}px`;
+      ring.style.height = `${win.offsetHeight}px`;
+      ring.style.transform = `translate(${win.offsetLeft}px, ${win.offsetTop}px)`;
     };
 
-    const setFocus = (i: number, scroll = true) => {
-      focused = Math.max(0, Math.min(cols.length - 1, i));
-      cols.forEach((c, idx) => c.setAttribute("aria-selected", String(idx === focused)));
-      viewport.setAttribute("aria-activedescendant", `flowstrip-opt-${focused}`);
-      placeRing();
-      if (scroll) {
-        // Scroll only the strip horizontally. scrollIntoView() would also scroll
-        // the whole page vertically to bring the tall strip fully into view.
-        const el = cols[focused];
-        const target = el.offsetLeft - (viewport.clientWidth - el.offsetWidth) / 2;
-        viewport.scrollTo({
-          left: target,
-          behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+    const announce = (col: HTMLElement) => {
+      if (!live) return;
+      const win = activeWin(col);
+      const app = win?.dataset.app ?? "Window";
+      const wins = winsOf(col);
+      const idx = activeIdx(col) + 1;
+      const wsName = track.dataset.ws ?? "";
+      let msg: string;
+      if (col.dataset.mode === "tabs") {
+        msg = `${app}, tab ${idx} of ${wins.length}, ${wsName} workspace`;
+      } else if (wins.length > 1) {
+        msg = `${app}, window ${idx} of ${wins.length}, column ${focusedCol + 1} of ${cols.length}`;
+      } else {
+        msg = `${app}, column ${focusedCol + 1} of ${cols.length}, ${wsName} workspace`;
+      }
+      live.textContent = msg;
+    };
+
+    // Reflect selection into ARIA: only the active window of the focused column
+    // is the selected option.
+    const syncSelection = () => {
+      cols.forEach((col, ci) => {
+        winsOf(col).forEach((win, wi) => {
+          win.setAttribute("aria-selected", String(ci === focusedCol && wi === activeIdx(col)));
         });
+      });
+      const win = activeWin(cols[focusedCol]);
+      if (win) viewport.setAttribute("aria-activedescendant", win.id);
+    };
+
+    const showTab = (col: HTMLElement, idx: number) => {
+      const wins = winsOf(col);
+      col.dataset.active = String(idx);
+      wins.forEach((w, wi) => w.toggleAttribute("hidden", wi !== idx));
+      col.querySelectorAll<HTMLElement>(".peel").forEach((p, pi) =>
+        p.classList.toggle("is-active", pi === idx));
+    };
+
+    const scrollColIntoView = (col: HTMLElement) => {
+      const target = col.offsetLeft - (viewport.clientWidth - col.offsetWidth) / 2;
+      // Horizontal only — never scroll the page vertically to reveal the strip.
+      viewport.scrollTo({ left: target, behavior: reduced() ? "auto" : "smooth" });
+    };
+
+    const focusColumn = (i: number, scroll = true) => {
+      focusedCol = Math.max(0, Math.min(cols.length - 1, i));
+      syncSelection();
+      placeRing();
+      announce(cols[focusedCol]);
+      if (scroll) scrollColIntoView(cols[focusedCol]);
+    };
+
+    // Move within the focused column: cycle tabs (tabbed) or step between
+    // stacked windows. No horizontal scroll — we stay in the same column.
+    const moveWithinColumn = (delta: number) => {
+      const col = cols[focusedCol];
+      const wins = winsOf(col);
+      if (wins.length < 2) return;
+      const cur = activeIdx(col);
+      if (col.dataset.mode === "tabs") {
+        const nextIdx = (cur + delta + wins.length) % wins.length;
+        showTab(col, nextIdx);
+      } else {
+        const nextIdx = Math.max(0, Math.min(wins.length - 1, cur + delta));
+        if (nextIdx === cur) return;
+        col.dataset.active = String(nextIdx);
+      }
+      syncSelection();
+      placeRing();
+      announce(col);
+    };
+
+    const bindColumn = (col: HTMLElement, ci: number) => {
+      // Click a tab peel → switch the visible tab and focus that window.
+      col.querySelectorAll<HTMLElement>(".peel").forEach((peel) => {
+        peel.addEventListener("click", () => {
+          showTab(col, Number(peel.dataset.peel));
+          focusColumn(ci, false);
+        });
+      });
+      // Click a stacked window → focus it.
+      winsOf(col).forEach((win, wi) => {
+        win.addEventListener("click", () => {
+          if (col.dataset.mode !== "tabs") col.dataset.active = String(wi);
+          focusColumn(ci, false);
+        });
+      });
+    };
+
+    const activateWorkspace = (wsKey: string, announceIt = true) => {
+      const nextTrack = viewport.querySelector<HTMLElement>(`.strip-track[data-ws="${wsKey}"]`);
+      if (!nextTrack || nextTrack === track) return;
+      track.setAttribute("hidden", "");
+      nextTrack.removeAttribute("hidden");
+      track = nextTrack;
+      cols = Array.from(track.querySelectorAll<HTMLElement>(".col"));
+      cols.forEach(bindColumn);
+      wsButtons.forEach((b) => {
+        const on = b.dataset.wsBtn === wsKey;
+        b.classList.toggle("is-active", on);
+        b.setAttribute("aria-pressed", String(on));
+      });
+      viewport.scrollTo({ left: 0, behavior: "auto" });
+      focusColumn(Number(track.dataset.focus ?? "0"), true);
+      if (announceIt && live) {
+        live.textContent = `${track.dataset.ws} workspace`;
+        // Re-announce the focused window after the workspace name settles.
+        requestAnimationFrame(() => announce(cols[focusedCol]));
       }
     };
 
     viewport.addEventListener("keydown", (e) => {
-      if (e.key === "ArrowRight") { e.preventDefault(); setFocus(focused + 1); }
-      else if (e.key === "ArrowLeft") { e.preventDefault(); setFocus(focused - 1); }
+      switch (e.key) {
+        case "ArrowRight": e.preventDefault(); focusColumn(focusedCol + 1); break;
+        case "ArrowLeft": e.preventDefault(); focusColumn(focusedCol - 1); break;
+        case "ArrowDown": e.preventDefault(); moveWithinColumn(1); break;
+        case "ArrowUp": e.preventDefault(); moveWithinColumn(-1); break;
+      }
     });
-    prev?.addEventListener("click", () => setFocus(focused - 1));
-    next?.addEventListener("click", () => setFocus(focused + 1));
-    cols.forEach((c, i) => c.addEventListener("click", () => setFocus(i)));
+    prev?.addEventListener("click", () => focusColumn(focusedCol - 1));
+    next?.addEventListener("click", () => focusColumn(focusedCol + 1));
 
-    // realign the ring when layout changes (e.g. responsive column heights/widths)
+    wsButtons.forEach((b) =>
+      b.addEventListener("click", () => activateWorkspace(b.dataset.wsBtn!)));
+
     window.addEventListener("resize", placeRing);
-    requestAnimationFrame(() => setFocus(1, false));
+
+    // Initial layout for the default workspace.
+    cols = Array.from(track.querySelectorAll<HTMLElement>(".col"));
+    cols.forEach(bindColumn);
+    requestAnimationFrame(() => focusColumn(Number(track.dataset.focus ?? "0"), false));
   }
 </script>
