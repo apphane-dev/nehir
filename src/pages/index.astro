@@ -40,7 +40,8 @@ const faqs = [
   },
   {
     q: "What happens after a crash leaves a window offscreen?",
-    a: "Nehir clamps offscreen windows back into view and documents a recovery path. The project treats real window-server behavior and bug reporting as first-class concerns, with runtime diagnostics built in.",
+    a: 'On a clean quit Nehir restores parked and offscreen windows to their saved positions. A crash or force quit bypasses that shutdown cleanup, so Nehir cannot intervene. To bring a window back, use the macOS system shortcut <kbd>Globe</kbd>/<kbd>fn</kbd> + <kbd>Control</kbd> + <kbd>C</kbd> — the built-in Center action recovers offscreen windows.',
+    html: true,
   },
   {
     q: "Is it open source?",
@@ -305,7 +306,7 @@ const faqs = [
         {faqs.map((f) => (
           <details class="faq">
             <summary>{f.q}<span class="faq-plus" aria-hidden="true">+</span></summary>
-            <p>{f.a}</p>
+            {f.html ? <p set:html={f.a} /> : <p>{f.a}</p>}
           </details>
         ))}
       </div>
