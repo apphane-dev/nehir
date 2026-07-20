@@ -54,7 +54,7 @@ const faqs = [
   <header class="nav">
     <div class="wrap nav-inner">
       <a class="brand" href="/" aria-label="Nehir home">
-        <img src="/appicon.png" alt="" width="30" height="30" />
+        <img src="/appicon-small.png" alt="" width="30" height="30" />
         <img class="brand-word" src="/logo.png" alt="Nehir" height="22" />
       </a>
       <nav class="nav-links" aria-label="Primary">
@@ -318,7 +318,7 @@ const faqs = [
       <h2 class="final-h">Give every window<br /><span class="grad-text">room to flow.</span></h2>
       <div class="final-cmd"><CopyCommand cmd="brew install --cask guria/tap/nehir" /></div>
       <div class="final-ctas">
-        <a class="btn btn-primary" href={GITHUB} rel="noopener">Install Nehir</a>
+        <a class="btn btn-primary" href="#install">Install Nehir</a>
         <a class="btn btn-ghost" href="#config">Explore the configuration</a>
       </div>
     </div>
@@ -360,7 +360,17 @@ const faqs = [
   .nav-links a { transition: color 0.15s; }
   .nav-links a:hover { color: var(--text); }
   .nav-cta { padding: 0.5rem 1.1rem; font-size: 0.9rem; }
-  @media (max-width: 860px) { .nav-links { display: none; } }
+  @media (max-width: 860px) {
+    .nav-links {
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      margin-left: 1rem;
+      margin-right: 1rem;
+      gap: 1.2rem;
+      scrollbar-width: none;
+    }
+    .nav-links::-webkit-scrollbar { display: none; }
+  }
 
   /* ---------- hero ---------- */
   .hero { padding-top: clamp(3rem, 8vw, 5.5rem); padding-bottom: clamp(3rem, 7vw, 5rem); }

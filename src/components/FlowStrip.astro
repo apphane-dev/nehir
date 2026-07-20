@@ -49,12 +49,12 @@ const columns: Col[] = [
     <span class="strip-hint mono">← → to flow</span>
   </div>
 
-  <div class="strip-viewport" id="flow-viewport" tabindex="0" role="listbox"
+  <div class="strip-viewport" id="flow-viewport" tabindex="0" role="listbox" aria-activedescendant="flowstrip-opt-1"
        aria-label="Window columns. Use left and right arrow keys to move focus.">
     <div class="strip-track" id="flow-track">
       {columns.map((col, i) => (
         <div class={`col col-${col.width}${col.mode === "tabs" ? " col-tabs" : ""}`}
-             data-col={i} role="option" aria-selected={i === 1 ? "true" : "false"}>
+             id={`flowstrip-opt-${i}`} data-col={i} role="option" aria-selected={i === 1 ? "true" : "false"}>
           {col.mode === "tabs" && (
             <div class="col-tabbar">
               {col.windows.map((w, t) => (
@@ -248,6 +248,7 @@ const columns: Col[] = [
     const setFocus = (i: number, scroll = true) => {
       focused = Math.max(0, Math.min(cols.length - 1, i));
       cols.forEach((c, idx) => c.setAttribute("aria-selected", String(idx === focused)));
+      viewport.setAttribute("aria-activedescendant", `flowstrip-opt-${focused}`);
       placeRing();
       if (scroll) {
         cols[focused].scrollIntoView({
