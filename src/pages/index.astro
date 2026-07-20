@@ -1,14 +1,504 @@
 ---
+import Base from "../layouts/Base.astro";
+import FlowStrip from "../components/FlowStrip.astro";
+import CopyCommand from "../components/CopyCommand.astro";
+
+const GITHUB = "https://github.com/guria/nehir";
+const DOCS = "https://github.com/guria/nehir/tree/main/docs";
+
+const features = [
+  {
+    k: "Flow through columns",
+    t: "Focus, move, resize, group, or expand windows without rebuilding the whole desktop. When a stack runs out of vertical room, Nehir tabs the overflow automatically.",
+  },
+  {
+    k: "Organize with workspaces",
+    t: "Keep projects separated across named workspaces and displays. Switch instantly, move a window with Shift, or move an entire column when the structure needs to change.",
+  },
+  {
+    k: "See everything",
+    t: "Open Overview for a bird's-eye view, glance at the per-monitor workspace bar, or find any action through the fuzzy command palette.",
+  },
+];
+
+const faqs = [
+  {
+    q: "Is Nehir a port of Niri?",
+    a: "No. Nehir is an independent, native macOS app that adopts Niri's scrolling-column interaction model. It is not affiliated with Niri or endorsed by it.",
+  },
+  {
+    q: "Why does Nehir need Accessibility permission?",
+    a: "macOS only lets an app move and resize other applications' windows through the Accessibility API. Grant it once at System Settings → Privacy & Security → Accessibility.",
+  },
+  {
+    q: "Why recommend an auto-hide Dock and vertical displays?",
+    a: "macOS has no fully supported way to hide external app windows offscreen. Nehir parks them near the screen edge; a fixed side Dock or side-by-side displays can expose a visible strip. Vertical arrangement and an auto-hide Dock give the cleanest scroll. An experimental Dock Shield exists for fixed side Docks.",
+  },
+  {
+    q: "Can I use my own hotkeys and automate it?",
+    a: "Yes. Every binding lives in readable TOML you can edit and sync in your dotfiles. Beyond hotkeys, nehirctl offers queries, event subscriptions, and shell completion, plus a bundled Raycast extension.",
+  },
+  {
+    q: "What happens after a crash leaves a window offscreen?",
+    a: "Nehir clamps offscreen windows back into view and documents a recovery path. The project treats real window-server behavior and bug reporting as first-class concerns, with runtime diagnostics built in.",
+  },
+  {
+    q: "Is it open source?",
+    a: "Yes — GPL-2.0-only. Built in Swift 6 on AppKit, the Accessibility APIs, and SkyLight, with the Niri layout engine as a core subsystem.",
+  },
+];
 ---
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Nehir</title>
-  </head>
-  <body>
-    <h1>Nehir</h1>
-    <p>Placeholder content.</p>
-  </body>
-</html>
+
+<Base>
+  <!-- ================= NAV ================= -->
+  <header class="nav">
+    <div class="wrap nav-inner">
+      <a class="brand" href="/" aria-label="Nehir home">
+        <img src="/appicon.png" alt="" width="30" height="30" />
+        <img class="brand-word" src="/logo.png" alt="Nehir" height="22" />
+      </a>
+      <nav class="nav-links" aria-label="Primary">
+        <a href="#idea">The idea</a>
+        <a href="#keyboard">Keyboard</a>
+        <a href="#config">Config</a>
+        <a href="#automation">Automation</a>
+        <a href={GITHUB} rel="noopener">GitHub ↗</a>
+      </nav>
+      <a class="btn btn-primary nav-cta" href="#install">Install</a>
+    </div>
+  </header>
+
+  <!-- ================= HERO ================= -->
+  <section class="hero">
+    <div class="wrap">
+      <p class="eyebrow">Niri-style window management for macOS</p>
+      <h1 class="hero-title">
+        Let your windows<br /><span class="grad-text">flow.</span>
+      </h1>
+      <p class="lede hero-lede">
+        Nehir arranges your Mac windows in scrolling columns, so your workspace
+        can grow without squeezing every app into a grid. Keyboard-first, and
+        yours to script.
+      </p>
+      <div class="hero-cmd">
+        <CopyCommand cmd="brew install --cask guria/tap/nehir" />
+      </div>
+      <div class="hero-ctas">
+        <a class="btn btn-ghost" href={GITHUB} rel="noopener">View on GitHub</a>
+        <a class="btn btn-ghost" href={DOCS} rel="noopener">Read the docs</a>
+        <a class="btn btn-ghost" href="#install">Try the RC</a>
+      </div>
+    </div>
+    <div class="wrap hero-strip">
+      <FlowStrip />
+    </div>
+  </section>
+
+  <!-- ================= CORE IDEA ================= -->
+  <section class="section" id="idea">
+    <div class="wrap idea-grid">
+      <div>
+        <p class="eyebrow">The idea</p>
+        <h2 class="title">A workspace that moves with you</h2>
+        <p class="lede">
+          Traditional tiling managers divide one screen into smaller and smaller
+          rectangles. Nehir gives windows room to breathe. Apps live in columns
+          that scroll horizontally across the display, with stacked and tabbed
+          windows inside each column.
+        </p>
+      </div>
+      <blockquote class="pull">
+        <span class="pull-mark" aria-hidden="true">～</span>
+        <p>
+          Nehir is Turkish for <em>river</em> — windows flow in columns,
+          scrolling horizontally across your screen.
+        </p>
+      </blockquote>
+    </div>
+  </section>
+
+  <!-- ================= FEATURE TRIPTYCH ================= -->
+  <section class="section triptych-sec">
+    <div class="wrap">
+      <div class="triptych">
+        {features.map((f, i) => (
+          <article class="card feat">
+            <span class="feat-idx mono">0{i + 1}</span>
+            <h3 class="feat-k">{f.k}</h3>
+            <p class="feat-t">{f.t}</p>
+          </article>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= KEYBOARD MODEL ================= -->
+  <section class="section kbd-sec" id="keyboard">
+    <div class="wrap kbd-grid">
+      <div class="kbd-copy">
+        <p class="eyebrow">Keyboard model</p>
+        <h2 class="title">Learn the pattern, not a hundred shortcuts</h2>
+        <p class="lede">
+          Nehir's defaults group related actions into predictable layers.
+          Navigate with <kbd>⌥</kbd><kbd>⌘</kbd>, add <kbd>⇧</kbd> to bring the
+          focused window along, and reach for <span class="kbd kbd-accent">Hyper</span>
+          when you're reshaping structure.
+        </p>
+        <div class="kbd-examples">
+          <div class="kex"><span>Focus a neighbor</span><span><kbd>⌥</kbd><kbd>⌘</kbd><kbd>→</kbd></span></div>
+          <div class="kex"><span>Jump to workspace 3</span><span><kbd>⌥</kbd><kbd>⌘</kbd><kbd>3</kbd></span></div>
+          <div class="kex"><span>Command palette</span><span><kbd>⌥</kbd><kbd>⌘</kbd><kbd>Space</kbd></span></div>
+          <div class="kex"><span>Overview</span><span><kbd>⌥</kbd><kbd>⌘</kbd><kbd>O</kbd></span></div>
+        </div>
+      </div>
+      <div class="mental card">
+        <div class="mental-row">
+          <div class="mental-keys"><kbd>⌥</kbd><kbd>⌘</kbd><kbd>→</kbd></div>
+          <div class="mental-txt"><strong>go there</strong><span>without Shift, focus follows</span></div>
+        </div>
+        <div class="mental-row">
+          <div class="mental-keys"><kbd>⌥</kbd><kbd>⇧</kbd><kbd>⌘</kbd><kbd>→</kbd></div>
+          <div class="mental-txt"><strong>take it with you</strong><span>with Shift, move the current window</span></div>
+        </div>
+        <div class="mental-row is-hyper">
+          <div class="mental-keys"><span class="kbd kbd-accent">Hyper</span><kbd>→</kbd></div>
+          <div class="mental-txt"><strong>reshape structure</strong><span>Control+Option+Shift+Command</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= WIDE WORK STRIP ================= -->
+  <section class="section work-sec">
+    <div class="wrap">
+      <p class="eyebrow">Built for real multi-window work</p>
+      <h2 class="title">Editors, terminals, browsers, docs — one continuous strip</h2>
+      <p class="lede work-lede">
+        Nehir is for the moments when a fixed grid stops scaling: a terminal
+        beside an editor, reference material one column away, comms on another
+        workspace, and the next task already waiting offscreen.
+      </p>
+    </div>
+  </section>
+
+  <!-- ================= CONFIG ================= -->
+  <section class="section" id="config">
+    <div class="wrap two-col">
+      <div>
+        <p class="eyebrow">Configuration</p>
+        <h2 class="title">Your setup, in readable TOML</h2>
+        <p class="lede">
+          Settings, hotkeys, workspaces, app rules, and monitor overrides live
+          in focused files under <code class="inl">~/.config/nehir/</code>. Keep
+          them in your dotfiles, split machine-local settings from shared rules,
+          and see edits apply live — no restart.
+        </p>
+        <ul class="ticks">
+          <li>Files are watched; edits apply immediately</li>
+          <li>One app rule per file for small, clean diffs</li>
+          <li>Unknown keys are preserved and surfaced as diagnostics</li>
+          <li>Explicit, documented migrations between versions</li>
+        </ul>
+      </div>
+      <div class="filetree card" role="img" aria-label="Configuration file tree under ~/.config/nehir">
+        <div class="ft-title mono">~/.config/nehir/</div>
+        <pre class="ft-body mono">├── <span class="ft-f">settings.toml</span>
+├── <span class="ft-f">hotkeys.toml</span>
+├── <span class="ft-f">workspaces.toml</span>
+├── <span class="ft-d">apprules.d/</span>
+└── <span class="ft-d">monitors.d/</span></pre>
+        <div class="ft-note mono"><span class="ft-live">● live</span> edits reload without restarting</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= AUTOMATION ================= -->
+  <section class="section auto-sec" id="automation">
+    <div class="wrap">
+      <p class="eyebrow">Automation</p>
+      <h2 class="title">Native controls. Unix composability.</h2>
+      <p class="lede">
+        Use hotkeys and the command palette day to day. Reach for
+        <code class="inl">nehirctl</code> when you want scripts, queries, event
+        subscriptions, shell completion, or Raycast commands.
+      </p>
+      <div class="auto-cmds">
+        <CopyCommand cmd="nehirctl command focus left" />
+        <CopyCommand cmd="nehirctl query windows --visible --format table" />
+        <CopyCommand cmd="nehirctl subscribe active-workspace,windows-changed" />
+      </div>
+      <p class="auto-note mono">
+        IPC runs over an optional, authenticated local Unix socket — disabled by
+        default until you turn it on.
+      </p>
+    </div>
+  </section>
+
+  <!-- ================= OPINIONATED ================= -->
+  <section class="section opinion-sec">
+    <div class="wrap opinion">
+      <p class="eyebrow">Opinionated by design</p>
+      <h2 class="title">One layout model, deeply integrated</h2>
+      <p class="lede">
+        Nehir narrows its scope to Niri-style scrolling columns instead of
+        carrying multiple layout systems. Motion, focus behavior, workspace
+        navigation, configuration, and automation are all designed around that
+        single workflow. Focused, not feature-poor.
+      </p>
+      <p class="lineage mono">
+        Inspired by <a href="https://github.com/YaLTeR/niri" rel="noopener">Niri</a>'s
+        interaction model · built on the macOS window-management foundation of
+        <a href="https://github.com/BarutSRB/OmniWM" rel="noopener">OmniWM</a> ·
+        an independent open-source project.
+      </p>
+    </div>
+  </section>
+
+  <!-- ================= INSTALL ================= -->
+  <section class="section install-sec" id="install">
+    <div class="wrap two-col install-grid">
+      <div>
+        <p class="eyebrow">Ready for macOS 15+</p>
+        <h2 class="title">Install and grant Accessibility</h2>
+        <p class="lede">
+          Install the signed and notarized app with Homebrew, grant
+          Accessibility permission, and start with the built-in shortcut model.
+        </p>
+        <div class="install-cmds">
+          <div class="chan">
+            <span class="chan-tag mono">Stable</span>
+            <CopyCommand cmd="brew install --cask guria/tap/nehir" />
+          </div>
+          <div class="chan">
+            <span class="chan-tag mono chan-rc">Preview / RC</span>
+            <CopyCommand cmd="brew install --cask guria/tap/nehir@rc" />
+          </div>
+        </div>
+        <p class="perm mono">
+          Then grant access at <strong>System Settings → Privacy &amp; Security → Accessibility</strong>.
+        </p>
+      </div>
+      <aside class="req card">
+        <h3 class="req-h">Requirements</h3>
+        <dl class="req-list">
+          <div><dt>macOS</dt><dd>15.0 (Sequoia) or later</dd></div>
+          <div><dt>Permission</dt><dd>Accessibility, granted once</dd></div>
+          <div><dt>Delivery</dt><dd>Signed, notarized, Homebrew tap</dd></div>
+          <div><dt>Status</dt><dd><span class="pill">Pre-1.0 · active</span></dd></div>
+          <div><dt>License</dt><dd>GPL-2.0-only</dd></div>
+        </dl>
+        <p class="req-src">
+          Prefer source? <code class="inl">mise run package:release</code> then
+          <code class="inl">mise run install</code>.
+          <a href={DOCS} rel="noopener">Build instructions ↗</a>
+        </p>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ================= FAQ ================= -->
+  <section class="section faq-sec">
+    <div class="wrap">
+      <p class="eyebrow">Honest notes</p>
+      <h2 class="title">Set expectations before you install</h2>
+      <div class="faq-list">
+        {faqs.map((f) => (
+          <details class="faq">
+            <summary>{f.q}<span class="faq-plus" aria-hidden="true">+</span></summary>
+            <p>{f.a}</p>
+          </details>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= FINAL CTA ================= -->
+  <section class="section final-sec">
+    <div class="wrap final">
+      <h2 class="final-h">Give every window<br /><span class="grad-text">room to flow.</span></h2>
+      <div class="final-cmd"><CopyCommand cmd="brew install --cask guria/tap/nehir" /></div>
+      <div class="final-ctas">
+        <a class="btn btn-primary" href={GITHUB} rel="noopener">Install Nehir</a>
+        <a class="btn btn-ghost" href="#config">Explore the configuration</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= FOOTER ================= -->
+  <footer class="footer">
+    <div class="wrap footer-inner">
+      <div class="footer-brand">
+        <img src="/logo.png" alt="Nehir" height="20" />
+        <p class="mono">A scrolling tiling window manager for macOS.</p>
+      </div>
+      <nav class="footer-links" aria-label="Footer">
+        <a href={GITHUB} rel="noopener">GitHub</a>
+        <a href={DOCS} rel="noopener">Documentation</a>
+        <a href={`${GITHUB}/blob/main/NOTICE.md`} rel="noopener">Notice</a>
+        <a href="#install">Install</a>
+      </nav>
+      <p class="footer-fine mono">
+        GPL-2.0-only · Not affiliated with Niri or OmniWM · apphane.dev
+      </p>
+    </div>
+  </footer>
+</Base>
+
+<style>
+  /* ---------- nav ---------- */
+  .nav {
+    position: sticky; top: 0; z-index: 50;
+    backdrop-filter: blur(14px);
+    background: rgba(10, 11, 16, 0.72);
+    border-bottom: 1px solid var(--line);
+  }
+  .nav-inner { display: flex; align-items: center; gap: 1.5rem; padding-block: 0.7rem; }
+  .brand { display: flex; align-items: center; gap: 0.6rem; }
+  .brand img:first-child { border-radius: 7px; }
+  .brand-word { width: auto; }
+  .nav-links { display: flex; gap: 1.4rem; margin-left: auto; font-size: 0.92rem; color: var(--muted); }
+  .nav-links a { transition: color 0.15s; }
+  .nav-links a:hover { color: var(--text); }
+  .nav-cta { padding: 0.5rem 1.1rem; font-size: 0.9rem; }
+  @media (max-width: 860px) { .nav-links { display: none; } }
+
+  /* ---------- hero ---------- */
+  .hero { padding-top: clamp(3rem, 8vw, 5.5rem); padding-bottom: clamp(3rem, 7vw, 5rem); }
+  .hero-title {
+    font-size: clamp(3rem, 10vw, 6.5rem);
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    margin-top: 0.4rem;
+  }
+  .hero-lede { margin-top: 1.5rem; }
+  .hero-cmd { margin-top: 2rem; max-width: 460px; }
+  .hero-ctas { display: flex; flex-wrap: wrap; gap: 0.7rem; margin-top: 1.1rem; }
+  .hero-strip { margin-top: clamp(3rem, 6vw, 4.5rem); }
+
+  /* ---------- core idea ---------- */
+  .idea-grid { display: grid; grid-template-columns: 1.15fr 0.85fr; gap: clamp(2rem, 5vw, 4rem); align-items: center; }
+  .pull {
+    margin: 0; position: relative;
+    border-left: 2px solid transparent;
+    border-image: var(--flow) 1;
+    padding: 0.5rem 0 0.5rem 1.6rem;
+  }
+  .pull p { font-family: var(--display); font-size: clamp(1.3rem, 2.6vw, 1.9rem); line-height: 1.28; letter-spacing: -0.01em; margin: 0; }
+  .pull em { font-style: normal; color: var(--cyan); }
+  .pull-mark { position: absolute; top: -1.8rem; left: 1.4rem; font-size: 3rem; color: rgba(78,134,242,0.25); }
+  @media (max-width: 820px) { .idea-grid { grid-template-columns: 1fr; } }
+
+  /* ---------- triptych ---------- */
+  .triptych { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.1rem; }
+  .feat { position: relative; }
+  .feat-idx { color: var(--faint); font-size: 0.8rem; }
+  .feat-k { font-size: 1.35rem; margin: 0.7rem 0 0.6rem; }
+  .feat-t { color: var(--muted); margin: 0; font-size: 0.98rem; }
+  .feat::after {
+    content: ""; position: absolute; left: 0; bottom: 0; height: 2px; width: 38%;
+    background: var(--flow); border-radius: 2px; opacity: 0.55;
+    transform-origin: left; transform: scaleX(0.6); transition: transform 0.4s ease;
+  }
+  .feat:hover::after { transform: scaleX(1); }
+  @media (max-width: 780px) { .triptych { grid-template-columns: 1fr; } }
+
+  /* ---------- keyboard ---------- */
+  .kbd-grid { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(2rem, 5vw, 4rem); align-items: center; }
+  .kbd-copy kbd { margin: 0 1px; }
+  .kbd-examples { margin-top: 2rem; display: grid; gap: 0.55rem; }
+  .kex { display: flex; justify-content: space-between; align-items: center; gap: 1rem;
+    padding: 0.65rem 0.9rem; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+  .kex > span:first-child { color: var(--muted); font-size: 0.95rem; }
+  .kex kbd { margin-left: 3px; }
+  .mental { display: grid; gap: 1.1rem; padding: clamp(1.5rem, 3vw, 2.2rem); }
+  .mental-row { display: flex; align-items: center; gap: 1.1rem; padding-bottom: 1.1rem; border-bottom: 1px solid var(--line); }
+  .mental-row:last-child { padding-bottom: 0; border-bottom: none; }
+  .mental-keys { display: flex; gap: 4px; flex: none; min-width: 118px; }
+  .mental-txt { display: flex; flex-direction: column; }
+  .mental-txt strong { font-family: var(--display); font-size: 1.15rem; font-weight: 600; }
+  .mental-txt span { color: var(--muted); font-size: 0.86rem; }
+  .is-hyper strong { color: var(--cyan); }
+  @media (max-width: 820px) { .kbd-grid { grid-template-columns: 1fr; } }
+
+  /* ---------- work strip ---------- */
+  .work-sec { text-align: center; }
+  .work-sec .title { margin-inline: auto; }
+  .work-lede { margin-inline: auto; }
+
+  /* ---------- two-col shared ---------- */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(2rem, 5vw, 4rem); align-items: center; }
+  @media (max-width: 820px) { .two-col { grid-template-columns: 1fr; } }
+  .inl { font-family: var(--mono); font-size: 0.86em; color: var(--cyan); background: rgba(51,217,242,0.08);
+    padding: 0.1em 0.4em; border-radius: 5px; }
+
+  .ticks { list-style: none; padding: 0; margin: 1.6rem 0 0; display: grid; gap: 0.6rem; }
+  .ticks li { position: relative; padding-left: 1.6rem; color: var(--muted); }
+  .ticks li::before { content: "→"; position: absolute; left: 0; color: var(--cyan); }
+
+  /* file tree */
+  .filetree { padding: 0; overflow: hidden; }
+  .ft-title { padding: 0.9rem 1.1rem; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 0.85rem; }
+  .ft-body { margin: 0; padding: 1.2rem 1.1rem; font-size: 0.9rem; line-height: 1.9; color: var(--faint); background: var(--ink); }
+  .ft-f { color: var(--text); }
+  .ft-d { color: var(--violet); }
+  .ft-note { display: flex; align-items: center; gap: 0.5rem; padding: 0.8rem 1.1rem; border-top: 1px solid var(--line);
+    font-size: 0.78rem; color: var(--muted); }
+  .ft-live { color: var(--cyan); }
+
+  /* automation */
+  .auto-cmds { display: grid; gap: 0.7rem; margin-top: 2rem; max-width: 720px; }
+  .auto-note { margin-top: 1.4rem; color: var(--faint); font-size: 0.82rem; }
+
+  /* opinionated */
+  .opinion { max-width: 760px; }
+  .lineage { margin-top: 1.8rem; color: var(--faint); font-size: 0.85rem; line-height: 1.9; }
+  .lineage a { color: var(--muted); border-bottom: 1px solid var(--line-strong); }
+  .lineage a:hover { color: var(--cyan); }
+
+  /* install */
+  .install-grid { align-items: start; }
+  .install-cmds { display: grid; gap: 1.1rem; margin-top: 1.8rem; }
+  .chan-tag { display: inline-block; font-size: 0.68rem; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 0.5rem; }
+  .chan-rc { color: var(--violet); }
+  .perm { margin-top: 1.5rem; color: var(--muted); font-size: 0.82rem; }
+  .perm strong { color: var(--text); font-weight: 500; }
+  .req { align-self: start; }
+  .req-h { font-size: 1.1rem; margin-bottom: 1.1rem; }
+  .req-list { margin: 0; display: grid; gap: 0; }
+  .req-list > div { display: flex; justify-content: space-between; gap: 1rem; padding: 0.7rem 0; border-bottom: 1px solid var(--line); }
+  .req-list > div:last-child { border-bottom: none; }
+  .req-list dt { color: var(--faint); font-family: var(--mono); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; }
+  .req-list dd { margin: 0; text-align: right; color: var(--text); font-size: 0.92rem; }
+  .pill { font-family: var(--mono); font-size: 0.72rem; color: var(--cyan); border: 1px solid rgba(51,217,242,0.35);
+    padding: 0.15rem 0.5rem; border-radius: 20px; }
+  .req-src { margin: 1.2rem 0 0; font-size: 0.85rem; color: var(--muted); }
+  .req-src a { color: var(--cyan); }
+
+  /* faq */
+  .faq-list { margin-top: 2.5rem; border-top: 1px solid var(--line); }
+  .faq { border-bottom: 1px solid var(--line); }
+  .faq summary { display: flex; justify-content: space-between; align-items: center; gap: 1rem; cursor: pointer;
+    list-style: none; padding: 1.15rem 0.2rem; font-family: var(--display); font-size: clamp(1.05rem, 2vw, 1.3rem);
+    font-weight: 500; color: var(--text); }
+  .faq summary::-webkit-details-marker { display: none; }
+  .faq-plus { font-family: var(--mono); color: var(--cyan); font-size: 1.4rem; flex: none; transition: transform 0.25s ease; }
+  .faq[open] .faq-plus { transform: rotate(45deg); }
+  .faq p { margin: 0 0 1.3rem; color: var(--muted); max-width: 68ch; }
+
+  /* final cta */
+  .final-sec { text-align: center; }
+  .final { display: flex; flex-direction: column; align-items: center; }
+  .final-h { font-size: clamp(2.4rem, 7vw, 4.5rem); line-height: 1.02; letter-spacing: -0.03em; }
+  .final-cmd { margin-top: 2rem; width: 100%; max-width: 460px; }
+  .final-ctas { display: flex; flex-wrap: wrap; gap: 0.7rem; margin-top: 1.4rem; justify-content: center; }
+
+  /* footer */
+  .footer { border-top: 1px solid var(--line); padding-block: 3rem; background: var(--ink); }
+  .footer-inner { display: flex; flex-wrap: wrap; gap: 1.5rem 2.5rem; align-items: center; }
+  .footer-brand { display: flex; align-items: center; gap: 1rem; }
+  .footer-brand p { margin: 0; color: var(--faint); font-size: 0.8rem; }
+  .footer-links { display: flex; gap: 1.4rem; margin-left: auto; font-size: 0.9rem; color: var(--muted); }
+  .footer-links a:hover { color: var(--cyan); }
+  .footer-fine { flex-basis: 100%; color: var(--faint); font-size: 0.75rem; margin: 0; padding-top: 1rem; border-top: 1px solid var(--line); }
+</style>

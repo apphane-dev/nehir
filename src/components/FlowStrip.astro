@@ -1,0 +1,274 @@
+---
+/*
+ * FlowStrip — the signature element.
+ * A live, horizontally-scrolling strip of window columns: a miniature of
+ * Nehir itself. Focus slides between columns with the arrow keys or the
+ * on-screen controls; the strip scrolls the focused column into view.
+ */
+type Line = { w: number; accent?: boolean };
+type Win = { app: string; kind: string; lines: number; tag?: string };
+type Col = { width: "narrow" | "normal" | "wide"; mode?: "tabs"; windows: Win[] };
+
+const columns: Col[] = [
+  { width: "normal", windows: [{ app: "Terminal", kind: "term", lines: 7 }] },
+  {
+    width: "wide",
+    windows: [{ app: "Editor", kind: "edit", lines: 9, tag: "focused" }],
+  },
+  {
+    width: "normal",
+    windows: [
+      { app: "Safari", kind: "web", lines: 3 },
+      { app: "Docs", kind: "doc", lines: 4 },
+    ],
+  },
+  {
+    width: "narrow",
+    mode: "tabs",
+    windows: [
+      { app: "Slack", kind: "chat", lines: 5 },
+      { app: "Mail", kind: "doc", lines: 5 },
+      { app: "Linear", kind: "doc", lines: 5 },
+    ],
+  },
+  { width: "normal", windows: [{ app: "Music", kind: "media", lines: 4 }] },
+  { width: "wide", windows: [{ app: "Xcode", kind: "edit", lines: 9 }] },
+];
+---
+
+<figure class="strip" aria-label="Interactive preview of windows arranged in scrolling columns">
+  <div class="strip-chrome">
+    <span class="strip-dot" style="--d:#ff5f57"></span>
+    <span class="strip-dot" style="--d:#febc2e"></span>
+    <span class="strip-dot" style="--d:#28c840"></span>
+    <span class="strip-ws">
+      <span class="ws-name is-active">code</span>
+      <span class="ws-name">comms</span>
+      <span class="ws-name">read</span>
+    </span>
+    <span class="strip-hint mono">← → to flow</span>
+  </div>
+
+  <div class="strip-viewport" id="flow-viewport" tabindex="0" role="listbox"
+       aria-label="Window columns. Use left and right arrow keys to move focus.">
+    <div class="strip-track" id="flow-track">
+      {columns.map((col, i) => (
+        <div class={`col col-${col.width}${col.mode === "tabs" ? " col-tabs" : ""}`}
+             data-col={i} role="option" aria-selected={i === 1 ? "true" : "false"}>
+          {col.mode === "tabs" && (
+            <div class="col-tabbar">
+              {col.windows.map((w, t) => (
+                <span class={`col-tab${t === 0 ? " is-active" : ""}`}>{w.app}</span>
+              ))}
+            </div>
+          )}
+          {(col.mode === "tabs" ? col.windows.slice(0, 1) : col.windows).map((w) => (
+            <div class="win">
+              <div class="win-bar">
+                <span class="win-app">{w.app}</span>
+              </div>
+              <div class={`win-body body-${w.kind}`}>
+                {Array.from({ length: w.lines }).map((_, li) => (
+                  <span class="ln" style={`--lw:${45 + ((li * 37) % 50)}%`}></span>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+    <div class="focus-ring" id="flow-ring" aria-hidden="true"></div>
+  </div>
+
+  <figcaption class="strip-controls">
+    <button class="strip-arrow" id="flow-prev" aria-label="Focus previous column">←</button>
+    <span class="strip-cap mono">Focused column slides into view — nothing gets squeezed.</span>
+    <button class="strip-arrow" id="flow-next" aria-label="Focus next column">→</button>
+  </figcaption>
+</figure>
+
+<style>
+  .strip {
+    margin: 0;
+    background: linear-gradient(180deg, #0d0f15, #08090d);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    box-shadow: 0 40px 90px -50px rgba(0, 0, 0, 0.9),
+      0 0 0 1px rgba(255, 255, 255, 0.02) inset;
+  }
+
+  .strip-chrome {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.7rem 0.95rem;
+    border-bottom: 1px solid var(--line);
+    background: rgba(255, 255, 255, 0.015);
+  }
+  .strip-dot { width: 11px; height: 11px; border-radius: 50%; background: var(--d); opacity: 0.9; }
+  .strip-ws { display: flex; gap: 0.35rem; margin-left: 0.6rem; }
+  .ws-name {
+    font-family: var(--mono); font-size: 0.68rem; color: var(--faint);
+    padding: 0.15rem 0.5rem; border-radius: 6px; border: 1px solid transparent;
+  }
+  .ws-name.is-active { color: var(--cyan); border-color: rgba(51,217,242,0.3); background: rgba(51,217,242,0.07); }
+  .strip-hint { margin-left: auto; font-size: 0.68rem; color: var(--faint); }
+
+  .strip-viewport {
+    position: relative;
+    isolation: isolate;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-behavior: smooth;
+    scrollbar-width: none;
+    padding: 1.1rem;
+    scroll-padding-inline: 1.1rem;
+  }
+  .strip-viewport::-webkit-scrollbar { display: none; }
+  .strip-viewport:focus-visible { outline: 2px solid var(--cyan); outline-offset: -2px; }
+
+  .strip-track { display: flex; gap: 0.85rem; width: max-content; }
+
+  .col {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    height: 340px;
+    border-radius: 12px;
+    transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .col-narrow { width: 168px; }
+  .col-normal { width: 236px; }
+  .col-wide { width: 320px; }
+
+  .win {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .win-bar {
+    display: flex; align-items: center;
+    padding: 0.5rem 0.7rem;
+    border-bottom: 1px solid var(--line);
+    background: rgba(255, 255, 255, 0.02);
+  }
+  .win-app { font-family: var(--mono); font-size: 0.72rem; color: var(--muted); letter-spacing: 0.02em; }
+  .win-body { flex: 1; padding: 0.8rem 0.75rem; display: flex; flex-direction: column; gap: 0.5rem; overflow: hidden; }
+  .ln { height: 7px; width: var(--lw); border-radius: 4px; background: rgba(255, 255, 255, 0.07); }
+
+  /* app-flavored bodies */
+  .body-term { background: #070a0d; }
+  .body-term .ln { background: rgba(51, 217, 242, 0.16); }
+  .body-term .ln:nth-child(3n) { background: rgba(51, 217, 242, 0.28); width: 30% !important; }
+  .body-edit .ln:nth-child(4n+1) { background: rgba(155, 84, 240, 0.22); width: 22% !important; }
+  .body-edit .ln:nth-child(3n) { background: rgba(78, 134, 242, 0.20); }
+  .body-web .ln:first-child { height: 22px; background: var(--flow-soft); width: 100% !important; }
+  .body-media { background: radial-gradient(circle at 30% 30%, rgba(155,84,240,0.18), transparent 70%), var(--surface); }
+  .body-chat .ln:nth-child(even) { align-self: flex-end; background: rgba(78,134,242,0.18); }
+
+  /* tabbed column */
+  .col-tabbar { display: flex; gap: 0.2rem; }
+  .col-tab {
+    font-family: var(--mono); font-size: 0.62rem; color: var(--faint);
+    padding: 0.3rem 0.45rem; border-radius: 6px 6px 0 0;
+    background: rgba(255,255,255,0.02); border: 1px solid var(--line); border-bottom: none;
+    flex: 1; text-align: center; overflow: hidden; text-overflow: ellipsis;
+  }
+  .col-tab.is-active { color: var(--cyan); background: rgba(51,217,242,0.08); }
+
+  /* focus ring — slides to the focused column */
+  .focus-ring {
+    position: absolute;
+    top: 1.1rem;
+    height: 340px;
+    border: 2px solid transparent;
+    border-radius: 13px;
+    pointer-events: none;
+    background: var(--flow) border-box;
+    -webkit-mask: linear-gradient(#000 0 0) padding-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    box-shadow: 0 0 0 1px rgba(0,0,0,0.4), 0 0 34px -6px rgba(78, 134, 242, 0.6);
+    transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+      width 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: transform, width;
+    left: 0;
+  }
+
+  .strip-controls {
+    display: flex; align-items: center; gap: 1rem;
+    padding: 0.75rem 1rem;
+    border-top: 1px solid var(--line);
+  }
+  .strip-cap { flex: 1; text-align: center; font-size: 0.72rem; color: var(--faint); }
+  .strip-arrow {
+    width: 34px; height: 34px; flex: none;
+    display: grid; place-items: center;
+    font-size: 1rem; color: var(--muted);
+    background: var(--surface-2); border: 1px solid var(--line-strong);
+    border-radius: 9px; cursor: pointer;
+    transition: color 0.15s, border-color 0.15s, transform 0.15s;
+  }
+  .strip-arrow:hover { color: var(--text); border-color: rgba(255,255,255,0.3); transform: translateY(-1px); }
+
+  @media (max-width: 620px) {
+    .col { height: 260px; }
+    .focus-ring { height: 260px; }
+    .strip-hint { display: none; }
+  }
+</style>
+
+<script>
+  const viewport = document.getElementById("flow-viewport") as HTMLElement | null;
+  const track = document.getElementById("flow-track") as HTMLElement | null;
+  const ring = document.getElementById("flow-ring") as HTMLElement | null;
+  const prev = document.getElementById("flow-prev");
+  const next = document.getElementById("flow-next");
+
+  if (viewport && track && ring) {
+    const cols = Array.from(track.querySelectorAll<HTMLElement>(".col"));
+    let focused = 1;
+
+    const placeRing = () => {
+      const el = cols[focused];
+      if (!el) return;
+      const vp = viewport.getBoundingClientRect();
+      const r = el.getBoundingClientRect();
+      ring.style.width = `${r.width}px`;
+      ring.style.transform = `translateX(${r.left - vp.left}px)`;
+    };
+
+    const setFocus = (i: number, scroll = true) => {
+      focused = Math.max(0, Math.min(cols.length - 1, i));
+      cols.forEach((c, idx) => c.setAttribute("aria-selected", String(idx === focused)));
+      placeRing();
+      if (scroll) {
+        cols[focused].scrollIntoView({
+          behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+          inline: "center",
+          block: "nearest",
+        });
+      }
+    };
+
+    viewport.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowRight") { e.preventDefault(); setFocus(focused + 1); }
+      else if (e.key === "ArrowLeft") { e.preventDefault(); setFocus(focused - 1); }
+    });
+    prev?.addEventListener("click", () => setFocus(focused - 1));
+    next?.addEventListener("click", () => setFocus(focused + 1));
+    cols.forEach((c, i) => c.addEventListener("click", () => setFocus(i)));
+
+    // keep the ring aligned as the strip scrolls or resizes
+    viewport.addEventListener("scroll", placeRing, { passive: true });
+    window.addEventListener("resize", placeRing);
+    requestAnimationFrame(() => setFocus(1, false));
+  }
+</script>

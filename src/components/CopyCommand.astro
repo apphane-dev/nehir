@@ -1,0 +1,31 @@
+---
+interface Props { cmd: string; label?: string; }
+const { cmd, label = "Copy" } = Astro.props;
+// naive tokenization for shell-flag dimming
+const parts = cmd.split(/(\s+)/);
+---
+<div class="cmd">
+  <code>
+    <span class="tok-dim">$</span>{" "}
+    {parts.map((p) =>
+      p.startsWith("--") || p.startsWith("-") ? <span class="tok-dim">{p}</span> :
+      p === "nehirctl" || p === "brew" ? <span class="tok-flow">{p}</span> :
+      <span>{p}</span>
+    )}
+  </code>
+  <button class="copy-btn" data-cmd={cmd} aria-label={`Copy command: ${cmd}`}>{label}</button>
+</div>
+
+<script>
+  document.querySelectorAll<HTMLButtonElement>(".copy-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(btn.dataset.cmd || "");
+        const prev = btn.textContent;
+        btn.dataset.copied = "true";
+        btn.textContent = "Copied";
+        setTimeout(() => { btn.dataset.copied = "false"; btn.textContent = prev; }, 1600);
+      } catch { /* clipboard unavailable */ }
+    });
+  });
+</script>

@@ -1,0 +1,32 @@
+---
+import "../styles/global.css";
+interface Props { title?: string; description?: string; }
+const {
+  title = "Nehir — Let your windows flow",
+  description = "Nehir is a Niri-style scrolling tiling window manager for macOS. Arrange apps in columns that scroll horizontally, move through workspaces without breaking your flow, and control everything from the keyboard.",
+} = Astro.props;
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/png" href="/appicon.png" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="/appicon.png" />
+    <meta name="theme-color" content="#0a0b10" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;550;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <slot />
+  </body>
+</html>
