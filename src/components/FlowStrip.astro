@@ -236,13 +236,15 @@ const columns: Col[] = [
     const cols = Array.from(track.querySelectorAll<HTMLElement>(".col"));
     let focused = 1;
 
+    // The ring lives inside the scroll container and scrolls with the track,
+    // so it must be placed in the track's own content coordinates (offsetLeft),
+    // not viewport-relative client coordinates — otherwise it drifts by the
+    // scroll offset once the strip is scrolled.
     const placeRing = () => {
       const el = cols[focused];
       if (!el) return;
-      const vp = viewport.getBoundingClientRect();
-      const r = el.getBoundingClientRect();
-      ring.style.width = `${r.width}px`;
-      ring.style.transform = `translateX(${r.left - vp.left}px)`;
+      ring.style.width = `${el.offsetWidth}px`;
+      ring.style.transform = `translateX(${el.offsetLeft}px)`;
     };
 
     const setFocus = (i: number, scroll = true) => {
@@ -251,10 +253,13 @@ const columns: Col[] = [
       viewport.setAttribute("aria-activedescendant", `flowstrip-opt-${focused}`);
       placeRing();
       if (scroll) {
-        cols[focused].scrollIntoView({
+        // Scroll only the strip horizontally. scrollIntoView() would also scroll
+        // the whole page vertically to bring the tall strip fully into view.
+        const el = cols[focused];
+        const target = el.offsetLeft - (viewport.clientWidth - el.offsetWidth) / 2;
+        viewport.scrollTo({
+          left: target,
           behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
-          inline: "center",
-          block: "nearest",
         });
       }
     };
@@ -267,8 +272,7 @@ const columns: Col[] = [
     next?.addEventListener("click", () => setFocus(focused + 1));
     cols.forEach((c, i) => c.addEventListener("click", () => setFocus(i)));
 
-    // keep the ring aligned as the strip scrolls or resizes
-    viewport.addEventListener("scroll", placeRing, { passive: true });
+    // realign the ring when layout changes (e.g. responsive column heights/widths)
     window.addEventListener("resize", placeRing);
     requestAnimationFrame(() => setFocus(1, false));
   }
