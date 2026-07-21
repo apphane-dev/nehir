@@ -258,6 +258,31 @@ const faqs = [
     </div>
   </section>
 
+  <!-- ================= TESTIMONIAL ================= -->
+  <section class="section community-sec">
+    <div class="wrap community">
+      <p class="eyebrow">From the community</p>
+      <figure class="quote">
+        <span class="pull-mark" aria-hidden="true">～</span>
+        <blockquote class="quote-body" cite="https://github.com/apphane-dev/nehir/discussions/13">
+          <p>
+            It has quite literally been the smoothest scrolling manager I have
+            used on Mac so far, and there has been a few...
+          </p>
+        </blockquote>
+        <figcaption class="quote-cite">
+          <span class="quote-by">
+            — Dom
+            (<a href="https://github.com/VyLowry7337" rel="noopener">@VyLowry7337</a>)
+          </span>
+          <a class="quote-src mono" href="https://github.com/apphane-dev/nehir/discussions/13" rel="noopener">
+            GitHub Discussion #13 ↗
+          </a>
+        </figcaption>
+      </figure>
+    </div>
+  </section>
+
   <!-- ================= INSTALL ================= -->
   <section class="section install-sec" id="install">
     <div class="wrap two-col install-grid">
@@ -468,6 +493,20 @@ const faqs = [
   .lineage { margin-top: 1.8rem; color: var(--faint); font-size: 0.85rem; line-height: 1.9; }
   .lineage a { color: var(--muted); border-bottom: 1px solid var(--line-strong); }
   .lineage a:hover { color: var(--cyan); }
+
+  /* testimonial */
+  .community { max-width: 760px; }
+  .quote { margin: 1.8rem 0 0; position: relative; padding-left: 1.6rem;
+    border-left: 2px solid transparent; border-image: var(--flow) 1; }
+  .quote .pull-mark { top: -1.8rem; left: 1.4rem; }
+  .quote-body { margin: 0; }
+  .quote-body p { font-family: var(--display); font-size: clamp(1.3rem, 2.6vw, 1.9rem);
+    line-height: 1.28; letter-spacing: -0.01em; margin: 0; max-width: 32ch; }
+  .quote-cite { margin-top: 1.4rem; display: flex; flex-wrap: wrap; align-items: baseline;
+    gap: 0.5rem 1rem; color: var(--muted); font-size: 0.95rem; }
+  .quote-by a { color: var(--muted); border-bottom: 1px solid var(--line-strong); }
+  .quote-by a:hover { color: var(--cyan); }
+  .quote-src { color: var(--cyan); font-size: 0.82rem; }
 
   /* install */
   .install-grid { align-items: start; }
