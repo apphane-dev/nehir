@@ -155,6 +155,13 @@ enum DockReservation {
     private nonisolated(unsafe) static var stickyInset: [CGDirectDisplayID: CGFloat] = [:]
     private nonisolated(unsafe) static var lastOrientation: [CGDirectDisplayID: String] = [:]
     private nonisolated(unsafe) static var lastAXProbe: (uptime: TimeInterval, barRect: CGRect?)?
+    // Last physical frame seen per display. A sticky inset is a fixed pixel count keyed
+    // to a specific physical edge, so a value learned under one resolution/mode is
+    // meaningless under another (e.g. a 328px right inset learned at 2056-wide produces
+    // a giant phantom shield at 1728-wide). When a display's frame changes we drop its
+    // sticky and skip re-learning for that one pass, so a frame/bar read straddling the
+    // transition cannot immediately re-learn the mode-width delta.
+    private nonisolated(unsafe) static var lastFrame: [CGDirectDisplayID: CGRect] = [:]
 
     /// Drop every learned Dock inset and the cached AX probe so the next
     /// `stableVisibleFrame` re-derives the working area purely from the current live
@@ -190,6 +197,17 @@ enum DockReservation {
             stickyInset[displayId] = nil
         }
         if let rawOrientation { lastOrientation[displayId] = rawOrientation }
+        // A display mode/resolution change invalidates any inset learned under the old
+        // frame. Drop the stale sticky and skip re-learning this pass (see the learn
+        // block below), so a frame/bar read straddling the transition cannot re-learn
+        // the mode-width delta as a phantom side inset. First sighting (nil → value) is
+        // not a change; a Dock hide/show does not alter the physical frame, so the
+        // sticky still survives transient suppression.
+        let frameChanged = (lastFrame[displayId].map { $0 != frame }) ?? false
+        lastFrame[displayId] = frame
+        if frameChanged {
+            stickyInset[displayId] = nil
+        }
         let sticky = stickyInset[displayId] ?? 0
         lock.unlock()
 
@@ -301,7 +319,7 @@ enum DockReservation {
         // TODO: consider a tighter side-inset ceiling than the loose cross-orientation
         // 0.33 cap once we have a safe upper bound for legitimately large side Docks.
 
-        if let derivedInset, derivedInset > 0.5, derivedInset <= maxPlausibleInset {
+        if !frameChanged, let derivedInset, derivedInset > 0.5, derivedInset <= maxPlausibleInset {
             // Hysteresis: the AX Dock-bar measurement jitters a few px as it settles, so
             // adopting every reading makes the working area and shield flap (e.g. 71↔76px)
             // and desyncs the park target from the shield. Keep the learned inset unless
@@ -311,8 +329,14 @@ enum DockReservation {
                 // within jitter — keep the stable value
             } else {
                 stickyInset[displayId] = derivedInset
+                LayoutTrace.log(
+                    "dockInset.learn displayId=\(displayId) orientation=\(effectiveOrientation) "
+                        + "derived=\(String(format: "%.1f", derivedInset)) "
+                        + "frame=\(LayoutTrace.rect(frame)) rawVisible=\(LayoutTrace.rect(visibleFrame))"
+                )
             }
-        } else if !isSideOrientation,
+        } else if !frameChanged,
+                  !isSideOrientation,
                   stickyInset[displayId] == nil,
                   currentInset > 0.5,
                   currentInset <= maxPlausibleInset
@@ -385,14 +409,24 @@ enum DockReservation {
     private static func axDerivedInset(frame: CGRect, orientation: String) -> CGFloat? {
         guard let rawBar = cachedDockBarRect(), let appKitBar = appKitDockBarRect(from: rawBar) else { return nil }
 
+        // A genuine side Dock bar sits flush against the screen edge it insets. A bar
+        // rect cached under a different (smaller) display mode — the ~5s memo surviving a
+        // scaled-resolution switch — has its OUTER edge short of the current frame edge by
+        // exactly the mode-width delta. Reject that stale/straddled read: otherwise the
+        // delta is learned as a phantom side inset (e.g. 2056 - 1728 = 328) that clears
+        // the 0.33x ratio ceiling and sticks as a giant shield. (A bar from a *larger*
+        // mode is already rejected by the maxX<=frame.maxX / minX>=frame.minX guards.)
+        let edgeFlushTolerance: CGFloat = 24
         switch orientation {
         case "left":
             guard appKitBar.minY < frame.maxY, appKitBar.maxY > frame.minY else { return nil }
             guard appKitBar.minX >= frame.minX, appKitBar.maxX <= frame.midX else { return nil }
+            guard appKitBar.minX - frame.minX <= edgeFlushTolerance else { return nil }
             return appKitBar.maxX - frame.minX
         case "right":
             guard appKitBar.minY < frame.maxY, appKitBar.maxY > frame.minY else { return nil }
             guard appKitBar.maxX <= frame.maxX, appKitBar.minX >= frame.midX else { return nil }
+            guard frame.maxX - appKitBar.maxX <= edgeFlushTolerance else { return nil }
             return frame.maxX - appKitBar.minX
         default:
             return appKitBar.maxY - frame.minY
