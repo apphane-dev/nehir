@@ -9,6 +9,50 @@
 > main-repo HEAD `0d409327`; re-verify before implementing (they drift) and cite
 > by symbol name.
 
+## Resolution — landed 2026-07-21 as `3baf74d7` (main)
+
+Findings 1 and 3 shipped together in `3baf74d7` ("Fix fantom dock shield and
+heave recomputations on monitor configuration change"); the follow-up traces this
+capture called for confirmed both open questions. Finding 2 is instrumented but
+not yet behaviourally fixed — carried forward as a new discovery.
+
+- **Finding 1 (phantom shield) — CONFIRMED & FIXED.** The phantom right inset was
+  learned from a **stale cached Dock-bar rect**: `cachedDockBarRect()` memoizes
+  the bar ~5 s, so across the scaled-resolution switch `axDerivedInset` paired a
+  new-mode bar `minX` with an old-mode `frame.maxX` and returned the mode-width
+  delta (`2056 − 1728 = 328`) as a right inset. Fix in `Monitor.swift`
+  (`DockReservation`): track `lastFrame` per display, drop the sticky **and skip
+  re-learning for that pass** when the frame changes (`frameChanged` gate on both
+  learn branches), plus an `edgeFlushTolerance = 24` guard in `axDerivedInset`
+  that rejects a bar whose outer edge is not flush with the current frame edge
+  (the straddled/stale read). A `dockInset.learn` trace was added.
+  - **Deviation from the written plan.** The plan
+    (`completed/20260721-phantom-dock-side-inset-straddled-ax-probe.md`) proposed
+    invalidating the memoized probe from `ServiceLifecycleManager.handleMonitorConfigurationChanged`.
+    The landed fix instead makes `stableVisibleFrame` self-correcting on any frame
+    change and hardens `axDerivedInset`; `ServiceLifecycleManager` was untouched.
+    Judged the better fix — it catches the straddle intrinsically regardless of
+    which reconfiguration path fires, not just at one call site.
+- **Finding 3 (relayout runaway) — CONFIRMED & FIXED; this note's corrected
+  hypothesis was right.** The bypass is `preserveCancelledRefreshState`: when a
+  refresh returns `didComplete == false` it re-arms `pendingRefresh` **without**
+  recording a request, and `startNextRefreshIfNeeded` re-runs it immediately —
+  spinning `executedByReason` into the millions while `requestedByReason` stays
+  flat. (Not the follow-up-enqueue path, which this note already ruled out.) Fix
+  in `LayoutRefreshController.swift`: a `consecutiveNoProgressReexecutions`
+  counter reset only on genuine completion and bounded at
+  `maxConsecutiveNoProgressReexecutions = 8`; on trip, the pending refresh is
+  retained for the next genuine event instead of synchronously restarting. Note
+  this was **out of scope** in the Finding-1 plan but bundled into the same
+  commit.
+- **Finding 2 (dancing / topology-bounce re-park) — INSTRUMENTED, NOT FIXED.**
+  `refresh.cancel` (`cancelActiveRefreshForIncoming`) and `refresh.finish`
+  diagnostics were added to characterise which reasons keep pre-empting the
+  rescan during a wake bounce, but no topology-settle debounce landed. Carried
+  forward: `discovery/20260721-wake-topology-bounce-repark-dancing.md`.
+
+The original investigation follows unchanged.
+
 ## Symptom (as reported)
 
 Laptop lid opened from sleep. For several seconds the windows "danced" (jumped /
