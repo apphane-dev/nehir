@@ -60,7 +60,8 @@ const faqs = [
       </a>
       <nav class="nav-links" aria-label="Primary">
         <a href="#idea">The idea</a>
-        <a href="#keyboard">Keyboard</a>
+        {/* WIP: Keyboard model section hidden until content is revised */}
+        {/* <a href="#keyboard">Keyboard</a> */}
         <a href="#config">Config</a>
         <a href="#automation">Automation</a>
         <a href={GITHUB} rel="noopener">GitHub ↗</a>
@@ -133,7 +134,8 @@ const faqs = [
     </div>
   </section>
 
-  <!-- ================= KEYBOARD MODEL ================= -->
+  <!-- ================= KEYBOARD MODEL (WIP: hidden until content is revised) ================= -->
+  {false && (
   <section class="section kbd-sec" id="keyboard">
     <div class="wrap kbd-grid">
       <div class="kbd-copy">
@@ -168,6 +170,7 @@ const faqs = [
       </div>
     </div>
   </section>
+  )}
 
   <!-- ================= WIDE WORK STRIP ================= -->
   <section class="section work-sec">
