@@ -25,11 +25,23 @@ Swift Testing.
 
 ## When to write tests
 
-When debugging a runtime bug, **do not add, modify, or rewrite tests until the
-user has confirmed the fix works in their real repro**. Runtime traces and the
-user's validation are the acceptance signal; tests written before that are
-churn. After confirmation, add a regression test if requested or clearly
-useful. This makes the suite a curated record of real, confirmed repros.
+**Do not add, modify, rewrite, or delete tests until the user has confirmed the
+implementation or fix works in their real repro.** This applies to all work —
+new features, refactors, and bug fixes alike. The trigger is *unconfirmed
+behavior*, not *bug vs feature*: "this is a new feature, not a bug fix" is
+explicitly **not** an exception, and reverting or removing existing tests counts
+as editing them.
+
+A plan, spec, or delegated task that includes a "write tests" step does **not**
+authorize writing tests before runtime confirmation. The runtime-confirmation
+gate overrides any plan's test phase; when they conflict, wait for the user's
+confirmation.
+
+The underlying principle: the user's real-repro validation is the acceptance
+signal. Runtime traces and that validation are what confirm the behavior; tests
+written before it waste effort and create churn. After confirmation, add a
+regression test if requested or clearly useful. This makes the suite a curated
+record of real, confirmed repros.
 
 ## Where new tests go
 

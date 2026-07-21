@@ -14,11 +14,15 @@ machine-specific paths in discovery/planning docs).
 Read `docs/TESTING.md` before adding, moving, or deleting tests. The hard
 rules, in short:
 
-- **Wait for the user-confirmed fix before editing tests.** When debugging a
-  runtime bug, do not add, modify, or rewrite tests until the user has
-  confirmed the fix works in their real repro. Runtime traces and the user's
-  validation are the acceptance signal; touching tests before that wastes
-  tokens and creates churn.
+- **Wait for the user-confirmed implementation before editing tests.** Do not
+  add, modify, rewrite, or delete tests until the user has confirmed the
+  implementation or fix works in their real repro. This applies to all work —
+  new features, refactors, and bug fixes alike; "this is a new feature, not a
+  bug fix" is not an exception, and reverting or removing tests counts. A plan
+  or delegated task with a "write tests" step does not authorize writing them
+  first — the runtime-confirmation gate overrides any plan's test phase. The
+  user's real-repro validation is the acceptance signal; touching tests before
+  that wastes effort and creates churn.
 - **New tests go into small per-behavior files.** The legacy monoliths
   (`AXEventHandlerTests.swift`, `NiriLayoutEngineTests.swift`, and the others
   listed in `docs/TESTING.md`) are frozen — never append tests to them.
