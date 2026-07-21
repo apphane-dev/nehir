@@ -188,7 +188,18 @@ import QuartzCore
         var screenChangeObserver: NSObjectProtocol?
         var hasCompletedInitialRefresh: Bool = false
         var didExecuteRefreshExecutionPlan: Bool = false
+        /// Consecutive times a refresh finished with `didComplete == false` and was
+        /// re-armed (via `preserveCancelledRefreshState`) without a new request being
+        /// recorded. Bounds the self-perpetuating re-execution loop (see `finishRefresh`).
+        var consecutiveNoProgressReexecutions: Int = 0
     }
+
+    /// Upper bound on consecutive no-progress re-executions of a preserved,
+    /// cancelled refresh before the synchronous restart is suppressed and the
+    /// pending refresh is left for the next genuine event to drive. Small enough to
+    /// turn a runaway (millions of executions) into a handful, large enough to
+    /// tolerate a brief transient (a re-entrancy overlap that clears in a beat).
+    private static let maxConsecutiveNoProgressReexecutions = 8
 
     var layoutState = LayoutState()
     var debugCounters = RefreshDebugCounters()
@@ -1887,6 +1898,18 @@ import QuartzCore
         startNextRefreshIfNeeded()
     }
 
+    /// Cancels the in-flight refresh so a higher-priority incoming one can take over.
+    /// The cancelled refresh returns didComplete=false and is re-armed
+    /// (`preserveCancelledRefreshState`), so during a wake topology bounce this is the
+    /// driver of the repeated full re-parks (the "dancing"): trace active vs incoming to
+    /// see exactly which reasons keep pre-empting the rescan.
+    private func cancelActiveRefreshForIncoming(active: ScheduledRefresh, incoming: ScheduledRefresh) {
+        LayoutTrace.log(
+            "refresh.cancel active=\(active.kind)/\(active.reason) incoming=\(incoming.kind)/\(incoming.reason)"
+        )
+        layoutState.activeRefreshTask?.cancel()
+    }
+
     private func handleRefresh(_ refresh: ScheduledRefresh, whileActive activeRefresh: ScheduledRefresh) {
         switch (activeRefresh.kind, refresh.kind) {
         case (.fullRescan, .fullRescan):
@@ -1904,14 +1927,14 @@ import QuartzCore
              (.visibilityRefresh, .immediateRelayout),
              (.visibilityRefresh, .relayout):
             mergePendingRefresh(refresh)
-            layoutState.activeRefreshTask?.cancel()
+            cancelActiveRefreshForIncoming(active: activeRefresh, incoming: refresh)
         case (.windowRemoval, .fullRescan):
             mergePendingRefresh(refresh)
         case (.windowRemoval, _):
             mergePendingRefresh(refresh)
         case (.immediateRelayout, .fullRescan):
             mergePendingRefresh(refresh)
-            layoutState.activeRefreshTask?.cancel()
+            cancelActiveRefreshForIncoming(active: activeRefresh, incoming: refresh)
         case (.immediateRelayout, .immediateRelayout):
             mergePendingRefresh(refresh)
         case (.immediateRelayout, .relayout):
@@ -1920,14 +1943,14 @@ import QuartzCore
             mergePendingRefresh(refresh)
         case (.immediateRelayout, .windowRemoval):
             mergePendingRefresh(refresh)
-            layoutState.activeRefreshTask?.cancel()
+            cancelActiveRefreshForIncoming(active: activeRefresh, incoming: refresh)
         case (.relayout, .relayout):
             mergePendingRefresh(refresh)
         case (.relayout, .fullRescan),
              (.relayout, .immediateRelayout),
              (.relayout, .windowRemoval):
             mergePendingRefresh(refresh)
-            layoutState.activeRefreshTask?.cancel()
+            cancelActiveRefreshForIncoming(active: activeRefresh, incoming: refresh)
         case (.relayout, .visibilityRefresh):
             mergePendingRefresh(refresh)
         }
@@ -2122,6 +2145,16 @@ import QuartzCore
     private func finishRefresh(_ refresh: ScheduledRefresh, didComplete: Bool) {
         let completedRefresh = layoutState.activeRefresh ?? refresh
         let didExecuteRefreshExecutionPlan = layoutState.didExecuteRefreshExecutionPlan
+        // Diagnostic for the wake "dancing": a re-park storm shows up here as many
+        // finishes for the same reason with didComplete=false (cancelled mid-flux and
+        // re-armed). noProgressReexec climbs across a spin; pendingKind reveals whether a
+        // follow-on rescan is already queued to re-park again.
+        LayoutTrace.log(
+            "refresh.finish kind=\(completedRefresh.kind) reason=\(completedRefresh.reason) "
+                + "didComplete=\(didComplete) "
+                + "noProgressReexec=\(layoutState.consecutiveNoProgressReexecutions) "
+                + "pendingKind=\(layoutState.pendingRefresh.map { "\($0.kind)" } ?? "nil")"
+        )
 
         if !didComplete {
             preserveCancelledRefreshState(completedRefresh)
@@ -2132,6 +2165,7 @@ import QuartzCore
         layoutState.didExecuteRefreshExecutionPlan = false
 
         if didComplete {
+            layoutState.consecutiveNoProgressReexecutions = 0
             if !didExecuteRefreshExecutionPlan, let controller {
                 let shouldRequestWorkspaceProjectionRefresh =
                     completedRefresh.kind != .visibilityRefresh && completedRefresh.needsVisibilityReconciliation
@@ -2154,6 +2188,30 @@ import QuartzCore
                         affectedWorkspaceIds: followUpRefresh.affectedWorkspaceIds
                     )
                 )
+            }
+        }
+
+        // Bound the self-perpetuating re-execution loop. When a refresh keeps
+        // returning didComplete=false for a persistent transient reason (e.g. the
+        // login/lock-screen window is still up during a wake settle),
+        // preserveCancelledRefreshState re-arms pendingRefresh WITHOUT recording a
+        // request, and the restart below re-runs the identical refresh immediately —
+        // spinning executedByReason into the millions while requestedByReason stays
+        // flat. Only a successful completion resets the counter — NOT an unrelated new
+        // request, because a busy wake enqueues hundreds of other refreshes that would
+        // otherwise keep clearing the guard so it never trips. So this bounds the
+        // pathological no-progress spin while normal work (which completes, resetting to
+        // 0) never approaches the cap. The preserved refresh stays pending and is
+        // re-driven by the next genuine event (unlock, display change, AX event).
+        if !didComplete, layoutState.pendingRefresh != nil {
+            layoutState.consecutiveNoProgressReexecutions += 1
+            if layoutState.consecutiveNoProgressReexecutions >= Self.maxConsecutiveNoProgressReexecutions {
+                LayoutTrace.log(
+                    "refresh re-execution bounded after "
+                        + "\(layoutState.consecutiveNoProgressReexecutions) no-progress executions; "
+                        + "pending refresh retained for the next genuine event"
+                )
+                return
             }
         }
 
