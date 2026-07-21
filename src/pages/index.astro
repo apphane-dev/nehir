@@ -55,7 +55,6 @@ const faqs = [
   <header class="nav">
     <div class="wrap nav-inner">
       <a class="brand" href="/" aria-label="Nehir home">
-        <img src="/appicon-small.png" alt="" width="30" height="30" />
         <img class="brand-word" src="/logo.png" alt="Nehir" height="22" />
       </a>
       <nav class="nav-links" aria-label="Primary">
@@ -383,22 +382,27 @@ const faqs = [
   }
   .nav-inner { display: flex; align-items: center; gap: 1.5rem; padding-block: 0.7rem; }
   .brand { display: flex; align-items: center; gap: 0.6rem; }
-  .brand img:first-child { border-radius: 7px; }
   .brand-word { width: auto; }
   .nav-links { display: flex; gap: 1.4rem; margin-left: auto; font-size: 0.92rem; color: var(--muted); }
-  .nav-links a { transition: color 0.15s; }
+  .nav-links a { transition: color 0.15s; white-space: nowrap; }
   .nav-links a:hover { color: var(--text); }
-  .nav-cta { padding: 0.5rem 1.1rem; font-size: 0.9rem; }
+  .nav-cta { padding: 0.5rem 1.1rem; font-size: 0.9rem; flex-shrink: 0; }
+  .brand { flex-shrink: 0; }
   @media (max-width: 860px) {
+    .nav-inner { gap: 0.9rem; }
     .nav-links {
       flex-wrap: nowrap;
       overflow-x: auto;
-      margin-left: 1rem;
-      margin-right: 1rem;
-      gap: 1.2rem;
+      margin-left: auto;
+      gap: 1.1rem;
       scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
     }
     .nav-links::-webkit-scrollbar { display: none; }
+  }
+  @media (max-width: 560px) {
+    .nav-links { display: none; }
+    .nav-cta { margin-left: auto; }
   }
 
   /* ---------- hero ---------- */
