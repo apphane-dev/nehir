@@ -1,0 +1,11 @@
+[tasks."prepare"]
+description = "Prepare the Swift package checkout"
+run = "swift package resolve"
+
+[tasks."ci"]
+description = "Run the checks used by CI"
+depends = ["format:check", "lint", "changeset:check", "test"]
+
+[tasks."fix"]
+description = "Apply formatting and lint fixes"
+depends = ["lint:fix"]
