@@ -20,6 +20,8 @@ jobs:
         uses: actions/checkout@v4
       - name: Install mise
         uses: jdx/mise-action@v2
+      - name: Config mise
+        run: mise settings experimental=true
       - name: Install dependencies
         run: mise install
       - name: Build
