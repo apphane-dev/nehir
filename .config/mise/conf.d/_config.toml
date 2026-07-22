@@ -12,3 +12,6 @@ dir = "{{ config_root }}"
 
 [deps.nub]
 auto = true
+sources = ["nub.lock", "package.json"]
+outputs = ["node_modules/.modules.yaml"]
+run = "nub install"
