@@ -27,8 +27,12 @@ jobs:
       - name: Build
         run: mise run build
       - name: Deploy to Cloudflare Pages
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy dist --project-name nehir-website --branch main
+        # Call wrangler directly rather than via cloudflare/wrangler-action.
+        # The action runs `npm i wrangler` inside the repo, which triggers npm's
+        # full-tree resolution and fails on the project's nub-only peer deps.
+        # `npx --yes` fetches wrangler into an isolated cache and runs it, never
+        # touching the project tree. wrangler reads the token/account from env.
+        run: npx --yes wrangler@4 pages deploy dist --project-name nehir-website --branch main
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
