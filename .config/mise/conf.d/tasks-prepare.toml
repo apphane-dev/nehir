@@ -1,0 +1,5 @@
+[tasks.prepare]
+description = "Sync Astro generated types"
+run = "astro sync"
+sources = ["package.json", "astro.config.mjs", "src/**/*"]
+outputs = [".astro/**/*"]

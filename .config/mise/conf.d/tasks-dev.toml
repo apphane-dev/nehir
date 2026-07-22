@@ -1,0 +1,19 @@
+[tasks.dev]
+description = "Start the Astro development server"
+usage = '''
+arg "[rest]" help="Additional arguments to pass to Astro"
+'''
+run = "astro dev ${usage_rest}"
+
+[tasks.build]
+description = "Build the website"
+depends = ["prepare"]
+run = "astro build"
+
+[tasks.clean]
+description = "Clean build artifacts and Astro caches"
+run = "rm -rf dist .astro"
+
+[tasks."clean:deps"]
+description = "Clean installed dependencies"
+run = "rm -rf node_modules"

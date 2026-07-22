@@ -1,0 +1,9 @@
+[tasks.check]
+description = "Run Astro diagnostics when configured"
+depends = ["prepare"]
+run = "if node -e \"const p=require('./package.json'); process.exit(p.dependencies?.['@astrojs/check'] || p.devDependencies?.['@astrojs/check'] ? 0 : 1)\"; then astro check; else echo 'Astro check is not supported: @astrojs/check is not configured'; fi"
+
+[tasks.ci]
+description = "Run CI checks without building files"
+depends = ["check"]
+run = "true"
