@@ -131,7 +131,8 @@ extension NSScreen {
     }
 }
 
-/// Keeps the working area stable against transient loss of the Dock's reserved space.
+/// Keeps a fixed Dock's working area stable against transient loss of its reserved
+/// space, and reclaims the band for an auto-hide Dock.
 ///
 /// `NSScreen.visibleFrame` reflects the *current* Dock reservation, which vanishes
 /// globally whenever the active application suppresses the Dock via
@@ -139,9 +140,15 @@ extension NSScreen {
 /// `.autoHideDock`). With a fixed Dock that makes the reported working area flap
 /// between Dock-inset and full width as focus moves, retiling the workspace and
 /// re-parking hidden windows each time. This helper remembers the last non-zero
-/// Dock inset per display + Dock orientation + screen frame and keeps applying it
-/// while the Dock is configured as fixed (`autohide == false`), so Nehir's working
-/// area stays Dock-inset even when the instantaneous reservation is suppressed.
+/// Dock inset per display + Dock orientation + screen frame and keeps applying it,
+/// so Nehir's working area stays Dock-inset even when the instantaneous reservation
+/// is suppressed.
+///
+/// This stabilization is only correct for a fixed Dock. An auto-hide Dock reserves
+/// no permanent band — its AX bar only animates on-screen during a reveal — so when
+/// the persistent `com.apple.dock autohide` preference is authoritatively enabled,
+/// the learned inset is dropped and the Dock-orientation axis reclaimed (#163). A
+/// nil/unreadable preference is treated conservatively as fixed.
 ///
 /// Known limitation: if a fixed Dock is relocated to another display without an
 /// orientation or screen-frame change (bottom Dock dragged across displays with
@@ -162,6 +169,11 @@ enum DockReservation {
     // sticky and skip re-learning for that one pass, so a frame/bar read straddling the
     // transition cannot immediately re-learn the mode-width delta.
     private nonisolated(unsafe) static var lastFrame: [CGDirectDisplayID: CGRect] = [:]
+    // Global (not per-display) memo of the persistent Dock autohide preference:
+    // (monotonic uptime of the last authoritative read, that value). Only successful
+    // reads are stored; a transient-nil read leaves the last authoritative value in
+    // place so reconnect churn cannot momentarily re-arm the fixed-Dock learn (#163).
+    private nonisolated(unsafe) static var lastAutohideProbe: (uptime: TimeInterval, value: Bool)?
 
     /// Drop every learned Dock inset and the cached AX probe so the next
     /// `stableVisibleFrame` re-derives the working area purely from the current live
@@ -172,6 +184,51 @@ enum DockReservation {
         defer { lock.unlock() }
         stickyInset.removeAll()
         lastAXProbe = nil
+        lastAutohideProbe = nil // #163: re-read live autohide on manual re-evaluate.
+    }
+
+    /// The persistent `com.apple.dock autohide` preference, or nil when it has never
+    /// been readable. Returns true only when auto-hide is authoritatively enabled;
+    /// callers treat nil (and false) conservatively as a fixed Dock.
+    ///
+    /// Memoized for `ttl` seconds against a monotonic clock so a burst of
+    /// `Monitor.current()` rebuilds triggers at most one `CFPreferencesAppSynchronize`.
+    /// After a first authoritative read, a transient unreadable read returns the last
+    /// known value rather than nil, so reconnect churn cannot momentarily re-arm the
+    /// fixed-Dock learn. Never holds `DockReservation.lock` across the CFPreferences
+    /// calls (those can block); the lock only guards the tiny memo read and write.
+    private static func dockAutohideEnabled() -> Bool? {
+        let ttl: TimeInterval = 1.0
+        let now = ProcessInfo.processInfo.systemUptime
+
+        // 1. Fast path: return a fresh memoized value without syncing. Read the memo
+        //    under the lock, then release it before any CFPreferences call.
+        lock.lock()
+        let cached = lastAutohideProbe
+        lock.unlock()
+        if let cached, now - cached.uptime < ttl {
+            return cached.value
+        }
+
+        // 2. TTL expired (or nothing cached yet): synchronize + read OUTSIDE the lock.
+        let dockDomain = "com.apple.dock" as CFString
+        CFPreferencesAppSynchronize(dockDomain)
+        let raw = CFPreferencesCopyAppValue("autohide" as CFString, dockDomain)
+        let fresh: Bool? =
+            if let flag = raw as? Bool { flag }
+            else if let number = raw as? NSNumber { number.boolValue }
+            else { nil }
+
+        // 3. Update the memo (or fall back) under the lock, no CFPreferences call held.
+        lock.lock()
+        defer { lock.unlock() }
+        if let fresh {
+            lastAutohideProbe = (now, fresh)
+            return fresh
+        }
+        // Transient unreadable: keep the last authoritative value if we ever had one;
+        // otherwise nil → conservatively fixed. Do not overwrite the memo on nil.
+        return lastAutohideProbe?.value
     }
 
     static func stableVisibleFrame(
@@ -180,11 +237,13 @@ enum DockReservation {
         displayId: CGDirectDisplayID
     ) -> CGRect {
         let dockDomain = "com.apple.dock" as CFString
-        // The Dock inset is treated as a stable property: once learned it is applied
-        // permanently, regardless of the live reservation flapping (a quick-terminal or
-        // an auto-hide Dock hides/reveals it constantly). This keeps the shield and the
-        // working area rock-stable — no re-tile when the Dock hides. We intentionally do
-        // NOT try to detect auto-hide and reclaim the band.
+        // A fixed Dock's inset is treated as a stable property: once learned it is applied
+        // permanently, regardless of the live reservation flapping (a quick-terminal that
+        // suppresses the Dock via presentationOptions hides/reveals it constantly). This
+        // keeps the shield and the working area rock-stable — no re-tile when the Dock
+        // hides. An auto-hide Dock is different: it reserves no permanent band, so it is
+        // detected via the persistent com.apple.dock autohide preference (see the gate
+        // above) and has its band reclaimed rather than learned (#163).
 
         // CFPreferences("orientation") reads nil intermittently; falling back to
         // "bottom" would pick the wrong axis and drop the reservation. Reuse the last
@@ -242,6 +301,23 @@ enum DockReservation {
             }
             return corrected
         }
+        // Reclaim the Dock-orientation axis back to the physical frame edge, preserving
+        // the orthogonal (menu-bar/notch) edge carried by `rect`. Shared by the
+        // dock-on-another-display reclaim and the #163 auto-hide reclaim.
+        func reclaimDockAxis(from rect: CGRect, orientation: String) -> CGRect {
+            var corrected = rect
+            switch orientation {
+            case "left":
+                corrected.size.width = corrected.maxX - frame.minX
+                corrected.origin.x = frame.minX
+            case "right":
+                corrected.size.width = frame.maxX - corrected.origin.x
+            default:
+                corrected.size.height = corrected.maxY - frame.minY
+                corrected.origin.y = frame.minY
+            }
+            return corrected
+        }
 
         // The Dock lives on ONE display. If its bar is genuinely on ANOTHER connected
         // display, macOS can still report a phantom side reservation on this display
@@ -259,21 +335,27 @@ enum DockReservation {
         // quick-terminal can report offscreen AX coords that intersect NO display, and
         // treating that as "Dock on another display" would wrongly clear a single
         // display's learned inset (working area jumps to full width, shield disappears).
+        // #163: An auto-hide Dock reserves no permanent band. Its AXList bar top-edge only
+        // animates on-screen during a reveal, and a display reconfiguration animates it in
+        // exactly as Monitor.current() rebuilds — sampling it mid-reveal otherwise learns a
+        // sticky 64/78-pt inset that outlives the reveal forever. When the persistent Dock
+        // preference is authoritatively auto-hide, drop any learned inset for this display
+        // and reclaim the Dock-orientation axis from the live frame, keeping the orthogonal
+        // menu-bar edge. A nil/unreadable preference is treated conservatively as fixed, so
+        // fixed Docks and quick-terminal suppression keep the existing stabilization.
+        if dockAutohideEnabled() == true {
+            lock.lock()
+            stickyInset[displayId] = nil
+            lock.unlock()
+            let corrected = reclaimDockAxis(from: visibleFrame, orientation: effectiveOrientation)
+            return reclaimUnconfirmedSideReservation(from: corrected)
+        }
+
         if dockIsOnAnotherDisplay(than: frame) {
             lock.lock()
             stickyInset[displayId] = nil
             lock.unlock()
-            var corrected = visibleFrame
-            switch orientation {
-            case "left":
-                corrected.size.width = corrected.maxX - frame.minX
-                corrected.origin.x = frame.minX
-            case "right":
-                corrected.size.width = frame.maxX - corrected.origin.x
-            default:
-                corrected.size.height = corrected.maxY - frame.minY
-                corrected.origin.y = frame.minY
-            }
+            let corrected = reclaimDockAxis(from: visibleFrame, orientation: orientation)
             return reclaimUnconfirmedSideReservation(from: corrected)
         }
 
