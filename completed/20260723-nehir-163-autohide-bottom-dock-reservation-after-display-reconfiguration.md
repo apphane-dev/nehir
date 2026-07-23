@@ -3,6 +3,36 @@
 Verified against `main` on 2026-07-23 (HEAD `1d195a9b`). Re-verify source
 line numbers before implementing; cite symbols where possible.
 
+## Resolution (shipped 2026-07-23)
+
+The fix proposed below shipped via the companion plan
+`completed/20260723-nehir-163-stop-auto-hide-dock-reservation.md`:
+
+- Implementation commit `fe48986d` — "Gate Dock reservation stickiness on the
+  persistent auto-hide preference", `Fixes #163`. Touched
+  `Sources/Nehir/Core/Monitor/Monitor.swift` plus the generated changeset
+  fragment
+  `.changeset/20260723163118-fix-external-monitor-reconnect-leaving-a-dock-he.md`
+  (contributor `dagrlx`).
+- Test follow-up commit `fe0596b6` — "Add regression tests for the #163
+  auto-hide Dock gate", added after the user confirmed the fix in the real
+  reconnect repro. It extracted two internal pure seams in `Monitor.swift`
+  (`resolveAutohideMemo` for the TTL / last-value-fallback rule and
+  `reclaimedDockAxis` for the Dock-axis reclaim geometry) and added the small
+  per-behavior test file `Tests/NehirTests/DockAutohideReservationTests.swift`
+  covering memo TTL/fresh/expired/transient-nil/cold-start/seed behavior and
+  bottom/side/idempotent reclaim geometry.
+- Merged via PR #180 on 2026-07-23; issue #163 is closed as completed. The
+  merge commit `fe0596b6` is tagged `v0.6.0-rc.39`.
+- Verification: CodeRabbit's final review pass reported no actionable comments;
+  on `fe0596b6` the Swift test job and the release build job succeeded, but the
+  SwiftLint + SwiftFormat CI job failed because `format:check` reported "would
+  update: Tests/NehirTests/DockAutohideReservationTests.swift". That formatting
+  cleanup is an open follow-up on `main`; not all gates were green at merge.
+
+The discovery below is preserved as the historical, source-backed rationale for
+the fix; its line numbers reference pre-fix `main` (`1d195a9b`).
+
 **Verdict:** confirmed, actionable root cause. Nehir can adopt a transient bottom
 Dock reservation after a display disconnect/reconnect and deliberately keep it as
 a sticky working-area inset even when the Dock is configured to auto-hide. Niri
@@ -15,7 +45,9 @@ bottom gap reported in #163.
 - Reporter and future changeset contributor: [@dagrlx](https://github.com/dagrlx)
 - Reporter-provided failing capture: <https://github.com/user-attachments/files/29926243/runtime-trace-1783781307208-1783781340557.log>
 - A future user-visible fix should mention `Fixes #163` and pass
-  `--contributors dagrlx` to `mise run changeset`.
+  `--contributors dagrlx` to `mise run changeset`. *(Historical — done: the
+  shipped changeset carries `Fixes #163` with contributor `dagrlx`; see the
+  Resolution section above.)*
 
 The reporter observed the issue on macOS 27 Beta 3, but the same geometry failure
 was reproduced on macOS Tahoe on 2026-07-23. The mechanism is therefore not
@@ -344,7 +376,7 @@ This explains all observed variants with one mechanism:
   transition;
 - restart: the process-static sticky cache is reset.
 
-## Fix boundary for a follow-up plan
+## Fix boundary for a follow-up plan (historical — implemented by `fe48986d`)
 
 The fix belongs in `DockReservation.stableVisibleFrame`, before any sticky inset
 is learned or applied:
@@ -378,7 +410,7 @@ No monitor-event, Niri, Dock Shield, or AX resize changes are indicated by the
 captured evidence. Those components already react to a corrected
 `Monitor.visibleFrame`.
 
-## Validation target for implementation
+## Validation target for implementation (historical — satisfied)
 
 Do not edit tests before real-repro confirmation, per `docs/TESTING.md`.
 Implementation should first be validated in the reported runtime sequence:
@@ -393,4 +425,6 @@ Implementation should first be validated in the reported runtime sequence:
    quick terminal transiently hides it.
 
 After the user confirms the fix in the real repro, add a small per-behavior
-regression test rather than modifying a frozen monolith.
+regression test rather than modifying a frozen monolith. *(Done: the user
+confirmed the fix, and `fe0596b6` added
+`Tests/NehirTests/DockAutohideReservationTests.swift`.)*

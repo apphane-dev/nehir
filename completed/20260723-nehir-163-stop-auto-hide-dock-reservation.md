@@ -5,7 +5,59 @@ cited symbols and line numbers before editing — treat line numbers as hints an
 anchor on the symbol names.
 
 Companion discovery:
-`discovery/20260723-nehir-163-autohide-bottom-dock-reservation-after-display-reconfiguration.md`.
+`completed/20260723-nehir-163-autohide-bottom-dock-reservation-after-display-reconfiguration.md`.
+
+## Completion (shipped 2026-07-23)
+
+This plan is **completed**. It was implemented, reviewed, user-confirmed in the
+real reconnect repro, and merged to `main` via PR #180 on 2026-07-23; issue
+#163 is closed as completed. The merge commit `fe0596b6` is tagged
+`v0.6.0-rc.39`.
+
+**Shipped commits:**
+
+- `fe48986d` — "Gate Dock reservation stickiness on the persistent auto-hide
+  preference", `Fixes #163`. The implementation stayed within the planned
+  boundary: `Sources/Nehir/Core/Monitor/Monitor.swift` plus the changeset
+  fragment generated via `mise run changeset`
+  (`.changeset/20260723163118-fix-external-monitor-reconnect-leaving-a-dock-he.md`,
+  contributor `dagrlx`).
+- `fe0596b6` — "Add regression tests for the #163 auto-hide Dock gate". The
+  deferred test gate was satisfied after the user confirmed the fix worked in
+  the real repro, per `docs/TESTING.md`.
+
+**Deviations from this pre-implementation plan** (post-review, in `fe0596b6`):
+
+- Two internal pure seams were extracted in `Monitor.swift` so the policy is
+  unit-testable without touching the CFPreferences or Dock-AX boundaries:
+  `resolveAutohideMemo` (the TTL / last-value-fallback rule, to which
+  `dockAutohideEnabled()` now delegates) and `reclaimedDockAxis` (the Dock-axis
+  reclaim geometry, to which the nested reclaim helper delegates). Both are
+  behavior-preserving refactors of the code this plan specified.
+- The new small per-behavior test file
+  `Tests/NehirTests/DockAutohideReservationTests.swift` covers the memo policy
+  (fresh read reused within the TTL, re-probe after expiry, transient-nil
+  preserving the last authoritative value without overwriting the memo,
+  cold-start nil, first-value seeding) and the reclaim geometry (bottom band
+  reclaimed to `origin.y = frame.minY` at full height with the menu-bar edge
+  preserved, idempotence when no band is present, side-Dock horizontal reclaim).
+- Otherwise the implementation stayed within `Monitor.swift` plus the generated
+  changeset, as planned.
+
+**Final file set:** `Sources/Nehir/Core/Monitor/Monitor.swift`,
+`Tests/NehirTests/DockAutohideReservationTests.swift`, and
+`.changeset/20260723163118-fix-external-monitor-reconnect-leaving-a-dock-he.md`.
+
+**Verification status:**
+
+- Review: CodeRabbit's final pass reported no actionable comments.
+- CI on `fe0596b6`: the Swift test job and the release build job succeeded; the
+  SwiftLint + SwiftFormat job failed because `format:check` reported "would
+  update: Tests/NehirTests/DockAutohideReservationTests.swift". That formatting
+  cleanup is an open follow-up on `main`; not all gates were green at merge.
+
+The plan below is preserved as the historical implementation spec. Its steps,
+gates, and completion token are historical — nothing below remains pending.
 
 ## Problem in one paragraph
 
@@ -43,6 +95,10 @@ is the intended feature.
 - `Sources/Nehir/Core/Monitor/Monitor.swift` — the only source file changed.
 - One Changesets fragment, created via `mise run changeset` (see below). Do not
   hand-author the fragment file.
+
+*(Historical: this described the implementation commit's scope, which held. The
+post-confirmation test follow-up later added
+`Tests/NehirTests/DockAutohideReservationTests.swift`; see Completion above.)*
 
 ## Do-not-touch fences
 
@@ -414,7 +470,11 @@ Run from the main Nehir checkout.
 - If a fast pre-test signal is wanted before the full gate: `mise run format:check`
   and `mise run lint`.
 
-## Test gate (overrides any generic template)
+## Test gate (overrides any generic template) — historical; satisfied
+
+*(Historical note: this gate was honored. The user confirmed the fix in the
+real reconnect repro, after which the deferred regression tests landed as
+`Tests/NehirTests/DockAutohideReservationTests.swift` in `fe0596b6`.)*
 
 Per `docs/TESTING.md`, **do not add, modify, move, or delete any test until the
 user confirms the fix works in their real reconnect repro.** This overrides any
