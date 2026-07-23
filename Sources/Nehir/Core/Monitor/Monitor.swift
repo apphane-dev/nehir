@@ -187,6 +187,29 @@ enum DockReservation {
         lastAutohideProbe = nil // #163: re-read live autohide on manual re-evaluate.
     }
 
+    /// Pure memo policy for `dockAutohideEnabled`, extracted so the TTL/fallback rules
+    /// are unit-testable without touching CFPreferences or the clock. Given the current
+    /// uptime, the TTL, the cached probe, and a freshly-read value (`nil` when the read
+    /// was unreadable), returns the value to report and the memo to store next:
+    /// - within TTL: report the cached value with the memo unchanged (no re-probe);
+    /// - TTL expired with a readable `fresh`: report it and re-time the memo;
+    /// - TTL expired but unreadable: fall back to the cached value and leave the memo
+    ///   untouched, so a transient-nil read cannot overwrite the last authoritative one.
+    static func resolveAutohideMemo(
+        now: TimeInterval,
+        ttl: TimeInterval,
+        cached: (uptime: TimeInterval, value: Bool)?,
+        fresh: Bool?
+    ) -> (value: Bool?, memo: (uptime: TimeInterval, value: Bool)?) {
+        if let cached, now - cached.uptime < ttl {
+            return (cached.value, cached)
+        }
+        if let fresh {
+            return (fresh, (now, fresh))
+        }
+        return (cached?.value, cached)
+    }
+
     /// The persistent `com.apple.dock autohide` preference, or nil when it has never
     /// been readable. Returns true only when auto-hide is authoritatively enabled;
     /// callers treat nil (and false) conservatively as a fixed Dock.
@@ -219,16 +242,13 @@ enum DockReservation {
             else if let number = raw as? NSNumber { number.boolValue }
             else { nil }
 
-        // 3. Update the memo (or fall back) under the lock, no CFPreferences call held.
+        // 3. Apply the fresh read (or fall back) under the lock via the pure policy, no
+        //    CFPreferences call held. Re-read the memo so a concurrent refresh is honored.
         lock.lock()
         defer { lock.unlock() }
-        if let fresh {
-            lastAutohideProbe = (now, fresh)
-            return fresh
-        }
-        // Transient unreadable: keep the last authoritative value if we ever had one;
-        // otherwise nil → conservatively fixed. Do not overwrite the memo on nil.
-        return lastAutohideProbe?.value
+        let (value, memo) = resolveAutohideMemo(now: now, ttl: ttl, cached: lastAutohideProbe, fresh: fresh)
+        lastAutohideProbe = memo
+        return value
     }
 
     static func stableVisibleFrame(
@@ -303,20 +323,10 @@ enum DockReservation {
         }
         // Reclaim the Dock-orientation axis back to the physical frame edge, preserving
         // the orthogonal (menu-bar/notch) edge carried by `rect`. Shared by the
-        // dock-on-another-display reclaim and the #163 auto-hide reclaim.
+        // dock-on-another-display reclaim and the #163 auto-hide reclaim. Delegates to
+        // the pure, unit-testable `reclaimedDockAxis`.
         func reclaimDockAxis(from rect: CGRect, orientation: String) -> CGRect {
-            var corrected = rect
-            switch orientation {
-            case "left":
-                corrected.size.width = corrected.maxX - frame.minX
-                corrected.origin.x = frame.minX
-            case "right":
-                corrected.size.width = frame.maxX - corrected.origin.x
-            default:
-                corrected.size.height = corrected.maxY - frame.minY
-                corrected.origin.y = frame.minY
-            }
-            return corrected
+            reclaimedDockAxis(from: rect, frame: frame, orientation: orientation)
         }
 
         // The Dock lives on ONE display. If its bar is genuinely on ANOTHER connected
@@ -465,6 +475,26 @@ enum DockReservation {
             corrected.origin.y = newMinY
         }
         return isSideOrientation ? corrected : reclaimUnconfirmedSideReservation(from: corrected)
+    }
+
+    /// Pure geometry for the Dock-axis reclaim: returns `rect` with the Dock-orientation
+    /// axis pushed back to the physical `frame` edge, preserving the orthogonal
+    /// (menu-bar/notch) edge carried by `rect`. For a bottom Dock this restores
+    /// `origin.y = frame.minY` and extends the height to the previous top edge. Extracted
+    /// as a pure seam so the #163 auto-hide reclaim geometry is unit-testable.
+    static func reclaimedDockAxis(from rect: CGRect, frame: CGRect, orientation: String) -> CGRect {
+        var corrected = rect
+        switch orientation {
+        case "left":
+            corrected.size.width = corrected.maxX - frame.minX
+            corrected.origin.x = frame.minX
+        case "right":
+            corrected.size.width = frame.maxX - corrected.origin.x
+        default:
+            corrected.size.height = corrected.maxY - frame.minY
+            corrected.origin.y = frame.minY
+        }
+        return corrected
     }
 
     /// Reads the Dock's bar rect (its `AXList` child) and converts it to an edge
