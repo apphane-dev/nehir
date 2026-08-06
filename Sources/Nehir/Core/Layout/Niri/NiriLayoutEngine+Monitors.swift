@@ -43,16 +43,28 @@ extension NiriLayoutEngine {
             }
         }
 
-        // The working area changed (e.g. the Dock reservation appeared after a
-        // quick-terminal that hid it at launch was dismissed). Column widths are cached
-        // absolute spans resolved from each column's proportion against the OLD working
-        // width; without this they keep their stale size and windows stay laid out "as
-        // if there were no Dock". Reset the caches so they re-resolve on the next pass.
-        if workingSizeChanged {
+        let newIds = Set(newMonitors.map(\.id))
+
+        // A monitor appeared or disappeared (dock/undock, KVM switch). Workspaces are
+        // reassigned to a surviving monitor by `syncWorkspaceAssignments`, so their
+        // columns are about to be laid out against a working area that belongs to a
+        // *different* display than the one their cached spans were resolved from. The
+        // size-change check above cannot see this: it only inspects monitors present in
+        // `monitors` both before and after, and `Monitor.ID` is the CGDirectDisplayID,
+        // so a swapped display is never the same key.
+        let monitorSetChanged = newIds != Set(monitors.keys)
+
+        // Column widths are cached absolute spans resolved from each column's proportion
+        // against the OLD working width; without this they keep their stale size. Two
+        // ways that goes wrong: the working area of a monitor we already track changes
+        // (e.g. the Dock reservation appeared after a quick-terminal that hid it at
+        // launch was dismissed) and windows stay laid out "as if there were no Dock"; or
+        // the set of monitors changes and columns carry pixel widths from the display
+        // they used to live on. Reset the caches so they re-resolve on the next pass.
+        if workingSizeChanged || monitorSetChanged {
             invalidateCachedLayoutSpans()
         }
 
-        let newIds = Set(newMonitors.map(\.id))
         monitors = monitors.filter { newIds.contains($0.key) }
         workspaceMonitorIndex = workspaceMonitorIndex.filter { newIds.contains($0.value) }
     }
