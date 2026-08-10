@@ -570,6 +570,7 @@ Numeric inputs are resolved as raw workspace IDs first. Display-name lookup is a
 ## Rules
 
 Manage persisted window rules that control whether matching windows are managed, their layout behavior, sticky visibility, and default workspace placement.
+
 Rule add, replace, and config reload update initial placement defaults; existing managed windows stay on their current workspace unless `rule apply` is used.
 
 ```
@@ -580,8 +581,8 @@ nehirctl rule <action> [arguments...] [options...]
 
 | Option | Value | Description |
 |--------|-------|-------------|
-| `--bundle-id` | `<bundle-id>` | Application bundle identifier (required for add/replace) |
-| `--app-name-substring` | `<text>` | Match app name containing this substring |
+| `--bundle-id` | `<bundle-id>` | Application bundle identifier |
+| `--app-name-substring` | `<text>` | Match app name containing this substring; may be used alone when no bundle ID is available |
 | `--title-substring` | `<text>` | Match window title containing this substring |
 | `--title-regex` | `<pattern>` | Match window title against this regex |
 | `--ax-role` | `<role>` | Match accessibility role |
@@ -595,20 +596,28 @@ nehirctl rule <action> [arguments...] [options...]
 
 Bundle IDs must match the pattern: `^[a-zA-Z0-9]+([.-][a-zA-Z0-9]+)*$`
 
+Add and replace require at least one application selector: `--bundle-id`, `--app-name-substring`, or both. When both are supplied, both must match.
+
 ### Rule Actions
 
 **Add a rule:**
 
 ```bash
-nehirctl rule add --bundle-id <bundle-id> [options...]
+nehirctl rule add [--bundle-id <bundle-id>] [--app-name-substring <text>] [options...]
 ```
 
 Appends a new rule to the end of the rule list. First matching app windows use its placement defaults; already managed windows are not moved.
 
+For apps that do not expose a bundle ID:
+
+```bash
+nehirctl rule add --app-name-substring qemu-system-aarch64 --layout float
+```
+
 **Replace a rule:**
 
 ```bash
-nehirctl rule replace <rule-id> --bundle-id <bundle-id> [options...]
+nehirctl rule replace <rule-id> [--bundle-id <bundle-id>] [--app-name-substring <text>] [options...]
 ```
 
 Replaces a rule in-place by its UUID. The rule ID is preserved. Already managed windows are not moved until rules are explicitly applied.
@@ -981,4 +990,3 @@ ow_…  5678   Safari    GitHub        web        Built-in  tiling   no       ye
 | `NEHIR_EVENT_CHANNEL` | (watch child) Subscription channel name |
 | `NEHIR_EVENT_KIND` | (watch child) Event result kind |
 | `NEHIR_EVENT_ID` | (watch child) Event ID |
-

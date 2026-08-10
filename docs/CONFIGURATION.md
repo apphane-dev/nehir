@@ -222,6 +222,19 @@ minWidth = 500
 minHeight = 375
 ```
 
+Every rule needs at least one application selector. Prefer `bundleId` when it is available. Apps without a bundle ID can use `appName`, which is a case-insensitive substring match; when both are present, both selectors must match.
+
+The CLI equivalent is `nehirctl rule add --app-name-substring "qemu-system-aarch64" --layout float`.
+
+```toml
+# apprules.d/app-qemu-system-aarch64.toml
+[match]
+appName = "qemu-system-aarch64"
+
+[effect]
+layout = "float"
+```
+
 Rule effects are explicit and composable:
 
 ```toml

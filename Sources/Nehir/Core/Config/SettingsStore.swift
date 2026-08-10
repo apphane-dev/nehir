@@ -433,7 +433,11 @@ final class SettingsStore {
                 .write(to: persistence.workspacesFileURL, options: .atomic)
         }
         if !fm.fileExists(atPath: persistence.appRulesDirectoryURL.path) {
-            try AppRuleFileStore.write(export.appRules, to: persistence.appRulesDirectoryURL)
+            try AppRuleFileStore.write(
+                export.appRules,
+                to: persistence.appRulesDirectoryURL,
+                previousRuleIDs: []
+            )
         }
         if !fm.fileExists(atPath: persistence.monitorsDirectoryURL.path) {
             try MonitorOverrideFileStore.write(

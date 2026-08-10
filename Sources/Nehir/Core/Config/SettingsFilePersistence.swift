@@ -62,6 +62,7 @@ final class SettingsFilePersistence {
     private var auxiliaryFileDescriptors: [String: CInt] = [:]
     private var auxiliaryFileWatchers: [String: DispatchSourceFileSystemObject] = [:]
     private var pendingExport: SettingsExport?
+    private var pendingPreviousAppRuleIDs: Set<UUID>?
     private var saveScheduled = false
     private var lastWrittenFingerprint: FileFingerprint?
     private var lastObservedFingerprint: FileFingerprint?
@@ -125,14 +126,22 @@ final class SettingsFilePersistence {
     }
 
     func save(_ export: SettingsExport) {
+        save(export, previousAppRuleIDs: Set(lastPersistedExport?.appRules.map(\.id) ?? []))
+    }
+
+    private func save(_ export: SettingsExport, previousAppRuleIDs: Set<UUID>) {
         do {
-            try saveImmediately(export)
+            try saveImmediately(export, previousAppRuleIDs: previousAppRuleIDs)
         } catch {
             report("Failed to save \(fileURL.path): \(error.localizedDescription)")
         }
     }
 
     func saveImmediately(_ export: SettingsExport) throws {
+        try saveImmediately(export, previousAppRuleIDs: Set(lastPersistedExport?.appRules.map(\.id) ?? []))
+    }
+
+    private func saveImmediately(_ export: SettingsExport, previousAppRuleIDs: Set<UUID>) throws {
         try ensureDirectoryExists()
         let observedFingerprint = currentFingerprint()
         if let fingerprint = observedFingerprint,
@@ -154,7 +163,11 @@ final class SettingsFilePersistence {
             try workspacesData.write(to: workspacesFileURL, options: .atomic)
         }
 
-        try AppRuleFileStore.write(export.appRules, to: appRulesDirectoryURL)
+        try AppRuleFileStore.write(
+            export.appRules,
+            to: appRulesDirectoryURL,
+            previousRuleIDs: previousAppRuleIDs
+        )
         try MonitorOverrideFileStore.write(
             bar: export.monitorBarSettings,
             gaps: export.monitorGapSettings,
@@ -185,10 +198,14 @@ final class SettingsFilePersistence {
     func scheduleSave(_ export: @autoclosure () -> SettingsExport) {
         if !deferSaves {
             pendingExport = nil
-            save(export())
+            pendingPreviousAppRuleIDs = nil
+            save(export(), previousAppRuleIDs: Set(lastPersistedExport?.appRules.map(\.id) ?? []))
             return
         }
 
+        if pendingExport == nil {
+            pendingPreviousAppRuleIDs = Set(lastPersistedExport?.appRules.map(\.id) ?? [])
+        }
         pendingExport = export()
         guard !saveScheduled else { return }
         saveScheduled = true
@@ -202,9 +219,12 @@ final class SettingsFilePersistence {
     }
 
     func flushNow() {
-        guard let export = pendingExport else { return }
+        guard let export = pendingExport,
+              let previousAppRuleIDs = pendingPreviousAppRuleIDs
+        else { return }
         pendingExport = nil
-        save(export)
+        pendingPreviousAppRuleIDs = nil
+        save(export, previousAppRuleIDs: previousAppRuleIDs)
     }
 
     func reloadIfChanged() -> SettingsExport? {

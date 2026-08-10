@@ -376,18 +376,26 @@ final class WindowRuleEngine {
             rule.hasAdvancedMatchers
         }
 
-        func matches(_ facts: WindowRuleFacts) -> Bool {
-            if rule.bundleId.caseInsensitiveCompare(facts.ax.bundleId ?? "") != .orderedSame {
+        func matchesApplication(bundleId: String?, appName: String?) -> Bool {
+            if let selectorBundleId = nonEmpty(rule.bundleId),
+               selectorBundleId.caseInsensitiveCompare(bundleId ?? "") != .orderedSame
+            {
                 return false
             }
 
             if let appNameSubstring = nonEmpty(rule.appNameSubstring) {
-                guard let appName = facts.appName,
+                guard let appName,
                       appName.localizedCaseInsensitiveContains(appNameSubstring)
                 else {
                     return false
                 }
             }
+
+            return true
+        }
+
+        func matches(_ facts: WindowRuleFacts) -> Bool {
+            guard matchesApplication(bundleId: facts.ax.bundleId, appName: facts.appName) else { return false }
 
             if let titleSubstring = nonEmpty(rule.titleSubstring) {
                 guard let title = facts.ax.title,
@@ -424,7 +432,6 @@ final class WindowRuleEngine {
 
     private var compiledUserRules: [CompiledRule] = []
     private let builtInRules: [CompiledRule]
-    private var titleFetchBundleIds: Set<String> = []
     private(set) var invalidRegexMessagesByRuleId: [UUID: String] = [:]
 
     private(set) var requiresTitle = false
@@ -432,8 +439,7 @@ final class WindowRuleEngine {
 
     init() {
         builtInRules = Self.makeBuiltInRules()
-        titleFetchBundleIds = Self.titleBundleIds(from: builtInRules)
-        requiresTitle = !titleFetchBundleIds.isEmpty
+        requiresTitle = builtInRules.contains { $0.requiresTitle }
         hasDynamicReevaluationRules = builtInRules.contains { $0.requiresDynamicReevaluation }
     }
 
@@ -441,15 +447,18 @@ final class WindowRuleEngine {
         hasDynamicReevaluationRules
     }
 
-    func requiresTitle(for bundleId: String?) -> Bool {
-        guard let bundleId else { return false }
-        return titleFetchBundleIds.contains(bundleId.lowercased())
+    func requiresTitle(for bundleId: String?, appName: String? = nil) -> Bool {
+        compiledUserRules.contains {
+            $0.requiresTitle && $0.matchesApplication(bundleId: bundleId, appName: appName)
+        } || builtInRules.contains {
+            $0.requiresTitle && $0.matchesApplication(bundleId: bundleId, appName: appName)
+        }
     }
 
     func rebuild(rules: [AppRule]) {
         var invalidRegexMessagesByRuleId: [UUID: String] = [:]
         compiledUserRules = rules.enumerated().compactMap { index, rule in
-            guard rule.hasAnyRule else { return nil }
+            guard rule.hasAnyRule, rule.hasApplicationSelector else { return nil }
             return compile(
                 rule: rule,
                 source: .user,
@@ -459,9 +468,8 @@ final class WindowRuleEngine {
         }
         self.invalidRegexMessagesByRuleId = invalidRegexMessagesByRuleId
 
-        titleFetchBundleIds = Self.titleBundleIds(from: builtInRules)
-        titleFetchBundleIds.formUnion(Self.titleBundleIds(from: compiledUserRules))
-        requiresTitle = !titleFetchBundleIds.isEmpty
+        requiresTitle = compiledUserRules.contains { $0.requiresTitle }
+            || builtInRules.contains { $0.requiresTitle }
         hasDynamicReevaluationRules = compiledUserRules.contains { $0.requiresDynamicReevaluation }
             || builtInRules.contains { $0.requiresDynamicReevaluation }
     }
@@ -572,7 +580,7 @@ final class WindowRuleEngine {
         }
 
         if facts.ax.title == nil,
-           requiresTitle(for: facts.ax.bundleId)
+           requiresTitle(for: facts.ax.bundleId, appName: facts.appName)
         {
             return WindowDecision(
                 disposition: .undecided,
@@ -970,15 +978,6 @@ final class WindowRuleEngine {
         }
 
         return best
-    }
-
-    private static func titleBundleIds(from rules: [CompiledRule]) -> Set<String> {
-        Set(
-            rules.compactMap { compiled in
-                guard compiled.requiresTitle else { return nil }
-                return compiled.rule.bundleId.lowercased()
-            }
-        )
     }
 
     private func compile(

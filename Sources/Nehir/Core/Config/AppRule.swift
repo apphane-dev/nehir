@@ -58,7 +58,7 @@ struct AppRule: Codable, Identifiable, Equatable {
     }
 
     let id: UUID
-    var bundleId: String
+    var bundleId: String?
     var appNameSubstring: String?
     var titleSubstring: String?
     var titleRegex: String?
@@ -73,7 +73,7 @@ struct AppRule: Codable, Identifiable, Equatable {
 
     init(
         id: UUID = UUID(),
-        bundleId: String,
+        bundleId: String? = nil,
         appNameSubstring: String? = nil,
         titleSubstring: String? = nil,
         titleRegex: String? = nil,
@@ -122,7 +122,7 @@ struct AppRule: Codable, Identifiable, Equatable {
     }
 
     var specificity: Int {
-        var score = 1
+        var score = bundleId?.isEmpty == false ? 1 : 0
         if appNameSubstring?.isEmpty == false { score += 1 }
         if titleSubstring?.isEmpty == false { score += 1 }
         if titleRegex?.isEmpty == false { score += 1 }
@@ -142,7 +142,7 @@ struct AppRule: Codable, Identifiable, Equatable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
-        bundleId = try container.decode(String.self, forKey: .bundleId)
+        bundleId = try container.decodeIfPresent(String.self, forKey: .bundleId)
         appNameSubstring = try container.decodeIfPresent(String.self, forKey: .appNameSubstring)
         titleSubstring = try container.decodeIfPresent(String.self, forKey: .titleSubstring)
         titleRegex = try container.decodeIfPresent(String.self, forKey: .titleRegex)
@@ -154,5 +154,10 @@ struct AppRule: Codable, Identifiable, Equatable {
         minWidth = try container.decodeIfPresent(Double.self, forKey: .minWidth)
         minHeight = try container.decodeIfPresent(Double.self, forKey: .minHeight)
         sticky = try container.decodeIfPresent(Bool.self, forKey: .sticky)
+    }
+
+    var hasApplicationSelector: Bool {
+        bundleId?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ||
+            appNameSubstring?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
     }
 }

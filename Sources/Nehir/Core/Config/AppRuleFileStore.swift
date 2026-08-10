@@ -20,27 +20,129 @@ import os
 enum AppRuleFileStore {
     private static let logger = Logger(subsystem: "com.nehir", category: "config")
 
+    enum WriteError: LocalizedError, Equatable {
+        case duplicateRuleID(UUID)
+        case duplicateSourceRuleID(UUID, [String])
+        case duplicateOutputFilename(String)
+        case malformedBundleID(UUID)
+        case missingApplicationSelector(UUID)
+        case missingExpectedSource(UUID)
+
+        var errorDescription: String? {
+            switch self {
+            case let .duplicateRuleID(id):
+                "Cannot write app rules because rule ID \(id.uuidString) is duplicated."
+            case let .duplicateSourceRuleID(id, filenames):
+                "Cannot write app rules because rule ID \(id.uuidString) appears in multiple source files: \(filenames.joined(separator: ", "))."
+            case let .duplicateOutputFilename(filename):
+                "Cannot write app rules because the planned target filename \(filename) is already in use."
+            case let .malformedBundleID(id):
+                "Cannot write app rule \(id.uuidString) because its bundle ID is blank. Provide a non-empty bundle ID, or omit it and provide an app name selector."
+            case let .missingApplicationSelector(id):
+                "Cannot write app rule \(id.uuidString) because it has no bundle ID or app name selector."
+            case let .missingExpectedSource(id):
+                "Cannot write app rule \(id.uuidString) because its previously persisted source file is missing, unreadable, invalid, or renamed. Reload settings before saving."
+            }
+        }
+    }
+
     // MARK: - Encode (write directory)
 
-    static func write(_ rules: [AppRule], to directory: URL) throws {
-        let fm = FileManager.default
-        try fm.createDirectory(at: directory, withIntermediateDirectories: true)
-
-        // Remove existing .toml files
-        if let contents = try? fm.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil) {
-            for fileURL in contents where fileURL.pathExtension == "toml" {
-                try? fm.removeItem(at: fileURL)
+    static func write(_ rules: [AppRule], to directory: URL, previousRuleIDs: Set<UUID>) throws {
+        var ruleIDs: Set<UUID> = []
+        for rule in rules {
+            guard ruleIDs.insert(rule.id).inserted else {
+                throw WriteError.duplicateRuleID(rule.id)
+            }
+            if let bundleId = rule.bundleId, !containsNonWhitespace(bundleId) {
+                throw WriteError.malformedBundleID(rule.id)
+            }
+            if rule.bundleId == nil, rule.appNameSubstring.map(containsNonWhitespace) != true {
+                throw WriteError.missingApplicationSelector(rule.id)
             }
         }
 
-        for (index, rule) in rules.enumerated() {
-            let filename = sanitizedFilename(for: rule)
-            let fileURL = directory.appendingPathComponent(filename)
-            let content = encode(rule, order: index)
-            try content.write(to: fileURL, atomically: true, encoding: .utf8)
+        let encodedRules = rules.enumerated().map { index, rule in
+            (rule: rule, content: encode(rule, order: index))
+        }
+
+        let fileManager = FileManager.default
+        let directoryScan = try scanDirectory(directory, fileManager: fileManager)
+        if let duplicate = directoryScan.sourceURLsByRuleID
+            .filter({ $0.value.count > 1 })
+            .sorted(by: { $0.key.uuidString < $1.key.uuidString })
+            .first
+        {
+            throw WriteError.duplicateSourceRuleID(
+                duplicate.key,
+                duplicate.value.map(\.lastPathComponent).sorted()
+            )
+        }
+
+        let existingPaths = Set(directoryScan.allFileURLs.map { $0.standardizedFileURL.path })
+        var plannedTargetPaths: Set<String> = []
+        var plannedWrites: [(targetURL: URL, content: String, isNew: Bool)] = []
+
+        for encodedRule in encodedRules {
+            let sources = directoryScan.sourceURLsByRuleID[encodedRule.rule.id] ?? []
+            if previousRuleIDs.contains(encodedRule.rule.id), sources.isEmpty {
+                throw WriteError.missingExpectedSource(encodedRule.rule.id)
+            }
+            if !previousRuleIDs.contains(encodedRule.rule.id), let occupiedSource = sources.first {
+                throw WriteError.duplicateOutputFilename(occupiedSource.lastPathComponent)
+            }
+
+            let sourceURL = sources.first
+            let targetURL = sourceURL ?? directory.appendingPathComponent(
+                generatedFilename(for: encodedRule.rule),
+                isDirectory: false
+            )
+            let targetPath = targetURL.standardizedFileURL.path
+
+            guard plannedTargetPaths.insert(targetPath).inserted else {
+                throw WriteError.duplicateOutputFilename(targetURL.lastPathComponent)
+            }
+            if sourceURL == nil,
+               existingPaths.contains(targetPath) || fileManager.fileExists(atPath: targetURL.path)
+            {
+                throw WriteError.duplicateOutputFilename(targetURL.lastPathComponent)
+            }
+
+            plannedWrites.append((targetURL, encodedRule.content, sourceURL == nil))
+        }
+
+        let desiredRuleIDs = Set(rules.map(\.id))
+        let explicitDeletionCandidates = directoryScan.sourceURLsByRuleID.compactMap {
+            ruleID, sourceURLs -> URL? in
+            guard previousRuleIDs.contains(ruleID),
+                  !desiredRuleIDs.contains(ruleID),
+                  sourceURLs.count == 1
+            else { return nil }
+            return sourceURLs[0]
+        }
+
+        try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+
+        for plannedWrite in plannedWrites {
+            if plannedWrite.isNew {
+                try Data(plannedWrite.content.utf8).write(
+                    to: plannedWrite.targetURL,
+                    options: .withoutOverwriting
+                )
+            } else {
+                try plannedWrite.content.write(
+                    to: plannedWrite.targetURL,
+                    atomically: true,
+                    encoding: .utf8
+                )
+            }
         }
 
         try writeInactiveSamples(to: directory)
+
+        for fileURL in explicitDeletionCandidates {
+            try fileManager.removeItem(at: fileURL)
+        }
     }
 
     static func encode(_ rule: AppRule) -> String {
@@ -53,7 +155,7 @@ enum AppRuleFileStore {
         if let order { lines.append("order = \(order)") }
         if !lines.isEmpty { lines.append("") }
         lines.append("[match]")
-        lines.append("bundleId = \(quoted(rule.bundleId))")
+        if let bundleId = rule.bundleId { lines.append("bundleId = \(quoted(bundleId))") }
         if let v = rule.appNameSubstring { lines.append("appName = \(quoted(v))") }
         if let v = rule.titleSubstring { lines.append("titleSubstring = \(quoted(v))") }
         if let v = rule.titleRegex { lines.append("titleRegex = \(quoted(v))") }
@@ -325,15 +427,38 @@ enum AppRuleFileStore {
             return value
         }
 
-        guard let bundleId = stringField(matchFields, "bundleId", path: "match.bundleId") else {
-            warn("skipping file; missing or invalid required match.bundleId")
+        let bundleId: String?
+        if let rawBundleId = matchFields["bundleId"] {
+            guard let value = extractString(rawBundleId), containsNonWhitespace(value) else {
+                warn("skipping file; match.bundleId must be a non-empty quoted string")
+                return nil
+            }
+            bundleId = value
+        } else {
+            bundleId = nil
+        }
+
+        let decodedAppName = stringField(matchFields, "appName", path: "match.appName")
+        let appNameSubstring: String?
+        if bundleId == nil {
+            guard let decodedAppName, containsNonWhitespace(decodedAppName) else {
+                warn("skipping file; omitted match.bundleId requires non-empty match.appName")
+                return nil
+            }
+            appNameSubstring = decodedAppName
+        } else {
+            appNameSubstring = decodedAppName
+        }
+        let selector = bundleId ?? appNameSubstring
+        guard let selector else {
+            warn("skipping file; provide a valid match.bundleId or non-empty match.appName")
             return nil
         }
 
         let rule = AppRule(
-            id: id ?? stableID(for: sourceFile, bundleId: bundleId),
+            id: id ?? stableID(for: sourceFile, selector: selector),
             bundleId: bundleId,
-            appNameSubstring: stringField(matchFields, "appName", path: "match.appName"),
+            appNameSubstring: appNameSubstring,
             titleSubstring: stringField(matchFields, "titleSubstring", path: "match.titleSubstring"),
             titleRegex: stringField(matchFields, "titleRegex", path: "match.titleRegex"),
             axRole: stringField(matchFields, "axRole", path: "match.axRole"),
@@ -470,11 +595,13 @@ enum AppRuleFileStore {
             messages.append("document.order is not a valid integer")
         }
 
-        let validBundleId = extractString(matchFields["bundleId"]) != nil
-        if matchFields["bundleId"] == nil {
-            messages.append("match.bundleId is required and must be a non-empty quoted string")
-        } else {
-            appendInvalidString(matchFields["bundleId"], path: "match.bundleId", to: &messages)
+        let rawBundleId = matchFields["bundleId"]
+        let hasBundleIdField = rawBundleId != nil
+        let validBundleId = rawBundleId
+            .flatMap(extractString)
+            .map(containsNonWhitespace) == true
+        if hasBundleIdField, !validBundleId {
+            messages.append("match.bundleId must be a non-empty quoted string")
         }
         for key in ["appName", "titleSubstring", "titleRegex", "axRole", "axSubrole"] {
             appendInvalidString(matchFields[key], path: "match.\(key)", to: &messages)
@@ -503,7 +630,16 @@ enum AppRuleFileStore {
             messages.append("effect.sticky must be true or false")
         }
 
-        return AppRuleDiagnostics(messages: messages, canClean: validBundleId)
+        let validStandaloneAppName = extractString(matchFields["appName"])
+            .map(containsNonWhitespace) == true
+        if !hasBundleIdField, !validStandaloneAppName {
+            messages.append("provide a non-empty match.bundleId or match.appName")
+        }
+
+        return AppRuleDiagnostics(
+            messages: messages,
+            canClean: validBundleId || (!hasBundleIdField && validStandaloneAppName)
+        )
     }
 
     // MARK: - Samples
@@ -568,8 +704,8 @@ enum AppRuleFileStore {
         }
     }
 
-    private static func stableID(for filename: String, bundleId: String) -> UUID {
-        let seed = filename.isEmpty ? bundleId : filename
+    private static func stableID(for filename: String, selector: String) -> UUID {
+        let seed = filename.isEmpty ? selector : filename
         var hash: UInt64 = 14_695_981_039_346_656_037
         for byte in seed.utf8 {
             hash ^= UInt64(byte)
@@ -590,6 +726,35 @@ enum AppRuleFileStore {
     }
 
     // MARK: - Helpers
+
+    private struct DirectoryScan {
+        let allFileURLs: [URL]
+        let sourceURLsByRuleID: [UUID: [URL]]
+    }
+
+    private static func scanDirectory(_ directory: URL, fileManager: FileManager) throws -> DirectoryScan {
+        let allFileURLs: [URL]
+        if fileManager.fileExists(atPath: directory.path) {
+            allFileURLs = try fileManager.contentsOfDirectory(
+                at: directory,
+                includingPropertiesForKeys: nil
+            )
+            .filter { $0.pathExtension == "toml" }
+            .sorted { $0.lastPathComponent < $1.lastPathComponent }
+        } else {
+            allFileURLs = []
+        }
+
+        var sourceURLsByRuleID: [UUID: [URL]] = [:]
+        for fileURL in allFileURLs {
+            guard let content = try? String(contentsOf: fileURL, encoding: .utf8),
+                  let (_, rule) = decodeWithOrder(content, sourceFile: fileURL.lastPathComponent)
+            else { continue }
+            sourceURLsByRuleID[rule.id, default: []].append(fileURL)
+        }
+
+        return DirectoryScan(allFileURLs: allFileURLs, sourceURLsByRuleID: sourceURLsByRuleID)
+    }
 
     private struct ParsedLine {
         let number: Int
@@ -632,14 +797,17 @@ enum AppRuleFileStore {
         return result
     }
 
-    private static func sanitizedFilename(for rule: AppRule) -> String {
-        let base = rule.bundleId
+    private static func generatedFilename(for rule: AppRule) -> String {
+        guard let bundleId = rule.bundleId else {
+            let appName = rule.appNameSubstring ?? "rule"
+            return "app-\(filenameSlug(appName))-\(rule.id.uuidString.lowercased()).toml"
+        }
+
+        var name = bundleId
             .replacingOccurrences(of: ".", with: "-")
             .lowercased()
-
-        var name = base
-        if let titleSub = rule.titleSubstring {
-            let suffix = titleSub
+        if let titleSubstring = rule.titleSubstring {
+            let suffix = titleSubstring
                 .trimmingCharacters(in: .whitespacesAndNewlines)
                 .replacingOccurrences(of: " ", with: "-")
                 .lowercased()
@@ -648,7 +816,7 @@ enum AppRuleFileStore {
                 name += "-\(suffix)"
             }
         }
-        return name + ".toml"
+        return "\(name).toml"
     }
 
     private static func quoted(_ value: String) -> String {
@@ -667,6 +835,29 @@ enum AppRuleFileStore {
             return result.isEmpty ? nil : result
         }
         return nil
+    }
+
+    private static func containsNonWhitespace(_ value: String) -> Bool {
+        value.rangeOfCharacter(from: .whitespacesAndNewlines.inverted) != nil
+    }
+
+    private static func filenameSlug(_ value: String) -> String {
+        let allowed = CharacterSet.alphanumerics
+        var result = ""
+        var previousWasSeparator = false
+
+        for scalar in value.unicodeScalars {
+            if allowed.contains(scalar) {
+                result.unicodeScalars.append(scalar)
+                previousWasSeparator = false
+            } else if !previousWasSeparator {
+                result.append("-")
+                previousWasSeparator = true
+            }
+        }
+
+        let trimmed = result.trimmingCharacters(in: CharacterSet(charactersIn: "-"))
+        return String((trimmed.isEmpty ? "rule" : trimmed).prefix(48)).lowercased()
     }
 
     private static func extractDouble(_ raw: String?) -> Double? {
