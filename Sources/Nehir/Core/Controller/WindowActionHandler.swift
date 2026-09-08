@@ -954,21 +954,34 @@ final class WindowActionHandler {
             guard entry.layoutReason == .standard else { continue }
 
             let cachedInfo = controller.appInfoCache.info(for: entry.handle.pid)
-            guard let bundleId = cachedInfo?.bundleId else { continue }
+            guard let cachedInfo, let appName = Self.runningAppName(for: cachedInfo) else { continue }
+            let bundleId = cachedInfo.bundleId
+            let appKey = bundleId ?? "app-name:\(appName.lowercased())"
 
-            if appInfoMap[bundleId] != nil { continue }
+            if appInfoMap[appKey] != nil { continue }
 
             let frame = (AXWindowService.framePreferFast(entry.axRef)) ?? .zero
 
-            appInfoMap[bundleId] = RunningAppInfo(
-                id: bundleId,
+            appInfoMap[appKey] = RunningAppInfo(
+                id: appKey,
                 bundleId: bundleId,
-                appName: cachedInfo?.name ?? "Unknown",
-                icon: cachedInfo?.icon,
+                appName: appName,
+                icon: cachedInfo.icon,
                 windowSize: frame.size
             )
         }
 
         return appInfoMap.values.sorted { $0.appName < $1.appName }
+    }
+
+    static func runningAppName(for appInfo: AppInfoCache.AppInfo) -> String? {
+        if appInfo.bundleId != nil {
+            return appInfo.name ?? "Unknown"
+        }
+
+        guard let appName = appInfo.name?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !appName.isEmpty
+        else { return nil }
+        return appName
     }
 }

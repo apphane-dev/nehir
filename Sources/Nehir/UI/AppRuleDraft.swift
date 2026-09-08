@@ -40,6 +40,7 @@ struct AppRuleDraft: Identifiable, Equatable {
     var minHeight: Double
     var appNameMatcherEnabled: Bool
     var appNameSubstring: String
+    var generatedAppNameSeed: String?
     var titleMatcherMode: TitleMatcherMode
     var titleSubstring: String
     var titleRegex: String
@@ -63,6 +64,7 @@ struct AppRuleDraft: Identifiable, Equatable {
         minHeight = 300
         appNameMatcherEnabled = false
         appNameSubstring = ""
+        generatedAppNameSeed = nil
         titleMatcherMode = .none
         titleSubstring = ""
         titleRegex = ""
@@ -74,7 +76,7 @@ struct AppRuleDraft: Identifiable, Equatable {
 
     init(rule: AppRule) {
         id = rule.id
-        bundleId = rule.bundleId
+        bundleId = rule.bundleId ?? ""
         manageAction = rule.effectiveManageAction
         layoutAction = rule.effectiveLayoutAction
         stickyEnabled = rule.sticky != nil
@@ -87,6 +89,7 @@ struct AppRuleDraft: Identifiable, Equatable {
         minHeight = rule.minHeight ?? 300
         appNameMatcherEnabled = rule.appNameSubstring?.isEmpty == false
         appNameSubstring = rule.appNameSubstring ?? ""
+        generatedAppNameSeed = nil
         if rule.titleRegex?.isEmpty == false {
             titleMatcherMode = .regex
         } else if rule.titleSubstring?.isEmpty == false {
@@ -103,9 +106,15 @@ struct AppRuleDraft: Identifiable, Equatable {
     }
 
     static func guided(from snapshot: WindowDecisionDebugSnapshot) -> AppRuleDraft? {
-        guard let bundleId = snapshot.bundleId?.trimmedNonEmpty else { return nil }
+        let bundleId = snapshot.bundleId?.trimmedNonEmpty
+        guard let appName = snapshot.appName?.trimmedNonEmpty ?? bundleId else { return nil }
 
-        var draft = AppRuleDraft(bundleId: bundleId)
+        var draft = AppRuleDraft(bundleId: bundleId ?? "")
+        if bundleId == nil {
+            draft.appNameMatcherEnabled = true
+            draft.appNameSubstring = appName
+            draft.generatedAppNameSeed = appName
+        }
         if let title = snapshot.title?.trimmedNonEmpty {
             draft.titleMatcherMode = .substring
             draft.titleSubstring = title
@@ -121,6 +130,24 @@ struct AppRuleDraft: Identifiable, Equatable {
         return draft
     }
 
+    mutating func applyRunningAppSelection(bundleId: String?, appName: String) {
+        self.bundleId = bundleId ?? ""
+        if bundleId == nil {
+            appNameMatcherEnabled = true
+            appNameSubstring = appName
+            generatedAppNameSeed = appName
+        } else {
+            if let generatedAppNameSeed,
+               appNameMatcherEnabled,
+               appNameSubstring == generatedAppNameSeed
+            {
+                appNameMatcherEnabled = false
+                appNameSubstring = ""
+            }
+            generatedAppNameSeed = nil
+        }
+    }
+
     var hasActiveAdvancedMatchers: Bool {
         makeRule().hasAdvancedMatchers
     }
@@ -129,10 +156,21 @@ struct AppRuleDraft: Identifiable, Equatable {
         makeRule().hasAnyRule
     }
 
+    var applicationSelectorError: String? {
+        AppRuleDraftValidation.applicationSelectorError(
+            bundleId: bundleId,
+            appNameSubstring: appNameMatcherEnabled ? appNameSubstring : nil
+        )
+    }
+
+    var appNameMatcherIsRequired: Bool {
+        appNameMatcherEnabled && bundleId.trimmedNonEmpty == nil
+    }
+
     func makeRule(id: UUID? = nil) -> AppRule {
         return AppRule(
             id: id ?? self.id,
-            bundleId: bundleId.trimmingCharacters(in: .whitespacesAndNewlines),
+            bundleId: bundleId.trimmedNonEmpty,
             appNameSubstring: appNameMatcherEnabled ? appNameSubstring.trimmedNonEmpty : nil,
             titleSubstring: titleMatcherMode == .substring ? titleSubstring.trimmedNonEmpty : nil,
             titleRegex: titleMatcherMode == .regex ? titleRegex.trimmedNonEmpty : nil,
@@ -157,6 +195,12 @@ enum AppRuleDraftValidation {
 
     static func titleRegexError(for pattern: String?) -> String? {
         IPCRuleValidator.invalidRegexMessage(for: pattern?.trimmedNonEmpty)
+    }
+
+    static func applicationSelectorError(bundleId: String, appNameSubstring: String?) -> String? {
+        IPCRuleValidator.validate(
+            IPCRuleDefinition(bundleId: bundleId.trimmedNonEmpty, appNameSubstring: appNameSubstring?.trimmedNonEmpty)
+        ).applicationSelectorError
     }
 }
 

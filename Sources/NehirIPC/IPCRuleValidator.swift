@@ -8,15 +8,17 @@ import Foundation
 
 public struct IPCRuleValidationReport: Equatable, Sendable {
     public let bundleIdError: String?
+    public let applicationSelectorError: String?
     public let invalidRegexMessage: String?
 
-    public init(bundleIdError: String?, invalidRegexMessage: String?) {
+    public init(bundleIdError: String?, applicationSelectorError: String?, invalidRegexMessage: String?) {
         self.bundleIdError = bundleIdError
+        self.applicationSelectorError = applicationSelectorError
         self.invalidRegexMessage = invalidRegexMessage
     }
 
     public var isValid: Bool {
-        bundleIdError == nil && invalidRegexMessage == nil
+        bundleIdError == nil && applicationSelectorError == nil && invalidRegexMessage == nil
     }
 }
 
@@ -25,10 +27,11 @@ public enum IPCRuleValidator {
         pattern: "^[a-zA-Z0-9]+([.-][a-zA-Z0-9]+)*$"
     )
 
-    public static func bundleIdError(for bundleId: String) -> String? {
+    public static func bundleIdError(for bundleId: String?) -> String? {
+        guard let bundleId else { return nil }
         let trimmed = bundleId.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
-            return "Bundle ID is required"
+            return "Invalid bundle ID format"
         }
 
         let range = NSRange(trimmed.startIndex..., in: trimmed)
@@ -52,8 +55,15 @@ public enum IPCRuleValidator {
     }
 
     public static func validate(_ rule: IPCRuleDefinition) -> IPCRuleValidationReport {
-        IPCRuleValidationReport(
+        let bundleId = rule.bundleId?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let appNameSubstring = rule.appNameSubstring?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let applicationSelectorError = bundleId?.isEmpty == false || appNameSubstring?.isEmpty == false
+            ? nil
+            : "Bundle ID or app name is required"
+
+        return IPCRuleValidationReport(
             bundleIdError: bundleIdError(for: rule.bundleId),
+            applicationSelectorError: applicationSelectorError,
             invalidRegexMessage: invalidRegexMessage(for: rule.titleRegex)
         )
     }

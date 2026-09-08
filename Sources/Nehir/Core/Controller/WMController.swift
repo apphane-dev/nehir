@@ -2945,7 +2945,7 @@ final class WMController {
                 axRef,
                 appPolicy: appInfo?.activationPolicy,
                 bundleId: appInfo?.bundleId,
-                includeTitle: windowRuleEngine.requiresTitle(for: appInfo?.bundleId)
+                includeTitle: windowRuleEngine.requiresTitle(for: appInfo?.bundleId, appName: appInfo?.name)
             ),
             sizeConstraints: sizeConstraints,
             windowServer: nil

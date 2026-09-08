@@ -851,7 +851,7 @@ public enum IPCAutomationManifest {
     public static let ruleDefinitionOptionDescriptors: [IPCRuleActionOptionDescriptor] = [
         .init(
             flag: "--bundle-id",
-            summary: "Match windows by application bundle identifier.",
+            summary: "Match windows by application bundle identifier (optional with app name).",
             valuePlaceholder: "<bundle-id>"
         ),
         .init(
@@ -913,17 +913,17 @@ public enum IPCAutomationManifest {
 
     public static let ruleActionDescriptors: [IPCRuleActionDescriptor] = [
         .init(
-            path: "rule add --bundle-id <bundle-id> [options]",
+            path: "rule add [--bundle-id <bundle-id>] [--app-name-substring <text>] [options]",
             name: .add,
             summary: "Append a new persisted user rule.",
-            arguments: ["bundle-id"],
+            arguments: [],
             options: ruleDefinitionOptionDescriptors
         ),
         .init(
-            path: "rule replace <rule-id> --bundle-id <bundle-id> [options]",
+            path: "rule replace <rule-id> [--bundle-id <bundle-id>] [--app-name-substring <text>] [options]",
             name: .replace,
             summary: "Replace a persisted user rule in place.",
-            arguments: ["rule-id", "bundle-id"],
+            arguments: ["rule-id"],
             options: ruleDefinitionOptionDescriptors
         ),
         .init(

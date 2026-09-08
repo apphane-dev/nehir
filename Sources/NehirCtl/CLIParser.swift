@@ -321,13 +321,13 @@ enum CLIParser {
 
         switch action {
         case .add:
-            let rule = try parseRuleDefinition(arguments: Array(arguments.dropFirst()), requireBundleId: true)
+            let rule = try parseRuleDefinition(arguments: Array(arguments.dropFirst()))
             return IPCRequest(id: id, rule: .add(rule: rule))
         case .replace:
             guard arguments.count >= 2, UUID(uuidString: arguments[1]) != nil else {
                 throw CLIParseError.usage(usageText)
             }
-            let rule = try parseRuleDefinition(arguments: Array(arguments.dropFirst(2)), requireBundleId: true)
+            let rule = try parseRuleDefinition(arguments: Array(arguments.dropFirst(2)))
             return IPCRequest(id: id, rule: .replace(id: arguments[1], rule: rule))
         case .remove:
             guard arguments.count == 2, UUID(uuidString: arguments[1]) != nil else {
@@ -350,7 +350,7 @@ enum CLIParser {
         }
     }
 
-    private static func parseRuleDefinition(arguments: [String], requireBundleId: Bool) throws -> IPCRuleDefinition {
+    private static func parseRuleDefinition(arguments: [String]) throws -> IPCRuleDefinition {
         var bundleId: String?
         var appNameSubstring: String?
         var titleSubstring: String?
@@ -415,12 +415,8 @@ enum CLIParser {
             index += 2
         }
 
-        guard !requireBundleId || bundleId != nil else {
-            throw CLIParseError.usage(usageText)
-        }
-
         let definition = IPCRuleDefinition(
-            bundleId: bundleId ?? "",
+            bundleId: bundleId,
             appNameSubstring: appNameSubstring,
             titleSubstring: titleSubstring,
             titleRegex: titleRegex,

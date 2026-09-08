@@ -31,7 +31,7 @@ enum IPCRuleProjection {
         let definition = definition(from: rule)
         let validation = IPCRuleValidator.validate(definition)
         let invalidRegexMessage = invalidRegexMessagesByRuleId[rule.id] ?? validation.invalidRegexMessage
-        let isValid = validation.bundleIdError == nil && invalidRegexMessage == nil
+        let isValid = validation.isValid && invalidRegexMessage == nil
 
         return IPCRuleSnapshot(
             id: rule.id.uuidString,
@@ -94,7 +94,7 @@ enum IPCRuleProjection {
 
     private static func normalized(_ definition: IPCRuleDefinition) -> IPCRuleDefinition {
         IPCRuleDefinition(
-            bundleId: definition.bundleId.trimmingCharacters(in: .whitespacesAndNewlines),
+            bundleId: definition.bundleId?.trimmedNonEmpty,
             appNameSubstring: definition.appNameSubstring?.trimmedNonEmpty,
             titleSubstring: definition.titleSubstring?.trimmedNonEmpty,
             titleRegex: definition.titleRegex?.trimmedNonEmpty,

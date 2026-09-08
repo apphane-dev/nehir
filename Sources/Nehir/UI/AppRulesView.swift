@@ -8,7 +8,7 @@ import SwiftUI
 
 struct RunningAppInfo: Identifiable {
     let id: String
-    let bundleId: String
+    let bundleId: String?
     let appName: String
     let icon: NSImage?
     let windowSize: CGSize
@@ -141,7 +141,7 @@ struct AppRulesView: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: { rule in
-            Text("Delete the rule for \(rule.bundleId)?")
+            Text("Delete the rule for \(rule.bundleId ?? rule.appNameSubstring ?? "this app")?")
         }
         .onAppear {
             consumePendingAppRuleDraft()
@@ -235,7 +235,7 @@ struct AppRuleSidebarRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(rule.bundleId)
+            Text(rule.bundleId ?? rule.appNameSubstring ?? "Unscoped rule")
                 .font(.system(.body, design: .monospaced))
                 .lineLimit(1)
 
@@ -335,9 +335,14 @@ struct AppRuleDetailView: View {
         Form {
             Section("Application") {
                 LabeledContent("Bundle ID") {
-                    Text(draft.bundleId)
+                    Text(draft.bundleId.isEmpty ? "No bundle ID" : draft.bundleId)
                         .font(.system(.body, design: .monospaced))
                         .foregroundStyle(.secondary)
+                }
+                if let error = applicationSelectorError {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundStyle(.red)
                 }
             }
 
@@ -432,6 +437,11 @@ struct AppRuleDetailView: View {
         }
         .formStyle(.grouped)
         .onChange(of: draft) { _, newValue in
+            guard newValue.applicationSelectorError == nil,
+                  AppRuleDraftValidation.titleRegexError(
+                      for: newValue.titleMatcherMode == .regex ? newValue.titleRegex : nil
+                  ) == nil
+            else { return }
             rule = newValue.makeRule(id: rule.id)
             controller.updateAppRules()
         }
@@ -445,6 +455,10 @@ struct AppRuleDetailView: View {
         guard draft.titleMatcherMode == .regex else { return nil }
         return controller.windowRuleEngine.invalidRegexMessagesByRuleId[rule.id]
             ?? AppRuleDraftValidation.titleRegexError(for: draft.titleRegex)
+    }
+
+    private var applicationSelectorError: String? {
+        draft.applicationSelectorError
     }
 
     private func seedWorkspaceIfNeeded() {
@@ -465,6 +479,7 @@ struct AppRuleAddPane: View {
     @State private var isPickerExpanded = true
     @State private var isAdvancedMatchersExpanded: Bool
     @State private var selectedAppInfo: RunningAppInfo?
+    @State private var hasInteractedWithApplicationSelector = false
 
     init(
         initialDraft: AppRuleDraft,
@@ -485,9 +500,14 @@ struct AppRuleAddPane: View {
         VStack(spacing: 0) {
             Form {
                 Section("Application") {
-                    TextField("Bundle ID", text: $draft.bundleId)
+                    TextField("Bundle ID (optional with app name)", text: $draft.bundleId)
                         .textFieldStyle(.roundedBorder)
                     if let error = bundleIdError {
+                        Text(error)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
+                    if let error = displayedApplicationSelectorError {
                         Text(error)
                             .font(.caption)
                             .foregroundStyle(.red)
@@ -504,7 +524,10 @@ struct AppRuleAddPane: View {
                                     ForEach(runningApps) { app in
                                         RunningAppRow(
                                             app: app,
-                                            isSelected: draft.bundleId == app.bundleId,
+                                            isSelected: app.bundleId.map { draft.bundleId == $0 }
+                                                ?? (draft.bundleId.isEmpty &&
+                                                    draft.appNameMatcherEnabled &&
+                                                    draft.appNameSubstring == app.appName),
                                             onSelect: { selectApp(app) }
                                         )
                                     }
@@ -533,9 +556,9 @@ struct AppRuleAddPane: View {
                         .buttonStyle(.bordered)
                     }
 
-                    Text("Examples: com.apple.finder or dentalplus-air")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    SettingsCaption(
+                        "Use accepted bundle IDs such as com.apple.Safari or dentalplus-air. App Name Contains can stand alone for apps without a bundle ID, or refine a bundled app."
+                    )
                 }
 
                 Section("Window Behavior") {
@@ -642,6 +665,15 @@ struct AppRuleAddPane: View {
                 }
             }
             .formStyle(.grouped)
+            .onChange(of: draft.bundleId) { _, _ in
+                hasInteractedWithApplicationSelector = true
+            }
+            .onChange(of: draft.appNameMatcherEnabled) { _, _ in
+                hasInteractedWithApplicationSelector = true
+            }
+            .onChange(of: draft.appNameSubstring) { _, _ in
+                hasInteractedWithApplicationSelector = true
+            }
         }
     }
 
@@ -659,11 +691,18 @@ struct AppRuleAddPane: View {
     }
 
     private var isValid: Bool {
-        let trimmedBundleId = draft.bundleId.trimmingCharacters(in: .whitespacesAndNewlines)
-        return !trimmedBundleId.isEmpty &&
-            bundleIdError == nil &&
+        return bundleIdError == nil &&
+            applicationSelectorError == nil &&
             titleRegexError == nil &&
             draft.hasAnyRule
+    }
+
+    private var applicationSelectorError: String? {
+        draft.applicationSelectorError
+    }
+
+    private var displayedApplicationSelectorError: String? {
+        hasInteractedWithApplicationSelector ? applicationSelectorError : nil
     }
 
     private func seedWorkspaceIfNeeded() {
@@ -673,7 +712,10 @@ struct AppRuleAddPane: View {
     }
 
     private func selectApp(_ app: RunningAppInfo) {
-        draft.bundleId = app.bundleId
+        draft.applyRunningAppSelection(bundleId: app.bundleId, appName: app.appName)
+        if app.bundleId == nil {
+            isAdvancedMatchersExpanded = true
+        }
         selectedAppInfo = app
         isPickerExpanded = false
     }
@@ -696,10 +738,16 @@ struct AdvancedMatchersEditor: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            Toggle("App Name Contains", isOn: $draft.appNameMatcherEnabled)
+            Toggle("App Name Contains", isOn: appNameMatcherEnabledBinding)
+                .disabled(draft.appNameMatcherIsRequired)
             if draft.appNameMatcherEnabled {
-                TextField("e.g. Preview", text: $draft.appNameSubstring)
+                TextField("e.g. Preview", text: appNameSubstringBinding)
                     .textFieldStyle(.roundedBorder)
+                if draft.appNameMatcherIsRequired {
+                    Text("This is the rule's only application selector and cannot be disabled.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             Picker("Title Match", selection: $draft.titleMatcherMode) {
@@ -740,6 +788,26 @@ struct AdvancedMatchersEditor: View {
             }
         }
         .padding(.vertical, 4)
+    }
+
+    private var appNameMatcherEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { draft.appNameMatcherEnabled },
+            set: {
+                draft.generatedAppNameSeed = nil
+                draft.appNameMatcherEnabled = $0
+            }
+        )
+    }
+
+    private var appNameSubstringBinding: Binding<String> {
+        Binding(
+            get: { draft.appNameSubstring },
+            set: {
+                draft.generatedAppNameSeed = nil
+                draft.appNameSubstring = $0
+            }
+        )
     }
 }
 
@@ -836,7 +904,7 @@ struct RunningAppRow: View {
                     Text(app.appName)
                         .font(.body)
                         .foregroundStyle(.primary)
-                    Text(app.bundleId)
+                    Text(app.bundleId ?? "No bundle ID")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

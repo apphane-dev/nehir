@@ -1577,7 +1577,7 @@ public struct IPCQueryRequest: Codable, Equatable, Sendable {
 }
 
 public struct IPCRuleDefinition: Codable, Equatable, Sendable {
-    public let bundleId: String
+    public let bundleId: String?
     public let appNameSubstring: String?
     public let titleSubstring: String?
     public let titleRegex: String?
@@ -1591,7 +1591,7 @@ public struct IPCRuleDefinition: Codable, Equatable, Sendable {
     public let sticky: Bool?
 
     public init(
-        bundleId: String,
+        bundleId: String? = nil,
         appNameSubstring: String? = nil,
         titleSubstring: String? = nil,
         titleRegex: String? = nil,
@@ -2176,11 +2176,11 @@ public struct IPCFocusedMonitorQueryResult: Codable, Equatable, Sendable {
 }
 
 public struct IPCManagedAppSummary: Codable, Equatable, Sendable {
-    public let bundleId: String
+    public let bundleId: String?
     public let appName: String
     public let windowSize: IPCSize
 
-    public init(bundleId: String, appName: String, windowSize: IPCSize) {
+    public init(bundleId: String?, appName: String, windowSize: IPCSize) {
         self.bundleId = bundleId
         self.appName = appName
         self.windowSize = windowSize
@@ -2397,7 +2397,7 @@ public struct IPCRuleActionsQueryResult: Codable, Equatable, Sendable {
 public struct IPCRuleSnapshot: Codable, Equatable, Sendable {
     public let id: String
     public let position: Int
-    public let bundleId: String
+    public let bundleId: String?
     public let appNameSubstring: String?
     public let titleSubstring: String?
     public let titleRegex: String?
@@ -2416,7 +2416,7 @@ public struct IPCRuleSnapshot: Codable, Equatable, Sendable {
     public init(
         id: String,
         position: Int,
-        bundleId: String,
+        bundleId: String? = nil,
         appNameSubstring: String? = nil,
         titleSubstring: String? = nil,
         titleRegex: String? = nil,
