@@ -8,6 +8,9 @@ A scrolling tiling window manager for macOS, built on the Niri column layout par
 
 > **Nehir** (Turkish for "river") — windows flow in columns, scrolling horizontally across your screen.
 
+> [!IMPORTANT]
+> Nehir is not actively developed right now, and its future is undecided. The latest builds are 0.5.1 (stable, June 2026) and 0.6.0-rc.44 (release candidate, August 2026). The maintainer now contributes to [OmniWM](https://github.com/OmniNull/OmniWM), the project Nehir forked from. If you still rely on Nehir, say so in the [status update](https://github.com/apphane-dev/nehir/discussions/214).
+
 ## Features
 
 - **Niri scrolling column layout** — windows arranged in columns that scroll horizontally, with automatic overflow tabbing when stacked windows cannot fit at their minimum heights
@@ -26,7 +29,7 @@ A scrolling tiling window manager for macOS, built on the Niri column layout par
 
 ### Homebrew
 
-After the first release is published, Nehir can be distributed from the `guria/tap` Homebrew tap:
+Nehir is distributed from the `guria/tap` Homebrew tap:
 
 ```bash
 brew tap guria/tap
