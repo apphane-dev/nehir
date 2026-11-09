@@ -5,6 +5,7 @@ import CopyCommand from "../components/CopyCommand.astro";
 
 const GITHUB = "https://github.com/guria/nehir";
 const DOCS = "https://github.com/guria/nehir/tree/main/docs";
+const STATUS = "https://github.com/apphane-dev/nehir/discussions/214";
 
 const features = [
   {
@@ -72,6 +73,10 @@ const faqs = [
   <!-- ================= HERO ================= -->
   <section class="hero">
     <div class="wrap">
+      <a class="status-note mono" href={STATUS} rel="noopener">
+        <span class="status-dot" aria-hidden="true"></span>
+        Not actively developed right now · Read the status update ↗
+      </a>
       <p class="eyebrow">Niri-style window management for macOS</p>
       <h1 class="hero-title">
         Let your windows<br /><span class="grad-text">flow.</span>
@@ -350,7 +355,7 @@ const faqs = [
           <div><dt>macOS</dt><dd>26.0 (Tahoe)</dd></div>
           <div><dt>Permission</dt><dd>Accessibility, granted once</dd></div>
           <div><dt>Delivery</dt><dd>Signed, notarized, Homebrew tap</dd></div>
-          <div><dt>Status</dt><dd><span class="pill">Pre-1.0 · active</span></dd></div>
+          <div><dt>Status</dt><dd><a class="pill pill-hold" href={STATUS} rel="noopener">Pre-1.0 · on hold</a></dd></div>
           <div><dt>License</dt><dd>GPL-2.0-only</dd></div>
         </dl>
         <p class="req-src">
@@ -445,6 +450,16 @@ const faqs = [
 
   /* ---------- hero ---------- */
   .hero { padding-top: clamp(3rem, 8vw, 5.5rem); padding-bottom: clamp(3rem, 7vw, 5rem); }
+  .status-note {
+    display: inline-flex; align-items: center; gap: 0.55rem;
+    margin-bottom: 1.6rem; padding: 0.45rem 0.9rem;
+    border: 1px solid var(--line-strong); border-radius: 999px;
+    background: var(--surface); color: var(--muted);
+    font-size: 0.78rem; text-decoration: none;
+    transition: color 0.2s, border-color 0.2s;
+  }
+  .status-note:hover { color: var(--text); border-color: rgba(155, 84, 240, 0.5); }
+  .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--violet); flex: none; }
   .hero-title {
     font-size: clamp(3rem, 10vw, 6.5rem);
     font-weight: 700;
@@ -571,6 +586,8 @@ const faqs = [
   .req-list dd { margin: 0; text-align: right; color: var(--text); font-size: 0.92rem; }
   .pill { font-family: var(--mono); font-size: 0.72rem; color: var(--cyan); border: 1px solid rgba(51,217,242,0.35);
     padding: 0.15rem 0.5rem; border-radius: 20px; }
+  .pill-hold { color: var(--violet); border-color: rgba(155, 84, 240, 0.45); text-decoration: none; }
+  .pill-hold:hover { color: var(--text); }
   .req-src { margin: 1.2rem 0 0; font-size: 0.85rem; color: var(--muted); }
   .req-src a { color: var(--cyan); }
 
